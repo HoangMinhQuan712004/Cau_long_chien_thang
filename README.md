@@ -1,0 +1,127 @@
+# Sân Cầu Lông – Quản lý & đặt sân
+
+Modular monolith: **FastAPI** (backend) + **Next.js 16** (frontend), PostgreSQL, Redis.
+
+```
+project_caulong/
+├── backend/                 FastAPI, chia module theo domain
+│   ├── app/core/            config, db, security, event bus nội bộ
+│   ├── app/modules/
+│   │   ├── auth/            user, role (admin/staff/customer), JWT cookie
+│   │   ├── courts/          sân, bảng giá theo khung giờ, PriceCalculator
+│   │   ├── bookings/        đặt sân, chống trùng lịch, lịch trống
+│   │   ├── payments/        ghi nhận thanh toán (cổng online: TODO)
+│   │   ├── notifications/   lắng nghe event (email/Zalo: TODO)
+│   │   └── content/         bài viết phục vụ SEO
+│   ├── app/workers/         ARQ: tự hủy đơn giữ chỗ quá hạn
+│   ├── alembic/             migration
+│   └── tests/
+├── frontend/                Next.js App Router (Cache Components)
+│   └── src/
+│       ├── app/(public)/    trang SEO: /, /dat-san, /bang-gia, /tin-tuc, tài khoản
+│       ├── app/admin/       dashboard chủ sân / nhân viên (noindex)
+│       ├── app/sitemap.ts, robots.ts
+│       ├── lib/api/         client sinh từ OpenAPI (server.ts / client.ts)
+│       └── proxy.ts         chặn sớm /admin, /tai-khoan khi chưa đăng nhập
+└── docker-compose.yml
+```
+
+## Chạy dev
+
+```bash
+# 1. DB + Redis  (đổi cổng trong .env ở thư mục gốc nếu bị trùng, xem .env.example)
+docker compose up -d db redis
+
+# 2. Backend
+cd backend
+cp .env.example .env            # sửa SECRET_KEY, DATABASE_URL nếu đổi cổng
+python -m venv .venv && .venv/Scripts/activate   # Linux/macOS: source .venv/bin/activate
+pip install -e ".[dev]"
+alembic upgrade head
+python -m app.scripts.seed       # admin + 4 sân + bảng giá mẫu
+uvicorn app.main:app --reload    # http://localhost:8000/docs
+arq app.workers.worker.WorkerSettings   # terminal khác: worker hủy đơn quá hạn
+
+# 3. Frontend
+cd frontend
+cp .env.example .env.local
+npm install
+npm run dev                      # http://localhost:3000
+```
+
+Tài khoản chủ sân mặc định: `admin@example.com` / `admin12345` (đổi trong `backend/.env`).
+
+Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
+
+## Lệnh thường dùng
+
+| Việc | Lệnh |
+|---|---|
+| Test backend | `cd backend && pytest` (tự dùng DB `<tên db>_test`, cần tạo trước) |
+| Lint backend | `ruff check . && ruff format .` |
+| Tạo migration | `alembic revision --autogenerate -m "mô tả"` → **đọc lại file sinh ra** |
+| Sinh type API cho FE | `cd frontend && npm run gen:api` (backend phải đang chạy) |
+| Lint / build FE | `npm run lint` / `npm run build` |
+
+## CI/CD (GitHub Actions)
+
+**CI** – [.github/workflows/ci.yml](.github/workflows/ci.yml), chạy trên mọi PR và push lên `main`:
+
+| Job | Kiểm tra |
+|---|---|
+| Backend | ruff lint + format, `alembic upgrade head` trên DB mới, `alembic check` (model ↔ migration), downgrade → upgrade, pytest với Postgres thật |
+| Frontend | ESLint, `next build` (gồm TypeScript) |
+| API contract | Sinh lại `schema.d.ts` từ OpenAPI của backend, fail nếu lệch → nhắc chạy `npm run gen:api` |
+
+**CD** – [.github/workflows/cd.yml](.github/workflows/cd.yml), chỉ chạy khi CI trên `main` xanh (hoặc chạy tay):
+
+1. Build & push image lên GHCR: `ghcr.io/<owner>/<repo>-api` và `-web`, tag = commit SHA + `latest`.
+2. Deploy qua SSH (**tắt mặc định**): copy [deploy/docker-compose.prod.yml](deploy/docker-compose.prod.yml) lên server,
+   `docker compose pull && up -d`. Migration tự chạy khi container `api` khởi động.
+
+### Bật deploy
+
+1. Server (VPS) cài Docker; tạo thư mục, vd `/opt/caulong`, đặt file `.env` theo [deploy/.env.example](deploy/.env.example).
+2. Đặt reverse proxy có HTTPS (Caddy/Nginx) trỏ domain → `127.0.0.1:3000`.
+3. GitHub repo → Settings → Environments → tạo `production`, thêm:
+   - **Secrets**: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` (private key), `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan <host>`)
+   - **Variables** (repo): `DEPLOY_ENABLED=true`, `SITE_URL=https://your-domain.vn`, `DEPLOY_PATH=/opt/caulong`
+4. Lần deploy đầu, tạo tài khoản chủ sân: `docker compose exec api python -m app.scripts.seed`.
+
+`SITE_URL` được build vào image web (canonical, sitemap) – đổi domain thì chạy lại CD.
+
+## Quyết định thiết kế quan trọng
+
+**Chống đặt trùng ở tầng DB.** `booking_slots` có exclusion constraint
+`EXCLUDE USING gist (court_id WITH =, time_range WITH &&) WHERE (is_active)`.
+Hai request đồng thời đặt cùng giờ → chỉ một request thành công, request còn lại nhận 409.
+Range là `[start, end)` nên 18h–19h và 19h–20h không tính là trùng.
+
+**Luồng đơn.** Khách đặt online → `pending`, giữ chỗ `HOLD_MINUTES` phút → thanh toán →
+`confirmed`. Worker chuyển đơn quá hạn sang `expired` và giải phóng slot.
+Nhân viên đặt tại quầy có thể xác nhận ngay hoặc giữ chỗ không thời hạn.
+
+**Module giao tiếp qua service + event.** Module không query bảng của module khác;
+`bookings` gọi `courts.service`, phát event `booking.confirmed` cho `notifications`.
+Khi cần tách service chỉ cần thay `app/core/events.py` bằng message broker.
+
+**Auth.** JWT trong cookie httpOnly (access 30 phút, refresh 14 ngày, path `/api/v1/auth`).
+Trình duyệt gọi `/api/v1/*` cùng domain, Next rewrite sang FastAPI → không cần CORS.
+Client tự gọi `/auth/refresh` khi gặp 401; trang đăng nhập tự khôi phục phiên nếu refresh còn hạn.
+
+**SEO.** Trang public prerender tĩnh, dữ liệu qua `'use cache'` + `cacheLife` (tự làm mới).
+Mỗi trang tự khai báo `alternates.canonical`; JSON-LD `SportsActivityLocation` (trang chủ),
+`Article` (bài viết); `sitemap.xml`, `robots.txt` sinh động. Trang cá nhân/admin `noindex`
+và đọc cookie bên trong `<Suspense>` (yêu cầu của Cache Components).
+
+**Giờ giấc.** Mọi thời điểm lưu `timestamptz`; nghiệp vụ (giờ mở cửa, bảng giá theo thứ)
+tính theo `TIMEZONE=Asia/Ho_Chi_Minh`.
+
+## Việc tiếp theo gợi ý
+
+- Tích hợp cổng thanh toán (PayOS/VNPay/MoMo) trong `payments/service.py`: xác thực chữ ký webhook, idempotent theo `provider_ref`.
+- Đặt lịch cố định hằng tuần (RecurringBooking).
+- Form CRUD sân / bảng giá / bài viết trong `/admin`.
+- Gọi `revalidateTag("posts")` (qua route handler có secret) khi admin đăng bài để sitemap/tin tức cập nhật ngay.
+- Gửi thông báo email / Zalo ZNS từ `notifications/handlers.py` qua worker.
+- Upload ảnh lên S3/R2, rate limit đăng nhập (Redis), Sentry.

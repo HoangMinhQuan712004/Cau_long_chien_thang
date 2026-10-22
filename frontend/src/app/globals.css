@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+/* Màu sân cầu: xanh thảm + vàng quả cầu */
+:root {
+  --background: #f6f8f6;
+  --surface: #ffffff;
+  --foreground: #14201a;
+  --muted: #5b6b62;
+  --border: #dde5df;
+  --primary: #13744a;
+  --primary-fg: #ffffff;
+  --accent: #f2b705;
+  --free: #e8f3ec;
+  --busy: #e6e8e7;
+  --danger: #b42318;
+  --success: #13744a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0e1411;
+    --surface: #161e19;
+    --foreground: #e7eee9;
+    --muted: #93a39a;
+    --border: #2a352e;
+    --primary: #3fb67d;
+    --primary-fg: #06120c;
+    --accent: #f5c84a;
+    --free: #1b2a21;
+    --busy: #252b27;
+    --danger: #f97066;
+    --success: #3fb67d;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-accent: var(--accent);
+  --color-free: var(--free);
+  --color-busy: var(--busy);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --font-sans: var(--font-be-vietnam), ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}

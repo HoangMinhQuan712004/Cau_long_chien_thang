@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (lint, migrations, tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: caulong
+          POSTGRES_PASSWORD: caulong
+          POSTGRES_DB: caulong
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U caulong"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://caulong:caulong@localhost:5432/caulong
+      # Test chạy trên DB riêng (conftest tự drop/create bảng)
+      TEST_DATABASE_URL: postgresql+asyncpg://caulong:caulong@localhost:5432/postgres
+      SECRET_KEY: ci-only-secret-key-0123456789abcdefghijklmnop
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format
+        run: ruff format --check .
+
+      - name: Migrations apply on a fresh database
+        run: alembic upgrade head
+
+      - name: Models and migrations are in sync
+        run: alembic check
+
+      - name: Migrations roundtrip (downgrade -> upgrade)
+        run: alembic downgrade base && alembic upgrade head
+
+      - name: Tests
+        run: pytest
+
+  frontend:
+    name: Frontend (lint, typecheck, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      # Không có backend khi build: các trang dùng dữ liệu fallback, chỉ cần build thành công
+      BACKEND_URL: http://127.0.0.1:59999
+      NEXT_PUBLIC_SITE_URL: https://example.com
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Build (bao gồm TypeScript check)
+        run: npm run build
+
+  api-contract:
+    name: API types in sync with backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Export OpenAPI from backend
+        working-directory: backend
+        run: |
+          pip install -e .
+          python -m app.scripts.export_openapi > ../frontend/openapi.json
+
+      - name: Regenerate TypeScript types and diff
+        working-directory: frontend
+        env:
+          API_SCHEMA_URL: openapi.json
+        run: |
+          npm ci
+          npm run gen:api
+          if ! git diff --exit-code -- src/lib/api/schema.d.ts; then
+            echo "::error::schema.d.ts lệch với backend. Chạy 'npm run gen:api' (backend đang chạy) rồi commit lại."
+            exit 1
+          fi
