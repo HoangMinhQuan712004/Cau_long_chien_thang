@@ -11,7 +11,8 @@ ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ENV BACKEND_URL=$BACKEND_URL NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+# public/ có thể trống (git không lưu thư mục rỗng) nhưng runner cần COPY nó
+RUN mkdir -p public && npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app
