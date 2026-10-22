@@ -28,6 +28,8 @@ project_caulong/
 
 ## Chạy dev
 
+Yêu cầu: **Python 3.15**, **Node.js 26** (LTS), Docker. CI và image production dùng đúng các bản này.
+
 ```bash
 # 1. DB + Redis  (đổi cổng trong .env ở thư mục gốc nếu bị trùng, xem .env.example)
 docker compose up -d db redis

@@ -1,9 +1,9 @@
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 # rewrites /api/v1 được tính lúc build -> cần BACKEND_URL ở bước này
 ARG BACKEND_URL=http://api:8000
@@ -14,7 +14,7 @@ COPY . .
 # public/ có thể trống (git không lưu thư mục rỗng) nhưng runner cần COPY nó
 RUN mkdir -p public && npm run build
 
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /app/.next/standalone ./
