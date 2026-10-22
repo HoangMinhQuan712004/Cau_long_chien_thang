@@ -5,7 +5,13 @@ description = "API quản lý & đặt sân cầu lông"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
+    # Không dùng uvicorn[standard]: extra đó kéo theo pyyaml (dự án không dùng),
+    # gói chưa có wheel Windows cho Python 3.15 -> cần MSVC để build.
+    "uvicorn>=0.30",
+    "uvloop>=0.21; sys_platform != 'win32'",
+    "httptools>=0.6",
+    "watchfiles>=0.22",  # uvicorn --reload
+    "colorama>=0.4; sys_platform == 'win32'",
     "sqlalchemy[asyncio]>=2.0.30",
     "asyncpg>=0.30",
     "alembic>=1.13",
