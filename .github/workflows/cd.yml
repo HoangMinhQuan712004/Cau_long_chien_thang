@@ -102,9 +102,12 @@ jobs:
 
           scp -i ~/.ssh/id_deploy -o BatchMode=yes deploy/docker-compose.prod.yml "$TARGET:$DEPLOY_PATH/docker-compose.yml"
           printf '%s' "$GHCR_TOKEN" | $SSH "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+          # Ghi tag đang chạy vào .env để `docker compose up -d` chạy tay trên server dùng đúng image
           $SSH "cd '$DEPLOY_PATH' \
             && export IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$SHA' \
             && docker compose pull api worker web \
+            && sed -i '/^IMAGE_PREFIX=/d;/^IMAGE_TAG=/d' .env \
+            && printf 'IMAGE_PREFIX=%s\nIMAGE_TAG=%s\n' \"\$IMAGE_PREFIX\" \"\$IMAGE_TAG\" >> .env \
             && docker compose up -d --remove-orphans \
             && docker image prune -f"
 

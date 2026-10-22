@@ -90,6 +90,19 @@ Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
 
 `SITE_URL` được build vào image web (canonical, sitemap) – đổi domain thì chạy lại CD.
 
+### Đổi domain (một lệnh)
+
+1. Ở nhà cung cấp domain tạo bản ghi `A @ → <IP VPS>` (và `A www → <IP VPS>`), đợi DNS cập nhật.
+2. Chạy từ máy có SSH key vào server + `gh` đã đăng nhập:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File deploy\set-domain.ps1 -Domain tenmiencuaban.com
+   ```
+
+Script kiểm tra DNS → cấu hình Caddy (HTTPS, `www` và địa chỉ `sslip.io` cũ redirect 301 về domain chính)
+→ cập nhật `CORS_ORIGINS` trên server và `SITE_URL` trên GitHub → chạy CD → kiểm tra canonical trên site thật.
+Caddyfile cũ được backup tại `/etc/caddy/Caddyfile.bak.*`.
+
 ## Quyết định thiết kế quan trọng
 
 **Chống đặt trùng ở tầng DB.** `booking_slots` có exclusion constraint
