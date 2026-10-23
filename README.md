@@ -92,6 +92,26 @@ Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
 
 `SITE_URL` được build vào image web (canonical, sitemap) – đổi domain thì chạy lại CD.
 
+## Làm việc với 6 session Claude
+
+Dự án chia cho 6 session Claude Code chạy song song, mỗi session một vai, một git worktree, DB và cổng riêng:
+ARCHITECT (opus), BACKEND (opus), FRONTEND, QA, DOCS-STEWARD, RELEASE-INTEGRATION (sonnet).
+
+| File | Nội dung |
+|---|---|
+| [CLAUDE.md](CLAUDE.md) | Nghiệp vụ và kiến trúc – mọi session đều đọc |
+| [.claude/team/PROTOCOL.md](.claude/team/PROTOCOL.md) | Quyền sở hữu file, bảng điều phối, tin nhắn, vòng đời task, git |
+| [.claude/agents/](.claude/agents/) | Prompt vai của từng session (nạp bằng `claude --agent <vai>`) |
+| [.claude/team/setup-team.ps1](.claude/team/setup-team.ps1) | Tạo worktree, bảng điều phối, DB, env, venv, node_modules |
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .claude\team\setup-team.ps1   # chạy một lần (thêm -DryRun để xem trước)
+```
+
+Script in ra 6 lệnh khởi động, mỗi terminal chạy một lệnh, ví dụ:
+`cd E:\caulong-team\backend; claude --agent backend --model opus -n BACKEND --add-dir E:\caulong-team\board`.
+Giao việc mới: nói với session **ARCHITECT**. Muốn session khác đọc tin nhắn: gõ `check inbox` trong session đó.
+
 ## Quyết định thiết kế quan trọng
 
 **Chống đặt trùng ở tầng DB.** `booking_slots` có exclusion constraint
