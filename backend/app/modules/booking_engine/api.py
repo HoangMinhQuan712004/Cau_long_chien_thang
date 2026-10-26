@@ -29,6 +29,7 @@ from app.modules.booking_engine.dto import (
     ItemOut,
     PriceTable,
     PriceTableUpdate,
+    PublicPrices,
     QuoteIn,
     QuoteOut,
     ResourceCreate,
@@ -93,6 +94,11 @@ async def update_price_table(
     session: AsyncSession, actor: Actor, data: PriceTableUpdate, *, tenant_id: int | None = None
 ) -> PriceTable:
     return await config_service.update_price_table(session, _tid(tenant_id), actor, data)
+
+
+async def public_prices(session: AsyncSession, *, tenant_id: int | None = None) -> PublicPrices:
+    """Bảng giá rút gọn cho trang public (không cần đăng nhập)."""
+    return await config_service.public_prices(session, _tid(tenant_id))
 
 
 # ---- Ngày Lễ / Tết

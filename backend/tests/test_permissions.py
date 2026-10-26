@@ -51,9 +51,14 @@ async def _call(client, path: str, method: str):
     return await client.request(method, url, json={}, headers=idem())
 
 
+# Route công khai có chủ đích (không cần đăng nhập)
+PUBLIC_ROUTES = {"/api/v1/booking/prices/public"}
+
+
 def test_every_booking_route_declares_a_permission():
-    booking = [(p, r) for p, r in ROUTES if p.startswith("/api/v1/booking/")]
-    assert len(booking) >= 9
+    prefixes = ("/api/v1/booking/", "/api/v1/front-desk/", "/api/v1/members/")
+    booking = [(p, r) for p, r in ROUTES if p.startswith(prefixes) and p not in PUBLIC_ROUTES]
+    assert len(booking) >= 20
     missing = [p for p, r in booking if not _required_perms(r)]
     assert missing == []
 
