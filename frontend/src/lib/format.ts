@@ -26,3 +26,12 @@ export const BOOKING_STATUS_LABEL: Record<string, string> = {
   cancelled: "Đã hủy",
   expired: "Hết hạn giữ chỗ",
 };
+
+/** Số có dấu chấm ngăn cách hàng nghìn (không kèm ký hiệu tiền), vd 150.000. */
+export const formatNumber = (n: number) => new Intl.NumberFormat("vi-VN").format(n);
+
+/** "2026-02-16" -> "16/02". Cắt chuỗi, không qua Date nên không lệch múi giờ. */
+export const formatDayMonth = (isoDate: string) => `${isoDate.slice(8, 10)}/${isoDate.slice(5, 7)}`;
+
+/** "2026-02-16" -> "16/02/2026". */
+export const formatDayMonthYear = (isoDate: string) => `${formatDayMonth(isoDate)}/${isoDate.slice(0, 4)}`;
