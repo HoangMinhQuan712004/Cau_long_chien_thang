@@ -1,11 +1,8 @@
-import { getPublicPrices } from "@/lib/api/server";
+import { Suspense } from "react";
+import { openingText, WithPublicPrices } from "@/components/public-prices";
 import { fullAddress, phoneHref, site } from "@/lib/site";
 
-export async function SiteFooter() {
-  // Giờ mở cửa lấy từ booking engine (một nguồn sự thật); chưa có sân hoạt động → ẩn mục này.
-  const hours = (await getPublicPrices())?.opening_hours;
-  const open = hours?.earliest_open?.slice(0, 5);
-  const close = hours?.latest_close?.slice(0, 5);
+export function SiteFooter() {
   return (
     <footer className="mt-16 border-t border-border bg-surface">
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 text-sm sm:grid-cols-3">
@@ -21,14 +18,19 @@ export async function SiteFooter() {
             Email: <a href={`mailto:${site.email}`}>{site.email}</a>
           </p>
         </div>
-        {open && close ? (
-          <div>
-            <p className="font-semibold">Giờ mở cửa</p>
-            <p className="mt-2 text-muted">
-              Hằng ngày {open} – {close}
-            </p>
-          </div>
-        ) : null}
+        {/* Giờ mở cửa lấy từ booking engine lúc chạy (một nguồn sự thật); chưa có dữ liệu → ẩn cả mục, không in số tĩnh. */}
+        <Suspense fallback={null}>
+          <WithPublicPrices>
+            {(data) =>
+              openingText(data) ? (
+                <div>
+                  <p className="font-semibold">Giờ mở cửa</p>
+                  <p className="mt-2 text-muted">Hằng ngày {openingText(data)}</p>
+                </div>
+              ) : null
+            }
+          </WithPublicPrices>
+        </Suspense>
       </div>
     </footer>
   );
