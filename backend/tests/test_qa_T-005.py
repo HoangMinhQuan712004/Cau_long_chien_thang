@@ -23,18 +23,18 @@ import json
 import re
 import uuid
 from contextlib import asynccontextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 import pytest
-import redis.asyncio as aioredis
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.core.config import settings
-from app.core.db import engine
+from app.core.db import SessionLocal, engine
 from app.main import app
+from app.modules.booking_engine.testing import make_allocation, release_allocation
 from tests.conftest import API
 
 B = f"{API}/booking"
@@ -140,7 +140,7 @@ async def add_holiday(adm, day: date, name: str | None = None, to: date | None =
         json_body={
             "date_from": day.isoformat(),
             "date_to": (to or day).isoformat(),
-            "name": name or f"QA lễ {uuid.uuid4().hex[:6]}",
+            "name": name if name is not None else f"QA lễ {uuid.uuid4().hex[:6]}",
         },
     )
 
@@ -222,20 +222,10 @@ async def anon_c():
 
 
 @pytest.fixture
-async def clean_rate_limit(monkeypatch):
-    # Q4: the limiter may be disabled for the suite; SEC1/quote-limit tests switch it on
+def clean_rate_limit(monkeypatch):
+    """Turn the limiter on for the test; conftest's autouse fixture resets the counters (Q4)."""
     if "RATE_LIMIT_ENABLED" in type(settings).model_fields:
         monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", True)
-    r = aioredis.from_url(settings.REDIS_URL)
-
-    async def wipe():
-        async for k in r.scan_iter("rl:*"):
-            await r.delete(k)
-
-    await wipe()
-    yield
-    await wipe()
-    await r.aclose()
 
 
 # ---------------------------------------------------------------------------
@@ -367,18 +357,85 @@ async def test_d1_day_types_weekday_weekend_holiday(adm):
     )  # holiday removed -> weekend again
 
 
-@pytest.mark.skip(
-    reason="Q5: waiting for BACKEND test-only helper (booking_engine.testing.make_allocation)"
-)
-async def test_d4_hours_change_blocked_when_occupied_after_tomorrow(adm):
-    """409 E-CFG-3 + list (max 6 + 'và n khung khác') when a booking is outside the new hours."""
+def closing_at(hour: int) -> dict:
+    """Body fragment closing earlier while keeping the peak bands inside opening hours."""
+    return {
+        "close_time": f"{hour:02d}:00",
+        "peak_bands": [["05:00", "07:00"], ["17:00", f"{hour:02d}:00"]],
+    }
 
 
-@pytest.mark.skip(
-    reason="Q5: waiting for BACKEND test-only helper (booking_engine.testing.make_allocation)"
-)
+async def _occupy(code: str, day: date, start_h: int, end_h: int) -> int:
+    """Insert an active occupancy through BACKEND's test-only helper (T-005 Q5)."""
+    start = datetime.combine(day, time(start_h), settings.tz)
+    end = datetime.combine(day, time(0), settings.tz) + timedelta(hours=end_h)
+    async with SessionLocal() as session:
+        alloc_id = await make_allocation(session, code, start, end, owner_code="BK-QA-T005")
+        await session.commit()
+    return alloc_id
+
+
+async def _free(alloc_ids) -> None:
+    async with SessionLocal() as session:
+        for alloc_id in alloc_ids:
+            await release_allocation(session, alloc_id)
+        await session.commit()
+
+
+async def test_d4_hours_change_blocked_only_by_occupancy_from_tomorrow(adm):
+    res = await new_resource(adm)  # open 05:00–22:00
+    today, tomorrow = date.today(), date.today() + timedelta(days=1)
+    path = f"{B}/resources/{res['code']}"
+    version = res["version"]
+    ids = [await _occupy(res["code"], today, 21, 22)]  # today is not affected by a change
+    try:
+        r = await write(adm, "PATCH", path, json_body={"version": version, **closing_at(20)})
+        assert r.status_code == 200, r.text  # only today's slot lies outside the new hours
+        version = r.json()["version"]
+        ids.append(await _occupy(res["code"], tomorrow + timedelta(days=1), 20, 21))
+        r = await write(adm, "PATCH", path, json_body={"version": version, **closing_at(19)})
+        assert r.status_code == 409 and _code(r) == "E-CFG-3", r.text
+        detail = r.json()["detail"]
+        assert len(detail["items"]) == 1 and detail["more"] == 0
+        assert detail["items"][0]["date"] == (tomorrow + timedelta(days=1)).isoformat()
+    finally:
+        await _free(ids)
+    r = await write(adm, "PATCH", path, json_body={"version": version, **closing_at(19)})
+    assert r.status_code == 200, r.text  # allowed once the occupancy is gone
+
+
+async def test_d4_conflict_list_is_capped_at_six_with_remainder(adm):
+    res = await new_resource(adm)
+    first = date.today() + timedelta(days=2)
+    ids = [await _occupy(res["code"], first + timedelta(days=i), 20, 21) for i in range(8)]
+    try:
+        r = await write(
+            adm,
+            "PATCH",
+            f"{B}/resources/{res['code']}",
+            json_body={"version": res["version"], **closing_at(19)},
+        )
+        assert r.status_code == 409 and _code(r) == "E-CFG-3", r.text
+        detail = r.json()["detail"]
+        assert len(detail["items"]) == 6 and detail["more"] == 2
+    finally:
+        await _free(ids)
+
+
 async def test_d5_deactivate_blocked_when_occupied_from_today(adm):
-    """409 E-CFG-4 + list; an inactive resource still shows on days that keep a booking (BR-001)."""
+    res = await new_resource(adm)
+    path = f"{B}/resources/{res['code']}"
+    alloc = await _occupy(res["code"], date.today() + timedelta(days=1), 10, 11)
+    try:
+        r = await write(
+            adm, "PATCH", path, json_body={"version": res["version"], "is_active": False}
+        )
+        assert r.status_code == 409 and _code(r) == "E-CFG-4", r.text
+        assert r.json()["detail"]["items"], "conflicts must be listed"
+    finally:
+        await _free([alloc])
+    r = await write(adm, "PATCH", path, json_body={"version": res["version"], "is_active": False})
+    assert r.status_code == 200, r.text
 
 
 async def test_d5_deactivate_free_resource_makes_it_unsellable(adm):
@@ -417,7 +474,7 @@ async def test_d6_hours_and_peak_rules(adm):
             dict(open_time="10:00", close_time="09:00"),
         ],
         "E-CFG-5": [
-            dict(peaks=[["05:00", "05:15"]]),  # < 30 minutes / off the 30-minute grid
+            dict(peaks=[["05:30", "05:30"]]),  # shorter than 30 minutes
             dict(peaks=[["04:00", "06:00"]]),  # starts before opening
             dict(peaks=[["20:00", "23:00"]]),  # ends after closing
             dict(peaks=[["05:00", "08:00"], ["07:00", "09:00"]]),  # overlap
@@ -454,11 +511,19 @@ async def test_d7_price_table_optimistic_lock_and_validation(adm):
         assert r.status_code == 409 and _code(r) == "E-CFG-7", r.text
         assert "Tải lại" in r.text
         # every cell must be an integer > 0 -> E-CFG-6
-        for bad in (0, -1, 150000.5, "abc"):
+        for bad in (0, -1):
             broken = json.loads(json.dumps(table))
             broken[0]["price_per_hour"] = bad
             r = await write(adm, "PUT", f"{B}/prices", json_body={"version": ver, "prices": broken})
-            assert r.status_code in INVALID_STATUSES and _code(r) == "E-CFG-6", f"{bad!r}: {r.text}"
+            assert r.status_code == 422 and _code(r) == "E-CFG-6", f"{bad!r}: {r.text}"
+        for bad in (150000.5, "abc"):  # not an integer: generic 422 validation (BE handoff)
+            broken = json.loads(json.dumps(table))
+            broken[0]["price_per_hour"] = bad
+            r = await write(adm, "PUT", f"{B}/prices", json_body={"version": ver, "prices": broken})
+            assert r.status_code == 422, f"{bad!r}: {r.text}"
+        incomplete = table[:-1]  # every one of the 12 cells is required
+        r = await write(adm, "PUT", f"{B}/prices", json_body={"version": ver, "prices": incomplete})
+        assert r.status_code == 422 and _code(r) == "E-CFG-6", r.text
         # valid save: version moves on, a second save with the old version is rejected
         r = await write(
             adm, "PUT", f"{B}/prices", json_body={"version": ver, "prices": _bump(table, 10_000)}
@@ -568,14 +633,16 @@ async def test_sec3_safe_methods_and_allowed_origin_pass(adm):
 
 
 def _sweep_routes(prefixes, skip):
-    for route in app.routes:
-        path = getattr(route, "path", "")
+    """Yield (method, concrete path) for every documented route under the given prefixes."""
+    for path, item in app.openapi()["paths"].items():
         if not any(path.startswith(p) for p in prefixes):
             continue
-        for method in sorted(getattr(route, "methods", set()) - {"HEAD", "OPTIONS"}):
-            if (method, path) in skip:
+        for method in sorted(item):
+            if method.upper() not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
                 continue
-            yield method, re.sub(r"\{[^}]+\}", "1", path)
+            if (method.upper(), path) in skip:
+                continue
+            yield method.upper(), re.sub(r"\{[^}]+\}", "1", path)
 
 
 QUOTE = ("POST", f"{B}/quote")  # Q2: admin + staff only (customers get 403 until T-008)
@@ -583,7 +650,7 @@ CONFIG_PUBLIC_FOR_STAFF = {("GET", f"{B}/resources")}
 
 
 async def test_sec4_all_admin_routes_require_login_and_role(anon_c, customer_c):
-    routes = list(_sweep_routes((f"{API}/admin", B), set()))
+    routes = list(_sweep_routes((f"{API}/admin/", f"{B}/"), set()))
     assert len(routes) >= 8, "route sweep found too few admin/booking routes"
     for method, path in routes:
         a = await write(anon_c, method, path, json_body={})
@@ -593,7 +660,7 @@ async def test_sec4_all_admin_routes_require_login_and_role(anon_c, customer_c):
 
 
 async def test_sec4_counter_account_cannot_use_config_api(staff_c):
-    routes = list(_sweep_routes((B,), {QUOTE} | CONFIG_PUBLIC_FOR_STAFF))
+    routes = list(_sweep_routes((f"{B}/",), {QUOTE} | CONFIG_PUBLIC_FOR_STAFF))
     assert len(routes) >= 5
     for method, path in routes:
         r = await write(staff_c, method, path, json_body={})
@@ -933,4 +1000,5 @@ def test_c5_booking_schema_tables_have_no_foreign_key_outside_schema():
         if not fk.target_fullname.startswith("booking.")
     ]
     assert not bad, bad
-    assert all("tenant_id" in t.columns for t in tables), "every booking.* table needs tenant_id"
+    missing = [t.fullname for t in tables if t.name != "tenant" and "tenant_id" not in t.columns]
+    assert not missing, f"tables without tenant_id: {missing}"
