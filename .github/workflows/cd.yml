@@ -163,14 +163,9 @@ jobs:
         if: needs.target.outputs.name == 'dev' || vars.SITE_URL != ''
         env:
           URL: ${{ (needs.target.outputs.name == 'dev' && (vars.DEV_SITE_URL || 'https://chienthang-dev.superbai.vip')) || vars.SITE_URL }}
-          # Chỉ dev có basic auth; secret nằm trong Environment `dev`
-          BASIC_USER: ${{ needs.target.outputs.name == 'dev' && secrets.DEV_BASIC_AUTH_USER || '' }}
-          BASIC_PASSWORD: ${{ needs.target.outputs.name == 'dev' && secrets.DEV_BASIC_AUTH_PASSWORD || '' }}
         run: |
-          AUTH=()
-          if [ -n "$BASIC_USER" ]; then AUTH=(-u "$BASIC_USER:$BASIC_PASSWORD"); fi
           for i in $(seq 1 30); do
-            curl -fsS "${AUTH[@]}" "$URL/robots.txt" > /dev/null && exit 0
+            curl -fsS "$URL/robots.txt" > /dev/null && exit 0
             sleep 5
           done
           echo "::error::Website không phản hồi sau khi deploy"
