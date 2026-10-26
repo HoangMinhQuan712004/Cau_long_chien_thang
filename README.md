@@ -50,6 +50,61 @@ Quy tắc dùng:
 
 Yêu cầu: **Python 3.15**, **Node.js 26** (LTS), Docker. CI và image production dùng đúng các bản này.
 
+### Cách nhanh: một lệnh ở thư mục gốc
+
+Chuẩn bị **một lần** (script báo lỗi nếu thiếu):
+
+```powershell
+cd backend
+copy .env.example .env                         # sửa SECRET_KEY nếu cần
+python -m venv .venv
+.venv\Scripts\pip install -e ".[dev]"
+cd ..\frontend
+copy .env.example .env.local
+npm install
+cd ..
+```
+
+Chạy hằng ngày, từ thư mục gốc repo:
+
+```powershell
+npm run dev
+```
+
+Lệnh này bật DB + Redis (`docker compose up -d --wait db redis`), chạy `alembic upgrade head`, rồi chạy song song
+`uvicorn --reload` (API) và `next dev` (web). Log có tiền tố `[be]` / `[fe]`; **Ctrl+C tắt cả hai**. Mặc định:
+
+| | Địa chỉ |
+|---|---|
+| API | http://localhost:8010 (tài liệu: `/docs`) |
+| Web | http://localhost:3000 |
+
+| Lệnh | Việc |
+|---|---|
+| `npm run dev` | DB + Redis → migrate → API + web |
+| `npm run dev:be` | DB + Redis → migrate → chỉ API |
+| `npm run dev:fe` | Chỉ web (trỏ về API theo `API_PORT`) |
+| `npm run seed` | DB + Redis → migrate → dữ liệu mẫu (`python -m app.scripts.seed`) |
+| `npm run db` | Chỉ bật DB + Redis |
+
+Đổi cổng bằng biến môi trường `API_PORT` / `WEB_PORT`, hoặc ghi vào file `dev.env` ở thư mục gốc (đã `.gitignore`, mỗi dòng `KEY=value`):
+
+```powershell
+# tạm thời cho một lần chạy
+$env:API_PORT = "8101"; $env:WEB_PORT = "3101"; npm run dev
+```
+
+Lưu ý:
+
+- Cổng đang bị chiếm → script dừng và nói tiến trình nào đang giữ cổng; đổi cổng hoặc tắt tiến trình đó.
+- Next chỉ cho **một** `next dev` cho mỗi thư mục `frontend/`. Đang có `next dev` chạy sẵn thì tắt nó trước.
+- Request ghi (POST/PUT/PATCH/DELETE) kèm cookie cần `Origin` nằm trong `ALLOWED_ORIGINS` của `backend/.env`.
+  Mặc định chỉ có `http://localhost:3000`; nếu đổi `WEB_PORT` thì thêm, ví dụ `ALLOWED_ORIGINS=["http://localhost:3101"]`
+  (script in cảnh báo khi thiếu). Chi tiết: [docs/booking-engine-api.md](docs/booking-engine-api.md).
+- Script **không** chạy worker (hủy đơn quá hạn, outbox). Cần worker thì mở terminal khác: `cd backend; .venv\Scripts\arq app.workers.worker.WorkerSettings`.
+
+### Từng bước (thủ công)
+
 ```bash
 # 1. DB + Redis  (đổi cổng trong .env ở thư mục gốc nếu bị trùng, xem .env.example)
 docker compose up -d db redis
