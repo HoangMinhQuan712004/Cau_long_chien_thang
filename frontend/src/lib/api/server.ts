@@ -33,10 +33,9 @@ export async function getPublicPrices(): Promise<PublicPrices | null> {
   "use cache";
   cacheLife("minutes");
   cacheTag("prices");
-  const data = await safe(() => serverApi.GET("/api/v1/booking/prices/public"), null);
-  // Lỗi mạng (vd lúc build không có backend) không được cache lâu: thử lại sau vài giây.
-  if (!data) cacheLife("seconds");
-  return data;
+  // Không đổi cacheLife theo kết quả: profile quá ngắn khiến Next coi là dữ liệu động → prerender lỗi khi build không có backend (CI, Docker).
+  // Lỗi mạng chỉ làm trang rơi về "đang cập nhật" tới lần revalidate kế tiếp (≤ 1 phút).
+  return safe(() => serverApi.GET("/api/v1/booking/prices/public"), null);
 }
 
 export async function getPosts(limit = 20): Promise<PostSummary[]> {

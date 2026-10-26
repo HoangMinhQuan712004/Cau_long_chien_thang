@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { PriceTable } from "@/components/price-table";
-import { getPublicPrices } from "@/lib/api/server";
+import { openingText, WithPublicPrices } from "@/components/public-prices";
 import { phoneHref, site } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -9,18 +10,25 @@ export const metadata: Metadata = {
   alternates: { canonical: "/bang-gia" },
 };
 
-export default async function PricePage() {
-  const data = await getPublicPrices();
-  const hours = data?.opening_hours;
+// Vỏ trang prerender tĩnh; bảng giá và giờ mở cửa đọc lúc chạy từ booking engine (xem WithPublicPrices).
+export default function PricePage() {
   return (
     <article className="space-y-6">
       <h1 className="text-3xl font-bold">Bảng giá thuê sân</h1>
-      <PriceTable data={data} />
-      {hours?.earliest_open && hours.latest_close ? (
-        <p className="text-sm text-muted">
-          Giờ mở cửa: {hours.earliest_open.slice(0, 5)} – {hours.latest_close.slice(0, 5)} (giờ mở cửa có thể khác nhau giữa các sân).
-        </p>
-      ) : null}
+      <Suspense fallback={<p className="text-muted">Đang tải bảng giá…</p>}>
+        <WithPublicPrices>
+          {(data) => (
+            <>
+              <PriceTable data={data} />
+              {openingText(data) ? (
+                <p className="text-sm text-muted">
+                  Giờ mở cửa: {openingText(data)} (giờ mở cửa có thể khác nhau giữa các sân).
+                </p>
+              ) : null}
+            </>
+          )}
+        </WithPublicPrices>
+      </Suspense>
       <p className="text-sm text-muted">Giá tính theo giờ, đồng/giờ. Đặt cố định hằng tuần vui lòng liên hệ {site.phone}.</p>
       <p className="rounded-lg border border-border bg-surface p-4 text-sm">
         Đặt sân tại quầy hoặc gọi{" "}
