@@ -224,7 +224,8 @@ async def anon_c():
 @pytest.fixture
 async def clean_rate_limit(monkeypatch):
     # Q4: the limiter may be disabled for the suite; SEC1/quote-limit tests switch it on
-    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", True, raising=False)
+    if "RATE_LIMIT_ENABLED" in type(settings).model_fields:
+        monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", True)
     r = aioredis.from_url(settings.REDIS_URL)
 
     async def wipe():
