@@ -74,3 +74,22 @@ export async function getCurrentUser(): Promise<User | null> {
   const { data } = await api.GET("/api/v1/auth/me");
   return data ?? null;
 }
+
+/**
+ * GET JSON kèm cookie người dùng cho endpoint chưa có trong schema.d.ts (booking engine T-006).
+ * TODO(T-006): chuyển sang `authedApi()` khi `schema.d.ts` có đủ đường dẫn.
+ */
+export async function authedGetJson<T>(
+  path: string,
+  query: Record<string, string | undefined> = {},
+): Promise<{ ok: true; data: T } | { ok: false; status: number }> {
+  const cookieHeader = (await cookies()).toString();
+  const qs = new URLSearchParams(Object.entries(query).filter((e): e is [string, string] => e[1] !== undefined)).toString();
+  try {
+    const res = await fetch(`${BACKEND_URL}${path}${qs ? `?${qs}` : ""}`, { headers: { cookie: cookieHeader }, cache: "no-store" });
+    if (!res.ok) return { ok: false, status: res.status };
+    return { ok: true, data: (await res.json()) as T };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+}

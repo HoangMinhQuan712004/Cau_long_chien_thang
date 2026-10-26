@@ -35,3 +35,33 @@ export const formatDayMonth = (isoDate: string) => `${isoDate.slice(8, 10)}/${is
 
 /** "2026-02-16" -> "16/02/2026". */
 export const formatDayMonthYear = (isoDate: string) => `${formatDayMonth(isoDate)}/${isoDate.slice(0, 4)}`;
+
+const VN_OFFSET_MS = 7 * 3600_000;
+
+/** Số phút trong ngày (giờ Việt Nam) của một mốc ISO. */
+export const vnMinutes = (iso: string) => {
+  const d = new Date(new Date(iso).getTime() + VN_OFFSET_MS);
+  return d.getUTCHours() * 60 + d.getUTCMinutes() + d.getUTCSeconds() / 60;
+};
+
+/** Ngày (YYYY-MM-DD, giờ Việt Nam) của một mốc ISO. */
+export const vnDate = (iso: string) => new Date(new Date(iso).getTime() + VN_OFFSET_MS).toISOString().slice(0, 10);
+
+/** Cộng/trừ ngày cho chuỗi YYYY-MM-DD (không qua múi giờ). */
+export const addDaysIso = (isoDate: string, n: number) => {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+const WEEKDAY = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+
+/** "2026-10-26" -> "Thứ 2, 26/10/2026". */
+export const formatLongDate = (isoDate: string) =>
+  `${WEEKDAY[new Date(`${isoDate}T00:00:00Z`).getUTCDay()]}, ${formatDayMonthYear(isoDate)}`;
+
+/** "HH:MM" -> "HH:MM" bỏ giây nếu có. */
+export const hhmm = (t: string) => t.slice(0, 5);
+
+/** Ngày + giờ theo giờ Việt Nam: "26/10/2026 18:04". */
+export const formatDateTime = (iso: string) => `${formatDayMonthYear(vnDate(iso))} ${formatTime(iso)}`;
