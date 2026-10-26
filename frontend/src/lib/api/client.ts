@@ -31,10 +31,20 @@ const autoRefresh: Middleware = {
 
 api.use(autoRefresh);
 
-/** Lấy thông báo lỗi tiếng Việt từ response lỗi của FastAPI. */
+// Client không ràng kiểu cho các endpoint chưa có trong schema.d.ts (booking engine T-006 cho tới khi BACKEND handoff).
+// TODO(T-006): sau khi `npm run gen:api` có đủ đường dẫn, chuyển các lời gọi sang `api` và xóa `looseApi`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const looseApi = createClient<any>({ baseUrl: "", credentials: "include" });
+looseApi.use(autoRefresh);
+
+/** Lấy thông báo lỗi tiếng Việt từ response lỗi của FastAPI (hỗ trợ `detail` chuỗi, mảng và `{code, message}`). */
 export function errorMessage(error: unknown, fallback = "Có lỗi xảy ra, vui lòng thử lại"): string {
   const detail = (error as { detail?: unknown } | undefined)?.detail;
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg);
+  if (detail && typeof detail === "object" && "message" in detail) {
+    const message = (detail as { message?: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
   return fallback;
 }

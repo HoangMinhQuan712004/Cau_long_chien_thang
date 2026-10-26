@@ -21,6 +21,8 @@ class Perm(enum.StrEnum):
     BOOKING_CALENDAR_VIEW = "booking.calendar.view"
     BOOKING_SEARCH = "booking.search"
     BOOKING_COUNTER_CREATE = "booking.counter.create"
+    BOOKING_ITEM_VIEW = "booking.item.view"  # Thông tin booking / vé
+    BOOKING_TICKET_CREATE = "booking.ticket.create"  # đăng ký vé tại quầy
     BOOKING_SESSION_VIEW = "booking.session.view"
     BOOKING_SESSION_MANAGE = "booking.session.manage"  # tạo / xóa sự kiện
     BOOKING_COLLECT = "booking.collect"
@@ -39,6 +41,8 @@ ROLE_PERMS: dict[str, frozenset[Perm]] = {
             Perm.BOOKING_CALENDAR_VIEW,
             Perm.BOOKING_SEARCH,
             Perm.BOOKING_COUNTER_CREATE,
+            Perm.BOOKING_ITEM_VIEW,
+            Perm.BOOKING_TICKET_CREATE,
             Perm.BOOKING_SESSION_VIEW,
             Perm.BOOKING_COLLECT,
             Perm.BOOKING_UNCOLLECTIBLE,

@@ -11,10 +11,9 @@ from app.core.middleware import BodyLimitMiddleware, OriginCheckMiddleware
 from app.core.ratelimit import RateLimitMiddleware
 from app.modules.auth import router as auth
 from app.modules.booking_engine import router as booking_engine
-from app.modules.bookings import router as bookings
 from app.modules.content import router as content
-from app.modules.courts import router as courts
-from app.modules.payments import router as payments
+from app.modules.front_desk import router as front_desk
+from app.modules.members import router as members
 
 setup_logging()
 
@@ -42,14 +41,11 @@ app.add_middleware(RequestContextMiddleware)
 for r in (
     auth.router,
     auth.admin_router,
-    courts.router,
-    courts.admin_router,
-    bookings.router,
-    bookings.admin_router,
-    payments.admin_router,
     content.router,
     content.admin_router,
     booking_engine.router,
+    members.router,
+    front_desk.router,
 ):
     app.include_router(r, prefix=settings.API_PREFIX)
 

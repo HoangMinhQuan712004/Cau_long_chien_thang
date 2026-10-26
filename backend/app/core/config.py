@@ -1,4 +1,3 @@
-from datetime import time
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
@@ -29,7 +28,8 @@ class Settings(BaseSettings):
     # Origin được phép gửi request ghi kèm cookie phiên (chống CSRF):
     # site prod / dev / localhost dev
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
-    # Số proxy tin cậy đứng trước API (Caddy -> Next -> API = 2) để lấy IP thật từ X-Forwarded-For.
+    # Số proxy tin cậy GHI X-Forwarded-For trước API để lấy IP thật của khách.
+    # Prod/dev (Caddy -> Next -> API) = 1: chỉ Caddy ghi XFF, Next không nối thêm.
     # 0 = dùng IP kết nối trực tiếp.
     TRUSTED_PROXY_COUNT: int = 0
     RATE_LIMIT_ENABLED: bool = True
@@ -41,12 +41,7 @@ class Settings(BaseSettings):
 
     # Nghiệp vụ sân
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
-    OPEN_TIME: time = time(5, 0)
-    CLOSE_TIME: time = time(23, 0)
-    SLOT_MINUTES: int = 30
-    MIN_BOOKING_MINUTES: int = 60
-    MAX_ADVANCE_DAYS: int = 30
-    HOLD_MINUTES: int = 10  # thời gian giữ slot khi chờ thanh toán
+    # Giờ mở cửa, khung, giữ chỗ… cấu hình theo sân trong booking engine (T-005, T-006)
 
     # Seed
     FIRST_ADMIN_EMAIL: str = "admin@example.com"

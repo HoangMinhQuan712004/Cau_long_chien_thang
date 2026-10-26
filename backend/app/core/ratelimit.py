@@ -59,6 +59,9 @@ class MemoryBackend:
 
 
 _backend: Backend | None = None
+# Đồng hồ của cửa sổ rate limit; test đóng băng để cửa sổ không đổi giữa chừng (tránh chập chờn
+# khi chuỗi request vắt qua mốc đổi phút)
+_clock: Callable[[], float] = time.time
 
 
 def get_backend() -> Backend:
@@ -73,11 +76,16 @@ def set_backend(backend: Backend) -> None:
     _backend = backend
 
 
+def set_clock(clock: Callable[[], float]) -> None:
+    global _clock
+    _clock = clock
+
+
 async def check(scope: str, key: str, limit: int, window_s: int) -> int | None:
     """Ghi nhận 1 lượt; trả ``Retry-After`` (giây) nếu vượt giới hạn, ngược lại ``None``."""
     if not settings.RATE_LIMIT_ENABLED:
         return None
-    now = time.time()
+    now = _clock()
     window = int(now // window_s)
     try:
         count = await get_backend().hit(f"rl:{scope}:{key}:{window}", window_s)

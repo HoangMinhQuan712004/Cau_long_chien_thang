@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { BookingAction } from "@/components/booking/booking-action";
-import { StatusBadge } from "@/components/booking/status-badge";
 import { LogoutButton } from "@/components/logout-button";
-import { authedApi, getCurrentUser } from "@/lib/api/server";
-import { formatDate, formatTime, formatVnd } from "@/lib/format";
+import { getCurrentUser } from "@/lib/api/server";
+import { phoneHref, site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Tài khoản của tôi",
@@ -25,10 +23,6 @@ async function Account() {
   const user = await getCurrentUser();
   if (!user) redirect("/dang-nhap?next=/tai-khoan");
 
-  const api = await authedApi();
-  const { data: bookings = [], error } = await api.GET("/api/v1/bookings/me");
-  if (error) throw new Error("Không tải được lịch sử đặt sân");
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -46,39 +40,15 @@ async function Account() {
         </div>
       </div>
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Lịch sử đặt sân</h2>
-        {!bookings.length ? (
-          <p className="text-muted">
-            Bạn chưa đặt sân nào.{" "}
-            <Link href="/dat-san" className="text-primary">
-              Đặt ngay
-            </Link>
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {bookings.map((b) => (
-              <li key={b.id} className="rounded-lg border border-border bg-surface p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-mono text-sm">{b.code}</p>
-                  <StatusBadge status={b.status} />
-                </div>
-                <ul className="mt-2 text-sm">
-                  {b.slots.map((s) => (
-                    <li key={`${s.court_id}-${s.start}`}>
-                      Sân #{s.court_id} · {formatDate(s.start)} · {formatTime(s.start)}–
-                      {formatTime(s.end)}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-2 flex items-center justify-between">
-                  <p className="font-semibold">{formatVnd(b.total_amount)}</p>
-                  {b.status === "pending" && <BookingAction id={b.id} action="cancel" />}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="rounded-lg border border-border bg-surface p-4">
+        <h2 className="text-lg font-semibold">Đặt sân</h2>
+        <p className="mt-1 text-sm text-muted">
+          Hiện chưa đặt sân trực tuyến. Vui lòng đặt tại quầy hoặc gọi{" "}
+          <a href={phoneHref} className="font-medium text-primary">
+            {site.phone}
+          </a>
+          .
+        </p>
       </section>
     </div>
   );
