@@ -11,7 +11,13 @@ import datetime as dt
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.modules.booking_engine import booking_service, config_service, holds, outbox
+from app.modules.booking_engine import (
+    booking_service,
+    config_service,
+    holds,
+    outbox,
+    session_service,
+)
 from app.modules.booking_engine.dto import (
     Actor,
     CalendarOut,
@@ -27,6 +33,8 @@ from app.modules.booking_engine.dto import (
     ResourceOut,
     ResourceUpdate,
     SearchResult,
+    SessionCreate,
+    SessionOut,
     SpecialDayIn,
     SpecialDayOut,
 )
@@ -147,6 +155,57 @@ async def create_counter_booking(
 ) -> ItemOut:
     return await booking_service.create_counter_booking(
         session, _tid(tenant_id), actor, data, customer, note
+    )
+
+
+# ---- Sự kiện / vé
+
+
+async def create_session(
+    session: AsyncSession,
+    actor: Actor,
+    data: SessionCreate,
+    *,
+    can_register: bool = True,
+    can_delete: bool = True,
+    tenant_id: int | None = None,
+) -> SessionOut:
+    return await session_service.create_session(
+        session, _tid(tenant_id), actor, data, can_register, can_delete
+    )
+
+
+async def get_session(
+    session: AsyncSession,
+    code: str,
+    *,
+    can_register: bool,
+    can_delete: bool,
+    tenant_id: int | None = None,
+) -> SessionOut:
+    """``can_*`` = quyền của người xem; engine thêm điều kiện nghiệp vụ (BR-024, BR-025)."""
+    return await session_service.get_session(
+        session, _tid(tenant_id), code, can_register, can_delete
+    )
+
+
+async def delete_session(
+    session: AsyncSession, actor: Actor, code: str, version: int, *, tenant_id: int | None = None
+) -> SessionOut:
+    return await session_service.delete_session(session, _tid(tenant_id), actor, code, version)
+
+
+async def register_ticket(
+    session: AsyncSession,
+    actor: Actor,
+    session_code: str,
+    customer: CustomerSnapshot,
+    note: str | None = None,
+    *,
+    tenant_id: int | None = None,
+) -> ItemOut:
+    return await session_service.register_ticket(
+        session, _tid(tenant_id), actor, session_code, customer, note
     )
 
 

@@ -29,6 +29,9 @@ from app.modules.booking_engine.dto import (
     ResourceOut,
     ResourceUpdate,
     SearchResult,
+    SessionCreate,
+    SessionDelete,
+    SessionOut,
     SpecialDayIn,
     SpecialDayOut,
 )
@@ -41,6 +44,8 @@ Quoter = Annotated[Principal, Depends(require(Perm.BOOKING_QUOTE))]
 CalendarViewer = Annotated[Principal, Depends(require(Perm.BOOKING_CALENDAR_VIEW))]
 CodeSearcher = Annotated[Principal, Depends(require(Perm.BOOKING_SEARCH))]
 ItemViewer = Annotated[Principal, Depends(require(Perm.BOOKING_ITEM_VIEW))]
+SessionViewer = Annotated[Principal, Depends(require(Perm.BOOKING_SESSION_VIEW))]
+SessionManager = Annotated[Principal, Depends(require(Perm.BOOKING_SESSION_MANAGE))]
 
 ACTION_PERMS = {"collect": Perm.BOOKING_COLLECT, "uncollectible": Perm.BOOKING_UNCOLLECTIBLE}
 
@@ -203,3 +208,55 @@ async def search(
 async def get_item(code: str, principal: ItemViewer, session: SessionDep):
     """Thông tin booking hoặc vé: khách, lịch đặt, thanh toán, ``actions`` được phép lúc này."""
     return for_viewer(await api.get_item(session, code), principal)
+
+
+# ---------------------------------------------------------------- sự kiện
+
+
+@router.post("/sessions", response_model=SessionOut, status_code=status.HTTP_201_CREATED)
+async def create_session(
+    data: SessionCreate, principal: SessionManager, idem: IdempotencyDep, session: SessionDep
+):
+    """Đặt sự kiện (chỉ Admin): sân liền nhau × khung liền nhau, hôm nay → hết tháng sau.
+
+    Lỗi: E-001 (trống tên / số chỗ / giá vé), E-009, E-013, E-004, E-CFG-10, E-BOOK-1/2, E-010.
+    """
+    return await idem.run(
+        session,
+        principal.key,
+        lambda: api.create_session(
+            session,
+            _actor(principal),
+            data,
+            can_register=principal.has(Perm.BOOKING_TICKET_CREATE),
+            can_delete=principal.has(Perm.BOOKING_SESSION_MANAGE),
+        ),
+        status_code=status.HTTP_201_CREATED,
+    )
+
+
+@router.get("/sessions/{code}", response_model=SessionOut)
+async def get_session(code: str, principal: SessionViewer, session: SessionDep):
+    """Popup Sự kiện: số chỗ, vé (mới nhất trước), chỗ đang giữ, ``can{register, delete}``."""
+    return await api.get_session(
+        session,
+        code,
+        can_register=principal.has(Perm.BOOKING_TICKET_CREATE),
+        can_delete=principal.has(Perm.BOOKING_SESSION_MANAGE),
+    )
+
+
+@router.delete("/sessions/{code}", response_model=SessionOut)
+async def delete_session(
+    code: str,
+    data: SessionDelete,
+    principal: SessionManager,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Xóa buổi (chỉ Admin, chưa có vé và chỗ giữ): khung trống lại, mã không dùng lại (E-023)."""
+    return await idem.run(
+        session,
+        principal.key,
+        lambda: api.delete_session(session, _actor(principal), code, data.version),
+    )
