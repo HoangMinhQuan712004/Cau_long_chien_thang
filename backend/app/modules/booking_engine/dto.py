@@ -330,8 +330,8 @@ class SessionCreate(StrictIn):
     end_hour: int = Field(ge=1, le=24)
     # Kiểm ở service để trả mã SRS (E-001, E-009, E-013)
     name: str = Field(default="", max_length=300)
-    capacity: int | None = Field(default=None, strict=True)
-    ticket_price: int | None = Field(default=None, strict=True)
+    capacity: int | float | None = None
+    ticket_price: int | float | None = None
 
 
 class SessionDelete(StrictIn):

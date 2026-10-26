@@ -635,6 +635,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Session
+         * @description Đặt sự kiện (chỉ Admin): sân liền nhau × khung liền nhau, hôm nay → hết tháng sau.
+         *
+         *     Lỗi: E-001 (trống tên / số chỗ / giá vé), E-009, E-013, E-004, E-CFG-10, E-BOOK-1/2, E-010.
+         */
+        post: operations["create_session_api_v1_booking_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/sessions/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Session
+         * @description Popup Sự kiện: số chỗ, vé (mới nhất trước), chỗ đang giữ, ``can{register, delete}``.
+         */
+        get: operations["get_session_api_v1_booking_sessions__code__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Session
+         * @description Xóa buổi (chỉ Admin, chưa có vé và chỗ giữ): khung trống lại, mã không dùng lại (E-023).
+         */
+        delete: operations["delete_session_api_v1_booking_sessions__code__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/members/search": {
         parameters: {
             query?: never;
@@ -673,6 +719,28 @@ export interface paths {
          *     403 (ngày khác hôm nay).
          */
         post: operations["create_booking_api_v1_front_desk_bookings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/sessions/{code}/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Ticket
+         * @description Đăng ký vé tại quầy: sự kiện hôm nay chưa kết thúc, còn chỗ -> vé Chưa thanh toán.
+         *
+         *     Lỗi: E-001/E-002/E-014/E-018 (khách), E-004 (không phải hôm nay / đã kết thúc), E-024 (đủ chỗ).
+         */
+        post: operations["register_ticket_api_v1_front_desk_sessions__code__tickets_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1420,6 +1488,13 @@ export interface components {
             /** @description Lịch đã lưu, áp dụng từ ngày sau (effective_from > hôm nay) */
             pending_schedule: components["schemas"]["ScheduleOut"] | null;
         };
+        /** ResourceRef */
+        ResourceRef: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+        };
         /** ResourceTypeOut */
         ResourceTypeOut: {
             /** Code */
@@ -1486,6 +1561,122 @@ export interface components {
              * Format: date
              */
             play_date: string;
+        };
+        /** SessionCan */
+        SessionCan: {
+            /** Register */
+            register: boolean;
+            /** Delete */
+            delete: boolean;
+        };
+        /** SessionCreate */
+        SessionCreate: {
+            /** Resource Codes */
+            resource_codes: string[];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** Capacity */
+            capacity?: number | null;
+            /** Ticket Price */
+            ticket_price?: number | null;
+        };
+        /** SessionDelete */
+        SessionDelete: {
+            /** Version */
+            version: number;
+        };
+        /** SessionHold */
+        SessionHold: {
+            /** Seats */
+            seats: number;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** SessionOut */
+        SessionOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "deleted";
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resources */
+            resources: components["schemas"]["ResourceRef"][];
+            /** Ticket Price */
+            ticket_price: number;
+            /** Capacity */
+            capacity: number;
+            /** Taken */
+            taken: number;
+            /** Is Full */
+            is_full: boolean;
+            /** Created By */
+            created_by: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Version */
+            version: number;
+            /** Tickets */
+            tickets: components["schemas"]["SessionTicket"][];
+            /** Active Holds */
+            active_holds: components["schemas"]["SessionHold"][];
+            can: components["schemas"]["SessionCan"];
+        };
+        /** SessionTicket */
+        SessionTicket: {
+            /** Code */
+            code: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "online";
+            /**
+             * Payment Status
+             * @enum {string}
+             */
+            payment_status: "unpaid" | "paid" | "uncollectible";
+            /** Amount */
+            amount: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** SlotIn */
         SlotIn: {
@@ -1586,6 +1777,10 @@ export interface components {
             phone: string;
             /** Note */
             note?: string | null;
+        };
+        /** TicketIn */
+        TicketIn: {
+            customer: components["schemas"]["CustomerIn"];
         };
         /**
          * UserListItem
@@ -3002,6 +3197,111 @@ export interface operations {
             };
         };
     };
+    create_session_api_v1_booking_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_session_api_v1_booking_sessions__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_session_api_v1_booking_sessions__code__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     search_members_api_v1_members_search_get: {
         parameters: {
             query: {
@@ -3046,6 +3346,44 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["FrontDeskBookingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_ticket_api_v1_front_desk_sessions__code__tickets_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketIn"];
             };
         };
         responses: {

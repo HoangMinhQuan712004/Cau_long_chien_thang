@@ -117,7 +117,7 @@ async def session_counts(
 # ------------------------------------------------------------------ lịch ngày (BR-001, 002, 004)
 
 
-def _check_viewable(ctx: Ctx, day: date) -> None:
+def check_viewable(ctx: Ctx, day: date) -> None:
     if day > ctx.last_bookable_day:
         raise AppError(
             "E-BOOK-1",
@@ -130,7 +130,7 @@ async def calendar(
     session: AsyncSession, tenant_id: int, day: date, can_counter: bool, can_session: bool
 ) -> CalendarOut:
     ctx = await context(session, tenant_id)
-    _check_viewable(ctx, day)
+    check_viewable(ctx, day)
     day_start, day_end = ctx.at(day, 0), ctx.at(day, 24 * 60)
 
     resources = list(

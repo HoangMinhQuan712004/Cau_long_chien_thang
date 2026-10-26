@@ -25,6 +25,7 @@ from app.modules.members.api import CustomerIn
 router = APIRouter(prefix="/front-desk", tags=["front-desk"])
 
 CounterBooker = Annotated[Principal, Depends(require(Perm.BOOKING_COUNTER_CREATE))]
+TicketSeller = Annotated[Principal, Depends(require(Perm.BOOKING_TICKET_CREATE))]
 
 
 class FrontDeskBookingIn(StrictIn):
@@ -32,6 +33,10 @@ class FrontDeskBookingIn(StrictIn):
     date: dt.date
     start_hour: int = Field(ge=0, le=23)
     end_hour: int = Field(ge=1, le=24)
+    customer: CustomerIn
+
+
+class TicketIn(StrictIn):
     customer: CustomerIn
 
 
@@ -84,5 +89,27 @@ async def create_booking(
         return await engine.create_counter_booking(
             session, actor_of(principal), booking, snapshot, note
         )
+
+    return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
+
+
+@router.post(
+    "/sessions/{code}/tickets", response_model=ItemOut, status_code=status.HTTP_201_CREATED
+)
+async def register_ticket(
+    code: str,
+    data: TicketIn,
+    principal: TicketSeller,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Đăng ký vé tại quầy: sự kiện hôm nay chưa kết thúc, còn chỗ -> vé Chưa thanh toán.
+
+    Lỗi: E-001/E-002/E-014/E-018 (khách), E-004 (không phải hôm nay / đã kết thúc), E-024 (đủ chỗ).
+    """
+
+    async def run() -> ItemOut:
+        snapshot, note = await customer_snapshot(session, data.customer, principal)
+        return await engine.register_ticket(session, actor_of(principal), code, snapshot, note)
 
     return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
