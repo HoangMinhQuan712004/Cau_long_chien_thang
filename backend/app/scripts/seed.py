@@ -1,5 +1,4 @@
-"""Tạo dữ liệu ban đầu: tài khoản chủ sân, 4 sân, bảng giá mặc định (module cũ)
-+ cấu hình booking engine (T-005).
+"""Tạo dữ liệu ban đầu: tài khoản chủ sân + cấu hình booking engine (T-005) + hội viên mẫu (T-006).
 
 Chạy: python -m app.scripts.seed  (chạy lại nhiều lần an toàn)
 
@@ -8,9 +7,9 @@ chỉ tạo khi ENV != production và engine chưa có sân nào.
 """
 
 import asyncio
-from datetime import date, time
+from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 import app.models  # noqa: F401
 from app.core.config import settings
@@ -26,11 +25,7 @@ from app.modules.booking_engine.dto import (
     ResourceUpdate,
     SpecialDayIn,
 )
-from app.modules.courts.models import Court, PriceRule
 from app.modules.members import api as members
-
-WEEKDAYS = [0, 1, 2, 3, 4]
-WEEKEND = [5, 6]
 
 SEED_ACTOR = Actor(type="system", id=None, label="Seed")
 PEAKS = [("05:00", "07:00"), ("17:00", "21:00")]
@@ -160,41 +155,6 @@ async def main() -> None:
                 )
             )
             print(f"Created admin {email}")
-
-        if not await session.scalar(select(func.count()).select_from(Court)):
-            session.add_all(
-                Court(name=f"Sân {i}", slug=f"san-{i}", surface="Thảm PVC", sort_order=i)
-                for i in range(1, 5)
-            )
-            print("Created 4 courts")
-
-        if not await session.scalar(select(func.count()).select_from(PriceRule)):
-            session.add_all(
-                [
-                    PriceRule(
-                        name="Ngày thường - giờ thấp điểm",
-                        days_of_week=WEEKDAYS,
-                        start_time=time(5, 0),
-                        end_time=time(17, 0),
-                        price_per_hour=60_000,
-                    ),
-                    PriceRule(
-                        name="Ngày thường - giờ vàng",
-                        days_of_week=WEEKDAYS,
-                        start_time=time(17, 0),
-                        end_time=time(23, 0),
-                        price_per_hour=100_000,
-                    ),
-                    PriceRule(
-                        name="Cuối tuần",
-                        days_of_week=WEEKEND,
-                        start_time=time(5, 0),
-                        end_time=time(23, 0),
-                        price_per_hour=110_000,
-                    ),
-                ]
-            )
-            print("Created default price rules")
 
         await seed_booking_engine(session)
         await seed_members(session)

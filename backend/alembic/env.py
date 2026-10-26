@@ -17,9 +17,15 @@ target_metadata = Base.metadata
 MANAGED_SCHEMAS = {None, "public", "booking"}
 
 
+# Bảng của luồng đặt sân cũ đã đổi tên (T-006 §8) – giữ dữ liệu, không còn model, Alembic bỏ qua
+LEGACY_PREFIX = "legacy_"
+
+
 def include_name(name, type_, parent_names) -> bool:
     if type_ == "schema":
         return name in MANAGED_SCHEMAS
+    if type_ == "table":
+        return not name.startswith(LEGACY_PREFIX)
     return True
 
 

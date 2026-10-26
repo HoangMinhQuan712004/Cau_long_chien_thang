@@ -433,3 +433,41 @@ class TransactionsOut(BaseModel):
     page_size: int
     total: int
     cards: TransactionCards
+
+
+# ---------- Bảng giá công khai (trang chủ) ----------
+
+
+class PublicResourceType(BaseModel):
+    code: str
+    name: str
+    resource_count: int
+
+
+class PublicPeakBands(BaseModel):
+    resource_type_code: str
+    bands: list[tuple[str, str]]
+
+
+class PublicOpeningHours(BaseModel):
+    earliest_open: str | None
+    latest_close: str | None
+
+
+class PublicSpecialDay(BaseModel):
+    date_from: dt.date
+    date_to: dt.date
+    name: str
+
+
+class PublicPrices(BaseModel):
+    """Bản rút gọn cho trang public – không lộ version, người sửa, id nội bộ."""
+
+    currency: Literal["VND"] = "VND"
+    unit: Literal["hour"] = "hour"
+    updated_at: dt.datetime | None
+    resource_types: list[PublicResourceType]
+    prices: list[PriceCellOut]
+    opening_hours: PublicOpeningHours
+    peak_bands: list[PublicPeakBands]
+    special_days: list[PublicSpecialDay]

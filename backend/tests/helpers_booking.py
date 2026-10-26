@@ -24,9 +24,13 @@ def at(day: date, hour: int) -> datetime:
 
 
 async def safe_hour() -> int:
-    """Giờ của khung đang diễn ra (luôn đặt được); tránh sát mốc đổi giờ để test không chập chờn."""
+    """Giờ của khung đang diễn ra (luôn đặt được).
+
+    Trong phút cuối của giờ thì chờ sang giờ mới: test chạy vài giây giữa lúc lấy giờ và gửi
+    request, qua mốc đổi giờ khung sẽ thành "đã qua" (E-004) -> test chập chờn.
+    """
     n = now()
-    if n.minute == 59 and n.second >= 55:
+    if n.minute == 59:
         await asyncio.sleep(61 - n.second)
     return now().hour
 

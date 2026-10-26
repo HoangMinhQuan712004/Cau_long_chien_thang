@@ -107,283 +107,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/venue/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Venue Config */
-        get: operations["venue_config_api_v1_venue_config_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/courts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Courts */
-        get: operations["list_courts_api_v1_courts_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/price-rules": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Price Rules */
-        get: operations["list_price_rules_api_v1_price_rules_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/courts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin List Courts */
-        get: operations["admin_list_courts_api_v1_admin_courts_get"];
-        put?: never;
-        /** Create Court */
-        post: operations["create_court_api_v1_admin_courts_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/courts/{court_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Court */
-        put: operations["update_court_api_v1_admin_courts__court_id__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/price-rules": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin List Price Rules */
-        get: operations["admin_list_price_rules_api_v1_admin_price_rules_get"];
-        put?: never;
-        /** Create Price Rule */
-        post: operations["create_price_rule_api_v1_admin_price_rules_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/price-rules/{rule_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Price Rule */
-        put: operations["update_price_rule_api_v1_admin_price_rules__rule_id__put"];
-        post?: never;
-        /** Delete Price Rule */
-        delete: operations["delete_price_rule_api_v1_admin_price_rules__rule_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bookings/availability": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Availability */
-        get: operations["availability_api_v1_bookings_availability_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bookings/quote": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Quote */
-        post: operations["quote_api_v1_bookings_quote_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bookings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Booking */
-        post: operations["create_booking_api_v1_bookings_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bookings/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** My Bookings */
-        get: operations["my_bookings_api_v1_bookings_me_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bookings/{booking_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Booking */
-        get: operations["get_booking_api_v1_bookings__booking_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bookings/{booking_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cancel Booking */
-        post: operations["cancel_booking_api_v1_bookings__booking_id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/bookings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin List Bookings */
-        get: operations["admin_list_bookings_api_v1_admin_bookings_get"];
-        put?: never;
-        /** Create Counter Booking */
-        post: operations["create_counter_booking_api_v1_admin_bookings_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/bookings/{booking_id}/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Confirm Booking */
-        post: operations["confirm_booking_api_v1_admin_bookings__booking_id__confirm_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/bookings/{booking_id}/payments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Payments */
-        get: operations["list_payments_api_v1_admin_bookings__booking_id__payments_get"];
-        put?: never;
-        /** Record Payment */
-        post: operations["record_payment_api_v1_admin_bookings__booking_id__payments_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/posts": {
         parameters: {
             query?: never;
@@ -497,6 +220,29 @@ export interface paths {
          *     Giờ & cao điểm áp dụng từ ngày mai (D4); ``version`` bắt buộc.
          */
         patch: operations["update_resource_api_v1_booking_resources__code__patch"];
+        trace?: never;
+    };
+    "/api/v1/booking/prices/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Prices
+         * @description Bảng giá công khai cho trang chủ – **không cần đăng nhập**, cache 5 phút.
+         *
+         *     Chỉ loại sân có sân đang hoạt động; giờ mở cửa / cao điểm theo lịch hôm nay;
+         *     Lễ/Tết từ hôm nay tới hết năm.
+         */
+        get: operations["public_prices_api_v1_booking_prices_public_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/booking/prices": {
@@ -833,86 +579,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AvailabilityOut */
-        AvailabilityOut: {
-            /**
-             * Date
-             * Format: date
-             */
-            date: string;
-            /**
-             * Open Time
-             * Format: time
-             */
-            open_time: string;
-            /**
-             * Close Time
-             * Format: time
-             */
-            close_time: string;
-            /** Slot Minutes */
-            slot_minutes: number;
-            /** Courts */
-            courts: components["schemas"]["CourtAvailability"][];
-        };
-        /** BookingCreateIn */
-        BookingCreateIn: {
-            /** Slots */
-            slots: components["schemas"]["SlotIn"][];
-            /** Note */
-            note?: string | null;
-        };
-        /** BookingOut */
-        BookingOut: {
-            /** Id */
-            id: number;
-            /** Code */
-            code: string;
-            status: components["schemas"]["BookingStatus"];
-            source: components["schemas"]["BookingSource"];
-            /** Customer Id */
-            customer_id: number | null;
-            /** Customer Name */
-            customer_name: string;
-            /** Customer Phone */
-            customer_phone: string | null;
-            /** Total Amount */
-            total_amount: number;
-            /** Note */
-            note: string | null;
-            /** Expires At */
-            expires_at: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Slots */
-            slots: components["schemas"]["SlotOut"][];
-        };
-        /**
-         * BookingSource
-         * @enum {string}
-         */
-        BookingSource: "online" | "counter";
-        /**
-         * BookingStatus
-         * @enum {string}
-         */
-        BookingStatus: "pending" | "confirmed" | "completed" | "cancelled" | "expired";
-        /** BusyRange */
-        BusyRange: {
-            /**
-             * Start
-             * Format: date-time
-             */
-            start: string;
-            /**
-             * End
-             * Format: date-time
-             */
-            end: string;
-        };
         /** CalendarBlock */
         CalendarBlock: {
             /**
@@ -1015,84 +681,6 @@ export interface components {
             method: "cash" | "transfer";
             /** Version */
             version: number;
-        };
-        /**
-         * CounterBookingIn
-         * @description Nhân viên đặt hộ khách tại quầy / qua điện thoại.
-         */
-        CounterBookingIn: {
-            /** Slots */
-            slots: components["schemas"]["SlotIn"][];
-            /** Note */
-            note?: string | null;
-            /** Customer Name */
-            customer_name: string;
-            /** Customer Phone */
-            customer_phone?: string | null;
-            /** Customer Id */
-            customer_id?: number | null;
-            /**
-             * Confirm
-             * @default true
-             */
-            confirm: boolean;
-        };
-        /** CourtAvailability */
-        CourtAvailability: {
-            /** Court Id */
-            court_id: number;
-            /** Name */
-            name: string;
-            /** Busy */
-            busy: components["schemas"]["BusyRange"][];
-        };
-        /** CourtIn */
-        CourtIn: {
-            /** Name */
-            name: string;
-            /** Description */
-            description?: string | null;
-            /** Surface */
-            surface?: string | null;
-            /** Image Url */
-            image_url?: string | null;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean;
-            /**
-             * Sort Order
-             * @default 0
-             */
-            sort_order: number;
-            /** Slug */
-            slug?: string | null;
-        };
-        /** CourtOut */
-        CourtOut: {
-            /** Name */
-            name: string;
-            /** Description */
-            description?: string | null;
-            /** Surface */
-            surface?: string | null;
-            /** Image Url */
-            image_url?: string | null;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean;
-            /**
-             * Sort Order
-             * @default 0
-             */
-            sort_order: number;
-            /** Id */
-            id: number;
-            /** Slug */
-            slug: string;
         };
         /**
          * CustomerIn
@@ -1236,13 +824,6 @@ export interface components {
             /** Password */
             password: string;
         };
-        /** ManualPaymentIn */
-        ManualPaymentIn: {
-            /** @default cash */
-            method: components["schemas"]["PaymentMethod"];
-            /** Amount */
-            amount?: number | null;
-        };
         /**
          * MemberSearchItem
          * @description Một dòng kết quả tìm hội viên – SĐT đã che (BR-021), không lộ id nội bộ.
@@ -1264,34 +845,6 @@ export interface components {
             /** Is Active */
             is_active: boolean;
         };
-        /**
-         * PaymentMethod
-         * @enum {string}
-         */
-        PaymentMethod: "cash" | "bank_transfer" | "payos" | "vnpay" | "momo";
-        /** PaymentOut */
-        PaymentOut: {
-            /** Id */
-            id: number;
-            /** Booking Id */
-            booking_id: number;
-            method: components["schemas"]["PaymentMethod"];
-            status: components["schemas"]["PaymentStatus"];
-            /** Amount */
-            amount: number;
-            /** Provider Ref */
-            provider_ref: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /**
-         * PaymentStatus
-         * @enum {string}
-         */
-        PaymentStatus: "pending" | "succeeded" | "failed" | "refunded";
         /** PostIn */
         PostIn: {
             /** Title */
@@ -1391,70 +944,6 @@ export interface components {
             /** Price Per Hour */
             price_per_hour: number;
         };
-        /** PriceRuleIn */
-        PriceRuleIn: {
-            /** Name */
-            name: string;
-            /** Court Id */
-            court_id?: number | null;
-            /** Days Of Week */
-            days_of_week: number[];
-            /**
-             * Start Time
-             * Format: time
-             */
-            start_time: string;
-            /**
-             * End Time
-             * Format: time
-             */
-            end_time: string;
-            /** Price Per Hour */
-            price_per_hour: number;
-            /**
-             * Priority
-             * @default 0
-             */
-            priority: number;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean;
-        };
-        /** PriceRuleOut */
-        PriceRuleOut: {
-            /** Name */
-            name: string;
-            /** Court Id */
-            court_id?: number | null;
-            /** Days Of Week */
-            days_of_week: number[];
-            /**
-             * Start Time
-             * Format: time
-             */
-            start_time: string;
-            /**
-             * End Time
-             * Format: time
-             */
-            end_time: string;
-            /** Price Per Hour */
-            price_per_hour: number;
-            /**
-             * Priority
-             * @default 0
-             */
-            priority: number;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean;
-            /** Id */
-            id: number;
-        };
         /** PriceTable */
         PriceTable: {
             /** Version */
@@ -1474,6 +963,76 @@ export interface components {
             version: number;
             /** Prices */
             prices: components["schemas"]["PriceCellIn"][];
+        };
+        /** PublicOpeningHours */
+        PublicOpeningHours: {
+            /** Earliest Open */
+            earliest_open: string | null;
+            /** Latest Close */
+            latest_close: string | null;
+        };
+        /** PublicPeakBands */
+        PublicPeakBands: {
+            /** Resource Type Code */
+            resource_type_code: string;
+            /** Bands */
+            bands: [
+                string,
+                string
+            ][];
+        };
+        /**
+         * PublicPrices
+         * @description Bản rút gọn cho trang public – không lộ version, người sửa, id nội bộ.
+         */
+        PublicPrices: {
+            /**
+             * Currency
+             * @default VND
+             * @constant
+             */
+            currency: "VND";
+            /**
+             * Unit
+             * @default hour
+             * @constant
+             */
+            unit: "hour";
+            /** Updated At */
+            updated_at: string | null;
+            /** Resource Types */
+            resource_types: components["schemas"]["PublicResourceType"][];
+            /** Prices */
+            prices: components["schemas"]["PriceCellOut"][];
+            opening_hours: components["schemas"]["PublicOpeningHours"];
+            /** Peak Bands */
+            peak_bands: components["schemas"]["PublicPeakBands"][];
+            /** Special Days */
+            special_days: components["schemas"]["PublicSpecialDay"][];
+        };
+        /** PublicResourceType */
+        PublicResourceType: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Resource Count */
+            resource_count: number;
+        };
+        /** PublicSpecialDay */
+        PublicSpecialDay: {
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /** Name */
+            name: string;
         };
         /** QuoteIn */
         QuoteIn: {
@@ -1504,6 +1063,29 @@ export interface components {
             label: string;
             /** Price */
             price: number;
+        };
+        /** QuoteOut */
+        QuoteOut: {
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Day Type
+             * @enum {string}
+             */
+            day_type: "weekday" | "weekend" | "holiday";
+            /** Price Version */
+            price_version: number;
+            /** Items */
+            items: components["schemas"]["QuoteItem"][];
+            /** Total Amount */
+            total_amount: number;
         };
         /** RegisterIn */
         RegisterIn: {
@@ -1753,38 +1335,6 @@ export interface components {
              */
             created_at: string;
         };
-        /** SlotIn */
-        SlotIn: {
-            /** Court Id */
-            court_id: number;
-            /**
-             * Start
-             * Format: date-time
-             */
-            start: string;
-            /**
-             * End
-             * Format: date-time
-             */
-            end: string;
-        };
-        /** SlotOut */
-        SlotOut: {
-            /** Court Id */
-            court_id: number;
-            /**
-             * Start
-             * Format: date-time
-             */
-            start: string;
-            /**
-             * End
-             * Format: date-time
-             */
-            end: string;
-            /** Price */
-            price: number;
-        };
         /** SpecialDayIn */
         SpecialDayIn: {
             /**
@@ -1985,59 +1535,6 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
-        /** VenueConfigOut */
-        VenueConfigOut: {
-            /**
-             * Open Time
-             * Format: time
-             */
-            open_time: string;
-            /**
-             * Close Time
-             * Format: time
-             */
-            close_time: string;
-            /** Slot Minutes */
-            slot_minutes: number;
-            /** Min Booking Minutes */
-            min_booking_minutes: number;
-            /** Max Advance Days */
-            max_advance_days: number;
-            /** Hold Minutes */
-            hold_minutes: number;
-            /** Timezone */
-            timezone: string;
-        };
-        /** QuoteOut */
-        app__modules__booking_engine__dto__QuoteOut: {
-            /** Resource Code */
-            resource_code: string;
-            /** Resource Name */
-            resource_name: string;
-            /**
-             * Date
-             * Format: date
-             */
-            date: string;
-            /**
-             * Day Type
-             * @enum {string}
-             */
-            day_type: "weekday" | "weekend" | "holiday";
-            /** Price Version */
-            price_version: number;
-            /** Items */
-            items: components["schemas"]["QuoteItem"][];
-            /** Total Amount */
-            total_amount: number;
-        };
-        /** QuoteOut */
-        app__modules__bookings__schemas__QuoteOut: {
-            /** Total Amount */
-            total_amount: number;
-            /** Slots */
-            slots: components["schemas"]["SlotOut"][];
-        };
     };
     responses: never;
     parameters: never;
@@ -2211,612 +1708,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    venue_config_api_v1_venue_config_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VenueConfigOut"];
-                };
-            };
-        };
-    };
-    list_courts_api_v1_courts_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourtOut"][];
-                };
-            };
-        };
-    };
-    list_price_rules_api_v1_price_rules_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PriceRuleOut"][];
-                };
-            };
-        };
-    };
-    admin_list_courts_api_v1_admin_courts_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourtOut"][];
-                };
-            };
-        };
-    };
-    create_court_api_v1_admin_courts_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CourtIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourtOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_court_api_v1_admin_courts__court_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                court_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CourtIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourtOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    admin_list_price_rules_api_v1_admin_price_rules_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PriceRuleOut"][];
-                };
-            };
-        };
-    };
-    create_price_rule_api_v1_admin_price_rules_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PriceRuleIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PriceRuleOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_price_rule_api_v1_admin_price_rules__rule_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                rule_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PriceRuleIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PriceRuleOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_price_rule_api_v1_admin_price_rules__rule_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                rule_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    availability_api_v1_bookings_availability_get: {
-        parameters: {
-            query: {
-                date: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AvailabilityOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    quote_api_v1_bookings_quote_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SlotIn"][];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["app__modules__bookings__schemas__QuoteOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_booking_api_v1_bookings_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BookingCreateIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    my_bookings_api_v1_bookings_me_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingOut"][];
-                };
-            };
-        };
-    };
-    get_booking_api_v1_bookings__booking_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    cancel_booking_api_v1_bookings__booking_id__cancel_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    admin_list_bookings_api_v1_admin_bookings_get: {
-        parameters: {
-            query?: {
-                date?: string | null;
-                status?: components["schemas"]["BookingStatus"] | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_counter_booking_api_v1_admin_bookings_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CounterBookingIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    confirm_booking_api_v1_admin_bookings__booking_id__confirm_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_payments_api_v1_admin_bookings__booking_id__payments_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    record_payment_api_v1_admin_bookings__booking_id__payments_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ManualPaymentIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentOut"];
                 };
             };
             /** @description Validation Error */
@@ -3075,6 +1966,26 @@ export interface operations {
             };
         };
     };
+    public_prices_api_v1_booking_prices_public_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPrices"];
+                };
+            };
+        };
+    };
     get_prices_api_v1_booking_prices_get: {
         parameters: {
             query?: never;
@@ -3249,7 +2160,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__modules__booking_engine__dto__QuoteOut"];
+                    "application/json": components["schemas"]["QuoteOut"];
                 };
             };
             /** @description Validation Error */
