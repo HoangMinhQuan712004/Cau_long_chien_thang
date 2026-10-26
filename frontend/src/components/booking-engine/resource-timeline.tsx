@@ -327,7 +327,7 @@ export function ResourceTimeline({
                     key={h}
                     role="gridcell"
                     aria-disabled
-                    className={`${base} ${off ? "bg-cell-off" : past ? "bg-busy/40" : ""}`}
+                    className={`${base} ${off ? "bg-cell-off" : past ? "bg-background" : ""}`}
                   />
                 );
               }

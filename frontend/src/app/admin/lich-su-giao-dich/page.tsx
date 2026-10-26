@@ -16,8 +16,8 @@ export default function TransactionsPage() {
 }
 
 async function TransactionsLoader() {
+  const api = await authedApi(); // đọc cookie trước khi dùng giờ hiện tại
   const today = todayVn();
-  const api = await authedApi();
   const [tx, resources] = await Promise.all([
     authedGetJson<Transactions>("/api/v1/booking/transactions", { from: addDaysIso(today, -6), to: today }),
     api.GET("/api/v1/booking/resources"),

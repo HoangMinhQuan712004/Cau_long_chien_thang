@@ -16,9 +16,11 @@ export default function BookingCalendarPage({ searchParams }: PageProps<"/admin/
 }
 
 async function CalendarLoader({ searchParams }: Pick<PageProps<"/admin/dat-san">, "searchParams">) {
+  // Đọc cookie (dữ liệu theo người dùng) trước khi dùng giờ hiện tại, để Next coi đây là nội dung động.
+  const user = await getCurrentUser();
   const sp = await searchParams;
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayVn();
-  const [user, calendar] = await Promise.all([getCurrentUser(), authedGetJson<Calendar>("/api/v1/booking/calendar", { date })]);
+  const calendar = await authedGetJson<Calendar>("/api/v1/booking/calendar", { date });
 
   if (!calendar.ok) {
     if (calendar.status === 403) return <p className="text-muted">Bạn không có quyền xem mục này.</p>;
