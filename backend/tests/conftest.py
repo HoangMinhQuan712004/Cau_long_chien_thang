@@ -1,9 +1,9 @@
 import asyncio
 import os
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -25,9 +25,10 @@ from alembic.config import Config  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 from app.core import ratelimit  # noqa: E402
-from app.core.db import Base, engine  # noqa: E402
+from app.core.db import engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.scripts import seed  # noqa: E402
+from tests.db_guard import reset_refusal  # noqa: E402
 
 API = settings.API_PREFIX
 ORIGIN = "http://testserver"
@@ -38,6 +39,10 @@ settings.ALLOWED_ORIGINS = [ORIGIN]
 # Rate limit chạy bằng bộ nhớ trong test (không cần Redis); reset trước mỗi test
 _rate_limit_backend = ratelimit.MemoryBackend()
 ratelimit.set_backend(_rate_limit_backend)
+# Đóng băng đồng hồ rate limit ở đầu một cửa sổ phút: chuỗi request trong một test không bao giờ
+# bị tách sang cửa sổ mới (nguyên nhân test 429 chập chờn khi chạy qua mốc đổi phút)
+_RATE_LIMIT_NOW = (time.time() // 60) * 60 + 1
+ratelimit.set_clock(lambda: _RATE_LIMIT_NOW)
 
 
 def _alembic_upgrade_head() -> None:
@@ -50,11 +55,14 @@ def _alembic_upgrade_head() -> None:
 @pytest.fixture(scope="session", autouse=True)
 async def setup_db() -> AsyncIterator[None]:
     """DB test dựng bằng migration thật (schema ``booking``, trigger ``audit_log``, EXCLUDE…)."""
+    refusal = reset_refusal(settings.DATABASE_URL, settings.ENV, os.environ.get("CI"))
+    if refusal:
+        pytest.exit(refusal, returncode=2)
     async with engine.begin() as conn:
+        # Xóa sạch (gồm bảng legacy_* và enum của luồng cũ – không còn trong metadata)
         await conn.execute(text("DROP SCHEMA IF EXISTS booking CASCADE"))
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
-        await conn.execute(text("DROP FUNCTION IF EXISTS audit_log_guard() CASCADE"))
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
     # env.py của alembic tự chạy asyncio.run -> chạy ở thread riêng
     await asyncio.to_thread(_alembic_upgrade_head)
     await seed.main()
@@ -152,11 +160,3 @@ async def staff(admin: AsyncClient) -> AsyncIterator[AsyncClient]:
             )
         assert r.status_code == 200, r.text
         yield c
-
-
-def slot(court_id: int, hour: int, minute: int = 0, minutes: int = 60, days: int = 2) -> dict:
-    """Slot vào ngày (hôm nay + days) theo giờ địa phương."""
-    day = datetime.now(settings.tz).date() + timedelta(days=days)
-    start = datetime(day.year, day.month, day.day, hour, minute, tzinfo=settings.tz)
-    end = start + timedelta(minutes=minutes)
-    return {"court_id": court_id, "start": start.isoformat(), "end": end.isoformat()}

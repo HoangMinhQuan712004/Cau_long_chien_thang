@@ -1,4 +1,3 @@
-from datetime import time
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
@@ -41,12 +40,7 @@ class Settings(BaseSettings):
 
     # Nghiệp vụ sân
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
-    OPEN_TIME: time = time(5, 0)
-    CLOSE_TIME: time = time(23, 0)
-    SLOT_MINUTES: int = 30
-    MIN_BOOKING_MINUTES: int = 60
-    MAX_ADVANCE_DAYS: int = 30
-    HOLD_MINUTES: int = 10  # thời gian giữ slot khi chờ thanh toán
+    # Giờ mở cửa, khung, giữ chỗ… cấu hình theo sân trong booking engine (T-005, T-006)
 
     # Seed
     FIRST_ADMIN_EMAIL: str = "admin@example.com"

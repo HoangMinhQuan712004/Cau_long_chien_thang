@@ -15,6 +15,7 @@ from app.modules.booking_engine.models import Resource
 from tests.conftest import API, ORIGIN, idem
 
 BK = f"{API}/booking"
+PUBLIC = f"{BK}/prices/public"  # endpoint công khai, không cần đăng nhập
 
 
 def resource_body(name: str | None = None) -> dict:
@@ -38,9 +39,9 @@ async def count_resources(name: str) -> int:
 async def test_sec1_global_rate_limit_per_ip(anon, monkeypatch):
     monkeypatch.setattr(settings, "RATE_LIMIT_PER_MINUTE", 120)
     for _ in range(120):
-        r = await anon.get(f"{API}/courts")
+        r = await anon.get(PUBLIC)
         assert r.status_code == 200
-    r = await anon.get(f"{API}/courts")
+    r = await anon.get(PUBLIC)
     assert r.status_code == 429
     assert r.json()["detail"]["code"] == "E-SEC-5"
     assert 1 <= int(r.headers["retry-after"]) <= 60
@@ -52,7 +53,7 @@ async def test_rate_limit_disabled_flag(anon, monkeypatch):
     monkeypatch.setattr(settings, "RATE_LIMIT_PER_MINUTE", 2)
     monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
     for _ in range(5):
-        assert (await anon.get(f"{API}/courts")).status_code == 200
+        assert (await anon.get(PUBLIC)).status_code == 200
 
 
 async def test_rate_limit_uses_forwarded_ip_only_from_trusted_proxies(anon, monkeypatch):
@@ -62,10 +63,10 @@ async def test_rate_limit_uses_forwarded_ip_only_from_trusted_proxies(anon, monk
     # Client tự thêm giá trị giả ở đầu (6.6.6.6 / 7.7.7.7) không đổi được khóa rate limit.
     h1 = {"X-Forwarded-For": "6.6.6.6, 1.1.1.1, 10.0.0.2"}
     h2 = {"X-Forwarded-For": "7.7.7.7, 1.1.1.1, 10.0.0.2"}
-    assert (await anon.get(f"{API}/courts", headers=h1)).status_code == 200
-    assert (await anon.get(f"{API}/courts", headers=h2)).status_code == 429
+    assert (await anon.get(PUBLIC, headers=h1)).status_code == 200
+    assert (await anon.get(PUBLIC, headers=h2)).status_code == 429
     h3 = {"X-Forwarded-For": "2.2.2.2, 10.0.0.2"}
-    assert (await anon.get(f"{API}/courts", headers=h3)).status_code == 200
+    assert (await anon.get(PUBLIC, headers=h3)).status_code == 200
 
 
 async def test_quote_rate_limit_per_user(staff):
@@ -85,7 +86,7 @@ async def test_rate_limit_fails_open_when_backend_down(anon, monkeypatch):
     monkeypatch.setattr(settings, "RATE_LIMIT_PER_MINUTE", 1)
     monkeypatch.setattr(ratelimit, "_backend", Broken())
     for _ in range(3):
-        assert (await anon.get(f"{API}/courts")).status_code == 200
+        assert (await anon.get(PUBLIC)).status_code == 200
 
 
 # ------------------------------------------------------------------ SEC3 Origin check
@@ -345,11 +346,11 @@ async def test_sec8_responses_have_no_secrets(admin):
 
 
 async def test_request_id_generated_and_echoed(anon):
-    r = await anon.get(f"{API}/courts")
+    r = await anon.get(PUBLIC)
     assert len(r.headers["x-request-id"]) == 32
-    r = await anon.get(f"{API}/courts", headers={"X-Request-ID": "abc-123"})
+    r = await anon.get(PUBLIC, headers={"X-Request-ID": "abc-123"})
     assert r.headers["x-request-id"] == "abc-123"
-    r = await anon.get(f"{API}/courts", headers={"X-Request-ID": "bad id with spaces"})
+    r = await anon.get(PUBLIC, headers={"X-Request-ID": "bad id with spaces"})
     assert r.headers["x-request-id"] != "bad id with spaces"
 
 
@@ -369,3 +370,26 @@ def test_access_log_strips_query_string():
     )
     StripQueryLogFilter().filter(record)
     assert "0912345678" not in record.getMessage()
+
+
+async def test_rate_limit_window_is_stable_in_tests(anon, monkeypatch):
+    """Đồng hồ rate limit bị đóng băng ở giây thứ 1 của một cửa sổ phút (conftest).
+
+    Mọi request trong test cùng một cửa sổ -> Retry-After luôn 59, không phụ thuộc giờ thật.
+    """
+    monkeypatch.setattr(settings, "RATE_LIMIT_PER_MINUTE", 2)
+    for _ in range(2):
+        assert (await anon.get(PUBLIC)).status_code == 200
+    r = await anon.get(PUBLIC)
+    assert r.status_code == 429 and r.headers["retry-after"] == "59"
+
+
+async def test_rate_limit_new_window_resets_count(monkeypatch):
+    backend = ratelimit.MemoryBackend()
+    monkeypatch.setattr(ratelimit, "_backend", backend)
+    now = [1_000_040.0]  # cửa sổ [1_000_020, 1_000_080)
+    monkeypatch.setattr(ratelimit, "_clock", lambda: now[0])
+    assert await ratelimit.check("t", "k", 1, 60) is None
+    assert await ratelimit.check("t", "k", 1, 60) == 40  # còn 40 giây tới cửa sổ sau
+    now[0] += 60
+    assert await ratelimit.check("t", "k", 1, 60) is None

@@ -4,6 +4,7 @@ Quy ước: mọi bảng có ``tenant_id`` (NOT NULL) và nằm trong khóa uniq
 **không FK ra ngoài schema ``booking``** (test kiến trúc kiểm).
 """
 
+import uuid
 from datetime import date, datetime
 from typing import Any
 
@@ -19,6 +20,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     UniqueConstraint,
+    Uuid,
     func,
     text,
 )
@@ -194,11 +196,186 @@ class CodeSequence(Base):
     last_value: Mapped[int] = mapped_column(Integer)
 
 
+class Hold(Base):
+    """Giữ chỗ online 7 phút (T-008 tạo; T-006 làm sẵn bảng + worker hết hạn + hiển thị).
+
+    ``court``: giữ khung sân (có allocation ``kind='hold'``); ``seat``: giữ chỗ trong sự kiện.
+    """
+
+    __tablename__ = "hold"
+    __table_args__ = (
+        CheckConstraint("kind IN ('court', 'seat')", name="kind"),
+        CheckConstraint("status IN ('active', 'converted', 'expired', 'released')", name="status"),
+        CheckConstraint("seats >= 1", name="seats_positive"),
+        CheckConstraint("(kind = 'seat') = (session_id IS NOT NULL)", name="seat_has_session"),
+        Index("ix_hold_status_expires_at", "status", "expires_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
+    kind: Mapped[str] = mapped_column(String(10))
+    session_id: Mapped[int | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.session.id", ondelete="RESTRICT"), index=True
+    )
+    seats: Mapped[int] = mapped_column(SmallInteger, server_default=text("1"))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(10), server_default=text("'active'"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class _CustomerSnapshot:
+    """Khách tại thời điểm đặt – do server dựng (ADR-004 S8); engine không biết "hội viên"."""
+
+    customer_ref: Mapped[str] = mapped_column(String(40))
+    customer_kind: Mapped[str] = mapped_column(String(10))
+    customer_name: Mapped[str] = mapped_column(String(100))
+    customer_phone: Mapped[str] = mapped_column(String(15))  # đầy đủ – chỉ để tìm, không trả ra
+    member_code: Mapped[str | None] = mapped_column(String(10))
+    member_tier: Mapped[str | None] = mapped_column(String(10))
+
+
+class _Payment:
+    """Tiền + trạng thái thanh toán một chiều: unpaid -> paid | uncollectible (BR-013)."""
+
+    amount: Mapped[int] = mapped_column(Integer)
+    payment_status: Mapped[str] = mapped_column(String(15), server_default=text("'unpaid'"))
+    payment_method: Mapped[str | None] = mapped_column(String(20))
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    collected_by_type: Mapped[str | None] = mapped_column(String(20))
+    collected_by_id: Mapped[int | None] = mapped_column(BigInteger)
+    collected_by_label: Mapped[str | None] = mapped_column(String(100))
+    gateway_ref: Mapped[str | None] = mapped_column(String(100), unique=True)
+    uncollectible_reason: Mapped[str | None] = mapped_column(String(200))
+    marked_by_type: Mapped[str | None] = mapped_column(String(20))
+    marked_by_id: Mapped[int | None] = mapped_column(BigInteger)
+    marked_by_label: Mapped[str | None] = mapped_column(String(100))
+    marked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    note: Mapped[str | None] = mapped_column(String(500))
+    created_by_type: Mapped[str] = mapped_column(String(20))
+    created_by_id: Mapped[int | None] = mapped_column(BigInteger)
+    created_by_label: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+
+def _payment_checks() -> tuple[CheckConstraint, ...]:
+    return (
+        CheckConstraint("source IN ('counter', 'online')", name="source"),
+        CheckConstraint("amount >= 0", name="amount_non_negative"),
+        CheckConstraint(
+            "payment_status IN ('unpaid', 'paid', 'uncollectible')", name="payment_status"
+        ),
+        CheckConstraint(
+            "payment_method IS NULL OR payment_method IN ('cash', 'transfer', 'online_transfer')",
+            name="payment_method",
+        ),
+        CheckConstraint(
+            "payment_status <> 'paid' OR (payment_method IS NOT NULL AND paid_at IS NOT NULL)",
+            name="paid_has_method",
+        ),
+        CheckConstraint(
+            "payment_status <> 'uncollectible' OR "
+            "(uncollectible_reason IS NOT NULL AND source = 'counter')",
+            name="uncollectible_reason",
+        ),
+        CheckConstraint("customer_kind IN ('member', 'temp')", name="customer_kind"),
+    )
+
+
+class Booking(_CustomerSnapshot, _Payment, Base):
+    """Một lượt đặt trên **một** tài nguyên, các khung liền nhau; tiền chốt lúc đặt (BR-009)."""
+
+    __tablename__ = "booking"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "code"),
+        *_payment_checks(),
+        CheckConstraint("start_at < end_at", name="range"),
+        Index("ix_booking_tenant_play_date", "tenant_id", "play_date"),
+        Index("ix_booking_tenant_status_play_date", "tenant_id", "payment_status", "play_date"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
+    code: Mapped[str] = mapped_column(String(30))
+    source: Mapped[str] = mapped_column(String(10))
+    resource_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA}.resource.id", ondelete="RESTRICT"), index=True
+    )
+    play_date: Mapped[date] = mapped_column(Date)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # [{"start_time": "17:00", "end_time": "18:00", "band": "peak", "price": 180000}, …]
+    price_breakdown: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, server_default=text("'[]'::jsonb")
+    )
+
+
+class EventSession(Base):
+    """Sự kiện (buổi bán vé): chiếm 1..n tài nguyên liền nhau; tiền nằm ở vé (BR-017)."""
+
+    __tablename__ = "session"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "code"),
+        CheckConstraint("capacity BETWEEN 1 AND 99", name="capacity"),
+        CheckConstraint("ticket_price >= 0", name="ticket_price"),
+        CheckConstraint("status IN ('active', 'deleted')", name="status"),
+        CheckConstraint("start_at < end_at", name="range"),
+        Index("ix_session_tenant_play_date", "tenant_id", "play_date"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
+    code: Mapped[str] = mapped_column(String(30))
+    name: Mapped[str] = mapped_column(String(100))
+    play_date: Mapped[date] = mapped_column(Date)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    capacity: Mapped[int] = mapped_column(SmallInteger)
+    ticket_price: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(10), server_default=text("'active'"))
+    created_by_type: Mapped[str] = mapped_column(String(20))
+    created_by_id: Mapped[int | None] = mapped_column(BigInteger)
+    created_by_label: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deleted_by_type: Mapped[str | None] = mapped_column(String(20))
+    deleted_by_id: Mapped[int | None] = mapped_column(BigInteger)
+    deleted_by_label: Mapped[str | None] = mapped_column(String(100))
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+
+class Ticket(_CustomerSnapshot, _Payment, Base):
+    """Vé = 1 chỗ của 1 khách trong sự kiện; mã ``{mã sự kiện}-V{nn}`` (BR-012, BR-024)."""
+
+    __tablename__ = "ticket"
+    __table_args__ = (
+        UniqueConstraint("session_id", "seq"),
+        UniqueConstraint("tenant_id", "code"),
+        *_payment_checks(),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA}.session.id", ondelete="RESTRICT"), index=True
+    )
+    seq: Mapped[int] = mapped_column(SmallInteger)
+    code: Mapped[str] = mapped_column(String(40))
+    source: Mapped[str] = mapped_column(String(10))
+
+
 class Allocation(Base):
     """Chỗ chiếm nguyên tử trên một tài nguyên – chống trùng lịch **chỉ** bằng exclusion constraint.
 
-    T-005 tạo bảng ở dạng tối thiểu để kiểm D4/D5; T-006 thêm cột chủ sở hữu
-    (``hold_id`` / ``booking_id`` / ``session_id``) và các CHECK liên quan.
+    Đúng một cột chủ (``hold_id`` / ``booking_id`` / ``session_id``) khớp ``kind``; biên giờ tròn.
+    Không thu được: allocation **giữ active** (khung không bán lại, BR-015).
     """
 
     __tablename__ = "allocation"
@@ -216,6 +393,20 @@ class Allocation(Base):
             "NOT isempty(time_range) AND lower_inc(time_range) AND NOT upper_inc(time_range)",
             name="time_range_bounds",
         ),
+        CheckConstraint(
+            # Múi giờ tenant lệch UTC số giờ tròn (Asia/Ho_Chi_Minh = +7) -> giờ tròn theo epoch
+            "extract(epoch FROM lower(time_range)) % 3600 = 0 "
+            "AND extract(epoch FROM upper(time_range)) % 3600 = 0",
+            name="whole_hours",
+        ),
+        CheckConstraint(
+            "(kind = 'hold' AND hold_id IS NOT NULL AND booking_id IS NULL AND session_id IS NULL)"
+            " OR (kind = 'booking' AND booking_id IS NOT NULL AND hold_id IS NULL"
+            " AND session_id IS NULL)"
+            " OR (kind = 'session' AND session_id IS NOT NULL AND hold_id IS NULL"
+            " AND booking_id IS NULL)",
+            name="one_owner",
+        ),
         {"schema": SCHEMA},
     )
 
@@ -226,8 +417,17 @@ class Allocation(Base):
     )
     time_range: Mapped[Range[datetime]] = mapped_column(TSTZRANGE)
     kind: Mapped[str] = mapped_column(String(10))
-    # Mã đối tượng chiếm chỗ (BK-…) để hiện trong thông báo E-CFG-3/4
-    owner_code: Mapped[str | None] = mapped_column(String(30))
+    hold_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.hold.id", ondelete="RESTRICT"), index=True
+    )
+    booking_id: Mapped[int | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.booking.id", ondelete="RESTRICT"), index=True
+    )
+    session_id: Mapped[int | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.session.id", ondelete="RESTRICT"), index=True
+    )
+    # Mã đối tượng chiếm chỗ (BK-…) – hiện trong thông báo E-CFG-3/4
+    owner_code: Mapped[str | None] = mapped_column(String(40))
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
 
 

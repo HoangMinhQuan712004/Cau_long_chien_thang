@@ -18,6 +18,11 @@ from app.modules.booking_engine.dto import (
     PriceCellOut,
     PriceTable,
     PriceTableUpdate,
+    PublicOpeningHours,
+    PublicPeakBands,
+    PublicPrices,
+    PublicResourceType,
+    PublicSpecialDay,
     QuoteIn,
     QuoteItem,
     QuoteOut,
@@ -37,6 +42,7 @@ from app.modules.booking_engine.models import (
     ResourceSchedule,
     ResourceType,
     SpecialDay,
+    Tenant,
 )
 from app.modules.booking_engine.pricing import (
     BAND_LABELS,
@@ -491,6 +497,96 @@ async def update_price_table(
     return await get_price_table(session, tenant_id)
 
 
+def _merge(bands: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    merged: list[list[int]] = []
+    for a, b in sorted(bands):
+        if merged and a <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], b)
+        else:
+            merged.append([a, b])
+    return [(a, b) for a, b in merged]
+
+
+async def public_prices(session: AsyncSession, tenant_id: int) -> PublicPrices:
+    """Bảng giá cho trang chủ: chỉ loại có sân đang hoạt động; giờ / cao điểm theo lịch hôm nay."""
+    tenant = await get_tenant(session, tenant_id)
+    today = today_of(tenant)
+    types = await _types(session, tenant_id)
+    active = list(
+        await session.scalars(
+            select(Resource).where(Resource.tenant_id == tenant_id, Resource.is_active.is_(True))
+        )
+    )
+    count_by_type: dict[int, int] = {}
+    for r in active:
+        count_by_type[r.resource_type_id] = count_by_type.get(r.resource_type_id, 0) + 1
+    shown = [t for t in types if count_by_type.get(t.id)]
+    shown_ids = {t.id: t for t in shown}
+
+    schedules = await schedules_of(session, tenant_id, [r.id for r in active])
+    opens, closes = [], []
+    bands_by_type: dict[int, list[tuple[int, int]]] = {}
+    for r in active:
+        sched = effective_on(schedules.get(r.id, []), today)
+        if sched is None:
+            continue
+        hours = Hours.of(sched)
+        opens.append(hours.open_minute)
+        closes.append(hours.close_minute)
+        bands_by_type.setdefault(r.resource_type_id, []).extend(hours.peak_bands)
+
+    rows = await session.scalars(
+        select(PriceRule).where(
+            PriceRule.tenant_id == tenant_id, PriceRule.resource_type_id.in_(list(shown_ids))
+        )
+    )
+    order = {
+        (t.id, d, b): i
+        for i, (t, d, b) in enumerate((t, d, b) for t in shown for d in DAY_TYPES for b in BANDS)
+    }
+    prices = sorted(rows, key=lambda p: order.get((p.resource_type_id, p.day_type, p.band), 0))
+    specials = await session.scalars(
+        select(SpecialDay)
+        .where(
+            SpecialDay.tenant_id == tenant_id,
+            SpecialDay.date_to >= today,
+            SpecialDay.date_from <= date(today.year, 12, 31),
+        )
+        .order_by(SpecialDay.date_from)
+    )
+    return PublicPrices(
+        updated_at=tenant.prices_updated_at,
+        resource_types=[
+            PublicResourceType(code=t.code, name=t.name, resource_count=count_by_type[t.id])
+            for t in shown
+        ],
+        prices=[
+            PriceCellOut(
+                resource_type_code=shown_ids[p.resource_type_id].code,
+                day_type=p.day_type,
+                band=p.band,
+                price_per_hour=p.price_per_hour,
+            )
+            for p in prices
+        ],
+        opening_hours=PublicOpeningHours(
+            earliest_open=to_hhmm(min(opens)) if opens else None,
+            latest_close=to_hhmm(max(closes)) if closes else None,
+        ),
+        peak_bands=[
+            PublicPeakBands(
+                resource_type_code=t.code,
+                bands=[(to_hhmm(a), to_hhmm(b)) for a, b in _merge(bands_by_type.get(t.id, []))],
+            )
+            for t in shown
+        ],
+        special_days=[
+            PublicSpecialDay(date_from=d.date_from, date_to=d.date_to, name=d.name)
+            for d in specials
+        ],
+    )
+
+
 # ---------------------------------------------------------------- ngày Lễ / Tết
 
 
@@ -600,23 +696,28 @@ def _not_sold(message: str) -> AppError:
     return AppError("E-CFG-10", message, 422)
 
 
-async def quote(session: AsyncSession, tenant_id: int, data: QuoteIn) -> QuoteOut:
-    tenant = await get_tenant(session, tenant_id)
+async def price_slots(
+    session: AsyncSession, tenant: Tenant, r: Resource, day: date, start_hour: int, end_hour: int
+) -> tuple[str, list[QuoteItem]]:
+    """Kiểm khung bán được + giá từng khung 1 giờ (D1–D3, BR-009). Trả (loại ngày, các khung).
+
+    Không bán (sân ngừng, ngoài giờ, giờ sai) -> ``E-CFG-10``; thiếu giá -> ``E-019``.
+    """
+    tenant_id = tenant.id
     label = resource_label(tenant)
-    if data.start_hour >= data.end_hour:
+    if start_hour >= end_hour:
         raise _not_sold("Giờ kết thúc phải sau giờ bắt đầu.")
-    r = await _resource_by_code(session, tenant_id, data.resource_code)
     versions = (await schedules_of(session, tenant_id, [r.id])).get(r.id, [])
-    sched = effective_on(versions, data.date)
+    sched = effective_on(versions, day)
     if not r.is_active or sched is None:
-        raise _not_sold(f"{r.name} không nhận đặt vào ngày {data.date:%d/%m/%Y}.")
+        raise _not_sold(f"{r.name} không nhận đặt vào ngày {day:%d/%m/%Y}.")
     hours = Hours.of(sched)
-    for h in range(data.start_hour, data.end_hour):
+    for h in range(start_hour, end_hour):
         if not hours.sells(h * 60, h * 60 + 60):
             raise _not_sold(f"Khung {h:02d}:00–{h + 1:02d}:00 của {r.name} không bán.")
 
-    special = await special_day_on(session, tenant_id, data.date)
-    day_type = day_type_of(data.date, special is not None)
+    special = await special_day_on(session, tenant_id, day)
+    day_type = day_type_of(day, special is not None)
     prices = {
         p.band: p.price_per_hour
         for p in await session.scalars(
@@ -628,25 +729,36 @@ async def quote(session: AsyncSession, tenant_id: int, data: QuoteIn) -> QuoteOu
         )
     }
     items: list[QuoteItem] = []
-    for h in range(data.start_hour, data.end_hour):
+    for h in range(start_hour, end_hour):
         needed = {"peak" if hours.is_peak(m) else "offpeak" for m in (h * 60, h * 60 + 30)}
         if not needed <= prices.keys():
             raise AppError(
                 "E-019",
-                f"Chưa có giá cho {label} này vào ngày {data.date:%d/%m/%Y}. "
-                "Vui lòng cập nhật Bảng giá.",
+                f"Chưa có giá cho {label} này vào ngày {day:%d/%m/%Y}. "
+                "Vui lòng kiểm tra Sân & bảng giá.",
                 422,
             )
         band, price = slot_price(hours, h * 60, prices)
         items.append(
             QuoteItem(
                 start_time=f"{h:02d}:00",
-                end_time=f"{h + 1:02d}:00",
+                end_time=to_hhmm((h + 1) * 60),
                 band=band,
                 label=BAND_LABELS[band],
                 price=price,
             )
         )
+    return day_type, items
+
+
+async def quote(session: AsyncSession, tenant_id: int, data: QuoteIn) -> QuoteOut:
+    tenant = await get_tenant(session, tenant_id)
+    if data.start_hour >= data.end_hour:
+        raise _not_sold("Giờ kết thúc phải sau giờ bắt đầu.")
+    r = await _resource_by_code(session, tenant_id, data.resource_code)
+    day_type, items = await price_slots(
+        session, tenant, r, data.date, data.start_hour, data.end_hour
+    )
     return QuoteOut(
         resource_code=r.code,
         resource_name=r.name,

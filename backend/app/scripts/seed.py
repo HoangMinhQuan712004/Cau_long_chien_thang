@@ -1,5 +1,4 @@
-"""Tạo dữ liệu ban đầu: tài khoản chủ sân, 4 sân, bảng giá mặc định (module cũ)
-+ cấu hình booking engine (T-005).
+"""Tạo dữ liệu ban đầu: tài khoản chủ sân + cấu hình booking engine (T-005) + hội viên mẫu (T-006).
 
 Chạy: python -m app.scripts.seed  (chạy lại nhiều lần an toàn)
 
@@ -8,9 +7,9 @@ chỉ tạo khi ENV != production và engine chưa có sân nào.
 """
 
 import asyncio
-from datetime import date, time
+from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 import app.models  # noqa: F401
 from app.core.config import settings
@@ -26,10 +25,7 @@ from app.modules.booking_engine.dto import (
     ResourceUpdate,
     SpecialDayIn,
 )
-from app.modules.courts.models import Court, PriceRule
-
-WEEKDAYS = [0, 1, 2, 3, 4]
-WEEKEND = [5, 6]
+from app.modules.members import api as members
 
 SEED_ACTOR = Actor(type="system", id=None, label="Seed")
 PEAKS = [("05:00", "07:00"), ("17:00", "21:00")]
@@ -62,6 +58,35 @@ DEMO_HOLIDAYS_2026 = [
     (date(2026, 4, 30), date(2026, 5, 1), "Giải phóng miền Nam, Quốc tế Lao động"),
     (date(2026, 9, 1), date(2026, 9, 2), "Quốc khánh"),
 ]
+
+# Hội viên + hồ sơ tạm mẫu (prototype) – chỉ dữ liệu thử ở dev
+DEMO_MEMBERS = [
+    ("HV0012", "Trần Minh Đức", "0912111222", "Vàng", True),
+    ("HV0031", "Phạm Văn Nam", "0934567019", "Vàng", True),
+    ("HV0045", "Hoàng Thị Mai", "0978220145", "Bạc", True),
+    ("HV0058", "Nguyễn Văn Tú", "0905334058", "Đồng", True),
+    ("HV0087", "Phạm Thu Trang", "0987654087", "Bạc", True),
+    ("HV0102", "Nguyễn Thị Hoa", "0966102102", "Đồng", True),
+    ("HV0115", "Vũ Đức Anh", "0915115300", "Vàng", True),
+    ("HV0120", "Bùi Thanh Hà", "0938120777", "Đồng", False),
+    ("HV0133", "Lý Minh Khoa", "0977133456", "Bạc", True),
+    ("HV0141", "Ngô Đức Huy", "0909141662", "Vàng", True),
+]
+DEMO_TEMPS = [
+    ("Lê Thị Lan", "0967532821"),
+    ("Đỗ Quang Huy", "0903456712"),
+    ("Nguyễn Văn An", "0987001321"),
+    ("Trần Quốc Bảo", "0916778031"),
+]
+
+
+async def seed_members(session) -> None:
+    if settings.is_production:
+        return
+    for code, name, phone, tier, active in DEMO_MEMBERS:
+        await members.upsert_member(session, code, name, phone, tier, active)
+    for name, phone in DEMO_TEMPS:
+        await members.upsert_temp(session, name, phone)
 
 
 async def seed_booking_engine(session) -> None:
@@ -131,42 +156,8 @@ async def main() -> None:
             )
             print(f"Created admin {email}")
 
-        if not await session.scalar(select(func.count()).select_from(Court)):
-            session.add_all(
-                Court(name=f"Sân {i}", slug=f"san-{i}", surface="Thảm PVC", sort_order=i)
-                for i in range(1, 5)
-            )
-            print("Created 4 courts")
-
-        if not await session.scalar(select(func.count()).select_from(PriceRule)):
-            session.add_all(
-                [
-                    PriceRule(
-                        name="Ngày thường - giờ thấp điểm",
-                        days_of_week=WEEKDAYS,
-                        start_time=time(5, 0),
-                        end_time=time(17, 0),
-                        price_per_hour=60_000,
-                    ),
-                    PriceRule(
-                        name="Ngày thường - giờ vàng",
-                        days_of_week=WEEKDAYS,
-                        start_time=time(17, 0),
-                        end_time=time(23, 0),
-                        price_per_hour=100_000,
-                    ),
-                    PriceRule(
-                        name="Cuối tuần",
-                        days_of_week=WEEKEND,
-                        start_time=time(5, 0),
-                        end_time=time(23, 0),
-                        price_per_hour=110_000,
-                    ),
-                ]
-            )
-            print("Created default price rules")
-
         await seed_booking_engine(session)
+        await seed_members(session)
         await session.commit()
 
 
