@@ -580,17 +580,19 @@ async def test_d8_special_day_overlap_year_and_delete(adm):
 
 async def test_sec1_global_rate_limit_returns_429_with_retry_after(clean_rate_limit):
     async with _http() as c:
-        statuses, retry = [], None
+        statuses, retry, last_code = [], None, None
         for _ in range(135):
             r = await c.get(f"{API}/venue/config")
             statuses.append(r.status_code)
             if r.status_code == 429:
                 retry = r.headers.get("Retry-After")
+                last_code = _code(r)
                 break
     assert 429 in statuses, "no 429 after 135 requests (limit is 120/min/IP)"
     assert statuses.index(429) <= 121
     assert statuses.count(200) >= 100, "limiter kicked in far too early"
     assert retry is not None and int(retry) >= 1
+    assert last_code == "E-SEC-5", last_code
 
 
 WRITE_CALLS = [
@@ -655,8 +657,12 @@ async def test_sec4_all_admin_routes_require_login_and_role(anon_c, customer_c):
     for method, path in routes:
         a = await write(anon_c, method, path, json_body={})
         assert a.status_code == 401, f"anon {method} {path} -> {a.status_code}"
+        if path.startswith(f"{B}/"):
+            assert _code(a) == "E-AUTH-1", f"anon {method} {path}: {a.text[:120]}"
         c = await write(customer_c, method, path, json_body={})
         assert c.status_code == 403, f"customer {method} {path} -> {c.status_code}"
+        if path.startswith(f"{B}/"):
+            assert _code(c) == "E-AUTH-2", f"customer {method} {path}: {c.text[:120]}"
 
 
 async def test_sec4_counter_account_cannot_use_config_api(staff_c):
@@ -944,6 +950,7 @@ async def test_b3_body_over_64kb_is_413(adm):
     big = {"name": "x" * 70_000}
     r = await write(adm, "POST", f"{B}/resources", json_body=big)
     assert r.status_code == 413, r.status_code
+    assert _code(r) == "E-SEC-6", r.text[:200]
 
 
 async def test_b7_request_id_generated_and_echoed(anon_c):
