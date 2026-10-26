@@ -681,6 +681,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking/items/{code}/collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Collect
+         * @description Thu tiền mặt (``method="cash"``; ``transfer`` -> 422 ``E-PAY-0`` cho tới T-007).
+         *
+         *     Đã đổi trạng thái / ``version`` cũ -> 409 ``E-012``.
+         */
+        post: operations["collect_api_v1_booking_items__code__collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/items/{code}/uncollectible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Uncollectible
+         * @description Không thu được: lý do 1–200 (E-001); chỉ tại quầy + đã tới giờ chơi (E-PAY-1); E-012.
+         */
+        post: operations["mark_uncollectible_api_v1_booking_items__code__uncollectible_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Transactions
+         * @description Lịch sử giao dịch (chỉ Admin): lọc theo ngày chơi (mặc định 7 ngày), 8 dòng / trang.
+         *
+         *     ``method`` chọn phương thức -> chỉ dòng Đã thanh toán; "transfer" gồm cả online.
+         *     Lỗi: E-016 (từ > đến), E-020 (> 92 ngày).
+         */
+        get: operations["list_transactions_api_v1_booking_transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/members/search": {
         parameters: {
             query?: never;
@@ -940,6 +1005,16 @@ export interface components {
              * @description Giờ bắt đầu các ô Xám (không bán) của sân này
              */
             off_hours: number[];
+        };
+        /** CollectIn */
+        CollectIn: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "cash" | "transfer";
+            /** Version */
+            version: number;
         };
         /**
          * CounterBookingIn
@@ -1781,6 +1856,90 @@ export interface components {
         /** TicketIn */
         TicketIn: {
             customer: components["schemas"]["CustomerIn"];
+        };
+        /** TransactionCard */
+        TransactionCard: {
+            /** Amount */
+            amount: number;
+            /** Count */
+            count: number;
+        };
+        /** TransactionCards */
+        TransactionCards: {
+            paid: components["schemas"]["TransactionCard"];
+            unpaid: components["schemas"]["TransactionCard"];
+            uncollectible: components["schemas"]["TransactionCard"];
+        };
+        /** TransactionRow */
+        TransactionRow: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "booking" | "ticket";
+            /** Code */
+            code: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Codes */
+            resource_codes: string[];
+            /** Customer Name */
+            customer_name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+            /** Amount */
+            amount: number;
+            /**
+             * Payment Status
+             * @enum {string}
+             */
+            payment_status: "unpaid" | "paid" | "uncollectible";
+            /** Payment Method */
+            payment_method: ("cash" | "transfer" | "online_transfer") | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "online";
+        };
+        /** TransactionsOut */
+        TransactionsOut: {
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /** Rows */
+            rows: components["schemas"]["TransactionRow"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+            cards: components["schemas"]["TransactionCards"];
+        };
+        /** UncollectibleIn */
+        UncollectibleIn: {
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Version */
+            version: number;
         };
         /**
          * UserListItem
@@ -3289,6 +3448,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    collect_api_v1_booking_items__code__collect_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_uncollectible_api_v1_booking_items__code__uncollectible_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UncollectibleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_transactions_api_v1_booking_transactions_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                resource?: string | null;
+                status?: ("unpaid" | "paid" | "uncollectible") | null;
+                method?: ("cash" | "transfer") | null;
+                q?: string | null;
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionsOut"];
                 };
             };
             /** @description Validation Error */

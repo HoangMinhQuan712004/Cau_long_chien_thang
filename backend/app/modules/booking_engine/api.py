@@ -16,11 +16,14 @@ from app.modules.booking_engine import (
     config_service,
     holds,
     outbox,
+    payment_service,
     session_service,
+    transactions,
 )
 from app.modules.booking_engine.dto import (
     Actor,
     CalendarOut,
+    CollectIn,
     CounterBookingIn,
     CustomerSnapshot,
     ItemOut,
@@ -37,6 +40,9 @@ from app.modules.booking_engine.dto import (
     SessionOut,
     SpecialDayIn,
     SpecialDayOut,
+    TransactionsOut,
+    TransactionsQuery,
+    UncollectibleIn,
 )
 from app.modules.booking_engine.models import DEFAULT_TENANT_SETTINGS, Tenant
 from app.modules.booking_engine.tenant import current_tenant_id
@@ -207,6 +213,32 @@ async def register_ticket(
     return await session_service.register_ticket(
         session, _tid(tenant_id), actor, session_code, customer, note
     )
+
+
+# ---- Thu tiền, Không thu được, Lịch sử giao dịch
+
+
+async def collect(
+    session: AsyncSession, actor: Actor, code: str, data: CollectIn, *, tenant_id: int | None = None
+) -> ItemOut:
+    return await payment_service.collect(session, _tid(tenant_id), actor, code, data)
+
+
+async def mark_uncollectible(
+    session: AsyncSession,
+    actor: Actor,
+    code: str,
+    data: UncollectibleIn,
+    *,
+    tenant_id: int | None = None,
+) -> ItemOut:
+    return await payment_service.mark_uncollectible(session, _tid(tenant_id), actor, code, data)
+
+
+async def list_transactions(
+    session: AsyncSession, query: TransactionsQuery, *, tenant_id: int | None = None
+) -> TransactionsOut:
+    return await transactions.list_transactions(session, _tid(tenant_id), query)
 
 
 # ---- Vận hành
