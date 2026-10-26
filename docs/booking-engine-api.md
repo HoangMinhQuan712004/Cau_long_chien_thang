@@ -106,7 +106,7 @@ Khai báo trong `backend/app/core/config.py`, mẫu ở `backend/.env.example`.
 | Biến | Mặc định | Ý nghĩa |
 |---|---|---|
 | `ALLOWED_ORIGINS` | `["http://localhost:3000"]` | Origin được gửi request ghi kèm cookie (chống CSRF). Production: `["https://chienthang.superbai.vip"]`; dev: `["https://chienthang-dev.superbai.vip"]`. Worktree FRONTEND chạy cổng 3102 phải thêm `http://localhost:3102` |
-| `TRUSTED_PROXY_COUNT` | `0` | Số proxy tin cậy đứng trước API để lấy IP thật từ `X-Forwarded-For` (Caddy → Next → API là 2). `0` = dùng IP kết nối trực tiếp, khi đó mọi người sau cùng một proxy dùng chung một bộ đếm → dễ dính 429 |
+| `TRUSTED_PROXY_COUNT` | `0` | Số proxy tin cậy đứng trước API để lấy IP thật từ `X-Forwarded-For`. **Trên server dev và production đặt `1`**: Caddy ghi `X-Forwarded-For` = IP client, Next chuyển nguyên và không nối thêm. Đặt `2` sẽ lấy nhầm IP container web (đo trên dev: `172.19.0.6`) → mọi người dùng chung một bộ đếm, dễ dính 429. `0` (mặc định, dùng khi chạy cục bộ không qua proxy) = dùng IP kết nối trực tiếp; nếu đặt `0` trên server thì cũng chung một bộ đếm |
 | `RATE_LIMIT_ENABLED` | `true` | Bật/tắt rate limit |
 | `RATE_LIMIT_PER_MINUTE` | `120` | Giới hạn mặc định theo IP |
 | `MAX_BODY_BYTES` | `65536` | Kích thước body tối đa |
