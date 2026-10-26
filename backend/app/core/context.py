@@ -37,9 +37,9 @@ def _header(scope: Scope, name: bytes) -> str | None:
 def resolve_client_ip(scope: Scope) -> str | None:
     """IP thật của client.
 
-    Mỗi proxy tin cậy nối IP nó nhận được vào cuối ``X-Forwarded-For``; proxy cuối cùng là kết nối
-    trực tiếp. Với N proxy tin cậy, IP client = phần tử thứ N tính từ cuối. Giá trị client tự gửi
-    nằm phía trước nên không giả mạo được.
+    Mỗi proxy tin cậy (có ghi XFF) nối IP nó nhận được vào cuối ``X-Forwarded-For``. Với N proxy
+    như vậy, IP client = phần tử thứ N tính từ cuối; giá trị client tự gửi nằm phía trước nên không
+    giả mạo được. Prod/dev: Caddy -> Next -> API, chỉ Caddy ghi XFF -> N = 1.
     """
     direct = scope.get("client")
     direct_ip = direct[0] if direct else None
