@@ -37,6 +37,7 @@ from app.modules.booking_engine.models import (
     ResourceSchedule,
     ResourceType,
     SpecialDay,
+    Tenant,
 )
 from app.modules.booking_engine.pricing import (
     BAND_LABELS,
@@ -600,23 +601,28 @@ def _not_sold(message: str) -> AppError:
     return AppError("E-CFG-10", message, 422)
 
 
-async def quote(session: AsyncSession, tenant_id: int, data: QuoteIn) -> QuoteOut:
-    tenant = await get_tenant(session, tenant_id)
+async def price_slots(
+    session: AsyncSession, tenant: Tenant, r: Resource, day: date, start_hour: int, end_hour: int
+) -> tuple[str, list[QuoteItem]]:
+    """Kiểm khung bán được + giá từng khung 1 giờ (D1–D3, BR-009). Trả (loại ngày, các khung).
+
+    Không bán (sân ngừng, ngoài giờ, giờ sai) -> ``E-CFG-10``; thiếu giá -> ``E-019``.
+    """
+    tenant_id = tenant.id
     label = resource_label(tenant)
-    if data.start_hour >= data.end_hour:
+    if start_hour >= end_hour:
         raise _not_sold("Giờ kết thúc phải sau giờ bắt đầu.")
-    r = await _resource_by_code(session, tenant_id, data.resource_code)
     versions = (await schedules_of(session, tenant_id, [r.id])).get(r.id, [])
-    sched = effective_on(versions, data.date)
+    sched = effective_on(versions, day)
     if not r.is_active or sched is None:
-        raise _not_sold(f"{r.name} không nhận đặt vào ngày {data.date:%d/%m/%Y}.")
+        raise _not_sold(f"{r.name} không nhận đặt vào ngày {day:%d/%m/%Y}.")
     hours = Hours.of(sched)
-    for h in range(data.start_hour, data.end_hour):
+    for h in range(start_hour, end_hour):
         if not hours.sells(h * 60, h * 60 + 60):
             raise _not_sold(f"Khung {h:02d}:00–{h + 1:02d}:00 của {r.name} không bán.")
 
-    special = await special_day_on(session, tenant_id, data.date)
-    day_type = day_type_of(data.date, special is not None)
+    special = await special_day_on(session, tenant_id, day)
+    day_type = day_type_of(day, special is not None)
     prices = {
         p.band: p.price_per_hour
         for p in await session.scalars(
@@ -628,25 +634,36 @@ async def quote(session: AsyncSession, tenant_id: int, data: QuoteIn) -> QuoteOu
         )
     }
     items: list[QuoteItem] = []
-    for h in range(data.start_hour, data.end_hour):
+    for h in range(start_hour, end_hour):
         needed = {"peak" if hours.is_peak(m) else "offpeak" for m in (h * 60, h * 60 + 30)}
         if not needed <= prices.keys():
             raise AppError(
                 "E-019",
-                f"Chưa có giá cho {label} này vào ngày {data.date:%d/%m/%Y}. "
-                "Vui lòng cập nhật Bảng giá.",
+                f"Chưa có giá cho {label} này vào ngày {day:%d/%m/%Y}. "
+                "Vui lòng kiểm tra Sân & bảng giá.",
                 422,
             )
         band, price = slot_price(hours, h * 60, prices)
         items.append(
             QuoteItem(
                 start_time=f"{h:02d}:00",
-                end_time=f"{h + 1:02d}:00",
+                end_time=to_hhmm((h + 1) * 60),
                 band=band,
                 label=BAND_LABELS[band],
                 price=price,
             )
         )
+    return day_type, items
+
+
+async def quote(session: AsyncSession, tenant_id: int, data: QuoteIn) -> QuoteOut:
+    tenant = await get_tenant(session, tenant_id)
+    if data.start_hour >= data.end_hour:
+        raise _not_sold("Giờ kết thúc phải sau giờ bắt đầu.")
+    r = await _resource_by_code(session, tenant_id, data.resource_code)
+    day_type, items = await price_slots(
+        session, tenant, r, data.date, data.start_hour, data.end_hour
+    )
     return QuoteOut(
         resource_code=r.code,
         resource_name=r.name,

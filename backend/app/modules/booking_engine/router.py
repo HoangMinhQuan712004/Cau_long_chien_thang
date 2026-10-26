@@ -6,6 +6,7 @@ Mọi lệnh ghi bắt buộc header ``Idempotency-Key`` (UUID v4) và chạy tr
 (một transaction: nghiệp vụ + nhật ký + outbox + kết quả idempotency).
 """
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response, status
@@ -17,6 +18,8 @@ from app.core.ratelimit import rate_limit
 from app.modules.booking_engine import api
 from app.modules.booking_engine.dto import (
     Actor,
+    CalendarOut,
+    ItemOut,
     PriceTable,
     PriceTableUpdate,
     QuoteIn,
@@ -25,6 +28,7 @@ from app.modules.booking_engine.dto import (
     ResourceList,
     ResourceOut,
     ResourceUpdate,
+    SearchResult,
     SpecialDayIn,
     SpecialDayOut,
 )
@@ -34,10 +38,21 @@ router = APIRouter(prefix="/booking", tags=["booking"])
 ResourceViewer = Annotated[Principal, Depends(require(Perm.BOOKING_RESOURCES_VIEW))]
 ConfigManager = Annotated[Principal, Depends(require(Perm.BOOKING_CONFIG_MANAGE))]
 Quoter = Annotated[Principal, Depends(require(Perm.BOOKING_QUOTE))]
+CalendarViewer = Annotated[Principal, Depends(require(Perm.BOOKING_CALENDAR_VIEW))]
+CodeSearcher = Annotated[Principal, Depends(require(Perm.BOOKING_SEARCH))]
+ItemViewer = Annotated[Principal, Depends(require(Perm.BOOKING_ITEM_VIEW))]
+
+ACTION_PERMS = {"collect": Perm.BOOKING_COLLECT, "uncollectible": Perm.BOOKING_UNCOLLECTIBLE}
 
 
 def _actor(p: Principal) -> Actor:
     return Actor(type=p.actor_type, id=p.actor_id, label=p.label)
+
+
+def for_viewer(item: ItemOut, p: Principal) -> ItemOut:
+    """Chỉ giữ thao tác mà người xem có quyền làm."""
+    item.actions = [a for a in item.actions if p.has(ACTION_PERMS[a])]
+    return item
 
 
 # ---------------------------------------------------------------- tài nguyên
@@ -150,3 +165,41 @@ async def delete_special_day(
 async def quote(data: QuoteIn, _: Quoter, session: SessionDep):
     """Giá từng khung 1 giờ + tổng (không ghi dữ liệu) – dùng cho popup Đặt sân."""
     return await api.quote(session, data)
+
+
+# ---------------------------------------------------------------- lịch, tìm mã, booking / vé
+
+
+@router.get("/calendar", response_model=CalendarOut)
+async def calendar(
+    principal: CalendarViewer,
+    session: SessionDep,
+    day: Annotated[date, Query(alias="date")],
+):
+    """Lịch 1 ngày: hàng = sân, cột = khung 1 giờ, khối booking / sự kiện / giữ chỗ (BR-001…004)."""
+    return await api.calendar(
+        session,
+        day,
+        can_counter_book=principal.has(Perm.BOOKING_COUNTER_CREATE),
+        can_create_session=principal.has(Perm.BOOKING_SESSION_MANAGE),
+    )
+
+
+@router.get(
+    "/search",
+    response_model=SearchResult,
+    dependencies=[Depends(rate_limit("booking.search", 60, key="user"))],
+)
+async def search(
+    _: CodeSearcher,
+    session: SessionDep,
+    code: Annotated[str, Query(max_length=60)] = "",
+):
+    """Tìm đúng mã booking / sự kiện / vé (bỏ khoảng trắng, không phân biệt hoa thường)."""
+    return await api.search_code(session, code)
+
+
+@router.get("/items/{code}", response_model=ItemOut)
+async def get_item(code: str, principal: ItemViewer, session: SessionDep):
+    """Thông tin booking hoặc vé: khách, lịch đặt, thanh toán, ``actions`` được phép lúc này."""
+    return for_viewer(await api.get_item(session, code), principal)

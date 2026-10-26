@@ -27,6 +27,7 @@ from app.modules.booking_engine.dto import (
     SpecialDayIn,
 )
 from app.modules.courts.models import Court, PriceRule
+from app.modules.members import api as members
 
 WEEKDAYS = [0, 1, 2, 3, 4]
 WEEKEND = [5, 6]
@@ -62,6 +63,35 @@ DEMO_HOLIDAYS_2026 = [
     (date(2026, 4, 30), date(2026, 5, 1), "Giải phóng miền Nam, Quốc tế Lao động"),
     (date(2026, 9, 1), date(2026, 9, 2), "Quốc khánh"),
 ]
+
+# Hội viên + hồ sơ tạm mẫu (prototype) – chỉ dữ liệu thử ở dev
+DEMO_MEMBERS = [
+    ("HV0012", "Trần Minh Đức", "0912111222", "Vàng", True),
+    ("HV0031", "Phạm Văn Nam", "0934567019", "Vàng", True),
+    ("HV0045", "Hoàng Thị Mai", "0978220145", "Bạc", True),
+    ("HV0058", "Nguyễn Văn Tú", "0905334058", "Đồng", True),
+    ("HV0087", "Phạm Thu Trang", "0987654087", "Bạc", True),
+    ("HV0102", "Nguyễn Thị Hoa", "0966102102", "Đồng", True),
+    ("HV0115", "Vũ Đức Anh", "0915115300", "Vàng", True),
+    ("HV0120", "Bùi Thanh Hà", "0938120777", "Đồng", False),
+    ("HV0133", "Lý Minh Khoa", "0977133456", "Bạc", True),
+    ("HV0141", "Ngô Đức Huy", "0909141662", "Vàng", True),
+]
+DEMO_TEMPS = [
+    ("Lê Thị Lan", "0967532821"),
+    ("Đỗ Quang Huy", "0903456712"),
+    ("Nguyễn Văn An", "0987001321"),
+    ("Trần Quốc Bảo", "0916778031"),
+]
+
+
+async def seed_members(session) -> None:
+    if settings.is_production:
+        return
+    for code, name, phone, tier, active in DEMO_MEMBERS:
+        await members.upsert_member(session, code, name, phone, tier, active)
+    for name, phone in DEMO_TEMPS:
+        await members.upsert_temp(session, name, phone)
 
 
 async def seed_booking_engine(session) -> None:
@@ -167,6 +197,7 @@ async def main() -> None:
             print("Created default price rules")
 
         await seed_booking_engine(session)
+        await seed_members(session)
         await session.commit()
 
 

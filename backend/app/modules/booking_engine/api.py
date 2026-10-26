@@ -7,11 +7,17 @@ Quy ước transaction: hàm ghi **không commit** – người gọi sở hữu
 ``tenant_id`` mặc định là tenant của bản chạy (``TENANT_ID``).
 """
 
+import datetime as dt
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.modules.booking_engine import config_service, outbox
+from app.modules.booking_engine import booking_service, config_service, holds, outbox
 from app.modules.booking_engine.dto import (
     Actor,
+    CalendarOut,
+    CounterBookingIn,
+    CustomerSnapshot,
+    ItemOut,
     PriceTable,
     PriceTableUpdate,
     QuoteIn,
@@ -20,6 +26,7 @@ from app.modules.booking_engine.dto import (
     ResourceList,
     ResourceOut,
     ResourceUpdate,
+    SearchResult,
     SpecialDayIn,
     SpecialDayOut,
 )
@@ -102,6 +109,47 @@ async def quote(session: AsyncSession, data: QuoteIn, *, tenant_id: int | None =
     return await config_service.quote(session, _tid(tenant_id), data)
 
 
+# ---- Lịch, tìm mã, đặt tại quầy, thông tin booking / vé
+
+
+async def calendar(
+    session: AsyncSession,
+    day: dt.date,
+    *,
+    can_counter_book: bool,
+    can_create_session: bool,
+    tenant_id: int | None = None,
+) -> CalendarOut:
+    """Lịch 1 ngày; ``can_*`` = quyền của người xem do lớp gọi xác định."""
+    return await booking_service.calendar(
+        session, _tid(tenant_id), day, can_counter_book, can_create_session
+    )
+
+
+async def search_code(
+    session: AsyncSession, code: str, *, tenant_id: int | None = None
+) -> SearchResult:
+    return await booking_service.search(session, _tid(tenant_id), code)
+
+
+async def get_item(session: AsyncSession, code: str, *, tenant_id: int | None = None) -> ItemOut:
+    return await booking_service.get_item(session, _tid(tenant_id), code)
+
+
+async def create_counter_booking(
+    session: AsyncSession,
+    actor: Actor,
+    data: CounterBookingIn,
+    customer: CustomerSnapshot,
+    note: str | None = None,
+    *,
+    tenant_id: int | None = None,
+) -> ItemOut:
+    return await booking_service.create_counter_booking(
+        session, _tid(tenant_id), actor, data, customer, note
+    )
+
+
 # ---- Vận hành
 
 
@@ -135,3 +183,8 @@ async def ensure_tenant(
 async def publish_outbox(session_factory: async_sessionmaker[AsyncSession]) -> int:
     """Worker gọi định kỳ: phát sự kiện outbox qua ``core.events``."""
     return await outbox.publish_pending(session_factory)
+
+
+async def expire_holds(session: AsyncSession) -> int:
+    """Worker gọi mỗi 30 giây (không commit): giữ chỗ quá hạn -> ``expired``, trả khung."""
+    return await holds.expire_holds(session)
