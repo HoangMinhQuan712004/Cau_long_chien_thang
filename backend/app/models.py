@@ -8,6 +8,7 @@ from app.modules.booking_engine import models as booking_engine_models
 from app.modules.bookings.models import Booking, BookingSlot
 from app.modules.content.models import Post
 from app.modules.courts.models import Court, PriceRule
+from app.modules.members.models import Customer
 from app.modules.payments.models import Payment
 
 __all__ = [
@@ -16,6 +17,7 @@ __all__ = [
     "Booking",
     "BookingSlot",
     "Court",
+    "Customer",
     "IdempotencyKey",
     "Payment",
     "Post",

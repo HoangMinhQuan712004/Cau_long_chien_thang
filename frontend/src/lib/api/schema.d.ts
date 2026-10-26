@@ -575,6 +575,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Calendar
+         * @description Lịch 1 ngày: hàng = sân, cột = khung 1 giờ, khối booking / sự kiện / giữ chỗ (BR-001…004).
+         */
+        get: operations["calendar_api_v1_booking_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search
+         * @description Tìm đúng mã booking / sự kiện / vé (bỏ khoảng trắng, không phân biệt hoa thường).
+         */
+        get: operations["search_api_v1_booking_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/items/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Item
+         * @description Thông tin booking hoặc vé: khách, lịch đặt, thanh toán, ``actions`` được phép lúc này.
+         */
+        get: operations["get_item_api_v1_booking_items__code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/members/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Members
+         * @description Tìm hội viên theo mã / tên / SĐT (≥ 3 chữ số) – tối đa 20 dòng, SĐT đã che.
+         */
+        get: operations["search_members_api_v1_members_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Booking
+         * @description Đặt sân tại quầy: 1 sân, hôm nay, khung liền nhau -> booking Chưa thanh toán.
+         *
+         *     Lỗi: E-001/E-002 (hồ sơ tạm), E-014 (không có hội viên), E-018 (SĐT là của hội viên),
+         *     E-004 (khung đã qua), E-CFG-10 (khung không bán), E-019 (thiếu giá), E-003 (vừa có người đặt),
+         *     403 (ngày khác hôm nay).
+         */
+        post: operations["create_booking_api_v1_front_desk_bookings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -676,6 +780,99 @@ export interface components {
              */
             end: string;
         };
+        /** CalendarBlock */
+        CalendarBlock: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "booking" | "session" | "hold";
+            /** Code */
+            code: string | null;
+            /** Resource Codes */
+            resource_codes: string[];
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /** Payment Status */
+            payment_status?: ("unpaid" | "paid" | "uncollectible") | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Phone Masked */
+            phone_masked?: string | null;
+            /** Source */
+            source?: ("counter" | "online") | null;
+            /** Name */
+            name?: string | null;
+            /** Taken */
+            taken?: number | null;
+            /** Capacity */
+            capacity?: number | null;
+            /** Is Full */
+            is_full?: boolean | null;
+            /** Unpaid Tickets */
+            unpaid_tickets?: number | null;
+            /** Expires At */
+            expires_at?: string | null;
+        };
+        /** CalendarCan */
+        CalendarCan: {
+            /** Counter Book */
+            counter_book: boolean;
+            /** Create Session */
+            create_session: boolean;
+        };
+        /** CalendarOut */
+        CalendarOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Now
+             * Format: date-time
+             */
+            now: string;
+            /**
+             * Is Past
+             * @description Ngày đã qua – chỉ xem
+             */
+            is_past: boolean;
+            /**
+             * Columns
+             * @description Giờ bắt đầu từng cột (khung 1 giờ)
+             */
+            columns: number[];
+            /** Resources */
+            resources: components["schemas"]["CalendarResource"][];
+            /** Blocks */
+            blocks: components["schemas"]["CalendarBlock"][];
+            /** Unpaid Count */
+            unpaid_count: number;
+            can: components["schemas"]["CalendarCan"];
+        };
+        /** CalendarResource */
+        CalendarResource: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Off Hours
+             * @description Giờ bắt đầu các ô Xám (không bán) của sân này
+             */
+            off_hours: number[];
+        };
         /**
          * CounterBookingIn
          * @description Nhân viên đặt hộ khách tại quầy / qua điện thoại.
@@ -754,10 +951,137 @@ export interface components {
             /** Slug */
             slug: string;
         };
+        /**
+         * CustomerIn
+         * @description Khách của lượt đặt: đúng một trong hai – hội viên (theo mã) hoặc hồ sơ tạm.
+         */
+        CustomerIn: {
+            /** Member Code */
+            member_code?: string | null;
+            temp?: components["schemas"]["TempCustomerIn"] | null;
+        };
+        /** FrontDeskBookingIn */
+        FrontDeskBookingIn: {
+            /** Resource Code */
+            resource_code: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            customer: components["schemas"]["CustomerIn"];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** ItemCustomer */
+        ItemCustomer: {
+            /** Name */
+            name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+            /**
+             * Profile Label
+             * @description "Hồ sơ tạm" hoặc "Hội viên (HV0087 · Hạng Bạc)"
+             */
+            profile_label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "member" | "temp";
+            /** Member Code */
+            member_code: string | null;
+            /** Tier */
+            tier: string | null;
+        };
+        /**
+         * ItemOut
+         * @description Thông tin booking / vé (SRS IV.5) – không SĐT đầy đủ, không id nội bộ.
+         */
+        ItemOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "booking" | "ticket";
+            /** Code */
+            code: string;
+            /** Version */
+            version: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "online";
+            customer: components["schemas"]["ItemCustomer"];
+            schedule: components["schemas"]["ItemSchedule"];
+            payment: components["schemas"]["ItemPayment"];
+            /** Price Breakdown */
+            price_breakdown?: components["schemas"]["QuoteItem"][];
+            /** Note */
+            note?: string | null;
+            /** Created By */
+            created_by: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Actions */
+            actions: ("collect" | "uncollectible")[];
+        };
+        /** ItemPayment */
+        ItemPayment: {
+            /** Amount */
+            amount: number;
+            /**
+             * Payment Status
+             * @enum {string}
+             */
+            payment_status: "unpaid" | "paid" | "uncollectible";
+            /** Payment Method */
+            payment_method?: ("cash" | "transfer" | "online_transfer") | null;
+            /** Paid At */
+            paid_at?: string | null;
+            /** Collected By */
+            collected_by?: string | null;
+            /** Uncollectible Reason */
+            uncollectible_reason?: string | null;
+            /** Marked By */
+            marked_by?: string | null;
+            /** Marked At */
+            marked_at?: string | null;
+        };
+        /** ItemSchedule */
+        ItemSchedule: {
+            /** Resource Codes */
+            resource_codes: string[];
+            /** Resource Names */
+            resource_names: string[];
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            session?: components["schemas"]["ItemSessionRef"] | null;
+        };
+        /** ItemSessionRef */
+        ItemSessionRef: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
         };
         /** LoginIn */
         LoginIn: {
@@ -775,6 +1099,27 @@ export interface components {
             method: components["schemas"]["PaymentMethod"];
             /** Amount */
             amount?: number | null;
+        };
+        /**
+         * MemberSearchItem
+         * @description Một dòng kết quả tìm hội viên – SĐT đã che (BR-021), không lộ id nội bộ.
+         */
+        MemberSearchItem: {
+            /**
+             * Ref
+             * @description Mã tham chiếu để chọn hội viên (= mã hội viên)
+             */
+            ref: string;
+            /** Member Code */
+            member_code: string;
+            /** Name */
+            name: string;
+            /** Phone Masked */
+            phone_masked: string;
+            /** Tier */
+            tier: string | null;
+            /** Is Active */
+            is_active: boolean;
         };
         /**
          * PaymentMethod
@@ -1127,6 +1472,21 @@ export interface components {
                 string
             ][];
         };
+        /** SearchResult */
+        SearchResult: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "booking" | "ticket" | "session";
+            /** Code */
+            code: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+        };
         /** SlotIn */
         SlotIn: {
             /** Court Id */
@@ -1211,6 +1571,21 @@ export interface components {
             phone?: string | null;
             /** @default staff */
             role: components["schemas"]["Role"];
+        };
+        /** TempCustomerIn */
+        TempCustomerIn: {
+            /**
+             * Full Name
+             * @default
+             */
+            full_name: string;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+            /** Note */
+            note?: string | null;
         };
         /**
          * UserListItem
@@ -2521,6 +2896,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["app__modules__booking_engine__dto__QuoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calendar_api_v1_booking_calendar_get: {
+        parameters: {
+            query: {
+                date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_api_v1_booking_search_get: {
+        parameters: {
+            query?: {
+                code?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_item_api_v1_booking_items__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_members_api_v1_members_search_get: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberSearchItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_booking_api_v1_front_desk_bookings_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FrontDeskBookingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
                 };
             };
             /** @description Validation Error */

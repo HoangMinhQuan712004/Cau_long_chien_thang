@@ -14,6 +14,8 @@ from app.modules.booking_engine import router as booking_engine
 from app.modules.bookings import router as bookings
 from app.modules.content import router as content
 from app.modules.courts import router as courts
+from app.modules.front_desk import router as front_desk
+from app.modules.members import router as members
 from app.modules.payments import router as payments
 
 setup_logging()
@@ -50,6 +52,8 @@ for r in (
     content.router,
     content.admin_router,
     booking_engine.router,
+    members.router,
+    front_desk.router,
 ):
     app.include_router(r, prefix=settings.API_PREFIX)
 
