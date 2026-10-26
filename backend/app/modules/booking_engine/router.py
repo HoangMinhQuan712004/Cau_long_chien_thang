@@ -23,6 +23,7 @@ from app.modules.booking_engine.dto import (
     ItemOut,
     PriceTable,
     PriceTableUpdate,
+    PublicPrices,
     QuoteIn,
     QuoteOut,
     ResourceCreate,
@@ -109,6 +110,17 @@ async def update_resource(
 
 
 # ---------------------------------------------------------------- bảng giá
+
+
+@router.get("/prices/public", response_model=PublicPrices)
+async def public_prices(session: SessionDep, response: Response):
+    """Bảng giá công khai cho trang chủ – **không cần đăng nhập**, cache 5 phút.
+
+    Chỉ loại sân có sân đang hoạt động; giờ mở cửa / cao điểm theo lịch hôm nay;
+    Lễ/Tết từ hôm nay tới hết năm.
+    """
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return await api.public_prices(session)
 
 
 @router.get("/prices", response_model=PriceTable)

@@ -12,18 +12,9 @@ from app.core.config import settings
 from app.core.context import setup_logging
 from app.core.db import SessionLocal
 from app.modules.booking_engine import api as booking_engine
-from app.modules.bookings import service as bookings_service
 
 setup_logging()
 logger = logging.getLogger(__name__)
-
-
-async def expire_pending_bookings(ctx) -> int:
-    async with SessionLocal() as session:
-        count = await bookings_service.expire_pending(session)
-    if count:
-        logger.info("Expired %s pending bookings", count)
-    return count
 
 
 async def publish_booking_outbox(ctx) -> int:
@@ -55,14 +46,12 @@ async def purge_idempotency_keys(ctx) -> int:
 class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     functions = [
-        expire_pending_bookings,
         publish_booking_outbox,
         expire_holds,
         purge_audit_log,
         purge_idempotency_keys,
     ]
     cron_jobs = [
-        cron(expire_pending_bookings, second=0),  # mỗi phút
         cron(publish_booking_outbox, second=set(range(0, 60, 2)), unique=True),  # mỗi 2 giây
         cron(expire_holds, second={0, 30}, unique=True),  # mỗi 30 giây
         cron(purge_audit_log, hour=3, minute=15, second=0),  # hằng ngày

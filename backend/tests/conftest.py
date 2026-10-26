@@ -3,7 +3,6 @@ import os
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -25,7 +24,7 @@ from alembic.config import Config  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 from app.core import ratelimit  # noqa: E402
-from app.core.db import Base, engine  # noqa: E402
+from app.core.db import engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.scripts import seed  # noqa: E402
 
@@ -51,10 +50,10 @@ def _alembic_upgrade_head() -> None:
 async def setup_db() -> AsyncIterator[None]:
     """DB test dựng bằng migration thật (schema ``booking``, trigger ``audit_log``, EXCLUDE…)."""
     async with engine.begin() as conn:
+        # Xóa sạch (gồm bảng legacy_* và enum của luồng cũ – không còn trong metadata)
         await conn.execute(text("DROP SCHEMA IF EXISTS booking CASCADE"))
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
-        await conn.execute(text("DROP FUNCTION IF EXISTS audit_log_guard() CASCADE"))
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
     # env.py của alembic tự chạy asyncio.run -> chạy ở thread riêng
     await asyncio.to_thread(_alembic_upgrade_head)
     await seed.main()
@@ -152,11 +151,3 @@ async def staff(admin: AsyncClient) -> AsyncIterator[AsyncClient]:
             )
         assert r.status_code == 200, r.text
         yield c
-
-
-def slot(court_id: int, hour: int, minute: int = 0, minutes: int = 60, days: int = 2) -> dict:
-    """Slot vào ngày (hôm nay + days) theo giờ địa phương."""
-    day = datetime.now(settings.tz).date() + timedelta(days=days)
-    start = datetime(day.year, day.month, day.day, hour, minute, tzinfo=settings.tz)
-    end = start + timedelta(minutes=minutes)
-    return {"court_id": court_id, "start": start.isoformat(), "end": end.isoformat()}
