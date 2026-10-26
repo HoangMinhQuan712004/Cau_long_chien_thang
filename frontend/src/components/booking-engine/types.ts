@@ -94,7 +94,7 @@ export type Item = {
     play_date: string;
     start_time: string;
     end_time: string;
-    session: { code: string; name: string } | null;
+    session?: { code: string; name: string } | null;
   };
   payment: {
     amount: number;
@@ -106,7 +106,7 @@ export type Item = {
     marked_by?: string | null;
     marked_at?: string | null;
   };
-  price_breakdown: QuoteItem[];
+  price_breakdown?: QuoteItem[];
   note?: string | null;
   created_by: string;
   created_at: string;
@@ -173,3 +173,18 @@ export type CustomerPayload = { member_code: string } | { temp: { full_name: str
 
 /** Vùng chọn trên lịch. */
 export type Selection = { resourceCodes: string[]; date: string; startHour: number; endHour: number };
+
+// ---- Kiểm tra lúc biên dịch: kiểu viết tay ở trên phải nhận được response theo `schema.d.ts` (sinh từ backend). ----
+// Backend đổi hình dạng response → `tsc` / `npm run build` báo lỗi ở đây thay vì lỗi lúc chạy.
+import type { components as Api } from "@/lib/api/schema";
+
+type Accepts<Actual extends Expected, Expected> = [Actual, Expected];
+export type SchemaContract = [
+  Accepts<Api["schemas"]["CalendarOut"], Calendar>,
+  Accepts<Api["schemas"]["app__modules__booking_engine__dto__QuoteOut"], Quote>,
+  Accepts<Api["schemas"]["MemberSearchItem"], MemberHit>,
+  Accepts<Api["schemas"]["ItemOut"], Item>,
+  Accepts<Api["schemas"]["SessionOut"], SessionDetail>,
+  Accepts<Api["schemas"]["SearchResult"], SearchResult>,
+  Accepts<Api["schemas"]["TransactionsOut"], Transactions>,
+];
