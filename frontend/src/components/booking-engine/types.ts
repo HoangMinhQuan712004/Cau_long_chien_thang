@@ -181,7 +181,7 @@ import type { components as Api } from "@/lib/api/schema";
 type Accepts<Actual extends Expected, Expected> = [Actual, Expected];
 export type SchemaContract = [
   Accepts<Api["schemas"]["CalendarOut"], Calendar>,
-  Accepts<Api["schemas"]["app__modules__booking_engine__dto__QuoteOut"], Quote>,
+  Accepts<Api["schemas"]["QuoteOut"], Quote>,
   Accepts<Api["schemas"]["MemberSearchItem"], MemberHit>,
   Accepts<Api["schemas"]["ItemOut"], Item>,
   Accepts<Api["schemas"]["SessionOut"], SessionDetail>,

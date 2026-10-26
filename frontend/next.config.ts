@@ -44,6 +44,10 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // Trang đặt sân online cũ đã gỡ (T-006): chuyển về bảng giá để giữ liên kết cũ.
+  async redirects() {
+    return [{ source: "/dat-san", destination: "/bang-gia", permanent: true }];
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
