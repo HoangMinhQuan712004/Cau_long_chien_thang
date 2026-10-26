@@ -27,6 +27,7 @@ from app.core import ratelimit  # noqa: E402
 from app.core.db import engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.scripts import seed  # noqa: E402
+from tests.db_guard import reset_refusal  # noqa: E402
 
 API = settings.API_PREFIX
 ORIGIN = "http://testserver"
@@ -49,6 +50,9 @@ def _alembic_upgrade_head() -> None:
 @pytest.fixture(scope="session", autouse=True)
 async def setup_db() -> AsyncIterator[None]:
     """DB test dựng bằng migration thật (schema ``booking``, trigger ``audit_log``, EXCLUDE…)."""
+    refusal = reset_refusal(settings.DATABASE_URL, settings.ENV, os.environ.get("CI"))
+    if refusal:
+        pytest.exit(refusal, returncode=2)
     async with engine.begin() as conn:
         # Xóa sạch (gồm bảng legacy_* và enum của luồng cũ – không còn trong metadata)
         await conn.execute(text("DROP SCHEMA IF EXISTS booking CASCADE"))
