@@ -7,7 +7,7 @@ Mọi lệnh ghi bắt buộc header ``Idempotency-Key`` (UUID v4) và chạy tr
 """
 
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
@@ -19,6 +19,7 @@ from app.modules.booking_engine import api
 from app.modules.booking_engine.dto import (
     Actor,
     CalendarOut,
+    CollectIn,
     ItemOut,
     PriceTable,
     PriceTableUpdate,
@@ -34,6 +35,9 @@ from app.modules.booking_engine.dto import (
     SessionOut,
     SpecialDayIn,
     SpecialDayOut,
+    TransactionsOut,
+    TransactionsQuery,
+    UncollectibleIn,
 )
 
 router = APIRouter(prefix="/booking", tags=["booking"])
@@ -45,6 +49,9 @@ CalendarViewer = Annotated[Principal, Depends(require(Perm.BOOKING_CALENDAR_VIEW
 CodeSearcher = Annotated[Principal, Depends(require(Perm.BOOKING_SEARCH))]
 ItemViewer = Annotated[Principal, Depends(require(Perm.BOOKING_ITEM_VIEW))]
 SessionViewer = Annotated[Principal, Depends(require(Perm.BOOKING_SESSION_VIEW))]
+Collector = Annotated[Principal, Depends(require(Perm.BOOKING_COLLECT))]
+UncollectibleMarker = Annotated[Principal, Depends(require(Perm.BOOKING_UNCOLLECTIBLE))]
+TransactionsViewer = Annotated[Principal, Depends(require(Perm.BOOKING_TRANSACTIONS_VIEW))]
 SessionManager = Annotated[Principal, Depends(require(Perm.BOOKING_SESSION_MANAGE))]
 
 ACTION_PERMS = {"collect": Perm.BOOKING_COLLECT, "uncollectible": Perm.BOOKING_UNCOLLECTIBLE}
@@ -259,4 +266,73 @@ async def delete_session(
         session,
         principal.key,
         lambda: api.delete_session(session, _actor(principal), code, data.version),
+    )
+
+
+# ---------------------------------------------------------------- thu tiền, Không thu được
+
+
+@router.post("/items/{code}/collect", response_model=ItemOut)
+async def collect(
+    code: str, data: CollectIn, principal: Collector, idem: IdempotencyDep, session: SessionDep
+):
+    """Thu tiền mặt (``method="cash"``; ``transfer`` -> 422 ``E-PAY-0`` cho tới T-007).
+
+    Đã đổi trạng thái / ``version`` cũ -> 409 ``E-012``.
+    """
+
+    async def run() -> ItemOut:
+        return for_viewer(await api.collect(session, _actor(principal), code, data), principal)
+
+    return await idem.run(session, principal.key, run)
+
+
+@router.post("/items/{code}/uncollectible", response_model=ItemOut)
+async def mark_uncollectible(
+    code: str,
+    data: UncollectibleIn,
+    principal: UncollectibleMarker,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Không thu được: lý do 1–200 (E-001); chỉ tại quầy + đã tới giờ chơi (E-PAY-1); E-012."""
+
+    async def run() -> ItemOut:
+        item = await api.mark_uncollectible(session, _actor(principal), code, data)
+        return for_viewer(item, principal)
+
+    return await idem.run(session, principal.key, run)
+
+
+# ---------------------------------------------------------------- lịch sử giao dịch
+
+
+@router.get("/transactions", response_model=TransactionsOut)
+async def list_transactions(
+    _: TransactionsViewer,
+    session: SessionDep,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    resource: Annotated[str | None, Query(max_length=10)] = None,
+    status: Annotated[Literal["unpaid", "paid", "uncollectible"] | None, Query()] = None,
+    method: Annotated[Literal["cash", "transfer"] | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    page: Annotated[int, Query(ge=1, le=10_000)] = 1,
+):
+    """Lịch sử giao dịch (chỉ Admin): lọc theo ngày chơi (mặc định 7 ngày), 8 dòng / trang.
+
+    ``method`` chọn phương thức -> chỉ dòng Đã thanh toán; "transfer" gồm cả online.
+    Lỗi: E-016 (từ > đến), E-020 (> 92 ngày).
+    """
+    return await api.list_transactions(
+        session,
+        TransactionsQuery(
+            date_from=date_from,
+            date_to=date_to,
+            resource=resource,
+            status=status,
+            method=method,
+            q=q,
+            page=page,
+        ),
     )
