@@ -28,7 +28,8 @@ class Settings(BaseSettings):
     # Origin được phép gửi request ghi kèm cookie phiên (chống CSRF):
     # site prod / dev / localhost dev
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
-    # Số proxy tin cậy đứng trước API (Caddy -> Next -> API = 2) để lấy IP thật từ X-Forwarded-For.
+    # Số proxy tin cậy GHI X-Forwarded-For trước API để lấy IP thật của khách.
+    # Prod/dev (Caddy -> Next -> API) = 1: chỉ Caddy ghi XFF, Next không nối thêm.
     # 0 = dùng IP kết nối trực tiếp.
     TRUSTED_PROXY_COUNT: int = 0
     RATE_LIMIT_ENABLED: bool = True
