@@ -278,14 +278,22 @@ async def test_ac2_rows_columns_and_off_hours(admin):
     code = res.json()["code"]
     data = await calendar(admin)
     row = next(x for x in data["resources"] if x["code"] == code)
-    assert 5 in row["off_hours"] and 22 not in row["off_hours"] and 6 not in row["off_hours"]
+    off = set(row["off_hours"])
+    assert 5 in off, "05:00 is before opening (06:00) -> grey"
+    assert not off & set(range(6, 22)), "06:00-22:00 is open"
+    if 22 in data["columns"]:  # column range widens when other resources open later
+        assert 22 in off, "22:00 is after closing -> grey"
     assert row["is_active"] is True
     # inactive resource without allocations is not shown
     pr = await admin.get(f"{B}/resources")
     inactive = [x for x in pr.json().get("items", pr.json()) if x.get("is_active") is False]
     shown = {x["code"] for x in data["resources"]}
+    occupied = {c for blk in data["blocks"] for c in blk.get("resource_codes", [])}
     for x in inactive:
-        assert x["code"] not in shown, "inactive resource without allocation must be hidden"
+        if x["code"] in occupied:  # BR-001: inactive resource with allocations stays visible
+            assert x["code"] in shown
+        else:
+            assert x["code"] not in shown, "inactive resource without allocation must be hidden"
 
 
 async def test_ac2_past_and_far_dates(staff):

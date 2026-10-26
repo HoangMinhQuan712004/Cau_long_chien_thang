@@ -582,7 +582,7 @@ async def test_sec1_global_rate_limit_returns_429_with_retry_after(clean_rate_li
     async with _http() as c:
         statuses, retry, last_code = [], None, None
         for _ in range(135):
-            r = await c.get(f"{API}/venue/config")
+            r = await c.get(f"{API}/booking/prices/public")
             statuses.append(r.status_code)
             if r.status_code == 429:
                 retry = r.headers.get("Retry-After")
@@ -624,7 +624,9 @@ async def test_sec3_foreign_referer_and_legacy_routes_also_blocked(adm, customer
         headers={"Origin": "", "Referer": f"{EVIL}/page"},
     )
     assert r.status_code == 403, r.text
-    r = await customer_c.post(f"{API}/bookings", json={"slots": []}, headers={"Origin": EVIL})
+    r = await customer_c.post(
+        f"{API}/front-desk/bookings", json={"slots": []}, headers={"Origin": EVIL}
+    )
     assert r.status_code == 403, r.text
 
 
@@ -634,10 +636,18 @@ async def test_sec3_safe_methods_and_allowed_origin_pass(adm):
     assert ok.status_code != 403, "allowed Origin must not be blocked by CSRF check"
 
 
+# Routes added by T-006 (own permission matrix in test_qa_T-006.py) or public by design.
+NOT_CONFIG_PREFIXES = tuple(
+    f"{B}/{p}" for p in ("calendar", "search", "sessions", "items", "transactions", "prices/public")
+)
+
+
 def _sweep_routes(prefixes, skip):
     """Yield (method, concrete path) for every documented route under the given prefixes."""
     for path, item in app.openapi()["paths"].items():
         if not any(path.startswith(p) for p in prefixes):
+            continue
+        if path.startswith(NOT_CONFIG_PREFIXES):
             continue
         for method in sorted(item):
             if method.upper() not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
@@ -954,10 +964,10 @@ async def test_b3_body_over_64kb_is_413(adm):
 
 
 async def test_b7_request_id_generated_and_echoed(anon_c):
-    r = await anon_c.get(f"{API}/venue/config")
+    r = await anon_c.get(f"{API}/booking/prices/public")
     assert r.headers.get("X-Request-ID")
     rid = _key()
-    r = await anon_c.get(f"{API}/venue/config", headers={"X-Request-ID": rid})
+    r = await anon_c.get(f"{API}/booking/prices/public", headers={"X-Request-ID": rid})
     assert r.headers.get("X-Request-ID") == rid
 
 
