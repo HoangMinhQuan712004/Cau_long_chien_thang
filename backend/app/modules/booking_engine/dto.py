@@ -8,7 +8,7 @@ Không lộ ORM, không lộ id nội bộ của tài nguyên (dùng ``code``).
 import datetime as dt
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.core.schemas import StrictIn
 
@@ -172,3 +172,264 @@ class QuoteOut(BaseModel):
     price_version: int
     items: list[QuoteItem]
     total_amount: int
+
+
+# ---------- Khách (snapshot do server dựng) ----------
+
+CustomerKind = Literal["member", "temp"]
+PaymentStatus = Literal["unpaid", "paid", "uncollectible"]
+PaymentMethod = Literal["cash", "transfer", "online_transfer"]
+Source = Literal["counter", "online"]
+
+
+class CustomerSnapshot(BaseModel):
+    """Khách tại thời điểm đặt – lớp gọi dựng từ hồ sơ của nó; client không bao giờ gửi."""
+
+    ref_id: str
+    kind: CustomerKind
+    display_name: str
+    phone: str
+    member_code: str | None = None
+    tier: str | None = None
+
+
+# ---------- Lịch ngày ----------
+
+
+class CalendarResource(BaseModel):
+    code: str
+    name: str
+    type: str
+    is_active: bool
+    off_hours: list[int] = Field(description="Giờ bắt đầu các ô Xám (không bán) của sân này")
+
+
+class CalendarBlock(BaseModel):
+    type: Literal["booking", "session", "hold"]
+    code: str | None
+    resource_codes: list[str]
+    start_time: str
+    end_time: str
+    start_hour: int
+    end_hour: int
+    # booking
+    payment_status: PaymentStatus | None = None
+    customer_name: str | None = None
+    phone_masked: str | None = None
+    source: Source | None = None
+    # session
+    name: str | None = None
+    taken: int | None = None
+    capacity: int | None = None
+    is_full: bool | None = None
+    unpaid_tickets: int | None = None
+    # hold
+    expires_at: dt.datetime | None = None
+
+
+class CalendarCan(BaseModel):
+    counter_book: bool
+    create_session: bool
+
+
+class CalendarOut(BaseModel):
+    date: dt.date
+    now: dt.datetime
+    is_past: bool = Field(description="Ngày đã qua – chỉ xem")
+    columns: list[int] = Field(description="Giờ bắt đầu từng cột (khung 1 giờ)")
+    resources: list[CalendarResource]
+    blocks: list[CalendarBlock]
+    unpaid_count: int
+    can: CalendarCan
+
+
+class SearchResult(BaseModel):
+    kind: Literal["booking", "ticket", "session"]
+    code: str
+    play_date: dt.date
+
+
+# ---------- Booking / vé ----------
+
+
+class CounterBookingIn(StrictIn):
+    resource_code: str = Field(max_length=10)
+    date: dt.date
+    start_hour: int = Field(ge=0, le=23)
+    end_hour: int = Field(ge=1, le=24)
+
+
+class ItemCustomer(BaseModel):
+    name: str
+    phone_masked: str | None
+    profile_label: str = Field(description='"Hồ sơ tạm" hoặc "Hội viên (HV0087 · Hạng Bạc)"')
+    kind: CustomerKind
+    member_code: str | None
+    tier: str | None
+
+
+class ItemSessionRef(BaseModel):
+    code: str
+    name: str
+
+
+class ItemSchedule(BaseModel):
+    resource_codes: list[str]
+    resource_names: list[str]
+    play_date: dt.date
+    start_time: str
+    end_time: str
+    session: ItemSessionRef | None = None
+
+
+class ItemPayment(BaseModel):
+    amount: int
+    payment_status: PaymentStatus
+    payment_method: PaymentMethod | None = None
+    paid_at: dt.datetime | None = None
+    collected_by: str | None = None
+    uncollectible_reason: str | None = None
+    marked_by: str | None = None
+    marked_at: dt.datetime | None = None
+
+
+class ItemOut(BaseModel):
+    """Thông tin booking / vé (SRS IV.5) – không SĐT đầy đủ, không id nội bộ."""
+
+    kind: Literal["booking", "ticket"]
+    code: str
+    version: int
+    source: Source
+    customer: ItemCustomer
+    schedule: ItemSchedule
+    payment: ItemPayment
+    price_breakdown: list[QuoteItem] = Field(default_factory=list)
+    note: str | None = None
+    created_by: str
+    created_at: dt.datetime
+    actions: list[Literal["collect", "uncollectible"]]
+
+
+class CollectIn(StrictIn):
+    method: Literal["cash", "transfer"]
+    version: int
+
+
+class UncollectibleIn(StrictIn):
+    reason: str = Field(default="", max_length=500)
+    version: int
+
+
+# ---------- Sự kiện ----------
+
+
+class SessionCreate(StrictIn):
+    resource_codes: list[str] = Field(min_length=1, max_length=50)
+    date: dt.date
+    start_hour: int = Field(ge=0, le=23)
+    end_hour: int = Field(ge=1, le=24)
+    # Kiểm ở service để trả mã SRS (E-001, E-009, E-013)
+    name: str = Field(default="", max_length=300)
+    capacity: int | float | None = None
+    ticket_price: int | float | None = None
+
+
+class SessionDelete(StrictIn):
+    version: int
+
+
+class ResourceRef(BaseModel):
+    code: str
+    name: str
+
+
+class SessionTicket(BaseModel):
+    code: str
+    customer_name: str
+    phone_masked: str | None
+    source: Source
+    payment_status: PaymentStatus
+    amount: int
+    created_at: dt.datetime
+
+
+class SessionHold(BaseModel):
+    seats: int
+    expires_at: dt.datetime
+
+
+class SessionCan(BaseModel):
+    # "register" trùng tên thuộc tính của BaseModel -> dùng alias, JSON vẫn là "register"
+    model_config = ConfigDict(populate_by_name=True)
+
+    can_register: bool = Field(alias="register")
+    delete: bool
+
+
+class SessionOut(BaseModel):
+    code: str
+    name: str
+    status: Literal["active", "deleted"]
+    play_date: dt.date
+    start_time: str
+    end_time: str
+    resources: list[ResourceRef]
+    ticket_price: int
+    capacity: int
+    taken: int
+    is_full: bool
+    created_by: str
+    created_at: dt.datetime
+    version: int
+    tickets: list[SessionTicket]
+    active_holds: list[SessionHold]
+    can: SessionCan
+
+
+# ---------- Lịch sử giao dịch ----------
+
+
+class TransactionsQuery(BaseModel):
+    date_from: dt.date | None = None
+    date_to: dt.date | None = None
+    resource: str | None = None
+    status: PaymentStatus | None = None
+    method: Literal["cash", "transfer"] | None = None
+    q: str | None = None
+    page: int = 1
+
+
+class TransactionRow(BaseModel):
+    kind: Literal["booking", "ticket"]
+    code: str
+    play_date: dt.date
+    start_time: str
+    end_time: str
+    resource_codes: list[str]
+    customer_name: str
+    phone_masked: str | None
+    amount: int
+    payment_status: PaymentStatus
+    payment_method: PaymentMethod | None
+    source: Source
+
+
+class TransactionCard(BaseModel):
+    amount: int
+    count: int
+
+
+class TransactionCards(BaseModel):
+    paid: TransactionCard
+    unpaid: TransactionCard
+    uncollectible: TransactionCard
+
+
+class TransactionsOut(BaseModel):
+    date_from: dt.date
+    date_to: dt.date
+    rows: list[TransactionRow]
+    page: int
+    page_size: int
+    total: int
+    cards: TransactionCards

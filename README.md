@@ -26,6 +26,26 @@ project_caulong/
 └── docker-compose.yml
 ```
 
+## Môi trường
+
+Ba nơi chạy code. Nhánh `dev` là mặc định của repo; `main` chỉ nhận code khi chủ dự án duyệt phát hành.
+
+| | Local | Dev | Production |
+|---|---|---|---|
+| Địa chỉ | `http://localhost:3000` (web), `:8000/docs` (API) | https://chienthang-dev.superbai.vip | https://chienthang.superbai.vip |
+| Nhánh | nhánh việc của bạn | `dev` – push là tự deploy | `main` – merge là tự deploy |
+| Thư mục trên server | – | `/opt/caulong-dev` (compose project `caulong-dev`) | `/opt/caulong` (project `caulong`) |
+| Image tag | – | `dev-<commit>` và `dev` | `<commit>` và `latest` |
+| Dữ liệu | DB Docker cục bộ | Dữ liệu thử, DB tách hẳn production | Dữ liệu thật |
+| Chỉ mục Google | – | `X-Robots-Tag: noindex, nofollow` | Có |
+
+Quy tắc dùng:
+
+- **Dev chỉ chứa dữ liệu thử.** Link không có mật khẩu, đừng nhập thông tin khách thật.
+- Hai môi trường dùng chung một VPS nhưng khác thư mục, container, volume DB, `.env` và image tag. Deploy dev không chạm production.
+- Quy trình: nhánh việc → PR vào `dev` → CI xanh → merge → CD deploy link dev → kiểm thử → PR `dev → main` khi chủ dự án đồng ý.
+- Hotfix production: nhánh từ `main`, PR vào `main`, sau đó merge ngược `main` vào `dev`.
+
 ## Chạy dev
 
 Yêu cầu: **Python 3.15**, **Node.js 26** (LTS), Docker. CI và image production dùng đúng các bản này.
@@ -55,6 +75,8 @@ Tài khoản chủ sân mặc định: `admin@example.com` / `admin12345` (đổ
 
 Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
 
+API nền tảng booking engine (Idempotency-Key, mã lỗi, bảng quyền, biến môi trường bảo mật): [docs/booking-engine-api.md](docs/booking-engine-api.md).
+
 ## Lệnh thường dùng
 
 | Việc | Lệnh |
@@ -67,7 +89,8 @@ Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
 
 ## CI/CD (GitHub Actions)
 
-**CI** – [.github/workflows/ci.yml](.github/workflows/ci.yml), chạy trên mọi PR và push lên `main`:
+**CI** – [.github/workflows/ci.yml](.github/workflows/ci.yml), chạy trên mọi PR và push lên `main` hoặc `dev`
+(commit chỉ đổi `*.md`, `docs/**`, `.claude/**` thì bỏ qua → không chạy CI, không deploy):
 
 | Job | Kiểm tra |
 |---|---|
@@ -75,22 +98,36 @@ Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
 | Frontend | ESLint, `next build` (gồm TypeScript) |
 | API contract | Sinh lại `schema.d.ts` từ OpenAPI của backend, fail nếu lệch → nhắc chạy `npm run gen:api` |
 
-**CD** – [.github/workflows/cd.yml](.github/workflows/cd.yml), chỉ chạy khi CI trên `main` xanh (hoặc chạy tay):
+**CD** – [.github/workflows/cd.yml](.github/workflows/cd.yml), chạy khi CI trên `dev` hoặc `main` xanh (hoặc chạy tay):
 
-1. Build & push image lên GHCR: `ghcr.io/<owner>/<repo>-api` và `-web`, tag = commit SHA + `latest`.
-2. Deploy qua SSH (**tắt mặc định**): copy [deploy/docker-compose.prod.yml](deploy/docker-compose.prod.yml) lên server,
-   `docker compose pull && up -d`. Migration tự chạy khi container `api` khởi động.
+| | CI xanh trên `dev` | CI xanh trên `main` |
+|---|---|---|
+| GitHub Environment | `dev` | `production` |
+| Image tag | `dev-<commit>` + `dev` | `<commit>` + `latest` |
+| `NEXT_PUBLIC_SITE_URL` build vào web | `DEV_SITE_URL` (mặc định https://chienthang-dev.superbai.vip) | `SITE_URL` |
+| Thư mục server / compose project | `/opt/caulong-dev` (cố định) / `caulong-dev` | `DEPLOY_PATH` (mặc định `/opt/caulong`) / `caulong` |
+| Hàng đợi (`concurrency`) | `cd-dev` | `cd-production` |
+
+1. Build & push image lên GHCR: `ghcr.io/<owner>/<repo>-api` và `-web`.
+2. Deploy qua SSH (**tắt mặc định**, bật bằng `DEPLOY_ENABLED=true`): copy [deploy/docker-compose.prod.yml](deploy/docker-compose.prod.yml) lên server,
+   `docker compose -p <project> pull && up -d`. Migration tự chạy khi container `api` khởi động.
+3. Smoke test: gọi `<site>/robots.txt` tối đa 30 lần cách 5 giây; không lên thì CD đỏ.
+
+Chạy tay (tab Actions → CD → Run workflow) có ô chọn môi trường `dev` / `production`; `production` chỉ chạy được khi chọn nhánh `main`.
+Lưu ý: `workflow_run` luôn dùng file `cd.yml` ở default branch (`dev`).
 
 ### Bật deploy
 
 1. Server (VPS) cài Docker; tạo thư mục, vd `/opt/caulong`, đặt file `.env` theo [deploy/.env.example](deploy/.env.example).
 2. Đặt reverse proxy có HTTPS (Caddy/Nginx) trỏ domain → `127.0.0.1:3000`.
-3. GitHub repo → Settings → Environments → tạo `production`, thêm:
+3. GitHub repo → Settings → Environments → tạo `production` (và `dev` nếu có server dev), mỗi Environment thêm:
    - **Secrets**: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` (private key), `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan <host>`)
-   - **Variables** (repo): `DEPLOY_ENABLED=true`, `SITE_URL=https://your-domain.vn`, `DEPLOY_PATH=/opt/caulong`
+   - **Variables** (repo): `DEPLOY_ENABLED=true`, `SITE_URL=https://your-domain.vn`, `DEPLOY_PATH=/opt/caulong`;
+     tùy chọn `DEV_SITE_URL` cho môi trường dev (thư mục dev luôn là `/opt/caulong-dev`, không đọc `DEPLOY_PATH`)
 4. Lần deploy đầu, tạo tài khoản chủ sân: `docker compose exec api python -m app.scripts.seed`.
 
-`SITE_URL` được build vào image web (canonical, sitemap) – đổi domain thì chạy lại CD.
+`SITE_URL` / `DEV_SITE_URL` được build vào image web (canonical, sitemap) – đổi domain thì chạy lại CD.
+Server dev cần thư mục và `.env` riêng (`POSTGRES_PASSWORD`, `SECRET_KEY` khác production); đừng dùng chung với production.
 
 ## Quyết định thiết kế quan trọng
 
