@@ -26,5 +26,16 @@ class UserOut(BaseModel):
     is_active: bool
 
 
+class UserListItem(BaseModel):
+    """Dòng danh sách tài khoản: SĐT đã che ở server (ADR-004 S12)."""
+
+    id: int
+    email: str
+    full_name: str
+    phone_masked: str | None
+    role: Role
+    is_active: bool
+
+
 class StaffCreateIn(RegisterIn):
     role: Role = Role.STAFF

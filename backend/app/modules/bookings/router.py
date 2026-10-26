@@ -2,6 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, Query, status
 
+from app.core.privacy import mask_phone
 from app.modules.auth.deps import CurrentUser, SessionDep, StaffUser
 from app.modules.bookings import service
 from app.modules.bookings.models import BookingSource, BookingStatus
@@ -69,7 +70,14 @@ async def admin_list_bookings(
     day: date | None = Query(default=None, alias="date"),
     status: BookingStatus | None = None,
 ):
-    return await service.list_bookings(session, day=day, status=status, limit=500)
+    bookings = await service.list_bookings(session, day=day, status=status, limit=500)
+    # Danh sách: che SĐT ở server (ADR-004 S12, T-005 Q1)
+    return [
+        BookingOut.model_validate(b).model_copy(
+            update={"customer_phone": mask_phone(b.customer_phone)}
+        )
+        for b in bookings
+    ]
 
 
 @admin_router.post("", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
