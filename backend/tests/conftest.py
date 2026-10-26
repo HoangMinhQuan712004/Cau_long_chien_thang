@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -38,6 +39,10 @@ settings.ALLOWED_ORIGINS = [ORIGIN]
 # Rate limit chạy bằng bộ nhớ trong test (không cần Redis); reset trước mỗi test
 _rate_limit_backend = ratelimit.MemoryBackend()
 ratelimit.set_backend(_rate_limit_backend)
+# Đóng băng đồng hồ rate limit ở đầu một cửa sổ phút: chuỗi request trong một test không bao giờ
+# bị tách sang cửa sổ mới (nguyên nhân test 429 chập chờn khi chạy qua mốc đổi phút)
+_RATE_LIMIT_NOW = (time.time() // 60) * 60 + 1
+ratelimit.set_clock(lambda: _RATE_LIMIT_NOW)
 
 
 def _alembic_upgrade_head() -> None:

@@ -370,3 +370,26 @@ def test_access_log_strips_query_string():
     )
     StripQueryLogFilter().filter(record)
     assert "0912345678" not in record.getMessage()
+
+
+async def test_rate_limit_window_is_stable_in_tests(anon, monkeypatch):
+    """Đồng hồ rate limit bị đóng băng ở giây thứ 1 của một cửa sổ phút (conftest).
+
+    Mọi request trong test cùng một cửa sổ -> Retry-After luôn 59, không phụ thuộc giờ thật.
+    """
+    monkeypatch.setattr(settings, "RATE_LIMIT_PER_MINUTE", 2)
+    for _ in range(2):
+        assert (await anon.get(PUBLIC)).status_code == 200
+    r = await anon.get(PUBLIC)
+    assert r.status_code == 429 and r.headers["retry-after"] == "59"
+
+
+async def test_rate_limit_new_window_resets_count(monkeypatch):
+    backend = ratelimit.MemoryBackend()
+    monkeypatch.setattr(ratelimit, "_backend", backend)
+    now = [1_000_040.0]  # cửa sổ [1_000_020, 1_000_080)
+    monkeypatch.setattr(ratelimit, "_clock", lambda: now[0])
+    assert await ratelimit.check("t", "k", 1, 60) is None
+    assert await ratelimit.check("t", "k", 1, 60) == 40  # còn 40 giây tới cửa sổ sau
+    now[0] += 60
+    assert await ratelimit.check("t", "k", 1, 60) is None
