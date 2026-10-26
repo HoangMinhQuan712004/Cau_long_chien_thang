@@ -1,15 +1,25 @@
 name: CD
 
-# Chỉ chạy khi CI trên main đã xanh (hoặc chạy tay từ tab Actions)
+# Chỉ chạy khi CI trên main hoặc dev đã xanh (hoặc chạy tay từ tab Actions)
+#   dev  -> môi trường dev        (https://chienthang-dev.superbai.vip, /opt/caulong-dev, project caulong-dev)
+#   main -> môi trường production (như cũ)
+# Lưu ý: workflow_run luôn dùng file workflow trên default branch của repo.
 on:
   workflow_run:
     workflows: [CI]
     types: [completed]
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Môi trường deploy (production chỉ cho phép chạy từ main)
+        type: choice
+        options: [dev, production]
+        default: dev
 
+# Mỗi môi trường một hàng đợi riêng: deploy dev không chặn production
 concurrency:
-  group: cd-main
+  group: cd-${{ inputs.environment || (github.event.workflow_run.head_branch == 'dev' && 'dev' || 'production') }}
   cancel-in-progress: false
 
 permissions:
@@ -22,9 +32,43 @@ env:
   SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
+  target:
+    name: Select environment
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.pick.outputs.name }}
+      tag_prefix: ${{ steps.pick.outputs.tag_prefix }}
+      floating_tag: ${{ steps.pick.outputs.floating_tag }}
+      project: ${{ steps.pick.outputs.project }}
+    steps:
+      - id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_ENV: ${{ inputs.environment }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then
+            NAME="$INPUT_ENV"
+            if [ "$NAME" = production ] && [ "$REF_NAME" != main ]; then
+              echo "::error::Production chỉ deploy từ nhánh main (đang chạy từ '$REF_NAME')"
+              exit 1
+            fi
+          elif [ "$HEAD_BRANCH" = dev ]; then
+            NAME=dev
+          else
+            NAME=production
+          fi
+          if [ "$NAME" = dev ]; then
+            { echo "name=dev"; echo "tag_prefix=dev-"; echo "floating_tag=dev"; echo "project=caulong-dev"; } >> "$GITHUB_OUTPUT"
+          else
+            { echo "name=production"; echo "tag_prefix="; echo "floating_tag=latest"; echo "project=caulong"; } >> "$GITHUB_OUTPUT"
+          fi
+
   images:
     name: Build & push ${{ matrix.name }} image
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: target
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -51,8 +95,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.name }}
           tags: |
-            type=raw,value=${{ env.SHA }}
-            type=raw,value=latest
+            type=raw,value=${{ needs.target.outputs.tag_prefix }}${{ env.SHA }}
+            type=raw,value=${{ needs.target.outputs.floating_tag }}
 
       - uses: docker/build-push-action@v7
         with:
@@ -63,17 +107,18 @@ jobs:
           # Chỉ image web dùng; rewrites /api/v1 được tính lúc build
           build-args: |
             BACKEND_URL=http://api:8000
-            NEXT_PUBLIC_SITE_URL=${{ vars.SITE_URL || 'http://localhost:3000' }}
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+            NEXT_PUBLIC_SITE_URL=${{ (needs.target.outputs.name == 'dev' && (vars.DEV_SITE_URL || 'https://chienthang-dev.superbai.vip')) || vars.SITE_URL || 'http://localhost:3000' }}
+          cache-from: type=gha,scope=${{ matrix.name }}-${{ needs.target.outputs.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}-${{ needs.target.outputs.name }}
 
   deploy:
     name: Deploy to server
-    needs: images
+    needs: [target, images]
     # Bật bằng repository variable DEPLOY_ENABLED=true sau khi đã cấu hình server + secrets
     if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
-    environment: production
+    # Environment `dev` / `production` giữ secret SSH riêng (DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS, DEPLOY_USER, DEPLOY_HOST)
+    environment: ${{ needs.target.outputs.name }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -92,7 +137,10 @@ jobs:
       - name: Pull images & restart
         env:
           TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/caulong' }}
+          # Dev cố định /opt/caulong-dev (không lấy repo var DEPLOY_PATH để không lỡ chạm thư mục production)
+          DEPLOY_PATH: ${{ needs.target.outputs.name == 'dev' && '/opt/caulong-dev' || vars.DEPLOY_PATH || '/opt/caulong' }}
+          PROJECT: ${{ needs.target.outputs.project }}
+          TAG_PREFIX: ${{ needs.target.outputs.tag_prefix }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.actor }}
           IMAGE_PREFIX: ${{ env.REGISTRY }}/${{ github.repository }}
@@ -104,18 +152,25 @@ jobs:
           printf '%s' "$GHCR_TOKEN" | $SSH "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
           # Ghi tag đang chạy vào .env để `docker compose up -d` chạy tay trên server dùng đúng image
           $SSH "cd '$DEPLOY_PATH' \
-            && export IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$SHA' \
-            && docker compose pull api worker web \
+            && export IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='${TAG_PREFIX}${SHA}' \
+            && docker compose -p '$PROJECT' pull api worker web \
             && sed -i '/^IMAGE_PREFIX=/d;/^IMAGE_TAG=/d' .env \
             && printf 'IMAGE_PREFIX=%s\nIMAGE_TAG=%s\n' \"\$IMAGE_PREFIX\" \"\$IMAGE_TAG\" >> .env \
-            && docker compose up -d --remove-orphans \
+            && docker compose -p '$PROJECT' up -d --remove-orphans \
             && docker image prune -f"
 
       - name: Smoke test
-        if: vars.SITE_URL != ''
+        if: needs.target.outputs.name == 'dev' || vars.SITE_URL != ''
+        env:
+          URL: ${{ (needs.target.outputs.name == 'dev' && (vars.DEV_SITE_URL || 'https://chienthang-dev.superbai.vip')) || vars.SITE_URL }}
+          # Chỉ dev có basic auth; secret nằm trong Environment `dev`
+          BASIC_USER: ${{ needs.target.outputs.name == 'dev' && secrets.DEV_BASIC_AUTH_USER || '' }}
+          BASIC_PASSWORD: ${{ needs.target.outputs.name == 'dev' && secrets.DEV_BASIC_AUTH_PASSWORD || '' }}
         run: |
+          AUTH=()
+          if [ -n "$BASIC_USER" ]; then AUTH=(-u "$BASIC_USER:$BASIC_PASSWORD"); fi
           for i in $(seq 1 30); do
-            curl -fsS "${{ vars.SITE_URL }}/robots.txt" > /dev/null && exit 0
+            curl -fsS "${AUTH[@]}" "$URL/robots.txt" > /dev/null && exit 0
             sleep 5
           done
           echo "::error::Website không phản hồi sau khi deploy"
