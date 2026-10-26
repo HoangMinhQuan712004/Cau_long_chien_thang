@@ -11,7 +11,7 @@ const font = Be_Vietnam_Pro({
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
-  title: { default: `${site.name} – Đặt sân cầu lông online`, template: `%s | ${site.name}` },
+  title: { default: `${site.name} – Sân cầu lông`, template: `%s | ${site.name}` },
   description: site.description,
   applicationName: site.name,
   // Không đặt alternates.canonical ở đây: trang con sẽ kế thừa và trỏ canonical về trang chủ.

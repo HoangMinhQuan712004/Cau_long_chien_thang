@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { site } from "@/lib/site";
+import { phoneHref, site } from "@/lib/site";
 
 const NAV = [
-  { href: "/dat-san", label: "Đặt sân" },
   { href: "/bang-gia", label: "Bảng giá" },
   { href: "/tin-tuc", label: "Tin tức" },
 ];
@@ -26,12 +25,9 @@ export function SiteHeader() {
           <Link href="/tai-khoan" className="hover:text-primary">
             Tài khoản
           </Link>
-          <Link
-            href="/dat-san"
-            className="rounded-md bg-primary px-3 py-2 font-medium text-primary-fg"
-          >
-            Đặt sân ngay
-          </Link>
+          <a href={phoneHref} className="rounded-md bg-primary px-3 py-2 font-medium text-primary-fg">
+            Gọi {site.phone}
+          </a>
         </div>
       </div>
       <nav aria-label="Chính (di động)" className="flex gap-5 px-4 pb-2 text-sm sm:hidden">
