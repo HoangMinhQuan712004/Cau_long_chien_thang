@@ -14,6 +14,18 @@
   --busy: #e6e8e7;
   --danger: #b42318;
   --success: #13744a;
+  /* Khối trên lịch đặt sân (BR-002): Chưa TT vàng, Đã TT đỏ, Không thu được xám gạch, Sự kiện tím, Giữ chỗ viền đứt */
+  --blk-unpaid: #fcd34d; /* ≈ Figma P3 (lấy từ ảnh, chờ hex chính thức) */
+  --blk-unpaid-fg: #78350f;
+  --blk-paid: #ef4444;
+  --blk-paid-fg: #ffffff;
+  --blk-bad: #e6e8e7;
+  --blk-bad-fg: #4a554e;
+  --blk-session: #e9d5ff;
+  --blk-session-fg: #6b21a8;
+  --blk-hold-fg: #5b6b62;
+  --cell-off: #e5e7eb;
+  --cell-sel: #c9e7d6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,6 +42,17 @@
     --busy: #252b27;
     --danger: #f97066;
     --success: #3fb67d;
+    --blk-unpaid: #4a3b0c;
+    --blk-unpaid-fg: #f9e3a0;
+    --blk-paid: #4d1f1a;
+    --blk-paid-fg: #fbc9c3;
+    --blk-bad: #2c332f;
+    --blk-bad-fg: #a9b7af;
+    --blk-session: #34285c;
+    --blk-session-fg: #d9ccfa;
+    --blk-hold-fg: #93a39a;
+    --cell-off: #1d2420;
+    --cell-sel: #1f4a35;
   }
 }
 
@@ -46,6 +69,17 @@
   --color-busy: var(--busy);
   --color-danger: var(--danger);
   --color-success: var(--success);
+  --color-blk-unpaid: var(--blk-unpaid);
+  --color-blk-unpaid-fg: var(--blk-unpaid-fg);
+  --color-blk-paid: var(--blk-paid);
+  --color-blk-paid-fg: var(--blk-paid-fg);
+  --color-blk-bad: var(--blk-bad);
+  --color-blk-bad-fg: var(--blk-bad-fg);
+  --color-blk-session: var(--blk-session);
+  --color-blk-session-fg: var(--blk-session-fg);
+  --color-blk-hold-fg: var(--blk-hold-fg);
+  --color-cell-off: var(--cell-off);
+  --color-cell-sel: var(--cell-sel);
   --font-sans: var(--font-be-vietnam), ui-sans-serif, system-ui, sans-serif;
 }
 

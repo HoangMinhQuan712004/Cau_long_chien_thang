@@ -1,0 +1,95 @@
+import "client-only";
+import { looseApi } from "@/lib/api/client";
+import { toApiError, type ApiError } from "@/lib/api/write";
+import type {
+  Calendar,
+  CustomerPayload,
+  Item,
+  MemberHit,
+  PaymentMethod,
+  Quote,
+  SearchResult,
+  SessionDetail,
+  Transactions,
+} from "./types";
+
+// Lời gọi API của màn đặt sân. Đọc: trả `Read<T>`; ghi: dùng `write()` (Idempotency-Key) ở nơi gọi, với các hàm `send*` dưới đây.
+
+export type Read<T> = { ok: true; data: T } | { ok: false; error: ApiError };
+
+async function read<T>(call: () => Promise<{ data?: unknown; error?: unknown; response: Response }>): Promise<Read<T>> {
+  try {
+    const { data, error, response } = await call();
+    if (response.ok && data !== undefined) return { ok: true, data: data as T };
+    return { ok: false, error: toApiError(error, response.status) };
+  } catch {
+    return { ok: false, error: { status: 0, code: "E-017", message: "Mất kết nối. Vui lòng thử lại.", extra: {} } };
+  }
+}
+
+const P = "/api/v1";
+
+export const getCalendar = (date: string) =>
+  read<Calendar>(() => looseApi.GET(`${P}/booking/calendar`, { params: { query: { date } } }));
+
+export const searchCode = (code: string) =>
+  read<SearchResult>(() => looseApi.GET(`${P}/booking/search`, { params: { query: { code } } }));
+
+export const searchMembers = (q: string) =>
+  read<MemberHit[]>(() => looseApi.GET(`${P}/members/search`, { params: { query: { q } } }));
+
+export const getQuote = (resource_code: string, date: string, start_hour: number, end_hour: number) =>
+  read<Quote>(() => looseApi.POST(`${P}/booking/quote`, { body: { resource_code, date, start_hour, end_hour } }));
+
+export const getItem = (code: string) =>
+  read<Item>(() => looseApi.GET(`${P}/booking/items/{code}`, { params: { path: { code } } }));
+
+export const getSession = (code: string) =>
+  read<SessionDetail>(() => looseApi.GET(`${P}/booking/sessions/{code}`, { params: { path: { code } } }));
+
+export type TransactionFilters = {
+  from?: string;
+  to?: string;
+  resource?: string;
+  status?: string;
+  method?: string;
+  q?: string;
+  page?: number;
+};
+export const getTransactions = (f: TransactionFilters) => {
+  const query = Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined && v !== ""));
+  return read<Transactions>(() => looseApi.GET(`${P}/booking/transactions`, { params: { query } }));
+};
+
+// ---- Lệnh ghi: truyền vào `write((key) => send...(key, ...))` ----
+const idem = (key: string) => ({ "Idempotency-Key": key });
+
+export const sendCounterBooking = (
+  key: string,
+  v: { resource_code: string; date: string; start_hour: number; end_hour: number; customer: CustomerPayload },
+) => looseApi.POST(`${P}/front-desk/bookings`, { body: v, headers: idem(key) });
+
+export const sendCreateSession = (
+  key: string,
+  v: { resource_codes: string[]; date: string; start_hour: number; end_hour: number; name: string; capacity: number | null; ticket_price: number | null },
+) => looseApi.POST(`${P}/booking/sessions`, { body: v, headers: idem(key) });
+
+export const sendDeleteSession = (key: string, code: string, version: number) =>
+  looseApi.DELETE(`${P}/booking/sessions/{code}`, { params: { path: { code } }, body: { version }, headers: idem(key) });
+
+export const sendTicket = (key: string, sessionCode: string, customer: CustomerPayload) =>
+  looseApi.POST(`${P}/front-desk/sessions/{code}/tickets`, {
+    params: { path: { code: sessionCode } },
+    body: { customer },
+    headers: idem(key),
+  });
+
+export const sendCollect = (key: string, code: string, method: Extract<PaymentMethod, "cash" | "transfer">, version: number) =>
+  looseApi.POST(`${P}/booking/items/{code}/collect`, { params: { path: { code } }, body: { method, version }, headers: idem(key) });
+
+export const sendUncollectible = (key: string, code: string, reason: string, version: number) =>
+  looseApi.POST(`${P}/booking/items/{code}/uncollectible`, {
+    params: { path: { code } },
+    body: { reason, version },
+    headers: idem(key),
+  });

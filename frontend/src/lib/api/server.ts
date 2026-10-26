@@ -4,11 +4,12 @@ import { cookies } from "next/headers";
 import createClient from "openapi-fetch";
 import type { components, paths } from "./schema";
 
-export type Court = components["schemas"]["CourtOut"];
-export type PriceRule = components["schemas"]["PriceRuleOut"];
+// OpenAPI sinh `bands` dạng tuple [string, string][] nhưng response thật được kiểu hóa là string[][] – khai báo lại cho khớp.
+export type PublicPrices = Omit<components["schemas"]["PublicPrices"], "peak_bands"> & {
+  peak_bands: { resource_type_code: string; bands: string[][] }[];
+};
 export type PostSummary = components["schemas"]["PostSummary"];
 export type Post = components["schemas"]["PostOut"];
-export type Booking = components["schemas"]["BookingOut"];
 export type User = components["schemas"]["UserOut"];
 
 export const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
@@ -27,24 +28,15 @@ async function safe<T>(fn: () => Promise<{ data?: T }>, fallback: T): Promise<T>
 
 // ---------- Dữ liệu public: cache phía server, prerender vào static shell (tốt cho SEO) ----------
 
-export async function getCourts(): Promise<Court[]> {
+/** Bảng giá công khai (bản rút gọn từ booking engine: giá, giờ cao điểm, giờ mở cửa, ngày Lễ/Tết). */
+export async function getPublicPrices(): Promise<PublicPrices | null> {
   "use cache";
   cacheLife("minutes");
-  cacheTag("courts");
-  return safe(() => serverApi.GET("/api/v1/courts"), []);
-}
-
-export async function getPriceRules(): Promise<PriceRule[]> {
-  "use cache";
-  cacheLife("minutes");
-  cacheTag("price-rules");
-  return safe(() => serverApi.GET("/api/v1/price-rules"), []);
-}
-
-export async function getVenueConfig() {
-  "use cache";
-  cacheLife("hours");
-  return safe(() => serverApi.GET("/api/v1/venue/config"), null);
+  cacheTag("prices");
+  const data = await safe(() => serverApi.GET("/api/v1/booking/prices/public"), null);
+  // Lỗi mạng (vd lúc build không có backend) không được cache lâu: thử lại sau vài giây.
+  if (!data) cacheLife("seconds");
+  return data;
 }
 
 export async function getPosts(limit = 20): Promise<PostSummary[]> {
@@ -73,4 +65,23 @@ export async function getCurrentUser(): Promise<User | null> {
   const api = await authedApi();
   const { data } = await api.GET("/api/v1/auth/me");
   return data ?? null;
+}
+
+/**
+ * GET JSON kèm cookie người dùng cho endpoint chưa có trong schema.d.ts (booking engine T-006).
+ * TODO(T-006): chuyển sang `authedApi()` khi `schema.d.ts` có đủ đường dẫn.
+ */
+export async function authedGetJson<T>(
+  path: string,
+  query: Record<string, string | undefined> = {},
+): Promise<{ ok: true; data: T } | { ok: false; status: number }> {
+  const cookieHeader = (await cookies()).toString();
+  const qs = new URLSearchParams(Object.entries(query).filter((e): e is [string, string] => e[1] !== undefined)).toString();
+  try {
+    const res = await fetch(`${BACKEND_URL}${path}${qs ? `?${qs}` : ""}`, { headers: { cookie: cookieHeader }, cache: "no-store" });
+    if (!res.ok) return { ok: false, status: res.status };
+    return { ok: true, data: (await res.json()) as T };
+  } catch {
+    return { ok: false, status: 0 };
+  }
 }
