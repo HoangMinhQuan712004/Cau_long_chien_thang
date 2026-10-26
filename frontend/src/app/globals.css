@@ -14,6 +14,18 @@
   --busy: #e6e8e7;
   --danger: #b42318;
   --success: #13744a;
+  /* Khối trên lịch đặt sân (BR-002): Chưa TT vàng, Đã TT đỏ, Không thu được xám gạch, Sự kiện tím, Giữ chỗ viền đứt */
+  --blk-unpaid: #fdf0c4;
+  --blk-unpaid-fg: #5c4400;
+  --blk-paid: #fbd9d5;
+  --blk-paid-fg: #7a1a10;
+  --blk-bad: #e6e8e7;
+  --blk-bad-fg: #4a554e;
+  --blk-session: #e4dcf7;
+  --blk-session-fg: #3d2a73;
+  --blk-hold-fg: #5b6b62;
+  --cell-off: #eceeed;
+  --cell-sel: #c9e7d6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,6 +42,17 @@
     --busy: #252b27;
     --danger: #f97066;
     --success: #3fb67d;
+    --blk-unpaid: #4a3b0c;
+    --blk-unpaid-fg: #f9e3a0;
+    --blk-paid: #4d1f1a;
+    --blk-paid-fg: #fbc9c3;
+    --blk-bad: #2c332f;
+    --blk-bad-fg: #a9b7af;
+    --blk-session: #34285c;
+    --blk-session-fg: #d9ccfa;
+    --blk-hold-fg: #93a39a;
+    --cell-off: #1d2420;
+    --cell-sel: #1f4a35;
   }
 }
 
@@ -46,6 +69,17 @@
   --color-busy: var(--busy);
   --color-danger: var(--danger);
   --color-success: var(--success);
+  --color-blk-unpaid: var(--blk-unpaid);
+  --color-blk-unpaid-fg: var(--blk-unpaid-fg);
+  --color-blk-paid: var(--blk-paid);
+  --color-blk-paid-fg: var(--blk-paid-fg);
+  --color-blk-bad: var(--blk-bad);
+  --color-blk-bad-fg: var(--blk-bad-fg);
+  --color-blk-session: var(--blk-session);
+  --color-blk-session-fg: var(--blk-session-fg);
+  --color-blk-hold-fg: var(--blk-hold-fg);
+  --color-cell-off: var(--cell-off);
+  --color-cell-sel: var(--cell-sel);
   --font-sans: var(--font-be-vietnam), ui-sans-serif, system-ui, sans-serif;
 }
 

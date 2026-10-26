@@ -15,9 +15,10 @@ export const metadata: Metadata = {
 type Role = "admin" | "staff";
 
 /** Menu theo vai: chủ sân thấy đủ; tài khoản quầy chỉ thấy phần đặt sân. Quyền thật do backend kiểm. */
-const NAV: { href: string; label: Record<Role, string>; roles: Role[] }[] = [
-  { href: "/admin", label: { admin: "Lịch đặt sân", staff: "Đặt sân" }, roles: ["admin", "staff"] },
-  { href: "/admin/san", label: { admin: "Sân & bảng giá", staff: "" }, roles: ["admin"] },
+const NAV: { href: string; label: string; roles: Role[] }[] = [
+  { href: "/admin/dat-san", label: "Đặt sân", roles: ["admin", "staff"] },
+  { href: "/admin/lich-su-giao-dich", label: "Lịch sử giao dịch", roles: ["admin"] },
+  { href: "/admin/san", label: "Sân & bảng giá", roles: ["admin"] },
 ];
 
 export default function AdminLayout({ children }: LayoutProps<"/admin">) {
@@ -47,7 +48,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
         <nav aria-label="Quản lý" className="mt-4 flex gap-4 text-sm md:flex-col md:gap-2">
           {NAV.filter((n) => n.roles.includes(role)).map((n) => (
             <Link key={n.href} href={n.href} className="hover:text-primary">
-              {n.label[role]}
+              {n.label}
             </Link>
           ))}
         </nav>
