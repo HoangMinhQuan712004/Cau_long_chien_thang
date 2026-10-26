@@ -453,6 +453,128 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Resources
+         * @description Danh sách sân + lịch đang áp dụng + lịch chờ áp dụng (``pending_schedule``).
+         */
+        get: operations["list_resources_api_v1_booking_resources_get"];
+        put?: never;
+        /**
+         * Create Resource
+         * @description Thêm sân – mã ``S01…`` do hệ thống cấp; giờ hoạt động áp dụng ngay hôm nay.
+         */
+        post: operations["create_resource_api_v1_booking_resources_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/resources/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Resource
+         * @description Sửa tên / loại / trạng thái / giờ.
+         *
+         *     Giờ & cao điểm áp dụng từ ngày mai (D4); ``version`` bắt buộc.
+         */
+        patch: operations["update_resource_api_v1_booking_resources__code__patch"];
+        trace?: never;
+    };
+    "/api/v1/booking/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Prices */
+        get: operations["get_prices_api_v1_booking_prices_get"];
+        /**
+         * Put Prices
+         * @description Lưu cả bảng giá một lần (đủ mọi ô); ``version`` khác bản hiện tại -> 409 ``E-CFG-7``.
+         */
+        put: operations["put_prices_api_v1_booking_prices_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/special-days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Special Days */
+        get: operations["list_special_days_api_v1_booking_special_days_get"];
+        put?: never;
+        /** Create Special Day */
+        post: operations["create_special_day_api_v1_booking_special_days_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/special-days/{special_day_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Special Day */
+        delete: operations["delete_special_day_api_v1_booking_special_days__special_day_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote
+         * @description Giá từng khung 1 giờ + tổng (không ghi dữ liệu) – dùng cho popup Đặt sân.
+         */
+        post: operations["quote_api_v1_booking_quote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -747,6 +869,40 @@ export interface components {
              */
             updated_at: string;
         };
+        /** PriceCellIn */
+        PriceCellIn: {
+            /** Resource Type Code */
+            resource_type_code: string;
+            /**
+             * Day Type
+             * @enum {string}
+             */
+            day_type: "weekday" | "weekend" | "holiday";
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "offpeak" | "peak";
+            /** Price Per Hour */
+            price_per_hour: number;
+        };
+        /** PriceCellOut */
+        PriceCellOut: {
+            /** Resource Type Code */
+            resource_type_code: string;
+            /**
+             * Day Type
+             * @enum {string}
+             */
+            day_type: "weekday" | "weekend" | "holiday";
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "offpeak" | "peak";
+            /** Price Per Hour */
+            price_per_hour: number;
+        };
         /** PriceRuleIn */
         PriceRuleIn: {
             /** Name */
@@ -811,12 +967,55 @@ export interface components {
             /** Id */
             id: number;
         };
-        /** QuoteOut */
-        QuoteOut: {
-            /** Total Amount */
-            total_amount: number;
-            /** Slots */
-            slots: components["schemas"]["SlotOut"][];
+        /** PriceTable */
+        PriceTable: {
+            /** Version */
+            version: number;
+            /** Updated At */
+            updated_at: string | null;
+            /** Updated By */
+            updated_by: string | null;
+            /** Resource Types */
+            resource_types: components["schemas"]["ResourceTypeOut"][];
+            /** Prices */
+            prices: components["schemas"]["PriceCellOut"][];
+        };
+        /** PriceTableUpdate */
+        PriceTableUpdate: {
+            /** Version */
+            version: number;
+            /** Prices */
+            prices: components["schemas"]["PriceCellIn"][];
+        };
+        /** QuoteIn */
+        QuoteIn: {
+            /** Resource Code */
+            resource_code: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+        };
+        /** QuoteItem */
+        QuoteItem: {
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "offpeak" | "partial" | "peak";
+            /** Label */
+            label: string;
+            /** Price */
+            price: number;
         };
         /** RegisterIn */
         RegisterIn: {
@@ -832,11 +1031,102 @@ export interface components {
             /** Phone */
             phone?: string | null;
         };
+        /** ResourceCreate */
+        ResourceCreate: {
+            /** Name */
+            name: string;
+            /** Resource Type Code */
+            resource_type_code: string;
+            /** Open Time */
+            open_time: string;
+            /** Close Time */
+            close_time: string;
+            /** Peak Bands */
+            peak_bands?: [
+                string,
+                string
+            ][];
+        };
+        /** ResourceList */
+        ResourceList: {
+            /** Items */
+            items: components["schemas"]["ResourceOut"][];
+            /** Resource Types */
+            resource_types: components["schemas"]["ResourceTypeOut"][];
+        };
+        /** ResourceOut */
+        ResourceOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Resource Type Code */
+            resource_type_code: string;
+            /** Resource Type Name */
+            resource_type_name: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Version */
+            version: number;
+            /** @description Lịch đang áp dụng hôm nay */
+            schedule: components["schemas"]["ScheduleOut"] | null;
+            /** @description Lịch đã lưu, áp dụng từ ngày sau (effective_from > hôm nay) */
+            pending_schedule: components["schemas"]["ScheduleOut"] | null;
+        };
+        /** ResourceTypeOut */
+        ResourceTypeOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * ResourceUpdate
+         * @description Chỉ gửi trường muốn đổi. Giờ / cao điểm áp dụng từ ngày mai (D4).
+         */
+        ResourceUpdate: {
+            /** Version */
+            version: number;
+            /** Name */
+            name?: string | null;
+            /** Resource Type Code */
+            resource_type_code?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Open Time */
+            open_time?: string | null;
+            /** Close Time */
+            close_time?: string | null;
+            /** Peak Bands */
+            peak_bands?: [
+                string,
+                string
+            ][] | null;
+        };
         /**
          * Role
          * @enum {string}
          */
         Role: "admin" | "staff" | "customer";
+        /** ScheduleOut */
+        ScheduleOut: {
+            /**
+             * Effective From
+             * Format: date
+             */
+            effective_from: string;
+            /** Open Time */
+            open_time: string;
+            /** Close Time */
+            close_time: string;
+            /** Peak Bands */
+            peak_bands: [
+                string,
+                string
+            ][];
+        };
         /** SlotIn */
         SlotIn: {
             /** Court Id */
@@ -869,6 +1159,43 @@ export interface components {
             /** Price */
             price: number;
         };
+        /** SpecialDayIn */
+        SpecialDayIn: {
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * @description Bỏ trống = 1 ngày
+             */
+            date_to?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** SpecialDayOut */
+        SpecialDayOut: {
+            /** Id */
+            id: number;
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /** Name */
+            name: string;
+            /**
+             * Day Type
+             * @constant
+             */
+            day_type: "holiday";
+        };
         /** StaffCreateIn */
         StaffCreateIn: {
             /**
@@ -884,6 +1211,23 @@ export interface components {
             phone?: string | null;
             /** @default staff */
             role: components["schemas"]["Role"];
+        };
+        /**
+         * UserListItem
+         * @description Dòng danh sách tài khoản: SĐT đã che ở server (ADR-004 S12).
+         */
+        UserListItem: {
+            /** Id */
+            id: number;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+            role: components["schemas"]["Role"];
+            /** Is Active */
+            is_active: boolean;
         };
         /** UserOut */
         UserOut: {
@@ -934,6 +1278,36 @@ export interface components {
             hold_minutes: number;
             /** Timezone */
             timezone: string;
+        };
+        /** QuoteOut */
+        app__modules__booking_engine__dto__QuoteOut: {
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Day Type
+             * @enum {string}
+             */
+            day_type: "weekday" | "weekend" | "holiday";
+            /** Price Version */
+            price_version: number;
+            /** Items */
+            items: components["schemas"]["QuoteItem"][];
+            /** Total Amount */
+            total_amount: number;
+        };
+        /** QuoteOut */
+        app__modules__bookings__schemas__QuoteOut: {
+            /** Total Amount */
+            total_amount: number;
+            /** Slots */
+            slots: components["schemas"]["SlotOut"][];
         };
     };
     responses: never;
@@ -1083,7 +1457,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserOut"][];
+                    "application/json": components["schemas"]["UserListItem"][];
                 };
             };
         };
@@ -1436,7 +1810,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QuoteOut"];
+                    "application/json": components["schemas"]["app__modules__bookings__schemas__QuoteOut"];
                 };
             };
             /** @description Validation Error */
@@ -1865,6 +2239,288 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_resources_api_v1_booking_resources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceList"];
+                };
+            };
+        };
+    };
+    create_resource_api_v1_booking_resources_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_resource_api_v1_booking_resources__code__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_prices_api_v1_booking_prices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceTable"];
+                };
+            };
+        };
+    };
+    put_prices_api_v1_booking_prices_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceTableUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_special_days_api_v1_booking_special_days_get: {
+        parameters: {
+            query?: {
+                year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialDayOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_special_day_api_v1_booking_special_days_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecialDayIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialDayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_special_day_api_v1_booking_special_days__special_day_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                special_day_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quote_api_v1_booking_quote_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__modules__booking_engine__dto__QuoteOut"];
                 };
             };
             /** @description Validation Error */
