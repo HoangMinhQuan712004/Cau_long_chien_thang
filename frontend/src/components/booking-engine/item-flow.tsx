@@ -267,6 +267,7 @@ function UncollectibleDialog({ item, onBack, onClose, onDone, onStale }: StepPro
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState("");
   const err = !reason.trim() ? "Vui lòng nhập Lý do." : "";
+  const noun = item.kind === "ticket" ? "Vé" : "Booking";
 
   async function confirm() {
     setSubmitted(true);
@@ -282,7 +283,7 @@ function UncollectibleDialog({ item, onBack, onClose, onDone, onStale }: StepPro
         setBanner(errorText(e));
         return;
       }
-      toast(`Đã đánh dấu Không thu được · ${item.code}`, "Booking không tính vào doanh thu");
+      toast(`Đã đánh dấu Không thu được · ${item.code}`, `${noun} không tính vào doanh thu`);
       onDone();
       onClose();
     } finally {
@@ -331,7 +332,8 @@ function UncollectibleDialog({ item, onBack, onClose, onDone, onStale }: StepPro
         </div>
       </div>
       <ErrorBanner>
-        Booking chuyển sang Không thu được, không tính vào doanh thu và không thu tiền lại được. Khung vẫn giữ trên lịch, không bán lại. Thao tác được ghi vào Lịch sử thao tác.
+        {noun} chuyển sang Không thu được, không tính vào doanh thu và không thu tiền lại được.{" "}
+        {item.kind === "ticket" ? "Chỗ của vé vẫn được tính, số chỗ không giảm." : "Khung vẫn giữ trên lịch, không bán lại."} Thao tác được ghi vào Lịch sử thao tác.
       </ErrorBanner>
     </Modal>
   );
