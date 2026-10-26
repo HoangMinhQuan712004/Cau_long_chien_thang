@@ -13,8 +13,8 @@ export const metadata: Metadata = {
 export default async function HomePage() {
   const data = await getPublicPrices();
   const prices = data?.prices.map((p) => p.price_per_hour) ?? [];
-  const opens = data?.opening_hours.earliest_open?.slice(0, 5) ?? site.openingHours.open;
-  const closes = data?.opening_hours.latest_close?.slice(0, 5) ?? site.openingHours.close;
+  const opens = data?.opening_hours.earliest_open?.slice(0, 5);
+  const closes = data?.opening_hours.latest_close?.slice(0, 5);
 
   return (
     <>
@@ -33,21 +33,28 @@ export default async function HomePage() {
             addressRegion: site.address.city,
             addressCountry: site.address.country,
           },
-          geo: { "@type": "GeoCoordinates", latitude: site.geo.lat, longitude: site.geo.lng },
-          openingHoursSpecification: {
-            "@type": "OpeningHoursSpecification",
-            dayOfWeek: [
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-              "Sunday",
-            ],
-            opens,
-            closes,
+          geo: {
+            "@type": "GeoCoordinates",
+            latitude: site.geo.lat,
+            longitude: site.geo.lng,
           },
+          ...(opens &&
+            closes && {
+              openingHoursSpecification: {
+                "@type": "OpeningHoursSpecification",
+                dayOfWeek: [
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday",
+                  "Sunday",
+                ],
+                opens,
+                closes,
+              },
+            }),
           ...(prices.length && {
             priceRange: `${formatVnd(Math.min(...prices))} – ${formatVnd(Math.max(...prices))}/giờ`,
           }),
@@ -58,25 +65,38 @@ export default async function HomePage() {
         <div>
           <h1 className="text-3xl font-bold leading-tight sm:text-4xl">
             {site.name}
-            <span className="block text-primary">Giá rõ ràng, đặt sân tại quầy</span>
+            <span className="block text-primary">
+              Giá rõ ràng, đặt sân tại quầy
+            </span>
           </h1>
           <p className="mt-4 text-muted">{site.description}</p>
           <p className="mt-2 text-sm text-muted">📍 {fullAddress}</p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <a href={phoneHref} className="rounded-md bg-primary px-5 py-3 font-medium text-primary-fg">
+            <a
+              href={phoneHref}
+              className="rounded-md bg-primary px-5 py-3 font-medium text-primary-fg"
+            >
               Gọi {site.phone}
             </a>
-            <Link href="/bang-gia" className="rounded-md border border-border px-5 py-3">
+            <Link
+              href="/bang-gia"
+              className="rounded-md border border-border px-5 py-3"
+            >
               Bảng giá
             </Link>
           </div>
           <p className="mt-3 text-sm text-muted">
-            Đặt sân tại quầy hoặc gọi hotline. Giờ mở cửa {opens} – {closes}. Đặt sân trực tuyến sẽ sớm có.
+            Đặt sân tại quầy hoặc gọi hotline.
+            {opens && closes ? ` Giờ mở cửa ${opens} – ${closes}.` : ""} Đặt sân
+            trực tuyến sẽ sớm có.
           </p>
         </div>
         <ul className="grid grid-cols-2 gap-3">
           {data?.resource_types.map((t) => (
-            <li key={t.code} className="rounded-lg border border-border bg-surface p-4">
+            <li
+              key={t.code}
+              className="rounded-lg border border-border bg-surface p-4"
+            >
               <p className="font-semibold">{t.name}</p>
               <p className="text-sm text-muted">{t.resource_count} sân</p>
             </li>

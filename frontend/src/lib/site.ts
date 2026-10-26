@@ -16,7 +16,6 @@ export const site = {
     country: "VN",
   },
   geo: { lat: 21.0333, lng: 105.8 },
-  openingHours: { open: "05:00", close: "23:00" },
   social: {
     facebook: "https://facebook.com/",
     zalo: "https://zalo.me/",
