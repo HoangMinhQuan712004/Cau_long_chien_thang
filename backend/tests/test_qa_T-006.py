@@ -23,6 +23,7 @@ and tests never collide on slots (the DB is shared across the whole test session
 """
 
 import asyncio
+import json
 import re
 import time
 import uuid
@@ -86,6 +87,19 @@ def assert_err(resp, code: str) -> None:
     assert code_of(resp) == code, (code, resp.status_code, resp.text)
 
 
+def _flatten_payment(resp) -> None:
+    """ItemOut nests amount/payment_status under `payment`; add flat aliases for readability."""
+    if not 200 <= resp.status_code < 300 or "json" not in resp.headers.get("content-type", ""):
+        return
+    data = resp.json()
+    if isinstance(data, dict) and isinstance(data.get("payment"), dict):
+        flat = {
+            "amount": data["payment"].get("amount"),
+            "payment_status": data["payment"].get("payment_status"),
+        }
+        resp._content = json.dumps({**flat, **data}).encode()
+
+
 async def w(client, method, path, body=None, *, k="auto", **kw):
     """Write request with an Idempotency-Key (k=None -> no header)."""
     headers = dict(kw.pop("headers", {}))
@@ -93,7 +107,9 @@ async def w(client, method, path, body=None, *, k="auto", **kw):
         headers["Idempotency-Key"] = key()
     elif k is not None:
         headers["Idempotency-Key"] = k
-    return await client.request(method, path, json=body, headers=headers, **kw)
+    resp = await client.request(method, path, json=body, headers=headers, **kw)
+    _flatten_payment(resp)
+    return resp
 
 
 def phone() -> str:
@@ -138,7 +154,7 @@ def booking_body(res_code: str, hour: int, customer: dict | None = None, day: da
         "date": (day or today()).isoformat(),
         "start_hour": hour,
         "end_hour": hour + 1,
-        "customer": customer or temp(),
+        "customer": customer if customer is not None else temp(),
     }
 
 
