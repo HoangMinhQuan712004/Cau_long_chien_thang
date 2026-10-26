@@ -11,7 +11,8 @@ ASSUMED CONTRACT (the spec leaves response shapes open; adjust section 1 at BE h
   * POST /booking/sessions -> 201 {code, ...}
   * GET /booking/sessions/{code} -> {name, taken, capacity, version, tickets[], can}
   * POST /front-desk/sessions/{code}/tickets -> 201 {code, amount, version, ...}
-  * GET /booking/items/{code} -> {code, payment_status, version, amount, actions[], ...}
+  * GET /booking/items/{code} -> pinned by ARCHITECT: {kind, code, version, customer{}, schedule{},
+    payment{amount, payment_status, ...}, note?, actions[]} (item() adds flat amount/payment_status)
   * GET /booking/calendar -> blocks[] with `code`, `type`, `payment_status`,
     `resource_code`; `unpaid_count`
   * GET /booking/transactions -> {rows[], page, total,
@@ -68,8 +69,20 @@ def code_of(resp) -> str | None:
     return detail.get("code") if isinstance(detail, dict) else None
 
 
+# HTTP status per error code, pinned by ARCHITECT (spec section 4)
+ERR_STATUS = {
+    **dict.fromkeys(("E-003", "E-010", "E-012", "E-018", "E-023", "E-024"), 409),
+    **dict.fromkeys(("E-001", "E-002", "E-004", "E-009", "E-013", "E-016", "E-019", "E-020"), 422),
+    "E-021": 404,
+}
+
+
 def assert_err(resp, code: str) -> None:
-    assert 400 <= resp.status_code < 500, (resp.status_code, resp.text)
+    want = ERR_STATUS.get(code)
+    if want is not None:
+        assert resp.status_code == want, (code, want, resp.status_code, resp.text)
+    else:
+        assert 400 <= resp.status_code < 500, (resp.status_code, resp.text)
     assert code_of(resp) == code, (code, resp.status_code, resp.text)
 
 
@@ -163,7 +176,9 @@ async def new_session(adm, resources: list[str], *, capacity=3, price=50000, nam
 async def item(client, code: str) -> dict:
     r = await client.get(f"{B}/items/{code}")
     assert r.status_code == 200, r.text
-    return r.json()
+    data = r.json()
+    pay = data.get("payment", {})  # spec: payment{amount, payment_status, ...}; keep flat aliases
+    return {"amount": pay.get("amount"), "payment_status": pay.get("payment_status"), **data}
 
 
 async def calendar(client, day: date | None = None) -> dict:
