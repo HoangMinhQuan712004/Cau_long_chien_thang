@@ -75,6 +75,8 @@ Tài khoản chủ sân mặc định: `admin@example.com` / `admin12345` (đổ
 
 Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
 
+API nền tảng booking engine (Idempotency-Key, mã lỗi, bảng quyền, biến môi trường bảo mật): [docs/booking-engine-api.md](docs/booking-engine-api.md).
+
 ## Lệnh thường dùng
 
 | Việc | Lệnh |
