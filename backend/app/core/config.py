@@ -25,6 +25,20 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
+    # Bảo mật (ADR-004)
+    # Origin được phép gửi request ghi kèm cookie phiên (chống CSRF):
+    # site prod / dev / localhost dev
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
+    # Số proxy tin cậy đứng trước API (Caddy -> Next -> API = 2) để lấy IP thật từ X-Forwarded-For.
+    # 0 = dùng IP kết nối trực tiếp.
+    TRUSTED_PROXY_COUNT: int = 0
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_PER_MINUTE: int = 120  # mặc định toàn API, theo IP
+    MAX_BODY_BYTES: int = 64 * 1024
+
+    # Booking engine: mỗi bản chạy phục vụ một tenant
+    TENANT_ID: int = 1
+
     # Nghiệp vụ sân
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
     OPEN_TIME: time = time(5, 0)

@@ -13,12 +13,28 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# Schema được quản lý: public (mặc định) + booking (booking engine, ADR-003)
+MANAGED_SCHEMAS = {None, "public", "booking"}
+
+
+def include_name(name, type_, parent_names) -> bool:
+    if type_ == "schema":
+        return name in MANAGED_SCHEMAS
+    return True
+
+
+COMMON_OPTS = {
+    "target_metadata": target_metadata,
+    "include_schemas": True,
+    "include_name": include_name,
+}
+
 
 def run_migrations_offline() -> None:
     context.configure(
         url=settings.DATABASE_URL,
-        target_metadata=target_metadata,
         literal_binds=True,
+        **COMMON_OPTS,
         dialect_opts={"paramstyle": "named"},
     )
     with context.begin_transaction():
@@ -26,7 +42,7 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(connection=connection, **COMMON_OPTS)
     with context.begin_transaction():
         context.run_migrations()
 
