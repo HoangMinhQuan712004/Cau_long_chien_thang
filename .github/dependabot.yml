@@ -12,7 +12,17 @@ updates:
     target-branch: dev
     schedule: { interval: weekly }
     groups:
-      npm: { patterns: ["*"] }
+      npm:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    # Majors của TypeScript/ESLint làm hỏng build (openapi-typescript cần TypeScript 5): nâng riêng khi toolchain hỗ trợ (T-004)
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@typescript-eslint/*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
