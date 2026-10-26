@@ -222,7 +222,9 @@ async def anon_c():
 
 
 @pytest.fixture
-async def clean_rate_limit():
+async def clean_rate_limit(monkeypatch):
+    # Q4: the limiter may be disabled for the suite; SEC1/quote-limit tests switch it on
+    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", True, raising=False)
     r = aioredis.from_url(settings.REDIS_URL)
 
     async def wipe():
@@ -365,14 +367,14 @@ async def test_d1_day_types_weekday_weekend_holiday(adm):
 
 
 @pytest.mark.skip(
-    reason="needs an occupancy fixture/facade from BACKEND (booking/hold rows land in T-006)"
+    reason="Q5: waiting for BACKEND test-only helper (booking_engine.testing.make_allocation)"
 )
 async def test_d4_hours_change_blocked_when_occupied_after_tomorrow(adm):
     """409 E-CFG-3 + list (max 6 + 'và n khung khác') when a booking is outside the new hours."""
 
 
 @pytest.mark.skip(
-    reason="needs an occupancy fixture/facade from BACKEND (booking/hold rows land in T-006)"
+    reason="Q5: waiting for BACKEND test-only helper (booking_engine.testing.make_allocation)"
 )
 async def test_d5_deactivate_blocked_when_occupied_from_today(adm):
     """409 E-CFG-4 + list; an inactive resource still shows on days that keep a booking (BR-001)."""
@@ -575,12 +577,12 @@ def _sweep_routes(prefixes, skip):
             yield method, re.sub(r"\{[^}]+\}", "1", path)
 
 
-PUBLIC_OR_MIXED = {("POST", f"{B}/quote")}
+QUOTE = ("POST", f"{B}/quote")  # Q2: admin + staff only (customers get 403 until T-008)
 CONFIG_PUBLIC_FOR_STAFF = {("GET", f"{B}/resources")}
 
 
 async def test_sec4_all_admin_routes_require_login_and_role(anon_c, customer_c):
-    routes = list(_sweep_routes((f"{API}/admin", B), PUBLIC_OR_MIXED))
+    routes = list(_sweep_routes((f"{API}/admin", B), set()))
     assert len(routes) >= 8, "route sweep found too few admin/booking routes"
     for method, path in routes:
         a = await write(anon_c, method, path, json_body={})
@@ -590,7 +592,7 @@ async def test_sec4_all_admin_routes_require_login_and_role(anon_c, customer_c):
 
 
 async def test_sec4_counter_account_cannot_use_config_api(staff_c):
-    routes = list(_sweep_routes((B,), PUBLIC_OR_MIXED | CONFIG_PUBLIC_FOR_STAFF))
+    routes = list(_sweep_routes((B,), {QUOTE} | CONFIG_PUBLIC_FOR_STAFF))
     assert len(routes) >= 5
     for method, path in routes:
         r = await write(staff_c, method, path, json_body={})
@@ -598,6 +600,55 @@ async def test_sec4_counter_account_cannot_use_config_api(staff_c):
     assert (
         await staff_c.get(f"{B}/resources")
     ).status_code == 200  # counter may read the catalogue
+
+
+async def test_q2_quote_allowed_for_admin_and_staff_only(adm, staff_c, customer_c, anon_c):
+    body = {
+        "resource_code": "S01",
+        "date": next_weekday(2).isoformat(),
+        "start_hour": 10,
+        "end_hour": 11,
+    }
+    assert (await adm.post(f"{B}/quote", json=body)).status_code == 200
+    assert (await staff_c.post(f"{B}/quote", json=body)).status_code == 200
+    assert (await customer_c.post(f"{B}/quote", json=body)).status_code == 403
+    assert (await anon_c.post(f"{B}/quote", json=body)).status_code == 401
+
+
+async def test_q2_quote_rate_limit_60_per_minute_per_user(adm, clean_rate_limit):
+    body = {
+        "resource_code": "S01",
+        "date": next_weekday(2).isoformat(),
+        "start_hour": 10,
+        "end_hour": 11,
+    }
+    statuses = []
+    for _ in range(65):
+        r = await adm.post(f"{B}/quote", json=body)
+        statuses.append(r.status_code)
+        if r.status_code == 429:
+            assert int(r.headers["Retry-After"]) >= 1
+            break
+    assert 429 in statuses, "no 429 after 65 quotes (limit is 60/min/user)"
+    assert statuses.index(429) <= 61
+
+
+async def test_q3_cookie_write_without_origin_and_referer_is_forbidden(adm):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as c:
+        r = await c.post(
+            f"{API}/auth/login",
+            json={"email": settings.FIRST_ADMIN_EMAIL, "password": settings.FIRST_ADMIN_PASSWORD},
+        )
+        assert r.status_code == 200, "login has no cookie yet, so it must not need an Origin"
+        w = await write(
+            c,
+            "POST",
+            f"{B}/special-days",
+            json_body={"date_from": "2026-12-01", "date_to": "2026-12-01", "name": "x"},
+        )
+        assert w.status_code == 403 and _code(w) == "E-SEC-1", w.text
+        ok = await c.get(f"{B}/resources")  # safe methods are not subject to the check
+        assert ok.status_code == 200, ok.text
 
 
 async def test_sec5_forbidden_body_fields_rejected_with_422(adm):
@@ -805,11 +856,15 @@ async def test_sec8_no_secrets_in_responses(adm, customer_c):
 
 
 async def test_sec8_phone_numbers_masked_in_lists(adm, customer_c):
+    """Q1: the users list returns `phone_masked` instead of `phone` (S12 / BR-021)."""
     users = await adm.get(f"{API}/admin/users")
     assert users.status_code == 200
-    assert "0912345678" not in users.text, (
-        "full phone number visible in the users list (S12/BR-021)"
-    )
+    assert "0912345678" not in users.text, "full phone number visible in the users list"
+    rows = users.json()
+    assert rows and all("phone" not in row for row in rows), "`phone` must be replaced"
+    masked = [row["phone_masked"] for row in rows if row.get("phone_masked")]
+    assert masked, "no `phone_masked` values returned"
+    assert all(re.search(r"[xX*•]", m) for m in masked), masked
 
 
 # ---------------------------------------------------------------------------
