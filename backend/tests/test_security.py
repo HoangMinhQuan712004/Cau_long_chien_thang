@@ -57,15 +57,21 @@ async def test_rate_limit_disabled_flag(anon, monkeypatch):
 
 async def test_rate_limit_uses_forwarded_ip_only_from_trusted_proxies(anon, monkeypatch):
     monkeypatch.setattr(settings, "RATE_LIMIT_PER_MINUTE", 1)
-    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 2)
-    # Chuỗi Caddy -> Next: XFF = "<client>, <caddy>" -> IP client = phần tử thứ 2 từ cuối.
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 1)
+    # Prod/dev: Caddy -> Next -> API, chỉ Caddy nối IP khách vào cuối XFF -> lấy phần tử cuối.
     # Client tự thêm giá trị giả ở đầu (6.6.6.6 / 7.7.7.7) không đổi được khóa rate limit.
-    h1 = {"X-Forwarded-For": "6.6.6.6, 1.1.1.1, 10.0.0.2"}
-    h2 = {"X-Forwarded-For": "7.7.7.7, 1.1.1.1, 10.0.0.2"}
+    h1 = {"X-Forwarded-For": "6.6.6.6, 1.1.1.1"}
+    h2 = {"X-Forwarded-For": "7.7.7.7, 1.1.1.1"}
     assert (await anon.get(f"{API}/courts", headers=h1)).status_code == 200
     assert (await anon.get(f"{API}/courts", headers=h2)).status_code == 429
-    h3 = {"X-Forwarded-For": "2.2.2.2, 10.0.0.2"}
+    assert (
+        await anon.get(f"{API}/courts", headers={"X-Forwarded-For": "2.2.2.2"})
+    ).status_code == 200
+    # Hai proxy ghi XFF -> phần tử thứ 2 từ cuối
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 2)
+    h3 = {"X-Forwarded-For": "6.6.6.6, 3.3.3.3, 10.0.0.2"}
     assert (await anon.get(f"{API}/courts", headers=h3)).status_code == 200
+    assert (await anon.get(f"{API}/courts", headers=h3)).status_code == 429
 
 
 async def test_quote_rate_limit_per_user(staff):
