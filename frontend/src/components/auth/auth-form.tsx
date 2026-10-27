@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api/client";
 import { safeNext } from "@/lib/safe-next";
@@ -9,7 +9,6 @@ import { safeNext } from "@/lib/safe-next";
 const input = "w-full rounded-md border border-border bg-surface px-3 py-2";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
-  const router = useRouter();
   const next = safeNext(useSearchParams().get("next"));
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -18,9 +17,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   useEffect(() => {
     if (mode !== "login") return;
     fetch("/api/v1/auth/refresh", { method: "POST", credentials: "include" })
-      .then((r) => r.ok && router.replace(next))
+      .then((r) => r.ok && (window.location.href = next))
       .catch(() => {});
-  }, [mode, next, router]);
+  }, [mode, next]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -42,8 +41,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               },
             });
       if (error) return setError(errorMessage(error));
-      router.replace(next);
-      router.refresh();
+      window.location.href = next;
     } catch {
       setError("Không kết nối được máy chủ, vui lòng thử lại");
     } finally {
