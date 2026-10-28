@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { BookingAction } from "@/components/booking/booking-action";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { LogoutButton } from "@/components/logout-button";
+import { getDictionary } from "@/i18n/dictionaries";
 import { authedApi, getCurrentUser } from "@/lib/api/server";
 import { formatDate, formatTime, formatVnd } from "@/lib/format";
 
@@ -24,6 +25,7 @@ export default function AccountPage() {
 async function Account() {
   const user = await getCurrentUser();
   if (!user) redirect("/dang-nhap?next=/tai-khoan");
+  const t = (await getDictionary()).account;
 
   const api = await authedApi();
   const { data: bookings = [], error } = await api.GET("/api/v1/bookings/me");
@@ -34,16 +36,14 @@ async function Account() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Xin chào, {user.full_name}</h1>
-          <p className="text-sm text-muted">{user.email}</p>
-        </div>
-        <div className="flex items-center gap-4">
-          {user.role !== "customer" && (
-            <Link href="/admin" className="text-sm text-primary">
-              Trang quản lý →
-            </Link>
+          <p className="text-sm text-muted">{user.phone ?? user.username ?? t.noPhone}</p>
+          {user.google_email && (
+            <p className="text-sm text-muted">
+              {t.googleEmail.replace("{email}", user.google_email)}
+            </p>
           )}
-          <LogoutButton />
         </div>
+        <LogoutButton />
       </div>
 
       <section>

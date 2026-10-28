@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AuthForm } from "@/components/auth/auth-form";
+import { getDictionary } from "@/i18n/dictionaries";
 
 export const metadata: Metadata = {
   title: "Đăng ký tài khoản",
@@ -12,8 +13,13 @@ export default function RegisterPage() {
     <div className="mx-auto max-w-sm space-y-6">
       <h1 className="text-2xl font-bold">Đăng ký tài khoản</h1>
       <Suspense>
-        <AuthForm mode="register" />
+        <RegisterForm />
       </Suspense>
     </div>
   );
+}
+
+async function RegisterForm() {
+  const { passwordRules } = await getDictionary();
+  return <AuthForm rules={passwordRules} />;
 }

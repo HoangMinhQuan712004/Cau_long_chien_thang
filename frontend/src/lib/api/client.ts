@@ -2,8 +2,7 @@ import "client-only";
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 
-// Gọi API từ trình duyệt qua đường dẫn tương đối /api/v1/... (Next rewrite sang backend),
-// nên cookie httpOnly là same-origin, không cần cấu hình CORS.
+// Client API phía trình duyệt, gọi /api/v1/* cùng domain (Next rewrite sang backend)
 export const api = createClient<paths>({ baseUrl: "", credentials: "include" });
 
 // Access token sống ngắn: khi gặp 401 thì gọi /auth/refresh một lần rồi thử lại request.
@@ -19,7 +18,9 @@ const refreshOnce = () =>
 
 const autoRefresh: Middleware = {
   onRequest({ request }) {
-    if (!request.url.includes("/auth/")) pending.set(request, request.clone());
+    // /auth/* (đăng nhập, refresh…) không thử lại; riêng /auth/phone/* cần phiên khách như API thường
+    const url = request.url;
+    if (!url.includes("/auth/") || url.includes("/auth/phone/")) pending.set(request, request.clone());
   },
   async onResponse({ request, response }) {
     const retry = pending.get(request);
@@ -35,6 +36,17 @@ api.use(autoRefresh);
 export function errorMessage(error: unknown, fallback = "Có lỗi xảy ra, vui lòng thử lại"): string {
   const detail = (error as { detail?: unknown } | undefined)?.detail;
   if (typeof detail === "string") return detail;
-  if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg);
+  // 422 Pydantic: bỏ tiền tố "Value error, "
+  if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg).replace(/^Value error, /, "");
   return fallback;
+}
+
+/** Đọc `detail: { code, retry_after?, attempts_left? }` của lỗi nghiệp vụ; lỗi khác ⇒ `{}`. */
+export function errorDetail(error: unknown): {
+  code?: string;
+  retry_after?: number;
+  attempts_left?: number;
+} {
+  const detail = (error as { detail?: unknown } | undefined)?.detail;
+  return detail && typeof detail === "object" && !Array.isArray(detail) ? detail : {};
 }

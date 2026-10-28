@@ -3,7 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { LogoutButton } from "@/components/logout-button";
-import { getCurrentUser } from "@/lib/api/server";
+import { getDictionary } from "@/i18n/dictionaries";
+import { type AdminSessionError, getAdminSession } from "@/lib/api/server";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -29,6 +30,9 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
               {n.label}
             </Link>
           ))}
+          <Suspense>
+            <AdminOnlyNav />
+          </Suspense>
         </nav>
       </aside>
       <div className="flex-1 p-4 md:p-8">
@@ -40,19 +44,41 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
   );
 }
 
-/** Chỉ admin/staff được vào. Backend vẫn kiểm tra quyền trên từng API. */
+// Lý do hết phiên ⇒ thông báo trên màn đăng nhập (E-007 hết 12 giờ, E-006 đổi mật khẩu, Admin khóa tài khoản)
+const REASON_PARAM: Partial<Record<AdminSessionError, string>> = {
+  expired: "het-han",
+  password_changed: "doi-mat-khau",
+  account_disabled: "tai-khoan-khoa",
+};
+
+/** Mục chỉ Admin thấy (nhân viên không thấy; trang vẫn tự kiểm quyền). */
+async function AdminOnlyNav() {
+  const result = await getAdminSession().catch(() => null);
+  if (!result?.ok || result.session.account.kind !== "admin") return null;
+  const t = (await getDictionary()).staff;
+  return (
+    <Link href="/admin/nhan-vien" className="hover:text-primary">
+      {t.nav}
+    </Link>
+  );
+}
+
+/** Chỉ phiên quản trị còn hiệu lực được vào. Backend vẫn kiểm tra quyền trên từng API. */
 async function StaffGate({ children }: { children: React.ReactNode }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/dang-nhap?next=/admin");
-  if (user.role === "customer") redirect("/tai-khoan");
+  const result = await getAdminSession().catch(() => null);
+  if (!result?.ok) {
+    const reason = result ? REASON_PARAM[result.reason] : undefined;
+    redirect(`/dang-nhap?next=/admin${reason ? `&ly-do=${reason}` : ""}`);
+  }
+  const { account } = result.session;
 
   return (
     <>
       <div className="mb-6 flex items-center justify-end gap-4 text-sm text-muted">
         <span>
-          {user.full_name} · {user.role === "admin" ? "Chủ sân" : "Nhân viên"}
+          {account.display_name} · {account.role_label}
         </span>
-        <LogoutButton />
+        <LogoutButton area="admin" />
       </div>
       {children}
     </>
