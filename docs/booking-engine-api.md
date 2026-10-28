@@ -1,7 +1,7 @@
 # API booking engine, đặt online, đăng nhập (T-005, T-006, T-008, T-012, T-013)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
-Nguồn: code `dev` (T-005, T-006, T-008, T-012); mục đánh dấu **(T-013)** viết theo spec `board/tasks/T-013-dang-nhap-nhan-vien.md` và ADR-008, **chưa vào `dev`**, sẽ đối chiếu code khi BACKEND bàn giao; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008.
+Nguồn: code `dev` (T-005, T-006, T-008, T-012); mục đánh dấu **(T-013)** đã đối chiếu với code nhánh `be/T-013-dang-nhap` @ `8d9ea32` (backend; **chưa vào `dev`**, phần giao diện chưa đối chiếu) và spec `board/tasks/T-013-dang-nhap-nhan-vien.md`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008.
 Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa. OpenAPI sống: `/docs` của API (tắt ở link dev và production).
 
 > Phạm vi: cấu hình sân và bảng giá (T-005); lịch, đặt sân tại quầy, sự kiện và vé, thu tiền mặt, Không thu được, Lịch sử giao dịch (T-006);
@@ -100,7 +100,7 @@ Thông báo thành công (E-005, E-006, E-008, E-011, E-022, E-026) không có t
 
 Quyền khai báo tập trung ở `backend/app/core/permissions.py`. Router dùng `Depends(require(Perm.X))`,
 **không so vai trực tiếp**. Vai hiện có: `admin` = Admin (chủ sân, có mọi quyền), `staff` = Tài khoản tại máy (dùng chung), `customer` = khách (chưa có quyền booking nào).
-**(T-013)** `staff` đổi thành **mỗi nhân viên một tài khoản** (mã `NV001`…); quyền của `staff` giữ nguyên như cột `staff` dưới đây. Thêm quyền `Perm.STAFF_MANAGE` chỉ Admin có. Quyền vẫn tính từ `principal_of`, nhưng người dùng giờ đến từ hai nguồn: cookie `admin_session` (Admin/nhân viên) hoặc JWT (khách).
+**(T-013)** `staff` đổi thành **mỗi nhân viên một tài khoản** (mã `NV001`…); quyền của `staff` giữ nguyên như cột `staff` dưới đây. Thêm quyền `staff.manage` (`Perm.STAFF_MANAGE`) chỉ Admin có; `content.manage` (`Perm.CONTENT_MANAGE`, tin tức / trang nội dung, chỉ Admin) thay cho kiểm vai trực tiếp trước đây. Quyền vẫn tính từ `principal_of`, nhưng người dùng giờ đến từ hai nguồn: cookie `admin_session` (Admin/nhân viên) hoặc JWT (khách).
 
 | Quyền | admin | staff | Dùng cho |
 |---|:-:|:-:|---|
@@ -121,7 +121,8 @@ Quyền khai báo tập trung ở `backend/app/core/permissions.py`. Router dùn
 | `payments.view` | ✔ | | `GET /payments/bank-transactions` (Tiền về cần xử lý) |
 | `payments.resolve` | ✔ | | `POST /payments/bank-transactions/{id}/resolve`, `POST /payments/dev/simulate` |
 | `payments.settings` | ✔ | | `GET/PUT /payments/settings`, `GET /payments/banks` (T-012) |
-| `Perm.STAFF_MANAGE` (T-013) | ✔ | | `/admin/staff*`: danh sách, tạo, khóa, đặt lại mật khẩu, phiên của nhân viên (mục 11.3). Tên chuỗi của quyền xác nhận lại sau handoff BACKEND |
+| `staff.manage` (T-013) | ✔ | | `/admin/staff*`: danh sách, tạo, khóa, đặt lại mật khẩu, phiên của nhân viên (mục 11.3) |
+| `content.manage` (T-013) | ✔ | | Quản lý tin tức / trang nội dung |
 
 API **công khai** của T-008 (`/web/booking/**`, webhook `POST /payments/sepay/webhook`) không dùng quyền: khách không đăng nhập (mục 10). **(T-013)** Các route `/auth/sign-in`, `/auth/google`, `/auth/register`, `/auth/password-reset/*` cũng công khai (mục 11).
 
@@ -263,7 +264,7 @@ Khai báo trong `backend/app/core/config.py`, mẫu ở `backend/.env.example`.
 | `ONLINE_HOLD_GRACE_SECONDS` | `60` | Ân hạn nhận tiền báo trễ sau khi hết giữ chỗ (khung vẫn bị chiếm trong lúc này) |
 | `PAYMENTS_SIMULATE` | `false` | Bật `POST /payments/dev/simulate` (giả lập tiền về). `ENV=production` mà bật → API **không khởi động** |
 | `FIRST_ADMIN_PHONE` **(T-013)** | `0912345678` | Thay `FIRST_ADMIN_EMAIL`. SĐT Admin đầu tiên. Migration T-013 cũng dùng biến này để gán SĐT cho Admin cũ chưa có; **thiếu hoặc sai → migration dừng**. Production: SĐT thật, phải có trong `.env` **trước** khi deploy |
-| `FIRST_ADMIN_PASSWORD` | – | Chỉ dùng khi **chưa có Admin**; không bao giờ ghi đè mật khẩu Admin đã có. Production từ chối mật khẩu mẫu hoặc yếu |
+| `FIRST_ADMIN_PASSWORD` | `Admin@12345` (mẫu, `.env.example`) | Chỉ dùng khi **chưa có Admin**; không bao giờ ghi đè mật khẩu Admin đã có. Production từ chối mật khẩu mẫu hoặc yếu |
 | `ADMIN_SESSION_HOURS` **(T-013)** | `12` | Hạn cứng của phiên Admin/nhân viên |
 | `LOGIN_MAX_ATTEMPTS` · `LOGIN_LOCK_MINUTES` | `5` · `15` | Số lần sai liên tiếp và thời gian khóa tài khoản |
 | `LOGIN_IP_MAX_ATTEMPTS` · `LOGIN_IP_WINDOW_MINUTES` | `20` · `15` | Giới hạn lần sai theo IP |
@@ -275,7 +276,7 @@ Khai báo trong `backend/app/core/config.py`, mẫu ở `backend/.env.example`.
 | `ZALO_APP_ID` · `ZALO_SECRET_KEY` · `ZALO_REFRESH_TOKEN` · `ZALO_TEMPLATE_OTP` | trống | Gửi OTP qua Zalo ZNS. **Chưa dùng được** (client còn `TODO`). Secret – không ghi vào repo |
 | `GOOGLE_CLIENT_ID` | trống | Đăng nhập Google (backend kiểm `aud`). Frontend dùng `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (công khai, truyền lúc build qua biến repo `GOOGLE_CLIENT_ID`) |
 
-**Biến đánh dấu (T-013)** chưa vào `dev`: bảng trên theo spec, đối chiếu `backend/app/core/config.py` khi BACKEND bàn giao.
+**Biến đánh dấu (T-013)** chưa vào `dev`; giá trị mặc định khớp `backend/.env.example` của nhánh `be/T-013-dang-nhap`.
 
 **Bật đặt online**: từ T-012 Admin cài trên trang (mục 10.7); các biến `SEPAY_*` chỉ là dự phòng khi **chưa có dòng cài đặt trong DB**. Khi dùng `.env`, đặt online bật khi đủ 5 biến `SEPAY_*` đầu (mã NH, tên NH, số TK, tên chủ TK, secret). Thiếu thì `online_enabled=false`:
 khách vẫn xem lịch nhưng không đặt được (`E-WEB-5`, giao diện hiện "gọi hotline").
@@ -296,6 +297,8 @@ Chạy bằng `arq app.workers.worker.WorkerSettings`.
 | `expire_holds` | mỗi 30 giây | Giữ chỗ quá `expires_at` → hết hạn, nhả khung. Giữ chỗ quá hạn không hiện trên lịch và không chặn đặt dù job chưa chạy. Từ T-008 cũng đóng lượt thanh toán online `pending` quá `expires_at` + ân hạn (→ `expired`) và phát `checkout.expired` nếu lượt đó đã nhận một phần tiền |
 | `purge_audit_log` | hằng ngày 03:15 | Xóa dòng nhật ký quá 12 tháng |
 | `purge_idempotency_keys` | mỗi giờ (phút 5) | Xóa key quá 24 giờ |
+| `purge_otp_codes` (T-013) | mỗi giờ (phút 35) | Xóa mã OTP quá 24 giờ |
+| `send_zalo_otp` (T-013) | theo yêu cầu | Gửi OTP qua Zalo ZNS. **Hiện là stub, chưa gửi thật** |
 
 Job `expire_pending_bookings` của luồng cũ đã bỏ.
 
@@ -517,7 +520,7 @@ Thiếu trường bắt buộc hoặc trường lạ → 422 định dạng mặ
 
 ## 11. Đăng nhập, nhân viên, OTP, tài khoản khách (T-013)
 
-> **Viết theo spec** (`board/tasks/T-013-dang-nhap-nhan-vien.md`, ADR-008). T-013 **chưa vào `dev`**; tên trường và mã lỗi dưới đây sẽ được đối chiếu với code khi BACKEND bàn giao. Nếu code lệch, code đúng.
+> Đối chiếu với code backend nhánh `be/T-013-dang-nhap` @ `8d9ea32` (spec: `board/tasks/T-013-dang-nhap-nhan-vien.md`, ADR-008). T-013 **chưa vào `dev`**. Nếu code lệch, code đúng.
 > Phá vỡ tương thích: `/auth/login` → `/auth/sign-in`; `/admin/users` → `/admin/staff`; Admin/nhân viên không còn JWT; `UserOut` bỏ `email`. Backend và frontend phải lên cùng một đợt.
 
 ### 11.1 Ai đăng nhập bằng gì
@@ -548,8 +551,12 @@ Lỗi dạng `{detail:{code,message,…}}`. Mọi POST cần `Origin` hợp lệ
 | POST | `/admin/auth/logout` | Admin/nhân viên | Thu hồi phiên hiện tại |
 | POST | `/auth/password-reset/request` `{phone}` → 202 | công khai | `{resend_after}`; chế độ thử thêm `test_otp` (mục 11.5) |
 | POST | `/auth/password-reset/verify` `{phone, otp}` | công khai | `otp` đúng 6 chữ số → `{reset_token}` (hạn 10 phút) |
-| POST | `/auth/password-reset/confirm` `{reset_token, password}` → 204 | công khai | Đổi mật khẩu, thu hồi mọi phiên Admin/nhân viên, xóa khóa |
-| POST | `/auth/phone/request` `{phone}` · `/auth/phone/verify` `{phone, otp}` | khách đã đăng nhập | Gắn và xác minh SĐT. Verify → `{merged, password_cleared, account}` |
+| POST | `/auth/password-reset/confirm` `{reset_token, password}` → 204 | công khai | Đổi mật khẩu, thu hồi mọi phiên Admin/nhân viên, xóa khóa; SĐT coi là đã xác minh. `reset_token` dùng một lần |
+| POST | `/auth/phone/request` `{phone}` → 202 · `/auth/phone/verify` `{phone, otp}` | khách đã đăng nhập | Gắn và xác minh SĐT. Mã gắn với tài khoản yêu cầu: khách B không dùng được mã gửi cho khách A. Verify → `{merged, password_cleared, account}` và đặt lại cookie JWT (gộp: JWT của chủ SĐT). Không có kênh OTP → 503 `E-AUTH-24` |
+
+`UserOut` = `{id, phone, phone_verified, username, full_name, google_email, role, is_active}` (**không còn `email`**). `phone` là SĐT đầy đủ vì API chỉ trả cho chính chủ. `/auth/register` đăng nhập luôn (cookie JWT). `/auth/me` chỉ dành cho khách: phiên Admin/nhân viên gọi vào → 401.
+
+**Origin.** Mọi `POST` auth thiếu hoặc sai `Origin` → 403 `E-SEC-1`, kể cả khi chưa có cookie. `GET` (như `/auth/me`, `/admin/auth/me`) không cần `Origin`.
 
 **Khóa tài khoản.** Sai mật khẩu 5 lần liên tiếp → khóa 15 phút (`E-AUTH-11`, 423, có `retry_after`). Hết khóa thì đếm lại từ 0; đăng nhập đúng đưa về 0. Tài khoản không tồn tại và tài khoản sai mật khẩu trả **cùng** `E-AUTH-10`. Theo IP: từ 20 lần sai trong 15 phút → `E-AUTH-12` (429, `retry_after`), tính cả lần Google token sai.
 
@@ -557,7 +564,7 @@ Lỗi dạng `{detail:{code,message,…}}`. Mọi POST cần `Origin` hợp lệ
 
 **Mật khẩu mới** (đăng ký, tạo nhân viên, đặt lại, lệnh server): ≥ 8 ký tự, có 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt; sai → 422 với câu "Mật khẩu cần … .". Mật khẩu cũ yếu vẫn đăng nhập được.
 
-**Google.** Server kiểm ID token (RS256, `aud`, `iss`, `exp`; khóa JWKS cache 1 giờ), tìm theo `google_sub`, chưa có thì tạo khách không mật khẩu và không SĐT. **Không bao giờ nối tài khoản theo email.** Chưa đặt `GOOGLE_CLIENT_ID` → `E-AUTH-19`.
+**Google.** Server kiểm ID token (RS256, `aud`, `iss`, `exp`; khóa JWKS cache 1 giờ), tìm theo `google_sub`, chưa có thì tạo khách không mật khẩu và không SĐT. **Không bao giờ nối tài khoản theo email.** Chưa đặt `GOOGLE_CLIENT_ID` → `E-AUTH-19`. Token Google sai cộng vào bộ đếm sai theo IP của đăng nhập (`E-AUTH-12`); JWKS không kết nối được thì không cộng (`E-AUTH-21`).
 
 **Xác minh SĐT của khách (`/auth/phone/*`).**
 
@@ -570,7 +577,7 @@ Lỗi dạng `{detail:{code,message,…}}`. Mọi POST cần `Origin` hợp lệ
 
 ### 11.3 Quản lý nhân viên – chỉ Admin (`Perm.STAFF_MANAGE`)
 
-Trang `/admin/nhan-vien` (menu "Nhân viên"). Nhân viên gọi các route này → 403 `E-AUTH-2`.
+Trang `/admin/nhan-vien` (menu "Nhân viên"). Nhân viên gọi các route này → 403 `E-AUTH-2`. Các lệnh ghi này **không** bắt buộc `Idempotency-Key`. Phản hồi `StaffOut` = `{id, staff_code, full_name, username, is_active, created_at, last_login_at, active_sessions}`; phiên = `{id, created_at, expires_at, user_agent, ip_masked}`.
 
 | Method | Path | Ghi chú |
 |---|---|---|
@@ -589,6 +596,7 @@ Giao diện: nút sinh mật khẩu ngẫu nhiên 12 ký tự, mật khẩu hi�
 - Mã OTP: 6 số, server chỉ lưu `HMAC-SHA256` với `SECRET_KEY`, hạn **5 phút**, sai **5 lần** thì mã chết (`E-AUTH-15`), gửi mã mới thì mã cũ hết hiệu lực. Gửi lại sau **60 giây**; tối đa **5 mã/giờ/SĐT** và **20 mã/giờ/IP** (`E-AUTH-13`, 429, `retry_after` = thời gian chờ dài nhất).
 - **Chống dò tài khoản:** SĐT chưa có tài khoản vẫn nhận 202 y hệt; xác minh với SĐT đó trả lỗi y hệt "mã sai/hết hạn".
 - Đặt lại thành công: đổi mật khẩu, `token_version += 1` (JWT khách cũ hết hiệu lực), thu hồi mọi phiên Admin/nhân viên, xóa khóa, ghi `auth.password_reset_done`. `reset_token` sai hoặc hết hạn → `E-AUTH-16`.
+- Mỗi lần yêu cầu mã ghi một dòng `otp_codes` (kể cả SĐT không có tài khoản, để trả y hệt); có khóa theo SĐT nên yêu cầu đồng thời chỉ phát một mã. Mã quá 24 giờ bị worker xóa.
 - Gửi mã qua Zalo ZNS (job ARQ `send_zalo_otp`): **chưa làm**, client để `TODO(zalo-zns)`. Production thiếu cấu hình Zalo → quên mật khẩu trả `E-AUTH-23` (503) và đặt online tạm ngưng (như thiếu SePay).
 
 ### 11.5 Chế độ thử OTP (`OTP_TEST_MODE`)
@@ -597,7 +605,7 @@ Chỉ cho máy dev và link dev, khi chưa có Zalo.
 
 | `OTP_TEST_MODE` | Mã OTP của **khách** (`booking_phone`, `phone_verify`, `password_reset`) | Mã `password_reset` của **Admin/nhân viên** |
 |---|---|---|
-| `true` | Có trong response (`test_otp`); giao diện hiện hộp vàng "Mã thử (chỉ link dev): 123456" | **Không** có trong response; chỉ in ra log server (`docker logs`), để người lạ trên link dev công khai không chiếm được Admin |
+| `true` | Có trong response (`test_otp`); giao diện hiện hộp vàng "Mã thử (chỉ link dev): 123456". SĐT không có tài khoản: `test_otp: null` | **Không** có trong response; chỉ ghi log server mức cảnh báo (SĐT đã che; xem bằng `docker logs`), để người lạ trên link dev công khai không chiếm được Admin |
 | `false` (mặc định) | Không bao giờ có trong response hay log | Như khách |
 
 `OTP_TEST_MODE=true` cùng `ENV=production` → API **không khởi động**.
@@ -620,11 +628,12 @@ Chỉ cho máy dev và link dev, khi chưa có Zalo.
 | E-AUTH-21 | 503 | "Chưa kết nối được Google. Vui lòng thử lại sau." |
 | E-AUTH-22 | 409 | "Số điện thoại đã được sử dụng." (đăng ký) |
 | E-AUTH-23 | 503 | "Chức năng quên mật khẩu đang tạm ngưng. Vui lòng liên hệ chủ sân." |
+| E-AUTH-24 | 503 | "Chức năng xác minh số điện thoại đang tạm ngưng. Vui lòng liên hệ chủ sân." (`/auth/phone/request` khi không có kênh OTP; quên mật khẩu dùng `E-AUTH-23`) |
 | E-STAFF-1 | 404 | "Không tìm thấy nhân viên." (id không phải nhân viên cũng báo vậy) |
 | E-STAFF-2 | 404 | "Không tìm thấy phiên đăng nhập." |
 | E-WEB-8 | 403 | "Vui lòng xác minh số điện thoại trước khi đặt sân." (mục 10.2) |
 
-Đăng ký hàng loạt: quá 10 lần/giờ/IP → `E-SEC-5`. `E-AUTH-3…6` để dành cho T-010; `E-AUTH-7` dùng ở T-012 (mục 10.7).
+Mật khẩu yếu → 422 `weak_password` với đúng câu "Mật khẩu cần … ." (không có tiền tố "Value error"; dạng `detail` mảng mặc định của FastAPI). Đăng ký hàng loạt: quá 10 lần/giờ/IP → `E-SEC-5`. `E-AUTH-3…6` để dành cho T-010; `E-AUTH-7` dùng ở T-012 (mục 10.7).
 
 ### 11.7 Nhật ký (T-013)
 
@@ -639,14 +648,14 @@ docker compose -p caulong-dev exec api python -m app.scripts.reset_admin_passwor
 docker compose -p caulong     exec api python -m app.scripts.reset_admin_password   # production
 ```
 
-Lệnh hỏi mật khẩu mới hai lần bằng `getpass` (không hiện trên màn hình, **không** nhận qua tham số dòng lệnh), áp quy tắc mật khẩu ở mục 11.2. Có nhiều Admin thì hỏi SĐT. Sau đó `token_version += 1`, thu hồi mọi phiên, xóa khóa, ghi `auth.password_reset_cli` (`actor_type=system`). Lệnh không in mật khẩu ra.
+Lệnh hỏi mật khẩu mới hai lần bằng `getpass` (không hiện trên màn hình, **không** nhận qua tham số dòng lệnh), áp quy tắc mật khẩu ở mục 11.2. Có đúng một Admin thì dùng luôn; nhiều Admin thì hỏi SĐT. Sau đó `token_version += 1`, thu hồi mọi phiên, xóa khóa, ghi `auth.password_reset_cli` (`actor_type=system`). Lệnh in SĐT đã che, không bao giờ in mật khẩu. Chưa có Admin nào thì báo chạy `python -m app.scripts.seed` trước.
 
 ### 11.9 Chuyển dữ liệu khi lên T-013 (migration)
 
-Một migration nối sau `cc9af0a8c694`. Các bước, theo thứ tự:
+Một migration (`3c30569e12af`) nối sau `cc9af0a8c694`. Các bước, theo thứ tự:
 
 1. Chuẩn hóa `users.phone` (không hợp lệ → NULL; trùng → giữ id nhỏ nhất, còn lại NULL).
-2. Admin chưa có SĐT → gán `FIRST_ADMIN_PHONE`. **Thiếu biến, sai định dạng, hoặc SĐT đã thuộc người khác → migration dừng với thông báo nêu tên biến (không in giá trị), không đổi gì**, API không lên. Nhiều Admin chưa có SĐT: chỉ Admin id nhỏ nhất được gán.
+2. Admin chưa có SĐT → gán `FIRST_ADMIN_PHONE`. Nếu SĐT đó đã thuộc **một Admin** (chạy lên lại sau downgrade) thì bỏ qua bước gán. **Thiếu biến, sai định dạng, hoặc SĐT thuộc người không phải Admin → migration dừng với thông báo nêu tên biến (không in giá trị), không đổi gì**, API không lên. Nhiều Admin chưa có SĐT: chỉ Admin id nhỏ nhất được gán.
 3. Khách không có SĐT được sinh `username`.
 4. Nhân viên hiện có nhận `staff_code` `NV001`…; "Tài khoản tại máy" hiện tại thành **`NV001` / `nv001`**, mật khẩu giữ nguyên.
 5. `users.email` thành nullable, **giữ dữ liệu, không xóa cột**.

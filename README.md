@@ -130,7 +130,7 @@ npm run dev                      # http://localhost:3000
 ```
 
 Tài khoản chủ sân trên `dev` hiện tại: `admin@example.com` / `admin12345` (đổi trong `backend/.env`).
-**Từ T-013** Admin đăng nhập bằng **số điện thoại**: `FIRST_ADMIN_PHONE` (mặc định `0912345678`) và mật khẩu `FIRST_ADMIN_PASSWORD` trong `backend/.env`; seed chỉ tạo Admin khi DB chưa có Admin. Xem mục "Đăng nhập, nhân viên và OTP".
+**Từ T-013** Admin đăng nhập bằng **số điện thoại**: `FIRST_ADMIN_PHONE` (mặc định `0912345678`) và mật khẩu `FIRST_ADMIN_PASSWORD` (mẫu trong `backend/.env.example`: `Admin@12345`) trong `backend/.env`; seed chỉ tạo Admin khi DB chưa có Admin. Xem mục "Đăng nhập, nhân viên và OTP".
 
 Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
 
@@ -201,7 +201,7 @@ Admin vào **`/admin/cai-dat/thanh-toan`** (menu "Cài đặt thanh toán", ch�
      -ContentType "application/json" -Body '{"pay_ref":"BK20261020023","amount":288000}'
    ```
 
-   **Từ T-013** thay dòng đăng nhập bằng `.../api/v1/auth/sign-in` với body `{"login":"0912345678","password":"<FIRST_ADMIN_PASSWORD trong backend/.env>"}` (`/auth/login` bị gỡ). Phiên Admin là cookie `admin_session`; `-WebSession` vẫn giữ cookie như trên.
+   **Từ T-013** thay dòng đăng nhập bằng `.../api/v1/auth/sign-in` với body `{"login":"0912345678","password":"<FIRST_ADMIN_PASSWORD trong backend/.env, mẫu Admin@12345>"}` (`/auth/login` bị gỡ). Phiên Admin là cookie `admin_session`; `-WebSession` vẫn giữ cookie như trên.
 
    Kết quả là `BankTransactionOut` (`outcome`, `refund_amount`, `booking_codes`). Lần sau nhớ đổi `Idempotency-Key`. Đổi `localhost:3000` nếu bạn chạy `WEB_PORT` khác (và thêm origin đó vào `ALLOWED_ORIGINS`).
 5. Trang thanh toán tự chuyển sang "Đặt sân thành công". Thử `amount` nhỏ hơn → `partial` (vẫn chờ); lớn hơn → `applied` kèm `refund_amount`.
@@ -227,7 +227,7 @@ Giao dịch không tự khớp (sai nội dung, tiền về sau khi hết hạn,
 
 ## Đăng nhập, nhân viên và OTP (T-013)
 
-> **Viết theo spec T-013** (`board/tasks/T-013-dang-nhap-nhan-vien.md`, ADR-008); chưa vào `dev`. Tên biến, trang và lệnh sẽ được đối chiếu với code khi backend/frontend bàn giao. Chi tiết API và mã lỗi: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 11.
+> T-013 **chưa vào `dev`**. Phần backend (API, biến môi trường, lệnh cứu Admin) đã đối chiếu với nhánh `be/T-013-dang-nhap` @ `8d9ea32`; tên trang và nút trên giao diện còn theo spec (`board/tasks/T-013-dang-nhap-nhan-vien.md`, ADR-008), sẽ đối chiếu khi frontend bàn giao. Chi tiết API và mã lỗi: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 11.
 
 Mục này dùng để biết ai đăng nhập bằng gì, cấu hình biến môi trường mới, cứu Admin khi quên mật khẩu, và thử OTP khi chưa có Zalo.
 
@@ -262,7 +262,7 @@ Khai báo ở `backend/.env` (máy dev) và `.env` trên server. Danh sách đ�
 | Biến | Dùng cho | Ghi chú |
 |---|---|---|
 | `FIRST_ADMIN_PHONE` | SĐT Admin đầu tiên (thay `FIRST_ADMIN_EMAIL`) | Link dev: `0912345678`. **Production: SĐT thật, phải có trong `.env` trước khi deploy** (thiếu → migration dừng, API không lên) |
-| `FIRST_ADMIN_PASSWORD` | Mật khẩu Admin đầu tiên | Chỉ dùng khi **chưa có Admin**; không bao giờ ghi đè mật khẩu đã có. Production từ chối mật khẩu mẫu hoặc yếu. **Secret** |
+| `FIRST_ADMIN_PASSWORD` | Mật khẩu Admin đầu tiên (mẫu `Admin@12345`) | Chỉ dùng khi **chưa có Admin**; không bao giờ ghi đè mật khẩu đã có. Production từ chối mật khẩu mẫu hoặc yếu. **Secret** |
 | `OTP_TEST_MODE` | Hiện mã OTP trên màn hình khi chưa có Zalo | Chỉ máy dev và link dev. `true` + `ENV=production` → API không khởi động |
 | `ZALO_APP_ID`, `ZALO_SECRET_KEY`, `ZALO_REFRESH_TOKEN`, `ZALO_TEMPLATE_OTP` | Gửi OTP qua Zalo | **Chưa dùng được** (làm sau). Secret |
 | `GOOGLE_CLIENT_ID` | Đăng nhập Google (backend) | Để trống thì nút Google hiện "đang được cấu hình" |
@@ -293,7 +293,7 @@ docker compose -p caulong-dev exec api python -m app.scripts.reset_admin_passwor
 docker compose -p caulong     exec api python -m app.scripts.reset_admin_password   # production
 ```
 
-Lệnh hỏi mật khẩu mới hai lần (gõ không hiện trên màn hình; **không** truyền mật khẩu qua tham số dòng lệnh). Có nhiều Admin thì hỏi SĐT. Xong: mọi phiên đăng nhập bị đăng xuất, tài khoản được mở khóa, thao tác ghi vào nhật ký. Chỉ người có quyền SSH vào VPS chạy được. Máy dev không dùng Docker: `cd backend; .venv\Scripts\python -m app.scripts.reset_admin_password`.
+Lệnh hỏi mật khẩu mới hai lần (gõ không hiện trên màn hình; **không** truyền mật khẩu qua tham số dòng lệnh; mật khẩu phải đạt quy tắc: ≥ 8 ký tự, 1 chữ in hoa, 1 chữ số hoặc ký tự đặc biệt). Có một Admin thì dùng luôn, nhiều Admin thì hỏi SĐT. Xong: mọi phiên đăng nhập bị đăng xuất, tài khoản được mở khóa, thao tác ghi vào nhật ký. Lệnh không in mật khẩu. Chỉ người có quyền SSH vào VPS chạy được. Máy dev không dùng Docker: `cd backend; .venv\Scripts\python -m app.scripts.reset_admin_password`.
 
 ### Lên T-013: việc phải làm trước khi deploy
 
