@@ -15,6 +15,7 @@ from app.modules.booking_engine import (
     booking_service,
     config_service,
     holds,
+    online_service,
     outbox,
     payment_service,
     session_service,
@@ -23,12 +24,19 @@ from app.modules.booking_engine import (
 from app.modules.booking_engine.dto import (
     Actor,
     CalendarOut,
+    CheckoutCreate,
+    CheckoutCreated,
+    CheckoutView,
     CollectIn,
     CounterBookingIn,
     CustomerSnapshot,
     ItemOut,
+    LookupResult,
+    OnlinePaymentIn,
+    OnlinePaymentResult,
     PriceTable,
     PriceTableUpdate,
+    PublicCalendar,
     PublicPrices,
     QuoteIn,
     QuoteOut,
@@ -245,6 +253,50 @@ async def list_transactions(
     session: AsyncSession, query: TransactionsQuery, *, tenant_id: int | None = None
 ) -> TransactionsOut:
     return await transactions.list_transactions(session, _tid(tenant_id), query)
+
+
+# ---- Đặt online (T-008, ADR-007)
+
+
+async def public_calendar(
+    session: AsyncSession, day: dt.date, *, tenant_id: int | None = None
+) -> PublicCalendar:
+    """Lịch cho khách: trạng thái + giá từng ô, không thông tin của người khác."""
+    return await online_service.public_calendar(session, _tid(tenant_id), day)
+
+
+async def create_checkout(
+    session: AsyncSession,
+    data: CheckoutCreate,
+    customer: CustomerSnapshot,
+    hold_minutes: int,
+    *,
+    tenant_id: int | None = None,
+) -> CheckoutCreated:
+    """Giữ chỗ + cấp mã; trả ``token`` truy cập **một lần** (DB chỉ lưu hash)."""
+    return await online_service.create_checkout(
+        session, _tid(tenant_id), data, customer, hold_minutes
+    )
+
+
+async def get_checkout(
+    session: AsyncSession, token: str, *, tenant_id: int | None = None
+) -> CheckoutView:
+    return await online_service.get_checkout(session, _tid(tenant_id), token)
+
+
+async def lookup(
+    session: AsyncSession, code: str, phone: str, *, tenant_id: int | None = None
+) -> LookupResult:
+    """Tra cứu theo mã + SĐT đã chuẩn hóa; không khớp -> 404 ``E-WEB-7``."""
+    return await online_service.lookup(session, _tid(tenant_id), code, phone)
+
+
+async def apply_online_payment(
+    session: AsyncSession, data: OnlinePaymentIn, *, tenant_id: int | None = None
+) -> OnlinePaymentResult:
+    """Áp giao dịch đã xác thực (module thanh toán gọi, cùng transaction ghi giao dịch)."""
+    return await online_service.apply_online_payment(session, _tid(tenant_id), data)
 
 
 # ---- Vận hành

@@ -53,10 +53,9 @@ async def test_calendar_permissions_and_range(admin, staff):
     assert (await calendar(staff, tomorrow))["can"]["counter_book"] is False
     past = await calendar(staff, today() - timedelta(days=3))
     assert past["is_past"] is True and past["can"]["counter_book"] is False
-    r = await staff.get(
-        f"{BK}/calendar", params={"date": (today() + timedelta(days=70)).isoformat()}
-    )
-    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-BOOK-1"
+    # Xem không giới hạn ngày tương lai (booking online đặt xa – T-008 AC31b); không tạo sự kiện
+    far = await calendar(admin, today() + timedelta(days=70))
+    assert far["can"] == {"counter_book": False, "create_session": False}
 
 
 async def test_calendar_shows_booking_block_and_unpaid_chip(admin, staff):

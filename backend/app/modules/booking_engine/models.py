@@ -17,6 +17,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     SmallInteger,
     String,
     UniqueConstraint,
@@ -34,7 +35,7 @@ SCHEMA = "booking"
 DEFAULT_TENANT_SETTINGS: dict[str, Any] = {
     "slot_minutes": 60,
     "half_step_minutes": 30,
-    "hold_minutes": 7,
+    "hold_minutes": 5,
     "max_advance_days": "end_of_next_month",
     "code_prefix": "BK",
     "counter_same_day_only": True,
@@ -196,34 +197,6 @@ class CodeSequence(Base):
     last_value: Mapped[int] = mapped_column(Integer)
 
 
-class Hold(Base):
-    """Giữ chỗ online 7 phút (T-008 tạo; T-006 làm sẵn bảng + worker hết hạn + hiển thị).
-
-    ``court``: giữ khung sân (có allocation ``kind='hold'``); ``seat``: giữ chỗ trong sự kiện.
-    """
-
-    __tablename__ = "hold"
-    __table_args__ = (
-        CheckConstraint("kind IN ('court', 'seat')", name="kind"),
-        CheckConstraint("status IN ('active', 'converted', 'expired', 'released')", name="status"),
-        CheckConstraint("seats >= 1", name="seats_positive"),
-        CheckConstraint("(kind = 'seat') = (session_id IS NOT NULL)", name="seat_has_session"),
-        Index("ix_hold_status_expires_at", "status", "expires_at"),
-        {"schema": SCHEMA},
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
-    kind: Mapped[str] = mapped_column(String(10))
-    session_id: Mapped[int | None] = mapped_column(
-        ForeignKey(f"{SCHEMA}.session.id", ondelete="RESTRICT"), index=True
-    )
-    seats: Mapped[int] = mapped_column(SmallInteger, server_default=text("1"))
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    status: Mapped[str] = mapped_column(String(10), server_default=text("'active'"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-
 class _CustomerSnapshot:
     """Khách tại thời điểm đặt – do server dựng (ADR-004 S8); engine không biết "hội viên"."""
 
@@ -286,6 +259,87 @@ def _payment_checks() -> tuple[CheckConstraint, ...]:
     )
 
 
+class Checkout(_CustomerSnapshot, Base):
+    """Một lần khách bấm "Xác nhận & thanh toán" (ADR-007): giữ chỗ 5 phút, chung một QR.
+
+    ``pending -> paid | expired``. Mỗi dải giờ liền nhau trên một sân = một ``hold`` mang sẵn mã
+    booking + giá; tiền về đủ -> mỗi hold thành một booking cùng mã. Token truy cập chỉ lưu SHA-256.
+    """
+
+    __tablename__ = "checkout"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "pay_ref"),
+        CheckConstraint("status IN ('pending', 'paid', 'expired')", name="status"),
+        CheckConstraint("amount >= 0 AND paid_amount >= 0", name="amounts"),
+        CheckConstraint("customer_kind IN ('member', 'temp')", name="customer_kind"),
+        Index("ix_checkout_status_expires_at", "status", "expires_at"),
+        # Mỗi SĐT chỉ một lượt đang chờ thanh toán (T-008 AC13) – chống đua bằng unique một phần
+        Index(
+            "uq_checkout_pending_phone",
+            "tenant_id",
+            "customer_phone",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
+    token_hash: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True)
+    pay_ref: Mapped[str] = mapped_column(String(20))
+    play_date: Mapped[date] = mapped_column(Date)
+    amount: Mapped[int] = mapped_column(Integer)
+    paid_amount: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    note: Mapped[str | None] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(10), server_default=text("'pending'"))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class Hold(Base):
+    """Giữ chỗ online 5 phút (BR-002; người dùng đổi 7 -> 5 ngày 28/10).
+
+    ``court``: giữ khung sân (có allocation ``kind='hold'``); hold của checkout mang mã booking,
+    giá, bảng giá chi tiết. ``seat``: giữ chỗ trong sự kiện (chưa bán vé online).
+    """
+
+    __tablename__ = "hold"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "code"),
+        CheckConstraint("kind IN ('court', 'seat')", name="kind"),
+        CheckConstraint("status IN ('active', 'converted', 'expired', 'released')", name="status"),
+        CheckConstraint("seats >= 1", name="seats_positive"),
+        CheckConstraint("(kind = 'seat') = (session_id IS NOT NULL)", name="seat_has_session"),
+        CheckConstraint(
+            "kind <> 'court' OR checkout_id IS NULL OR code IS NOT NULL", name="checkout_has_code"
+        ),
+        Index("ix_hold_status_expires_at", "status", "expires_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
+    kind: Mapped[str] = mapped_column(String(10))
+    session_id: Mapped[int | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.session.id", ondelete="RESTRICT"), index=True
+    )
+    checkout_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.checkout.id", ondelete="RESTRICT"), index=True
+    )
+    code: Mapped[str | None] = mapped_column(String(30))
+    amount: Mapped[int | None] = mapped_column(Integer)
+    price_breakdown: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
+    seats: Mapped[int] = mapped_column(SmallInteger, server_default=text("1"))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(10), server_default=text("'active'"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Booking(_CustomerSnapshot, _Payment, Base):
     """Một lượt đặt trên **một** tài nguyên, các khung liền nhau; tiền chốt lúc đặt (BR-009)."""
 
@@ -312,6 +366,10 @@ class Booking(_CustomerSnapshot, _Payment, Base):
     # [{"start_time": "17:00", "end_time": "18:00", "band": "peak", "price": 180000}, …]
     price_breakdown: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, server_default=text("'[]'::jsonb")
+    )
+    # Booking online: lượt thanh toán đã tạo ra booking này (ADR-007)
+    checkout_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.checkout.id", ondelete="RESTRICT"), index=True
     )
 
 

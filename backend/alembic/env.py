@@ -14,7 +14,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # Schema được quản lý: public (mặc định) + booking (booking engine, ADR-003)
-MANAGED_SCHEMAS = {None, "public", "booking"}
+MANAGED_SCHEMAS = {None, "public", "booking", "payments"}
 
 
 # Bảng của luồng đặt sân cũ đã đổi tên (T-006 §8) – giữ dữ liệu, không còn model, Alembic bỏ qua

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from pydantic import model_validator
@@ -9,7 +10,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     APP_NAME: str = "Cau Long API"
-    ENV: str = "development"
+    # development (máy dev) | staging (link dev công khai) | production.
+    # Giá trị khác -> không khởi động.
+    ENV: Literal["development", "staging", "production"] = "development"
     API_PREFIX: str = "/api/v1"
 
     DATABASE_URL: str = "postgresql+asyncpg://caulong:caulong@localhost:5432/caulong"
@@ -43,14 +46,30 @@ class Settings(BaseSettings):
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
     # Giờ mở cửa, khung, giữ chỗ… cấu hình theo sân trong booking engine (T-005, T-006)
 
+    # Đặt online + SePay (T-008, ADR-007). Đủ 5 biến SEPAY_* đầu -> bật đặt online.
+    SEPAY_BANK_CODE: str = ""  # mã NH cho qr.sepay.vn (vd "Vietcombank")
+    SEPAY_BANK_NAME: str = ""
+    SEPAY_ACCOUNT_NUMBER: str = ""
+    SEPAY_ACCOUNT_NAME: str = ""
+    SEPAY_WEBHOOK_SECRET: str = ""
+    # 0 = không chặn theo tuổi timestamp (ADR-001 §2); > 0: lệch quá số giây này -> 401
+    SEPAY_TIMESTAMP_TOLERANCE_SECONDS: int = 0
+    ONLINE_HOLD_MINUTES: int = 5
+    # Ân hạn nhận tiền báo trễ sau khi hết giữ chỗ; trong ân hạn khung vẫn bị chiếm
+    ONLINE_HOLD_GRACE_SECONDS: int = 60
+    # Chỉ dev/staging: POST /payments/dev/simulate. ENV=production + bật -> app không khởi động
+    PAYMENTS_SIMULATE: bool = False
+
     # Seed
     FIRST_ADMIN_EMAIL: str = "admin@example.com"
     FIRST_ADMIN_PASSWORD: str = "admin12345"
 
     @model_validator(mode="after")
-    def _check_production(self):
-        if self.is_production and (self.SECRET_KEY == "change-me" or len(self.SECRET_KEY) < 32):
-            raise ValueError("SECRET_KEY phải được đặt (>= 32 ký tự) khi ENV=production")
+    def _check_deployed(self):
+        if self.is_deployed and (self.SECRET_KEY == "change-me" or len(self.SECRET_KEY) < 32):
+            raise ValueError(f"SECRET_KEY phải được đặt (>= 32 ký tự) khi ENV={self.ENV}")
+        if self.is_production and self.PAYMENTS_SIMULATE:
+            raise ValueError("PAYMENTS_SIMULATE không được bật khi ENV=production")
         return self
 
     @property
@@ -60,6 +79,23 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENV == "production"
+
+    @property
+    def is_deployed(self) -> bool:
+        """Chạy trên server (link dev hoặc production): kiểm SECRET_KEY, tắt /docs."""
+        return self.ENV in ("staging", "production")
+
+    @property
+    def online_enabled(self) -> bool:
+        return all(
+            (
+                self.SEPAY_BANK_CODE,
+                self.SEPAY_BANK_NAME,
+                self.SEPAY_ACCOUNT_NUMBER,
+                self.SEPAY_ACCOUNT_NAME,
+                self.SEPAY_WEBHOOK_SECRET,
+            )
+        )
 
 
 @lru_cache

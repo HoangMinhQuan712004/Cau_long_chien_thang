@@ -29,6 +29,8 @@ class Perm(enum.StrEnum):
     BOOKING_UNCOLLECTIBLE = "booking.uncollectible"
     BOOKING_TRANSACTIONS_VIEW = "booking.transactions.view"
     MEMBER_SEARCH = "member.search"
+    PAYMENTS_VIEW = "payments.view"  # Tiền về cần xử lý (chỉ Admin)
+    PAYMENTS_RESOLVE = "payments.resolve"  # đánh dấu đã xử lý, giả lập tiền về (dev)
 
 
 # Vai hiện có: admin = Admin (chủ sân), staff = Tài khoản tại máy, customer = khách
