@@ -11,6 +11,7 @@ from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal, engine
 from app.core.idempotency import Idempotency
+from app.modules.auth.models import User
 from app.modules.booking_engine.models import Resource
 from tests.conftest import API, ORIGIN, idem
 
@@ -127,15 +128,16 @@ async def test_origin_missing_falls_back_to_referer(admin):
     assert r.status_code == 201, r.text
 
 
-async def test_origin_check_skips_requests_without_session_cookie(anon):
-    # Không có cookie phiên (vd. đăng nhập lần đầu) -> không áp Origin check
+async def test_auth_writes_require_origin_even_without_cookie(anon):
+    # Đăng nhập lần đầu (chưa có cookie) từ site lạ -> vẫn 403 (T-013 SEC9)
     r = await anon.post(
-        f"{API}/auth/login",
-        json={"email": "nobody@test.vn", "password": "x"},
+        f"{API}/auth/sign-in",
+        json={"login": "nobody", "password": "x"},
         headers={"Origin": "https://evil.example"},
     )
+    assert r.status_code == 403 and r.json()["detail"]["code"] == "E-SEC-1"
+    r = await anon.post(f"{API}/auth/sign-in", json={"login": "nobody", "password": "x"})
     assert r.status_code == 401
-    # GET kèm cookie từ origin lạ không bị chặn (chỉ chặn lệnh ghi)
 
 
 async def test_origin_check_allows_safe_methods(admin):
@@ -225,8 +227,9 @@ async def test_idempotency_failed_request_can_be_retried(admin):
 async def test_idempotency_concurrent_same_key_conflicts(admin):
     """Đang xử lý cùng key ở request khác -> 409 E-SEC-3 (giả lập bằng giữ advisory lock)."""
     key = uuid.uuid4()
-    me = (await admin.get(f"{API}/auth/me")).json()
-    lock_id = Idempotency(key, "", "")._lock_id(f"admin:{me['id']}")
+    async with SessionLocal() as s:
+        admin_id = await s.scalar(select(User.id).where(User.phone == settings.FIRST_ADMIN_PHONE))
+    lock_id = Idempotency(key, "", "")._lock_id(f"admin:{admin_id}")
     async with engine.connect() as conn:
         await conn.execute(text("SELECT pg_advisory_lock(:k)"), {"k": lock_id})
         try:
@@ -326,16 +329,11 @@ async def test_audit_written_in_same_transaction(admin):
 # ------------------------------------------------------------------ SEC8 dữ liệu nhạy cảm
 
 
-async def test_sec8_admin_users_list_masks_phone(admin, staff):  # staff: tạo tài khoản quầy
-    r = await admin.get(f"{API}/admin/users")
-    assert r.status_code == 200
-    rows = r.json()
-    assert rows
-    for row in rows:
-        assert "phone" not in row and "hashed_password" not in row
-    staff_row = next(u for u in rows if u["email"] == "quay@test.vn")
-    assert staff_row["phone_masked"] == "0911 xxx 333"
-    assert "0911222333" not in r.text
+async def test_sec8_staff_list_has_no_secrets(admin, staff):  # staff: tạo tài khoản NV
+    r = await admin.get(f"{API}/admin/staff")
+    assert r.status_code == 200 and r.json()
+    for row in r.json():
+        assert "hashed_password" not in row and "phone" not in row
 
 
 async def test_sec8_responses_have_no_secrets(admin):

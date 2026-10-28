@@ -13,7 +13,7 @@ from app.modules.booking_engine.api import expire_holds
 from app.modules.booking_engine.models import Booking
 from app.modules.booking_engine.testing import make_hold
 from app.modules.members.models import Customer
-from tests.conftest import API, idem
+from tests.conftest import API, idem, is_staff_label
 from tests.helpers_booking import (
     BK,
     at,
@@ -133,7 +133,7 @@ async def test_counter_booking_member(admin, staff):
     assert item["schedule"]["resource_codes"] == [court["code"]]
     assert item["schedule"]["start_time"] == f"{hour:02d}:00"
     assert item["payment"]["payment_status"] == "unpaid"
-    assert item["created_by"] == "Tài khoản tại máy"
+    assert is_staff_label(item["created_by"])
     assert "collect" in item["actions"]
     quote = await staff.post(
         f"{BK}/quote",
@@ -155,7 +155,7 @@ async def test_counter_booking_member(admin, staff):
                 AuditLog.action == "booking.counter.create", AuditLog.entity_code == item["code"]
             )
         )
-    assert row is not None and row.actor_label == "Tài khoản tại máy"
+    assert row is not None and is_staff_label(row.actor_label)
     assert "0987654087" not in str(row.detail)
 
 

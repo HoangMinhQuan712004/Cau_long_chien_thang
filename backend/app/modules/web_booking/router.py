@@ -9,7 +9,7 @@ import datetime as dt
 import re
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Path, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -17,7 +17,7 @@ from app.core.context import client_ip
 from app.core.db import SessionDep
 from app.core.errors import AppError
 from app.core.idempotency import IdempotencyDep
-from app.core.middleware import origin_allowed
+from app.core.middleware import require_origin
 from app.core.privacy import mask_phone
 from app.core.ratelimit import rate_limit
 from app.modules.booking_engine import api as engine
@@ -46,12 +46,6 @@ METHOD_LABELS = {
     "transfer": "Chuyển khoản",
     "online_transfer": "Chuyển khoản",
 }
-
-
-async def require_origin(request: Request) -> None:
-    """Lệnh ghi / tra cứu của web khách: Origin (hoặc Referer) phải là site của mình (ADR-004)."""
-    if not origin_allowed(dict(request.scope.get("headers", []))):
-        raise AppError("E-SEC-1", "Yêu cầu không hợp lệ (nguồn gửi không được phép).", 403)
 
 
 def no_store(response: Response) -> None:

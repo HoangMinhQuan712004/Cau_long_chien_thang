@@ -7,14 +7,16 @@
 
 from urllib.parse import urlsplit
 
+from fastapi import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import settings
+from app.core.errors import AppError
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 # Cookie xác thực của trình duyệt (app.modules.auth.deps)
-SESSION_COOKIES = ("access_token", "refresh_token")
+SESSION_COOKIES = ("access_token", "refresh_token", "admin_session")
 # Đường dẫn công khai nhận request từ bên thứ ba (webhook cổng thanh toán – xác thực bằng HMAC)
 ORIGIN_EXEMPT_PATHS: set[str] = {f"{settings.API_PREFIX}/payments/sepay/webhook"}
 
@@ -123,3 +125,10 @@ class BodyLimitMiddleware:
             return await receive()
 
         await self.app(scope, replay, send)
+
+
+async def require_origin(request: Request) -> None:
+    """Dependency cho route ghi công khai (đăng nhập, web khách): Origin / Referer phải là site
+    của mình **kể cả khi chưa có cookie phiên** (ADR-004 S4, T-013 SEC9)."""
+    if not origin_allowed(dict(request.scope.get("headers", []))):
+        raise AppError("E-SEC-1", "Yêu cầu không hợp lệ (nguồn gửi không được phép).", 403)
