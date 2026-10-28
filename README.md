@@ -11,6 +11,8 @@ project_caulong/
 │   │   ├── booking_engine/  sân, giờ, bảng giá, lịch, booking, sự kiện/vé, thu tiền (schema `booking`)
 │   │   ├── front_desk/      đặt sân tại quầy: ghép hội viên + booking_engine
 │   │   ├── members/         hội viên và hồ sơ tạm (tối thiểu)
+│   │   ├── web_booking/     API public cho khách: lịch, lượt thanh toán (checkout), tra cứu (T-008)
+│   │   ├── payments/        webhook SePay, bảng `payments.bank_transaction`, Tiền về cần xử lý (T-008)
 │   │   ├── notifications/   lắng nghe event (email/Zalo: TODO)
 │   │   └── content/         bài viết phục vụ SEO
 │   ├── app/workers/         ARQ: outbox, nhả giữ chỗ quá hạn, dọn nhật ký/idempotency
@@ -132,6 +134,72 @@ Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
 
 API nền tảng booking engine (Idempotency-Key, mã lỗi, bảng quyền, biến môi trường bảo mật): [docs/booking-engine-api.md](docs/booking-engine-api.md).
 
+## Đặt online và SePay (T-008)
+
+> Backend xong ở nhánh `be/T-008-web-khach`; chưa vào `dev` cho tới khi RELEASE đẩy. Chi tiết API, mã lỗi, webhook: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 10.
+
+Khách đặt sân trên web, chuyển khoản QR qua **SePay**; SePay báo tiền về bằng webhook, server tạo booking. Giữ chỗ **5 phút** (+ 60 giây ân hạn nhận tiền báo trễ).
+
+### Biến môi trường (`backend/.env`; trên server: `.env` của từng môi trường)
+
+| Biến | Ví dụ / mặc định | Ghi chú |
+|---|---|---|
+| `SEPAY_BANK_CODE` | `Vietcombank` | Mã ngân hàng dùng trong link QR `qr.sepay.vn` |
+| `SEPAY_BANK_NAME` | `Vietcombank` | Tên hiển thị cho khách |
+| `SEPAY_ACCOUNT_NUMBER` | – | Số tài khoản nhận tiền |
+| `SEPAY_ACCOUNT_NAME` | – | Tên chủ tài khoản hiển thị cho khách |
+| `SEPAY_WEBHOOK_SECRET` | – | **Secret.** Khóa ký webhook; chỉ để trong `.env`, không ghi vào repo |
+| `SEPAY_TIMESTAMP_TOLERANCE_SECONDS` | `0` | `0` = không chặn theo tuổi timestamp (ADR-001) |
+| `ONLINE_HOLD_MINUTES` | `5` | Thời gian giữ chỗ |
+| `ONLINE_HOLD_GRACE_SECONDS` | `60` | Ân hạn nhận tiền báo trễ |
+| `PAYMENTS_SIMULATE` | `false` | Chỉ máy dev / link dev (`ENV=staging`). `ENV=production` mà bật thì API không khởi động |
+
+Đủ 5 biến `SEPAY_*` đầu thì đặt online mới bật. Thiếu thì khách vẫn xem được lịch nhưng nút Tiếp tục khóa và hiện "gọi hotline", nên production chạy được trước khi có tài khoản SePay.
+`ENV` chỉ nhận `development`, `staging` (link dev), `production`; `staging` và `production` bắt buộc `SECRET_KEY` ≥ 32 ký tự.
+
+### Thử trên máy dev (không cần tài khoản SePay)
+
+1. Trong `backend/.env` đặt giá trị **giả**, rồi chạy lại API (`npm run dev` hoặc `uvicorn`):
+
+   ```
+   SEPAY_BANK_CODE=Vietcombank
+   SEPAY_BANK_NAME=Vietcombank
+   SEPAY_ACCOUNT_NUMBER=0123456789
+   SEPAY_ACCOUNT_NAME=SAN CAU LONG TEST
+   SEPAY_WEBHOOK_SECRET=chuoi-bi-mat-chi-de-thu
+   PAYMENTS_SIMULATE=true
+   ```
+
+2. Chạy migration một lần để có schema `payments`: `cd backend; .venv\Scripts\alembic upgrade head`.
+3. Mở `http://localhost:3000/dat-san`, chọn ô, nhập họ tên + SĐT, bấm xác nhận. Trang thanh toán hiện **Nội dung CK** dạng `BK20261020023` (chính là `pay_ref`) và số tiền.
+4. Giả lập tiền về bằng tài khoản Admin. Lệnh ghi cần cookie phiên, header `Origin` thuộc `ALLOWED_ORIGINS` (mặc định `http://localhost:3000`) và `Idempotency-Key` mới mỗi lần. Ví dụ PowerShell, đổi `pay_ref` và `amount` theo trang thanh toán:
+
+   ```powershell
+   $h = @{ Origin = "http://localhost:3000" }
+   $s = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+   Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/auth/login -WebSession $s -Headers $h `
+     -ContentType "application/json" -Body '{"email":"admin@example.com","password":"admin12345"}'
+   $h["Idempotency-Key"] = [guid]::NewGuid().ToString()
+   Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/payments/dev/simulate -WebSession $s -Headers $h `
+     -ContentType "application/json" -Body '{"pay_ref":"BK20261020023","amount":288000}'
+   ```
+
+   Kết quả là `BankTransactionOut` (`outcome`, `refund_amount`, `booking_codes`). Lần sau nhớ đổi `Idempotency-Key`. Đổi `localhost:3000` nếu bạn chạy `WEB_PORT` khác (và thêm origin đó vào `ALLOWED_ORIGINS`).
+5. Trang thanh toán tự chuyển sang "Đặt sân thành công". Thử `amount` nhỏ hơn → `partial` (vẫn chờ); lớn hơn → `applied` kèm `refund_amount`.
+6. Admin xem tiền cần hoàn / không khớp mã ở `GET /api/v1/payments/bank-transactions`; giao diện `/admin/tien-ve` do FRONTEND làm.
+
+### Người dùng cấu hình SePay (một lần, trước khi bật production)
+
+Việc của chủ dự án, không phải của code. Tên menu trên my.sepay.vn có thể khác theo thời điểm.
+
+1. Tạo tài khoản SePay và liên kết tài khoản ngân hàng nhận tiền; ghi số tài khoản vào `SEPAY_ACCOUNT_NUMBER`.
+2. **Mẫu mã thanh toán**: tiền tố `BK`, đuôi **11 ký tự số** (khớp `BK20261020023`). SePay tách mã này vào trường `code` của webhook; nếu SePay không tách được, server tự tìm `BK` + 11 số trong nội dung chuyển khoản.
+3. **Webhook**: URL `https://chienthang.superbai.vip/api/v1/payments/sepay/webhook` (dev: `https://chienthang-dev.superbai.vip/api/v1/payments/sepay/webhook`), phương thức POST, bật **ký HMAC** và chép khóa ký vào `SEPAY_WEBHOOK_SECRET` trong `.env` của server tương ứng (việc của người dùng; không gửi qua board hay tin nhắn).
+4. Báo RELEASE chạy lại stack để nạp biến mới. Kiểm bằng một giao dịch thật số tiền nhỏ: booking phải ra `paid` trong vài giây.
+5. Secret nghi lộ → xoay khóa trên my.sepay.vn và cập nhật `.env` trên server.
+
+Giao dịch không tự khớp (sai nội dung, tiền về sau khi hết hạn, trả thừa) không bị mất: nằm ở "Tiền về cần xử lý" để Admin hoàn tiền thủ công rồi bấm Đã xử lý.
+
 ## Lệnh thường dùng
 
 | Việc | Lệnh |
@@ -194,11 +262,12 @@ Range là `[start, end)` nên 18h–19h và 19h–20h không tính là trùng. K
 
 **Booking engine dùng lại được.** Đặt chỗ nằm ở module `booking_engine` (schema Postgres `booking`, có `tenant_id`),
 không biết gì về cầu lông: sân, giờ mở, cao điểm, giá, giữ chỗ, sự kiện bán vé đều là cấu hình. Module khác chỉ gọi qua
-`booking_engine.api` (có test kiểm ranh giới import); phần đặc thù dự án (khách là hội viên hay hồ sơ tạm) ở `front_desk` và `members`.
+`booking_engine.api` (có test kiểm ranh giới import); phần đặc thù dự án (khách là hội viên hay hồ sơ tạm) ở `front_desk`, `web_booking` và `members`.
 Khi cần có thể tách thành service riêng. Chi tiết: [docs/booking-engine-api.md](docs/booking-engine-api.md).
 
 **Thanh toán tách khỏi chỗ.** Booking có `payment_status`: Chưa thanh toán → Đã thanh toán hoặc Không thu được (hai trạng thái cuối,
-không hủy/hoàn tiền). Tại quầy chơi trước, trả sau; hiện chỉ thu tiền mặt (chuyển khoản QR và khách đặt online là các task sau).
+không hủy/hoàn tiền). Tại quầy chơi trước, trả sau; hiện chỉ thu tiền mặt (chuyển khoản QR tại quầy là T-007).
+Khách đặt online (T-008) trả trước: giữ chỗ 5 phút, booking chỉ được tạo khi SePay báo tiền về, xem mục "Đặt online và SePay".
 Giá được server tính và chốt lúc đặt.
 
 **Module giao tiếp qua service + event.** Module không query bảng của module khác; engine ghi sự kiện (vd. `booking.created`)
@@ -222,9 +291,8 @@ tính theo `TIMEZONE=Asia/Ho_Chi_Minh`.
 
 ## Việc tiếp theo gợi ý
 
-Thứ tự và phạm vi do ARCHITECT giữ trong `board/tasks/` (T-007 thu tiền chuyển khoản QR, T-008 khách đặt online).
+Thứ tự và phạm vi do ARCHITECT giữ trong `board/tasks/` (T-007 thu tiền chuyển khoản QR tại quầy, dùng lại module `payments` của T-008).
 
-- Cổng thanh toán (SePay hoặc PayOS/VNPay/MoMo): xác thực chữ ký webhook, idempotent theo mã giao dịch.
 - Màn Hội viên đầy đủ, Báo cáo.
 - Gọi `revalidateTag("posts")` (qua route handler có secret) khi admin đăng bài để sitemap/tin tức cập nhật ngay.
 - Gửi thông báo email / Zalo ZNS từ `notifications/handlers.py` qua worker.
