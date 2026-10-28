@@ -8,7 +8,9 @@ x-backend: &backend
   restart: unless-stopped
   env_file: .env
   environment:
-    ENV: production
+    # Mặc định production. Chỉ link dev đặt APP_ENV=staging trong .env để bật PAYMENTS_SIMULATE (T-008);
+    # KHÔNG đặt APP_ENV trên production.
+    ENV: ${APP_ENV:-production}
     DATABASE_URL: postgresql+asyncpg://caulong:${POSTGRES_PASSWORD}@db:5432/caulong
     REDIS_URL: redis://redis:6379/0
   depends_on:
