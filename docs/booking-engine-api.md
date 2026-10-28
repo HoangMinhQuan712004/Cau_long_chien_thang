@@ -588,11 +588,11 @@ Trang `/admin/nhan-vien` (menu "Nhân viên"). Nhân viên gọi các route này
 | GET | `/admin/staff/{id}/sessions` | Thời điểm, hạn, trình duyệt, IP (đã che) |
 | DELETE | `/admin/staff/{id}/sessions/{sid}` | Đăng xuất từ xa một phiên (`revoked_by_admin`) |
 
-Giao diện: nút sinh mật khẩu ngẫu nhiên 12 ký tự, mật khẩu hiện **một lần** kèm nút sao chép; khóa/mở khóa qua hai bước xác nhận. Mọi thao tác ghi nhật ký (`staff.create`, `staff.update`, `staff.disable`, `staff.enable`, `staff.password_reset`, `auth.session_revoked`).
+Giao diện: nút **Tạo mật khẩu ngẫu nhiên**; sau khi tạo hiện mã + tên đăng nhập với nút **Sao chép tên đăng nhập** / **Sao chép cả mật khẩu** (mật khẩu không hiện lại sau khi rời trang); **Khóa** cần bấm hai lần ("Bấm lần nữa để khóa"), rồi **Mở khóa**; **Phiên đang mở (n)** liệt kê phiên với nút **Đăng xuất** từng phiên. Mọi thao tác ghi nhật ký (`staff.create`, `staff.update`, `staff.disable`, `staff.enable`, `staff.password_reset`, `auth.session_revoked`).
 
 ### 11.4 OTP và quên mật khẩu
 
-- Luồng giao diện: `/quen-mat-khau` (nhập SĐT) → `/xac-minh` (6 ô, dán được) → `/dat-lai` (mật khẩu mới) → `/dang-nhap`. Dùng cho mọi vai.
+- Luồng giao diện: `/quen-mat-khau` (nhập SĐT, nút **Gửi mã**) → `/quen-mat-khau/xac-minh` (6 ô, dán được; **Xác nhận**, **Gửi lại mã** sau 60 giây, **Đổi số**) → `/quen-mat-khau/dat-lai` (mật khẩu mới + nhập lại, **Đổi mật khẩu**; lỗi phiên hết hạn có nút **Làm lại từ đầu**) → `/dang-nhap`. Dùng cho mọi vai.
 - Mã OTP: 6 số, server chỉ lưu `HMAC-SHA256` với `SECRET_KEY`, hạn **5 phút**, sai **5 lần** thì mã chết (`E-AUTH-15`), gửi mã mới thì mã cũ hết hiệu lực. Gửi lại sau **60 giây**; tối đa **5 mã/giờ/SĐT** và **20 mã/giờ/IP** (`E-AUTH-13`, 429, `retry_after` = thời gian chờ dài nhất).
 - **Chống dò tài khoản:** SĐT chưa có tài khoản vẫn nhận 202 y hệt; xác minh với SĐT đó trả lỗi y hệt "mã sai/hết hạn".
 - Đặt lại thành công: đổi mật khẩu, `token_version += 1` (JWT khách cũ hết hiệu lực), thu hồi mọi phiên Admin/nhân viên, xóa khóa, ghi `auth.password_reset_done`. `reset_token` sai hoặc hết hạn → `E-AUTH-16`.

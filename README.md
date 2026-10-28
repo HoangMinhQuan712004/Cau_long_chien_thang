@@ -20,7 +20,7 @@ project_caulong/
 │   └── tests/
 ├── frontend/                Next.js App Router (Cache Components)
 │   └── src/
-│       ├── app/(public)/    trang khách: /, /dat-san, /thanh-toan/[token], /tra-cuu, /bang-gia, /tin-tuc, tài khoản (T-013: /dang-nhap, /dang-ky, /quen-mat-khau, /xac-minh, /dat-lai, /tai-khoan)
+│       ├── app/(public)/    trang khách: /, /dat-san, /thanh-toan/[token], /tra-cuu, /bang-gia, /tin-tuc, tài khoản (T-013: /dang-nhap, /dang-ky, /quen-mat-khau → /quen-mat-khau/xac-minh → /quen-mat-khau/dat-lai, /tai-khoan)
 │       ├── app/admin/       chủ sân / nhân viên (noindex): dat-san (lịch quầy), san, san/bang-gia, lich-su-giao-dich, tien-ve, cai-dat/thanh-toan (chỉ Admin; T-013 thêm nhan-vien)
 │       ├── app/sitemap.ts, robots.ts
 │       ├── components/      booking-engine/ (màn quản trị), web-booking/ (đặt online, thanh toán, tra cứu), admin/, ui/
@@ -188,7 +188,7 @@ Admin vào **`/admin/cai-dat/thanh-toan`** (menu "Cài đặt thanh toán", ch�
    ```
 
 2. Chạy migration một lần để có schema `payments`: `cd backend; .venv\Scripts\alembic upgrade head`.
-3. Mở `http://localhost:3000/dat-san`, chọn ô, nhập họ tên + SĐT, bấm xác nhận (từ T-013: bấm **Gửi mã** và nhập mã thử trước, xem mục "Đăng nhập, nhân viên và OTP"). Trang thanh toán hiện **Nội dung CK** dạng `BK20261020023` (chính là `pay_ref`) và số tiền.
+3. Mở `http://localhost:3000/dat-san`, chọn ô, nhập họ tên + SĐT, bấm xác nhận (từ T-013: nhập tên + SĐT, bấm **Gửi mã**, nhập mã thử rồi bấm **Xác nhận** trước, xem mục "Đăng nhập, nhân viên và OTP"). Trang thanh toán hiện **Nội dung CK** dạng `BK20261020023` (chính là `pay_ref`) và số tiền.
 4. Giả lập tiền về bằng tài khoản Admin. Lệnh ghi cần cookie phiên, header `Origin` thuộc `ALLOWED_ORIGINS` (mặc định `http://localhost:3000`) và `Idempotency-Key` mới mỗi lần. Ví dụ PowerShell, đổi `pay_ref` và `amount` theo trang thanh toán:
 
    ```powershell
@@ -227,7 +227,7 @@ Giao dịch không tự khớp (sai nội dung, tiền về sau khi hết hạn,
 
 ## Đăng nhập, nhân viên và OTP (T-013)
 
-> T-013 **chưa vào `dev`**. Phần backend (API, biến môi trường, lệnh cứu Admin) đã đối chiếu với nhánh `be/T-013-dang-nhap` @ `8d9ea32`; tên trang và nút trên giao diện còn theo spec (`board/tasks/T-013-dang-nhap-nhan-vien.md`, ADR-008), sẽ đối chiếu khi frontend bàn giao. Chi tiết API và mã lỗi: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 11.
+> T-013 **chưa vào `dev`**. Phần backend (API, biến môi trường, lệnh cứu Admin) đã đối chiếu với nhánh `be/T-013-dang-nhap` @ `8d9ea32`; tên trang, nút và câu chữ giao diện đã đối chiếu với nhánh `fe/T-013-dang-nhap` @ `1f7e119` (cục bộ). Chi tiết API và mã lỗi: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 11.
 
 Mục này dùng để biết ai đăng nhập bằng gì, cấu hình biến môi trường mới, cứu Admin khi quên mật khẩu, và thử OTP khi chưa có Zalo.
 
@@ -248,10 +248,10 @@ Mục này dùng để biết ai đăng nhập bằng gì, cấu hình biến m�
 
 Vào `/admin/nhan-vien` (menu "Nhân viên", chỉ Admin):
 
-1. **Thêm nhân viên:** nhập họ tên và mật khẩu (hoặc bấm sinh mật khẩu ngẫu nhiên). Hệ thống tự cấp mã (`NV007`) và tên đăng nhập (`an.nv007`). **Mật khẩu chỉ hiện một lần**: bấm sao chép và đưa cho nhân viên ngay.
-2. **Đặt lại mật khẩu** khi nhân viên quên: mọi phiên đang mở của người đó bị đăng xuất.
-3. **Khóa** khi nhân viên nghỉ việc: không đăng nhập được nữa, phiên đang mở bị đăng xuất ngay. Mở khóa lại được.
-4. **Đăng xuất từ xa** một phiên lạ: bấm vào nhân viên để xem các phiên đang mở (giờ, hạn, trình duyệt) rồi thu hồi từng phiên.
+1. **Thêm nhân viên:** bấm **Thêm nhân viên**, nhập họ tên và mật khẩu (hoặc bấm **Tạo mật khẩu ngẫu nhiên**), rồi **Tạo tài khoản**. Hệ thống tự cấp mã (`NV007`) và tên đăng nhập (`an.nv007`) và hiện "Đã tạo nhân viên NV007 · Tên đăng nhập: …". **Mật khẩu không hiện lại sau khi rời trang**: bấm **Sao chép tên đăng nhập** hoặc **Sao chép cả mật khẩu** và gửi cho nhân viên ngay.
+2. **Đặt lại mật khẩu** (nút trên dòng nhân viên) khi nhân viên quên: mọi phiên đang mở của người đó bị đăng xuất.
+3. **Khóa** khi nhân viên nghỉ việc (bấm **Khóa**, rồi bấm lần nữa "Bấm lần nữa để khóa" để xác nhận): không đăng nhập được nữa, phiên đang mở bị đăng xuất ngay. **Mở khóa** lại được. Có thêm nút **Sửa tên**.
+4. **Đăng xuất từ xa** một phiên lạ: bấm **Phiên đang mở (n)** trên dòng nhân viên để xem các phiên (giờ đăng nhập, hạn, thiết bị), rồi bấm **Đăng xuất** ở phiên cần thu hồi.
 
 Mã nhân viên không dùng lại, kể cả khi đã khóa.
 
@@ -274,7 +274,7 @@ Các hạn mức (số lần sai, thời gian khóa, hạn OTP…) có mặc đ�
 
 Đặt `OTP_TEST_MODE=true` trong `backend/.env` rồi chạy lại API.
 
-- **Khách** (đặt online, xác minh SĐT, quên mật khẩu): sau khi bấm "Gửi mã", màn hình hiện hộp vàng **"Mã thử (chỉ link dev): 123456"**. Nhập mã đó.
+- **Khách** (đặt online, xác minh SĐT, quên mật khẩu): sau khi bấm **Gửi mã**, màn hình hiện hộp vàng **"Mã thử (chỉ link dev): 123456"**. Nhập mã đó vào 6 ô rồi bấm **Xác nhận**.
 - **Admin/nhân viên quên mật khẩu:** mã **không** hiện trên màn hình (người lạ vào link dev công khai không được chiếm Admin). Đọc mã trong log API:
   - Máy dev: terminal đang chạy `uvicorn` / `npm run dev`.
   - Link dev: `docker compose -p caulong-dev logs api --tail 50` trên VPS.
