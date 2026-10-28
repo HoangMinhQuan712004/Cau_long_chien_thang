@@ -394,7 +394,7 @@ export interface paths {
          * Create Session
          * @description Đặt sự kiện (chỉ Admin): sân liền nhau × khung liền nhau, hôm nay → hết tháng sau.
          *
-         *     Lỗi: E-001 (trống tên / số chỗ / giá vé), E-009, E-013, E-004, E-CFG-10, E-BOOK-1/2, E-010.
+         *     Lỗi: E-001 (trống tên / số chỗ / giá vé), E-009, E-013, E-004, E-CFG-10, E-BOOK-2, E-010.
          */
         post: operations["create_session_api_v1_booking_sessions_post"];
         delete?: never;
@@ -527,7 +527,7 @@ export interface paths {
          *
          *     Lỗi: E-001/E-002 (hồ sơ tạm), E-014 (không có hội viên), E-018 (SĐT là của hội viên),
          *     E-004 (khung đã qua), E-CFG-10 (khung không bán), E-019 (thiếu giá), E-003 (vừa có người đặt),
-         *     403 (ngày khác hôm nay).
+         *     403 E-AUTH-2 (ngày khác hôm nay – cả Admin; ngày sau chỉ Đặt sự kiện).
          */
         post: operations["create_booking_api_v1_front_desk_bookings_post"];
         delete?: never;
@@ -704,6 +704,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Settings
+         * @description Cài đặt nhận tiền online (chỉ Admin). Khóa webhook không trả ra – chỉ 4 ký tự cuối.
+         */
+        get: operations["get_settings_api_v1_payments_settings_get"];
+        /**
+         * Put Settings
+         * @description Lưu cài đặt – luôn cần ``current_password``.
+         *
+         *     Lỗi: 400 E-AUTH-7 (sai mật khẩu; 5 lần / 15 phút -> 429 E-SEC-5), 422 E-PAY-4 (dữ liệu),
+         *     409 E-PAY-3 (đổi ngân hàng / số TK khi còn lượt chờ thanh toán).
+         */
+        put: operations["put_settings_api_v1_payments_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/banks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Banks
+         * @description Danh sách ngân hàng (mã VietQR) cho ô chọn.
+         */
+        get: operations["list_banks_api_v1_payments_banks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -738,6 +785,15 @@ export interface components {
             account_name: string;
             /** Qr Url */
             qr_url: string;
+        };
+        /** BankOut */
+        BankOut: {
+            /** Code */
+            code: string;
+            /** Short Name */
+            short_name: string;
+            /** Name */
+            name: string;
         };
         /** BankTransactionOut */
         BankTransactionOut: {
@@ -1205,6 +1261,59 @@ export interface components {
             resource_code: string;
             /** Start Hour */
             start_hour: number;
+        };
+        /** PaymentSettingsIn */
+        PaymentSettingsIn: {
+            /** Bank Code */
+            bank_code: string;
+            /** Account Number */
+            account_number: string;
+            /** Account Name */
+            account_name: string;
+            /** Online Toggle */
+            online_toggle: boolean;
+            /**
+             * Webhook Secret
+             * @description Bỏ qua / null = giữ khóa đang có
+             */
+            webhook_secret?: string | null;
+            /** Current Password */
+            current_password: string;
+        };
+        /** PaymentSettingsOut */
+        PaymentSettingsOut: {
+            /** Bank Code */
+            bank_code: string | null;
+            /** Bank Name */
+            bank_name: string | null;
+            /** Account Number */
+            account_number: string | null;
+            /** Account Name */
+            account_name: string | null;
+            /** Online Toggle */
+            online_toggle: boolean;
+            /** Online Enabled */
+            online_enabled: boolean;
+            /** Missing */
+            missing: ("bank" | "account_number" | "account_name" | "webhook_secret")[];
+            /** Secret Set */
+            secret_set: boolean;
+            /** Secret Last4 */
+            secret_last4: string | null;
+            /** Webhook Url */
+            webhook_url: string;
+            /** Pay Code Hint */
+            pay_code_hint: string;
+            /** Last Webhook At */
+            last_webhook_at: string | null;
+            /** Updated At */
+            updated_at: string | null;
+            /** Updated By Label */
+            updated_by_label: string | null;
+            /** Pending Checkouts */
+            pending_checkouts: number;
+            /** Simulate Enabled */
+            simulate_enabled: boolean;
         };
         /** PostIn */
         PostIn: {
@@ -3278,6 +3387,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_settings_api_v1_payments_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentSettingsOut"];
+                };
+            };
+        };
+    };
+    put_settings_api_v1_payments_settings_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_banks_api_v1_payments_banks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankOut"][];
                 };
             };
         };

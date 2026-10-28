@@ -285,6 +285,11 @@ async def get_checkout(
     return await online_service.get_checkout(session, _tid(tenant_id), token)
 
 
+async def count_pending_checkouts(session: AsyncSession, *, tenant_id: int | None = None) -> int:
+    """Số lượt đặt online đang chờ thanh toán."""
+    return await online_service.count_pending_checkouts(session, _tid(tenant_id))
+
+
 async def lookup(
     session: AsyncSession, code: str, phone: str, *, tenant_id: int | None = None
 ) -> LookupResult:

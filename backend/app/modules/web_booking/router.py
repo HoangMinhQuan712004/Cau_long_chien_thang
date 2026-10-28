@@ -10,6 +10,7 @@ import re
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.context import client_ip
@@ -61,7 +62,7 @@ def _web_error(message: str) -> AppError:
     return AppError("E-WEB-1", message, 422)
 
 
-def _checkout_out(view: CheckoutView) -> dict:
+async def _checkout_out(session: AsyncSession, view: CheckoutView) -> dict:
     return {
         "status": view.status,
         "expires_at": view.expires_at,
@@ -70,7 +71,9 @@ def _checkout_out(view: CheckoutView) -> dict:
         "paid_amount": view.paid_amount,
         "paid_at": view.paid_at,
         "pay_ref": view.pay_ref,
-        "bank": payments.bank_info(view.amount, view.pay_ref) if view.status == "pending" else None,
+        "bank": await payments.bank_info(session, view.amount, view.pay_ref)
+        if view.status == "pending"
+        else None,
         "customer": WebCustomer(
             full_name=view.customer_name, phone_masked=mask_phone(view.customer_phone)
         ),
@@ -91,7 +94,7 @@ async def calendar(session: SessionDep, day: Annotated[dt.date, Query(alias="dat
     cal = await engine.public_calendar(session, day)
     return WebCalendarOut(
         **cal.model_dump(),
-        online_enabled=payments.online_enabled(),
+        online_enabled=await payments.online_enabled(session),
         hold_minutes=settings.ONLINE_HOLD_MINUTES,
     )
 
@@ -129,7 +132,7 @@ async def create_checkout(data: CheckoutIn, idem: IdempotencyDep, session: Sessi
     Lỗi: E-WEB-1 (dữ liệu), E-WEB-2 (khung không đặt được), E-WEB-3 (vừa có người đặt, kèm
     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng), E-019.
     """
-    if not payments.online_enabled():
+    if not await payments.online_enabled(session):
         raise AppError("E-WEB-5", "Đặt online đang tạm ngưng. Vui lòng gọi hotline.", 503)
     full_name, phone, note = _validate_customer(data)
 
@@ -157,7 +160,7 @@ async def create_checkout(data: CheckoutIn, idem: IdempotencyDep, session: Sessi
             snapshot,
             settings.ONLINE_HOLD_MINUTES,
         )
-        return CheckoutCreatedOut(**_checkout_out(created), token=created.token)
+        return CheckoutCreatedOut(**await _checkout_out(session, created), token=created.token)
 
     actor_key = f"web:{client_ip() or 'unknown'}"
     return await idem.run(session, actor_key, run, status_code=status.HTTP_201_CREATED)
@@ -170,7 +173,7 @@ async def create_checkout(data: CheckoutIn, idem: IdempotencyDep, session: Sessi
 )
 async def get_checkout(token: Annotated[str, Path(max_length=100)], session: SessionDep):
     """Trạng thái lượt thanh toán (trang hỏi mỗi 3 giây). Token sai -> 404 ``E-WEB-6``."""
-    return CheckoutOut(**_checkout_out(await engine.get_checkout(session, token)))
+    return CheckoutOut(**await _checkout_out(session, await engine.get_checkout(session, token)))
 
 
 # ------------------------------------------------------------------ tra cứu (AC25–AC27)
@@ -197,7 +200,7 @@ async def lookup(data: LookupIn, session: SessionDep):
     if result.pending is not None:
         pending = LookupPendingOut(
             **result.pending.model_dump(),
-            bank=payments.bank_info(result.pending.amount, result.pending.pay_ref),
+            bank=await payments.bank_info(session, result.pending.amount, result.pending.pay_ref),
         )
     return LookupOut(
         code=result.code,

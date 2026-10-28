@@ -117,15 +117,6 @@ async def session_counts(
 # ------------------------------------------------------------------ lịch ngày (BR-001, 002, 004)
 
 
-def check_viewable(ctx: Ctx, day: date) -> None:
-    if day > ctx.last_bookable_day:
-        raise AppError(
-            "E-BOOK-1",
-            f"Chỉ xem và đặt được tới hết ngày {ctx.last_bookable_day:%d/%m/%Y}.",
-            422,
-        )
-
-
 async def calendar(
     session: AsyncSession,
     tenant_id: int,
@@ -133,8 +124,11 @@ async def calendar(
     can_counter: bool,
     can_session: bool,
 ) -> CalendarOut:
-    """Xem được mọi ngày (ngày đã qua: chỉ xem). Booking online đặt xa vẫn hiện (T-008 AC31b);
-    tạo sự kiện vẫn chỉ tới hết tháng sau (``can.create_session``, E-BOOK-1)."""
+    """Xem được mọi ngày (ngày đã qua: chỉ xem) – T-008 AC31b.
+
+    ``can.counter_book``: chỉ hôm nay (cả Admin);
+    ``can.create_session``: từ hôm nay, không giới hạn ngày tới.
+    """
     ctx = await context(session, tenant_id)
     day_start, day_end = ctx.at(day, 0), ctx.at(day, 24 * 60)
 
@@ -305,7 +299,7 @@ async def calendar(
         unpaid_count=unpaid_count,
         can=CalendarCan(
             counter_book=can_counter and day == ctx.today,
-            create_session=can_session and ctx.today <= day <= ctx.last_bookable_day,
+            create_session=can_session and ctx.today <= day,
         ),
     )
 
