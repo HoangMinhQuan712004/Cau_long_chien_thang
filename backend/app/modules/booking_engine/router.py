@@ -238,7 +238,7 @@ async def create_session(
 ):
     """Đặt sự kiện (chỉ Admin): sân liền nhau × khung liền nhau, hôm nay → hết tháng sau.
 
-    Lỗi: E-001 (trống tên / số chỗ / giá vé), E-009, E-013, E-004, E-CFG-10, E-BOOK-1/2, E-010.
+    Lỗi: E-001 (trống tên / số chỗ / giá vé), E-009, E-013, E-004, E-CFG-10, E-BOOK-2, E-010.
     """
     return await idem.run(
         session,

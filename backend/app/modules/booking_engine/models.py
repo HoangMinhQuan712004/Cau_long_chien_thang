@@ -36,9 +36,9 @@ DEFAULT_TENANT_SETTINGS: dict[str, Any] = {
     "slot_minutes": 60,
     "half_step_minutes": 30,
     "hold_minutes": 5,
-    "max_advance_days": "end_of_next_month",
-    "code_prefix": "BK",
+    "max_advance_days": None,  # không giới hạn (người dùng chốt 28/10, T-008 AC31b)
     "counter_same_day_only": True,
+    "code_prefix": "BK",
     "session_capacity_max": 99,
     "resource_code_prefix": "S",
     # Nhãn hiển thị của tài nguyên trong thông báo lỗi (engine không gắn cứng tên miền nghiệp vụ)
