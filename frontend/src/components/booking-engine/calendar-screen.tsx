@@ -85,10 +85,13 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
   const names = Object.fromEntries(calendar.resources.map((r) => [r.code, r.name]));
 
   function onSelect(sel: Selection) {
-    if (sel.resourceCodes.length === 1 && sel.date === today) {
+    // Quyền đặt quầy / tạo sự kiện của NGÀY đang xem do server quyết (`calendar.can`), không tự suy ra từ ngày hay tháng ở client.
+    if (sel.resourceCodes.length === 1 && calendar.can.counter_book) {
       setDialog({ kind: "booking", selection: sel });
-    } else if (isAdmin) {
+    } else if (isAdmin && calendar.can.create_session) {
       setDialog({ kind: "sessionForm", selection: sel });
+    } else if (isAdmin) {
+      toast("Không đặt được ở ngày này", "Ngày hoặc khung đã qua không chọn được.", "info");
     } else {
       toast("Tài khoản tại máy chỉ đặt từng sân trong hôm nay", "Đặt nhiều sân hoặc ngày khác là Đặt sự kiện, do Admin làm.", "info");
     }
@@ -104,7 +107,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
     if (b.type === "booking" && b.code) setDialog({ kind: "item", code: b.code });
     else if (b.type === "session" && b.code) setDialog({ kind: "session", code: b.code });
     else if (b.type === "hold") {
-      toast("Khung đang được giữ cho khách đặt online", "Hết 7 phút giữ chỗ mà khách chưa đặt xong thì khung trống lại.", "info");
+      toast("Khung đang được giữ cho khách đặt online", "Hết 5 phút giữ chỗ mà khách chưa đặt xong thì khung trống lại.", "info");
     }
   }
 

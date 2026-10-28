@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { normalizePhone } from "@/lib/phone";
 import { searchMembers } from "./requests";
 import type { CustomerPayload, MemberHit } from "./types";
 import { inputCls } from "./ui";
@@ -18,15 +19,6 @@ export type CustomerState = {
 };
 
 export const emptyCustomer: CustomerState = { mode: "member", q: "", picked: null, name: "", phone: "", note: "" };
-
-/** Chuẩn hóa SĐT: bỏ khoảng trắng / chấm / gạch, "+84…" → "0…". */
-export function normalizePhone(raw: string): string {
-  const compact = raw.replace(/[\s.-]/g, "");
-  if (compact.startsWith("+84")) return `0${compact.slice(3).replace(/\D/g, "")}`;
-  const digits = compact.replace(/\D/g, "");
-  if (digits.startsWith("84") && digits.length === 11) return `0${digits.slice(2)}`;
-  return digits;
-}
 
 export type CustomerErrors = { pick?: string; name?: string; phone?: string };
 

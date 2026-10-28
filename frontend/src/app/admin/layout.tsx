@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { FeedbackHost } from "@/components/feedback/feedback-host";
 import { LogoutButton } from "@/components/logout-button";
-import { getCurrentUser } from "@/lib/api/server";
+import { authedGetJson, getCurrentUser } from "@/lib/api/server";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -18,7 +18,9 @@ type Role = "admin" | "staff";
 const NAV: { href: string; label: string; roles: Role[] }[] = [
   { href: "/admin/dat-san", label: "Đặt sân", roles: ["admin", "staff"] },
   { href: "/admin/lich-su-giao-dich", label: "Lịch sử giao dịch", roles: ["admin"] },
+  { href: "/admin/tien-ve", label: "Tiền về", roles: ["admin"] },
   { href: "/admin/san", label: "Sân & bảng giá", roles: ["admin"] },
+  { href: "/admin/cai-dat/thanh-toan", label: "Cài đặt thanh toán", roles: ["admin"] },
 ];
 
 export default function AdminLayout({ children }: LayoutProps<"/admin">) {
@@ -38,6 +40,9 @@ async function Shell({ children }: { children: React.ReactNode }) {
   if (!user) redirect("/dang-nhap?next=/admin");
   if (user.role === "customer") redirect("/tai-khoan");
   const role: Role = user.role === "admin" ? "admin" : "staff";
+  // Số giao dịch tiền về chưa xử lý (chỉ Admin); lỗi / chưa có API → không hiện số.
+  const pendingMoney = role === "admin" ? await authedGetJson<unknown[]>("/api/v1/payments/bank-transactions", { needs_action: "true", limit: "100" }) : null;
+  const moneyCount = pendingMoney?.ok ? pendingMoney.data.length : 0;
 
   return (
     <div className="flex min-h-full flex-1 flex-col md:flex-row">
@@ -49,6 +54,11 @@ async function Shell({ children }: { children: React.ReactNode }) {
           {NAV.filter((n) => n.roles.includes(role)).map((n) => (
             <Link key={n.href} href={n.href} className="hover:text-primary">
               {n.label}
+              {n.href === "/admin/tien-ve" && moneyCount > 0 ? (
+                <span className="ml-1.5 rounded-full bg-danger px-1.5 py-0.5 text-xs font-semibold text-primary-fg" aria-label={`${moneyCount} chưa xử lý`}>
+                  {moneyCount}
+                </span>
+              ) : null}
             </Link>
           ))}
         </nav>

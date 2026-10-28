@@ -25,24 +25,27 @@ export default function HomePage() {
         <div>
           <h1 className="text-3xl font-bold leading-tight sm:text-4xl">
             {site.name}
-            <span className="block text-primary">Giá rõ ràng, đặt sân tại quầy</span>
+            <span className="block text-primary">Giá rõ ràng, đặt sân online</span>
           </h1>
           <p className="mt-4 text-muted">{site.description}</p>
           <p className="mt-2 text-sm text-muted">📍 {fullAddress}</p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <a href={phoneHref} className="rounded-md bg-primary px-5 py-3 font-medium text-primary-fg">
-              Gọi {site.phone}
-            </a>
+            <Link href="/dat-san" className="rounded-md bg-primary px-5 py-3 font-medium text-primary-fg">
+              Đặt sân
+            </Link>
             <Link href="/bang-gia" className="rounded-md border border-border px-5 py-3">
               Bảng giá
             </Link>
           </div>
           <p className="mt-3 text-sm text-muted">
-            Đặt sân tại quầy hoặc gọi hotline.
+            Đặt sân online, thanh toán bằng chuyển khoản QR — hoặc đặt tại quầy, gọi{" "}
+            <a href={phoneHref} className="font-medium text-primary">
+              {site.phone}
+            </a>
+            .
             <Suspense fallback={null}>
               <WithPublicPrices>{(data) => (openingText(data) ? ` Giờ mở cửa ${openingText(data)}.` : null)}</WithPublicPrices>
-            </Suspense>{" "}
-            Đặt sân trực tuyến sẽ sớm có.
+            </Suspense>
           </p>
         </div>
         <Suspense fallback={null}>
