@@ -5,7 +5,7 @@ Nguồn: code `dev` (T-005, T-006) và nhánh `be/T-008-web-khach` (T-008); ADR-
 Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa. OpenAPI sống: `/docs` của API (tắt ở link dev và production).
 
 > Phạm vi: cấu hình sân và bảng giá (T-005); lịch, đặt sân tại quầy, sự kiện và vé, thu tiền mặt, Không thu được, Lịch sử giao dịch (T-006);
-> **khách đặt online, thanh toán QR SePay, tra cứu booking, Tiền về cần xử lý (T-008, mục 10)**.
+> **khách đặt online, thanh toán QR SePay, tra cứu booking, Tiền về cần xử lý (T-008), Admin tự cài tài khoản nhận tiền và khóa SePay (T-012) – mục 10**.
 > **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007), bán vé sự kiện online, đăng nhập hội viên, báo cáo, màn Hội viên đầy đủ.
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
 > Mục 10 mô tả code T-008 đã xong ở backend nhưng **chưa vào `dev`** (đang chờ FRONTEND, QA và RELEASE đẩy một lần).
@@ -118,6 +118,7 @@ Quyền khai báo tập trung ở `backend/app/core/permissions.py`. Router dùn
 | `member.search` | ✔ | ✔ | `GET /members/search` |
 | `payments.view` | ✔ | | `GET /payments/bank-transactions` (Tiền về cần xử lý) |
 | `payments.resolve` | ✔ | | `POST /payments/bank-transactions/{id}/resolve`, `POST /payments/dev/simulate` |
+| `payments.settings` | ✔ | | `GET/PUT /payments/settings`, `GET /payments/banks` (T-012) |
 
 API **công khai** của T-008 (`/web/booking/**`, webhook `POST /payments/sepay/webhook`) không dùng quyền: khách không đăng nhập (mục 10).
 
@@ -248,7 +249,8 @@ Khai báo trong `backend/app/core/config.py`, mẫu ở `backend/.env.example`.
 | `MAX_BODY_BYTES` | `65536` | Kích thước body tối đa |
 | `TENANT_ID` | `1` | Tenant của bản chạy này (mỗi dự án một bản chạy) |
 | `ENV` | `development` | Chỉ nhận `development` (máy dev) · `staging` (link dev công khai) · `production`. Giá trị khác → API không khởi động. `staging` và `production` bắt buộc `SECRET_KEY` ≥ 32 ký tự và **tắt `/docs`, `/api/v1/openapi.json`** |
-| `SEPAY_BANK_CODE` | trống | Mã ngân hàng cho `qr.sepay.vn` (ví dụ `Vietcombank`) |
+| `PAYMENTS_ENCRYPTION_KEY` | trống | Khóa Fernet (44 ký tự base64 urlsafe = 32 byte) mã hóa khóa webhook lưu trong DB (T-012). **Secret. Bắt buộc khi `ENV=staging`/`production`** (thiếu hoặc sai dạng → API không khởi động). `development` thiếu → khóa tạm + log cảnh báo. Đổi hoặc mất khóa này thì khóa webhook đã lưu không đọc được (webhook 503, đặt online tự tắt) cho tới khi Admin nhập lại |
+| `SEPAY_BANK_CODE` | trống | **Dự phòng** (chỉ dùng khi chưa có cài đặt lưu trên trang, mục 10.7). Mã ngân hàng cho `qr.sepay.vn` (ví dụ `Vietcombank`) |
 | `SEPAY_BANK_NAME` | trống | Tên ngân hàng hiển thị cho khách |
 | `SEPAY_ACCOUNT_NUMBER` | trống | Số tài khoản nhận tiền. Webhook báo tiền vào tài khoản khác sẽ bị bỏ qua (`ignored`) |
 | `SEPAY_ACCOUNT_NAME` | trống | Tên chủ tài khoản hiển thị cho khách |
@@ -258,7 +260,7 @@ Khai báo trong `backend/app/core/config.py`, mẫu ở `backend/.env.example`.
 | `ONLINE_HOLD_GRACE_SECONDS` | `60` | Ân hạn nhận tiền báo trễ sau khi hết giữ chỗ (khung vẫn bị chiếm trong lúc này) |
 | `PAYMENTS_SIMULATE` | `false` | Bật `POST /payments/dev/simulate` (giả lập tiền về). `ENV=production` mà bật → API **không khởi động** |
 
-**Bật đặt online** = đủ 5 biến `SEPAY_*` đầu (mã NH, tên NH, số TK, tên chủ TK, secret). Thiếu biến nào thì `online_enabled=false`:
+**Bật đặt online**: từ T-012 Admin cài trên trang (mục 10.7); các biến `SEPAY_*` chỉ là dự phòng khi **chưa có dòng cài đặt trong DB**. Khi dùng `.env`, đặt online bật khi đủ 5 biến `SEPAY_*` đầu (mã NH, tên NH, số TK, tên chủ TK, secret). Thiếu thì `online_enabled=false`:
 khách vẫn xem lịch nhưng không đặt được (`E-WEB-5`, giao diện hiện "gọi hotline").
 
 Rate limit dùng Redis. Redis lỗi thì cho qua và ghi log (không chặn người dùng).
@@ -408,7 +410,7 @@ Ngoại lệ có chủ đích của ADR-004: **không** cookie, **không** `Orig
 | Mục | Quy tắc |
 |---|---|
 | Header | `X-SePay-Timestamp` (chuỗi số) và `X-SePay-Signature` **dạng `sha256=<hex>`** – thiếu tiền tố `sha256=` → 401 |
-| Chữ ký | `HMAC-SHA256(SEPAY_WEBHOOK_SECRET, "{timestamp}.{raw_body}")`, so sánh hằng thời gian, tính trên **body gốc** (đừng parse lại). Next rewrite và Caddy phải giữ nguyên body và header `X-SePay-*` |
+| Chữ ký | `HMAC-SHA256(khóa webhook, "{timestamp}.{raw_body}")` (khóa Admin lưu ở trang Cài đặt thanh toán, hoặc `SEPAY_WEBHOOK_SECRET` khi chưa lưu – mục 10.7), so sánh hằng thời gian, tính trên **body gốc** (đừng parse lại). Next rewrite và Caddy phải giữ nguyên body và header `X-SePay-*` |
 | Trả về | Luôn `{"success": true\|false}`. Chưa cấu hình secret → 503; thiếu/sai chữ ký hoặc timestamp → 401; body sai (không phải JSON object, thiếu `id`, `transferType` ∉ `in`/`out`, `transferAmount` không phải số nguyên > 0) → 400; lỗi DB → 500 (SePay sẽ gửi lại) |
 | Trùng | Cùng `id` đã ghi → 200 `{"success": true}`, không cộng tiền lần hai |
 | Bỏ qua | `transferType=out`, hoặc `accountNumber` khác `SEPAY_ACCOUNT_NUMBER` → ghi lại với `outcome=ignored` |
@@ -440,4 +442,52 @@ Staff gọi → 403 `E-AUTH-2`; khách → 401/403.
 
 ### 10.6 Thử trên máy dev (không cần tài khoản SePay)
 
-Xem README mục "Đặt online và SePay" – có sẵn các biến giả và các bước giả lập tiền về.
+Xem README mục "Đặt online và SePay" – có sẵn các biến giả và các bước giả lập tiền về. Từ T-012, có thể nhập tài khoản và khóa giả ngay trên trang Cài đặt thanh toán thay cho `.env` (mục 10.7).
+
+### 10.7 Cài đặt thanh toán do Admin tự nhập (T-012)
+
+> Backend xong ở nhánh `be/T-012-cai-dat-tt`, **chưa vào `dev`**. Đối chiếu code: `backend/app/modules/payments/settings_service.py`, `config.py`, `banks.py`. Hướng dẫn cho chủ sân: README mục "Hướng dẫn chủ sân cài SePay".
+
+Admin nhập ngân hàng, số tài khoản, tên chủ, khóa webhook và công tắc **Nhận đặt online** trên `/admin/cai-dat/thanh-toan` thay vì ghi `SEPAY_*` vào `.env` server.
+
+| Method | Path | Quyền | Ghi chú |
+|---|---|---|---|
+| GET | `/payments/settings` | `payments.settings` | Cấu hình đang hiệu lực + trạng thái |
+| PUT | `/payments/settings` | `payments.settings` | `Idempotency-Key` + `Origin`. Mỗi lần lưu bắt buộc `current_password` |
+| GET | `/payments/banks` | `payments.settings` | `[{code, short_name, name}]`, 30 ngân hàng, mã VietQR (`VCB`, `BIDV`, `ICB`, `MB`, `TCB`, `ACB`…) |
+
+`GET /payments/settings` → `{bank_code, bank_name, account_number, account_name, online_toggle, online_enabled, missing[], secret_set, secret_last4, webhook_url, pay_code_hint, last_webhook_at, updated_at, updated_by_label, pending_checkouts, simulate_enabled}`:
+
+- `missing[]` ⊂ `bank`, `account_number`, `account_name`, `webhook_secret` (chỉ tính theo nguồn đang dùng). `online_enabled` = `online_toggle` **và** `missing` rỗng.
+- Khóa webhook **không bao giờ** có trong response, log hay nhật ký; chỉ có `secret_set` và `secret_last4` (4 ký tự cuối).
+- `webhook_url` = `ALLOWED_ORIGINS[0]` + `/api/v1/payments/sepay/webhook`. `pay_code_hint` = "BK + 11 chữ số".
+- `last_webhook_at`: cập nhật mỗi webhook có **chữ ký hợp lệ** (kể cả "Gửi thử" của SePay), **chỉ khi đã có dòng cài đặt** (đang dùng `.env` thì không có mốc này).
+- `pending_checkouts`: số lượt đặt online đang chờ thanh toán. `simulate_enabled` = `PAYMENTS_SIMULATE` bật và không phải production.
+
+`PUT /payments/settings` – body (trường lạ bị từ chối):
+
+```json
+{ "bank_code": "VCB", "account_number": "0123456789", "account_name": "Nguyễn Văn Đạt",
+  "online_toggle": true, "webhook_secret": "…16–128 ký tự…", "current_password": "…" }
+```
+
+- `webhook_secret` bỏ qua hoặc `null` = giữ khóa cũ. Dòng cài đặt mới **không** kế thừa khóa từ `.env`.
+- Tên chủ tài khoản được chuẩn hóa: viết hoa, bỏ dấu, gộp khoảng trắng (`"  Nguyễn  Văn Đạt "` → `NGUYEN VAN DAT`), rồi kiểm 2–50 ký tự A–Z và khoảng trắng.
+- → 200 cùng dạng `GET`. Xóa cache cấu hình ngay khi lưu (cache bình thường ≤ 10 giây).
+- Ghi nhật ký `payments.settings.update`: các trường đổi; số tài khoản chỉ 4 số cuối cũ → mới; khóa ghi "đã đổi"; lần lưu đầu từ `.env` ghi thêm nguồn chuyển sang trang.
+
+| Code | HTTP | Khi nào |
+|---|---|---|
+| E-AUTH-7 | 400 | "Mật khẩu không đúng." |
+| E-SEC-5 | 429 | 5 lần sai mật khẩu / 15 phút / tài khoản; trong thời gian khóa, nhập đúng cũng bị 429 (có `Retry-After`) |
+| E-PAY-3 | 409 | Đổi ngân hàng hoặc số tài khoản (so với cấu hình đang hiệu lực, kể cả lần lưu đầu từ `.env`) khi còn lượt chờ thanh toán: "Đang có {n} lượt chờ thanh toán. Tắt Nhận đặt online, đợi các lượt hết hạn (tối đa 6 phút) rồi đổi tài khoản." Đổi tên chủ, khóa, công tắc thì không chặn |
+| E-PAY-4 | 422 | Theo trường: "Chọn ngân hàng." · "Số tài khoản gồm 6–20 chữ số." · "Tên chủ tài khoản 2–50 ký tự, không dấu." · "Khóa bí mật 16–128 ký tự." · "Chưa đủ thông tin để bật đặt online." |
+
+Thiếu trường bắt buộc hoặc trường lạ → 422 định dạng mặc định của FastAPI. Staff gọi → 403, khách → 401/403.
+
+**Nguồn cấu hình** (mọi chỗ đọc `SEPAY_*` ở T-008 đã chuyển sang đây: QR, `online_enabled` của lịch khách, kiểm chữ ký webhook, bỏ qua giao dịch sai số tài khoản):
+
+- Chưa có dòng `payments.settings` → dùng `SEPAY_*` trong `.env` (công tắc coi như bật nếu đủ biến).
+- **Đã có dòng → DB là nguồn duy nhất**, không trộn từng trường với `.env`.
+- Tham số `bank` trong `qr_url` là `short_name` của ngân hàng (ví dụ `Vietcombank`).
+- Khóa webhook lưu bằng Fernet với `PAYMENTS_ENCRYPTION_KEY`. Không giải mã được (đổi/mất khóa) → coi như chưa có khóa: webhook 503, `online_enabled=false`, `missing` có `webhook_secret`.

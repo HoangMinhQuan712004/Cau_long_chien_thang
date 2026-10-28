@@ -141,26 +141,41 @@ API nền tảng booking engine (Idempotency-Key, mã lỗi, bảng quyền, bi�
 
 Khách đặt sân trên web, chuyển khoản QR qua **SePay**; SePay báo tiền về bằng webhook, server tạo booking. Giữ chỗ **5 phút** (+ 60 giây ân hạn nhận tiền báo trễ).
 
+### Cấu hình nhận tiền: chủ sân tự cài trên trang quản trị (T-012)
+
+Admin vào **`/admin/cai-dat/thanh-toan`** (menu "Cài đặt thanh toán", chỉ Admin) để nhập ngân hàng, số tài khoản, tên chủ tài khoản, khóa webhook SePay và bật/tắt **Nhận đặt online**. Không cần sửa server.
+
+- **Mỗi lần Lưu phải nhập lại mật khẩu Admin.** Sai 5 lần trong 15 phút thì bị khóa lưu 15 phút (429). Việc này chống kẻ chiếm phiên đổi số tài khoản nhận tiền.
+- Đổi **ngân hàng hoặc số tài khoản** khi còn lượt đặt online đang chờ thanh toán sẽ bị chặn (`E-PAY-3`): tắt Nhận đặt online, đợi các lượt hết hạn (tối đa 6 phút) rồi đổi. Khách đã quét QR cũ vì thế không bị chuyển nhầm tài khoản.
+- Khóa webhook được **mã hóa** trong DB và không bao giờ hiện lại (chỉ thấy 4 ký tự cuối). Quên khóa thì dán khóa mới.
+- Mọi lần lưu ghi nhật ký `payments.settings.update` (số tài khoản chỉ ghi 4 số cuối, khóa chỉ ghi "đã đổi"). Trang hiện ai đổi lần cuối và lúc nào, và lần cuối nhận thông báo từ SePay.
+- Tên chủ tài khoản tự viết hoa, bỏ dấu (`Nguyễn Văn Đạt` → `NGUYEN VAN DAT`).
+- **Nguồn cấu hình:** chưa có cài đặt nào lưu trên trang → server dùng các biến `SEPAY_*` trong `.env` (dự phòng, như T-008). **Từ lần Lưu đầu tiên, DB là nguồn duy nhất** và `SEPAY_*` bị bỏ qua hoàn toàn, kể cả khóa webhook: phải nhập lại khóa trên trang rồi mới bật được.
+
+Đặt online chỉ bật khi công tắc bật **và** đủ ngân hàng + số tài khoản + tên chủ + khóa. Thiếu thì khách vẫn xem lịch nhưng nút Tiếp tục khóa và hiện "gọi hotline", nên production chạy được trước khi có tài khoản SePay.
+
 ### Biến môi trường (`backend/.env`; trên server: `.env` của từng môi trường)
 
 | Biến | Ví dụ / mặc định | Ghi chú |
 |---|---|---|
-| `SEPAY_BANK_CODE` | `Vietcombank` | Mã ngân hàng dùng trong link QR `qr.sepay.vn` |
-| `SEPAY_BANK_NAME` | `Vietcombank` | Tên hiển thị cho khách |
-| `SEPAY_ACCOUNT_NUMBER` | – | Số tài khoản nhận tiền |
-| `SEPAY_ACCOUNT_NAME` | – | Tên chủ tài khoản hiển thị cho khách |
-| `SEPAY_WEBHOOK_SECRET` | – | **Secret.** Khóa ký webhook; chỉ để trong `.env`, không ghi vào repo |
+| `PAYMENTS_ENCRYPTION_KEY` | – | **Secret, bắt buộc ở `staging` và `production`** (thiếu → API không khởi động). Khóa Fernet 44 ký tự dùng mã hóa khóa webhook trong DB. Sinh: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Ở `development` thiếu thì dùng khóa tạm và log cảnh báo (khóa webhook đã lưu sẽ không đọc lại được sau khi khởi động lại) |
+| `SEPAY_BANK_CODE` | `Vietcombank` | **Dự phòng** khi chưa lưu trên trang. Mã ngân hàng dùng trong link QR `qr.sepay.vn` |
+| `SEPAY_BANK_NAME` | `Vietcombank` | Dự phòng. Tên hiển thị cho khách |
+| `SEPAY_ACCOUNT_NUMBER` | – | Dự phòng. Số tài khoản nhận tiền |
+| `SEPAY_ACCOUNT_NAME` | – | Dự phòng. Tên chủ tài khoản hiển thị cho khách |
+| `SEPAY_WEBHOOK_SECRET` | – | Dự phòng. **Secret.** Khóa ký webhook; không ghi vào repo |
 | `SEPAY_TIMESTAMP_TOLERANCE_SECONDS` | `0` | `0` = không chặn theo tuổi timestamp (ADR-001) |
 | `ONLINE_HOLD_MINUTES` | `5` | Thời gian giữ chỗ |
 | `ONLINE_HOLD_GRACE_SECONDS` | `60` | Ân hạn nhận tiền báo trễ |
 | `PAYMENTS_SIMULATE` | `false` | Chỉ máy dev / link dev (`ENV=staging`). `ENV=production` mà bật thì API không khởi động |
 
-Đủ 5 biến `SEPAY_*` đầu thì đặt online mới bật. Thiếu thì khách vẫn xem được lịch nhưng nút Tiếp tục khóa và hiện "gọi hotline", nên production chạy được trước khi có tài khoản SePay.
-`ENV` chỉ nhận `development`, `staging` (link dev), `production`; `staging` và `production` bắt buộc `SECRET_KEY` ≥ 32 ký tự.
+> **Cảnh báo: đổi hoặc làm mất `PAYMENTS_ENCRYPTION_KEY` thì khóa webhook đã lưu không đọc lại được** (webhook SePay nhận 503 và đặt online tự tắt vì thiếu khóa, cho tới khi Admin nhập lại khóa trên trang). Giữ khóa này cố định cho mỗi môi trường, sao lưu cùng `.env`, dev và production dùng hai khóa khác nhau. Khóa do RELEASE sinh và ghi thẳng vào `.env` trên server, không đi qua board hay tin nhắn.
+
+`ENV` chỉ nhận `development`, `staging` (link dev), `production`; `staging` và `production` bắt buộc `SECRET_KEY` ≥ 32 ký tự và `PAYMENTS_ENCRYPTION_KEY` hợp lệ.
 
 ### Thử trên máy dev (không cần tài khoản SePay)
 
-1. Trong `backend/.env` đặt giá trị **giả**, rồi chạy lại API (`npm run dev` hoặc `uvicorn`):
+1. Trong `backend/.env` đặt giá trị **giả**, rồi chạy lại API (`npm run dev` hoặc `uvicorn`). Cách này chỉ dùng khi DB chưa có cài đặt lưu từ trang `/admin/cai-dat/thanh-toan` (nếu đã lưu, `SEPAY_*` bị bỏ qua; khi đó sửa ngay trên trang). Máy dev thiếu `PAYMENTS_ENCRYPTION_KEY` vẫn chạy được (khóa tạm), nhưng cần cài thư viện mới một lần: `cd backend; .venv\Scripts\pip install -e ".[dev]"`:
 
    ```
    SEPAY_BANK_CODE=Vietcombank
@@ -191,15 +206,19 @@ Khách đặt sân trên web, chuyển khoản QR qua **SePay**; SePay báo ti�
 
 Các trang khách của T-008: `/dat-san` (lưới chọn giờ, `?ngay=YYYY-MM-DD`), `/thanh-toan/{token}` (QR + đếm ngược, tự chuyển khi tiền về; `noindex`, `no-store`, chặn trong `robots.txt`, không vào sitemap), `/tra-cuu` (mã booking + SĐT). Header: Đặt sân · Tra cứu booking · Hotline (Đăng nhập/Đăng ký đang ẩn). Số hotline vẫn là số mẫu trong `frontend/src/lib/site.ts` cho tới khi chủ dự án cung cấp số thật.
 
-### Người dùng cấu hình SePay (một lần, trước khi bật production)
+### Hướng dẫn chủ sân cài SePay (một lần, trước khi bật production)
 
-Việc của chủ dự án, không phải của code. Tên menu trên my.sepay.vn có thể khác theo thời điểm.
+Làm trên **my.sepay.vn** và trang **`/admin/cai-dat/thanh-toan`**, không cần sửa server. Tên menu trên SePay có thể đổi theo thời điểm; tài liệu: https://developer.sepay.vn. Trang quản trị cũng có hướng dẫn rút gọn này.
 
-1. Tạo tài khoản SePay và liên kết tài khoản ngân hàng nhận tiền; ghi số tài khoản vào `SEPAY_ACCOUNT_NUMBER`.
-2. **Mẫu mã thanh toán**: tiền tố `BK`, đuôi **11 ký tự số** (khớp `BK20261020023`). SePay tách mã này vào trường `code` của webhook; nếu SePay không tách được, server tự tìm `BK` + 11 số trong nội dung chuyển khoản.
-3. **Webhook**: URL `https://chienthang.superbai.vip/api/v1/payments/sepay/webhook` (dev: `https://chienthang-dev.superbai.vip/api/v1/payments/sepay/webhook`), phương thức POST, bật **ký HMAC** và chép khóa ký vào `SEPAY_WEBHOOK_SECRET` trong `.env` của server tương ứng (việc của người dùng; không gửi qua board hay tin nhắn).
-4. Báo RELEASE chạy lại stack để nạp biến mới. Kiểm bằng một giao dịch thật số tiền nhỏ: booking phải ra `paid` trong vài giây.
-5. Secret nghi lộ → xoay khóa trên my.sepay.vn và cập nhật `.env` trên server.
+1. Đăng ký tại my.sepay.vn, chọn gói, **liên kết tài khoản ngân hàng** nhận tiền của sân.
+2. **Cấu trúc mã thanh toán** (Công ty → Cấu hình chung): tiền tố `BK`, hậu tố **11 ký tự số** (khớp `BK20261020023`). SePay tách mã này vào trường `code` của webhook; nếu không tách được, server tự tìm `BK` + 11 số trong nội dung chuyển khoản.
+3. **Webhooks → + Thêm webhook**: sự kiện **Có tiền vào**; URL = ô "URL webhook" trên trang Cài đặt thanh toán (production: `https://chienthang.superbai.vip/api/v1/payments/sepay/webhook`; link dev: `https://chienthang-dev.superbai.vip/api/v1/payments/sepay/webhook`); tài khoản = tài khoản vừa liên kết; lọc tiền tố `BK`; bảo mật **HMAC-SHA256** → tạo khóa và **chép ngay** (SePay chỉ hiện một lần).
+4. Ở trang Cài đặt thanh toán: chọn ngân hàng, nhập số tài khoản và tên chủ, dán khóa vào ô "Khóa bí mật webhook", bấm **Lưu** (nhập lại mật khẩu Admin). Có thể để công tắc **Nhận đặt online** tắt ở bước này. Quét thử ảnh QR mẫu bằng app ngân hàng: hiện đúng tên chủ tài khoản là được, không cần chuyển tiền.
+5. Trên SePay bấm **Gửi thử** → trang Cài đặt phải hiện "Lần cuối nhận thông báo từ SePay" vừa xong (chỉ cập nhật sau khi đã Lưu ở bước 4). Rồi bật **Nhận đặt online**, Lưu. Thử một lượt đặt thật với sân giá nhỏ nhất.
+
+Thử không tốn tiền: bật **Test Mode** trên SePay → menu Giao dịch → **+ Mô phỏng giao dịch**. Webhook của Test Mode cấu hình riêng, trỏ vào **link dev**.
+
+Khóa webhook là secret: chỉ dán vào trang Cài đặt, không gửi qua board hay tin nhắn. Nghi lộ khóa → tạo khóa mới trên SePay rồi dán lại trên trang (khóa cũ ngừng được chấp nhận ngay khi Lưu).
 
 Giao dịch không tự khớp (sai nội dung, tiền về sau khi hết hạn, trả thừa) không bị mất: nằm ở "Tiền về cần xử lý" để Admin hoàn tiền thủ công rồi bấm Đã xử lý.
 
