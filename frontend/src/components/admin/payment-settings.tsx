@@ -81,7 +81,7 @@ export function PaymentSettingsScreen({ initial, banks }: { initial: PaymentSett
 
   const qrSrc =
     form.bank && accountOk
-      ? `https://qr.sepay.vn/img?acc=${encodeURIComponent(form.account)}&bank=${encodeURIComponent(form.bank)}&amount=10000&des=BK00000000000`
+      ? `https://qr.sepay.vn/img?acc=${encodeURIComponent(form.account)}&bank=${encodeURIComponent(bankLabel(form.bank))}&amount=10000&des=BK00000000000`
       : null;
 
   const set = (p: Partial<Form>) => setForm((f) => ({ ...f, ...p }));
@@ -254,8 +254,8 @@ export function PaymentSettingsScreen({ initial, banks }: { initial: PaymentSett
               <li>Đăng ký tại <a className="text-primary underline" href="https://my.sepay.vn" target="_blank" rel="noopener noreferrer">my.sepay.vn</a>, chọn gói, <b>liên kết tài khoản ngân hàng</b> nhận tiền của sân.</li>
               <li><b>Cấu trúc mã thanh toán</b> (Công ty → Cấu hình chung): tiền tố <code>BK</code>, hậu tố 11 ký tự <b>số</b>.</li>
               <li><b>Webhooks → + Thêm webhook</b>: sự kiện <b>Có tiền vào</b>; URL = URL ở trên; tài khoản = tài khoản vừa liên kết; lọc tiền tố <code>BK</code>; bảo mật <b>HMAC-SHA256</b> → tạo khóa, <b>chép ngay</b> (SePay chỉ hiện một lần) → dán vào ô Khóa bí mật ở trên.</li>
-              <li>Trên SePay bấm <b>Gửi thử</b> → mục “Lần cuối nhận thông báo từ SePay” ở đầu trang phải hiện vừa xong.</li>
-              <li>Nhập ngân hàng / số tài khoản / chủ tài khoản, bật <b>Nhận đặt online</b>, Lưu. Thử một lượt đặt thật với tiền sân nhỏ nhất.</li>
+              <li>Ở trang này: chọn ngân hàng, nhập số tài khoản, chủ tài khoản, <b>dán khóa</b> vào ô Khóa bí mật rồi bấm <b>Lưu</b> (để công tắc Nhận đặt online tắt cũng được).</li>
+              <li>Trên SePay bấm <b>Gửi thử</b> → mục “Lần cuối nhận thông báo từ SePay” ở đầu trang phải hiện vừa xong. Sau đó mới bật <b>Nhận đặt online</b> và Lưu. Thử một lượt đặt thật với tiền sân nhỏ nhất.</li>
             </ol>
             <p className="mt-3 text-xs text-muted">
               Thử không tốn tiền: bật Test Mode trên SePay → Giao dịch → “+ Mô phỏng giao dịch” (webhook Test Mode cấu hình riêng, trỏ vào link dev). Tài liệu:{" "}
@@ -320,7 +320,7 @@ export function PaymentSettingsScreen({ initial, banks }: { initial: PaymentSett
               }),
             );
             if (res.ok) {
-              const next = res.data as PaymentSettings;
+              const next = res.data;
               setSettings(next);
               setForm(toForm(next));
               setShowSecret(false);
