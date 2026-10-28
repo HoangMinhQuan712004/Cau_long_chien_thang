@@ -7,13 +7,13 @@ project_caulong/
 ├── backend/                 FastAPI, chia module theo domain
 │   ├── app/core/            config, db, security, event bus nội bộ
 │   ├── app/modules/
-│   │   ├── auth/            user, role (admin/staff/customer), JWT cookie
+│   │   ├── auth/            đăng nhập chung, nhân viên, quên mật khẩu (OTP)
 │   │   ├── courts/          sân, bảng giá theo khung giờ, PriceCalculator
 │   │   ├── bookings/        đặt sân, chống trùng lịch, lịch trống
 │   │   ├── payments/        ghi nhận thanh toán (cổng online: TODO)
-│   │   ├── notifications/   lắng nghe event (email/Zalo: TODO)
+│   │   ├── notifications/   lắng nghe event, OTP Zalo (gửi thật: TODO)
 │   │   └── content/         bài viết phục vụ SEO
-│   ├── app/workers/         ARQ: tự hủy đơn giữ chỗ quá hạn
+│   ├── app/workers/         ARQ: tự hủy đơn giữ chỗ quá hạn, gửi OTP
 │   ├── alembic/             migration
 │   └── tests/
 ├── frontend/                Next.js App Router (Cache Components)
@@ -30,28 +30,40 @@ project_caulong/
 
 Yêu cầu: **Python 3.15**, **Node.js 26** (LTS), Docker. CI và image production dùng đúng các bản này.
 
+Chỉ có 2 file env: `.env` ở thư mục gốc (cổng docker compose, `BACKEND_URL`, `NEXT_PUBLIC_SITE_URL` cho frontend)
+và `backend/.env`. Mẫu: `.env.example` (gốc) và `backend/.env.example`.
+
 ```bash
-# 1. DB + Redis  (đổi cổng trong .env ở thư mục gốc nếu bị trùng, xem .env.example)
+# 0. .env ở thư mục gốc: cổng docker + biến frontend (đổi cổng nếu bị trùng)
+cp .env.example .env
+
+# 1. DB + Redis
 docker compose up -d db redis
 
 # 2. Backend
 cd backend
-cp .env.example .env            # sửa SECRET_KEY, DATABASE_URL nếu đổi cổng
+cp .env.example .env            # backend/.env – sửa SECRET_KEY; DATABASE_URL/REDIS_URL theo cổng ở .env gốc
 python -m venv .venv && .venv/Scripts/activate   # Linux/macOS: source .venv/bin/activate
 pip install -e ".[dev]"
 alembic upgrade head
 python -m app.scripts.seed       # admin + 4 sân + bảng giá mẫu
 uvicorn app.main:app --reload    # http://localhost:8000/docs
-arq app.workers.worker.WorkerSettings   # terminal khác: worker hủy đơn quá hạn
+arq app.workers.worker.WorkerSettings   # terminal khác: worker hủy đơn quá hạn + gửi OTP
 
 # 3. Frontend
-cd frontend
-cp .env.example .env.local
+cd frontend                      # đọc .env ở thư mục gốc, không cần file env riêng
 npm install
 npm run dev                      # http://localhost:3000
 ```
 
-Tài khoản chủ sân mặc định: `admin@example.com` / `admin12345` (đổi trong `backend/.env`).
+Tài khoản dev (một màn đăng nhập `/dang-nhap` cho cả 3 loại, nhập SĐT hoặc tên đăng nhập):
+- Admin do seed tạo: SĐT `FIRST_ADMIN_PHONE` / mật khẩu `FIRST_ADMIN_PASSWORD` trong `backend/.env`
+  (mẫu `0912345678` / `Admin@12345`; DB tạo trước 28/10 dùng `admin12345`).
+- Nhân viên: Admin tạo ở `/admin/nhan-vien`; tên đăng nhập tự sinh `<tên>.<mã>` (vd `an.nv007`).
+- Mật khẩu mới: ≥ 8 ký tự, có chữ in hoa và chữ số hoặc ký tự đặc biệt (mật khẩu cũ vẫn đăng nhập được).
+- Khách: tự đăng ký bằng SĐT.
+- Quên mật khẩu (khách + Admin): chưa có khóa Zalo nên OTP in ra log của worker
+  (`arq app.workers.worker.WorkerSettings`, cần `ENV=development` và cùng `REDIS_URL` với API).
 
 Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
 
@@ -83,8 +95,18 @@ Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
 
 ### Bật deploy
 
-1. Server (VPS) cài Docker; tạo thư mục, vd `/opt/caulong`, đặt file `.env` theo [deploy/.env.example](deploy/.env.example).
-2. Đặt reverse proxy có HTTPS (Caddy/Nginx) trỏ domain → `127.0.0.1:3000`.
+1. Server (VPS) cài Docker; tạo thư mục, vd `/opt/caulong`, đặt file `.env` theo [backend/.env.example](backend/.env.example), đổi bắt buộc:
+   `ENV=production`, `POSTGRES_PASSWORD` (chỉ chữ/số; compose ghép vào `DATABASE_URL`), `SECRET_KEY` (≥ 32 ký tự ngẫu nhiên),
+   `COOKIE_SECURE=true`, `CORS_ORIGINS=["https://<domain>"]`, `FIRST_ADMIN_PHONE`/`FIRST_ADMIN_PASSWORD` (không dùng giá trị mẫu),
+   `GOOGLE_CLIENT_ID` (nếu bật Google; frontend cần cùng giá trị LÚC BUILD ⇒ đặt thêm GitHub Variable `GOOGLE_CLIENT_ID` cho CD).
+2. Đặt reverse proxy có HTTPS (Caddy/Nginx) trỏ domain → `127.0.0.1:3000`. Proxy phải gửi IP thật của khách qua
+   `X-Forwarded-For` (Caddy làm sẵn; Nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`) –
+   backend dùng IP này để giới hạn đăng nhập sai / gửi mã / đăng ký. Backend chỉ tin header này khi request đến từ
+   `TRUSTED_PROXIES`: compose prod đặt sẵn `127.0.0.1,::1,172.16.0.0/12,192.168.0.0/16` (container `web` gọi `api`
+   qua mạng compose). Đổi subnet mạng docker thì đặt `TRUSTED_PROXIES` trong `.env` cho khớp – sai thì mọi thao tác
+   ghi khi đã đăng nhập (đăng xuất, đổi dữ liệu…) báo 403 `origin_forbidden` và mọi khách bị tính chung một IP (giới hạn đăng nhập sai chặn tất cả).
+   `CORS_ORIGINS` (`.env`) thêm domain thật nếu có trang khác gọi API: POST/PATCH/DELETE kèm cookie phiên từ origin
+   lạ bị chặn 403 `origin_forbidden` (cùng domain qua Next rewrite luôn được).
 3. GitHub repo → Settings → Environments → tạo `production`, thêm:
    - **Secrets**: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` (private key), `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan <host>`)
    - **Variables** (repo): `DEPLOY_ENABLED=true`, `SITE_URL=https://your-domain.vn`, `DEPLOY_PATH=/opt/caulong`
@@ -109,6 +131,8 @@ Khi cần tách service chỉ cần thay `app/core/events.py` bằng message bro
 
 **Auth.** JWT trong cookie httpOnly (access 30 phút, refresh 14 ngày, path `/api/v1/auth`).
 Trình duyệt gọi `/api/v1/*` cùng domain, Next rewrite sang FastAPI → không cần CORS.
+Chống CSRF: cookie `SameSite=Lax` + `check_origin` (request đổi trạng thái kèm cookie phiên phải có `Origin` cùng
+host hoặc trong `CORS_ORIGINS`).
 Client tự gọi `/auth/refresh` khi gặp 401; trang đăng nhập tự khôi phục phiên nếu refresh còn hạn.
 
 **SEO.** Trang public prerender tĩnh, dữ liệu qua `'use cache'` + `cacheLife` (tự làm mới).
@@ -125,5 +149,5 @@ tính theo `TIMEZONE=Asia/Ho_Chi_Minh`.
 - Đặt lịch cố định hằng tuần (RecurringBooking).
 - Form CRUD sân / bảng giá / bài viết trong `/admin`.
 - Gọi `revalidateTag("posts")` (qua route handler có secret) khi admin đăng bài để sitemap/tin tức cập nhật ngay.
-- Gửi thông báo email / Zalo ZNS từ `notifications/handlers.py` qua worker.
-- Upload ảnh lên S3/R2, rate limit đăng nhập (Redis), Sentry.
+- Gửi Zalo ZNS thật (OTP: `TODO(zalo-zns)` trong `notifications/zalo.py`; thông báo đơn từ `notifications/handlers.py`) qua worker.
+- Upload ảnh lên S3/R2, Sentry.
