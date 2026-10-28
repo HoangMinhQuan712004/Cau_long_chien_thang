@@ -43,7 +43,15 @@ async function Account() {
       <section className="rounded-lg border border-border bg-surface p-4">
         <h2 className="text-lg font-semibold">Đặt sân</h2>
         <p className="mt-1 text-sm text-muted">
-          Hiện chưa đặt sân trực tuyến. Vui lòng đặt tại quầy hoặc gọi{" "}
+          Đặt sân online tại{" "}
+          <Link href="/dat-san" className="font-medium text-primary">
+            trang Đặt sân
+          </Link>
+          , tra cứu bằng mã booking và số điện thoại ở mục{" "}
+          <Link href="/tra-cuu" className="font-medium text-primary">
+            Tra cứu booking
+          </Link>
+          . Cần hỗ trợ, gọi{" "}
           <a href={phoneHref} className="font-medium text-primary">
             {site.phone}
           </a>

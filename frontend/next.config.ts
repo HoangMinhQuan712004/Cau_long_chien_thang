@@ -44,12 +44,18 @@ const nextConfig: NextConfig = {
       },
     },
   },
-  // Trang đặt sân online cũ đã gỡ (T-006): chuyển về bảng giá để giữ liên kết cũ.
-  async redirects() {
-    return [{ source: "/dat-san", destination: "/bang-gia", permanent: true }];
-  },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      // Trang thanh toán chứa token lượt giữ chỗ: không cache, không index (T-008 AC29, SEC9).
+      {
+        source: "/thanh-toan/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
+    ];
   },
   // Trình duyệt gọi /api/v1/* cùng domain -> Next chuyển tiếp sang FastAPI.
   // Cookie httpOnly vì vậy là same-origin, không cần CORS.

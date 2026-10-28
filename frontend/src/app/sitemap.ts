@@ -6,6 +6,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const posts = await getPosts(100);
   const staticRoutes = [
     { path: "", priority: 1, changeFrequency: "weekly" as const },
+    { path: "/dat-san", priority: 0.9, changeFrequency: "daily" as const },
+    { path: "/tra-cuu", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/bang-gia", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/tin-tuc", priority: 0.6, changeFrequency: "weekly" as const },
   ];
