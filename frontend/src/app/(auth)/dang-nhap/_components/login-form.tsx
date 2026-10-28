@@ -19,7 +19,7 @@ import { LockedAlert, useLoginLock } from "./login-lock";
 const REFRESH_TRIED_KEY = "login-refresh-at";
 
 // Form đăng nhập chung Admin/nhân viên/khách, xong thì đi theo quyền
-export function LoginForm({ t }: { t: Dictionary["login"] }) {
+export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestore: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"), "");
@@ -48,6 +48,7 @@ export function LoginForm({ t }: { t: Dictionary["login"] }) {
   // Khách còn refresh token ⇒ khôi phục phiên, quay lại trang cũ
   // Chỉ thử một lần mỗi 30 giây: nếu trang đích lại đẩy về đây (phiên không dùng được) thì không lặp vô hạn.
   useEffect(() => {
+    if (!canRestore) return;
     try {
       const last = Number(sessionStorage.getItem(REFRESH_TRIED_KEY) ?? 0);
       if (Date.now() - last < 30_000) return;
@@ -58,7 +59,7 @@ export function LoginForm({ t }: { t: Dictionary["login"] }) {
     fetch("/api/v1/auth/refresh", { method: "POST", credentials: "include" })
       .then((r) => r.ok && router.replace(destination("customer", next)))
       .catch(() => {});
-  }, [next, router]);
+  }, [canRestore, next, router]);
 
   const { lock, remaining, start: startLock } = useLoginLock(() => {
     setError(null);

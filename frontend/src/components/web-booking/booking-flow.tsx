@@ -583,7 +583,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
         ) : calendar.resources.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted">Chưa có sân nào mở cho ngày này.</p>
         ) : (
-          <div className={`overflow-x-auto ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
+          <div className={`relative overflow-x-auto ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
             <div className="min-w-max [--c0:5.5rem] [--col:3.25rem] sm:[--c0:6.5rem] sm:[--col:3.5rem]">
               <div className="flex text-xs text-muted">
                 <div className="sticky left-0 z-10 flex w-(--c0) shrink-0 items-center bg-surface pr-2">Sân</div>

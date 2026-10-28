@@ -7,8 +7,9 @@ import { PhoneVerify } from "@/components/booking/phone-verify";
 import { Alert } from "@/components/ui/alert";
 import type { Dictionary } from "@/i18n/dictionaries";
 
+// Luôn được dựng trên trang: sau khi xác minh server render lại với hasPhone=true nhưng state thông báo vẫn còn
 // Tài khoản chưa có SĐT (đăng nhập Google): xác minh SĐT bằng OTP; trùng SĐT khách khác ⇒ gộp tài khoản (T-013 AC22)
-export function AccountPhone({ t }: { t: Dictionary["phoneVerify"] }) {
+export function AccountPhone({ t, hasPhone }: { t: Dictionary["phoneVerify"]; hasPhone: boolean }) {
   const router = useRouter();
   const [result, setResult] = useState<{ merged: boolean; passwordCleared: boolean } | null>(null);
 
@@ -31,6 +32,8 @@ export function AccountPhone({ t }: { t: Dictionary["phoneVerify"] }) {
       </div>
     );
   }
+
+  if (hasPhone) return null;
 
   return (
     <PhoneVerify

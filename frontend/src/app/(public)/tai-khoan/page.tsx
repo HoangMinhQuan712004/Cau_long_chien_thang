@@ -66,7 +66,7 @@ async function Account() {
         <LogoutButton />
       </div>
 
-      {!user.phone && <AccountPhone t={dictionary.phoneVerify} />}
+      <AccountPhone t={dictionary.phoneVerify} hasPhone={Boolean(user.phone)} />
 
       <section className="rounded-card bg-surface p-4 shadow-card sm:p-6">
         <h2 className="text-lg font-semibold">Đặt sân</h2>

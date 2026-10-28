@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { HolidaysCard } from "@/components/admin/holidays-card";
 import { PriceEditor } from "@/components/admin/price-editor";
@@ -22,6 +23,7 @@ export default function PricesAdminPage() {
 
 async function Prices() {
   const api = await authedApi();
+  await connection(); // giờ hiện tại chỉ dùng ở request, không prerender
   const year = Number(todayVn().slice(0, 4));
   const [prices, resources, days] = await Promise.all([
     api.GET("/api/v1/booking/prices"),

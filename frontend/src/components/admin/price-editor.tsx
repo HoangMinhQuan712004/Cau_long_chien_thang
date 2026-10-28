@@ -99,7 +99,7 @@ export function PriceEditor({ table, resources }: { table: PriceTable; resources
             {table.updated_by ? ` · ${table.updated_by}` : ""}
           </p>
         </div>
-        <div className="overflow-x-auto p-4">
+        <div className="relative overflow-x-auto p-4">
           <table className="w-full min-w-[40rem] border-collapse text-sm">
             <thead>
               <tr>

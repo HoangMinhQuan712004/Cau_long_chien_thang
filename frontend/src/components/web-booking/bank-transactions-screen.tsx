@@ -65,7 +65,7 @@ export function BankTransactionsScreen({ initial }: { initial: BankTransaction[]
         </p>
       ) : null}
 
-      <div className={`overflow-x-auto rounded-lg border border-border bg-surface ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
+      <div className={`relative overflow-x-auto rounded-lg border border-border bg-surface ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
         <table className="w-full min-w-[56rem] text-left text-sm">
           <thead className="text-xs text-muted">
             <tr className="border-b border-border">

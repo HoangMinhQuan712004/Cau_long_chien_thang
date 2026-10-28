@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { isPasswordValid, PASSWORD_MAX, PasswordRules } from "@/components/auth/password-rules";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,12 @@ export function useStaffSubmit(t: StaffTexts) {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const inFlight = useRef(false);
+
   async function submit(call: () => Promise<{ error?: unknown }>): Promise<boolean> {
+    // Khóa ngay trong cùng tick (state chưa kịp cập nhật): endpoint này không có Idempotency-Key
+    if (inFlight.current) return false;
+    inFlight.current = true;
     setIsPending(true);
     setError(null);
     let message: string | null;
@@ -39,6 +44,7 @@ export function useStaffSubmit(t: StaffTexts) {
     } catch {
       message = t.errors.network;
     }
+    inFlight.current = false;
     setIsPending(false);
     setError(message);
     return message === null;

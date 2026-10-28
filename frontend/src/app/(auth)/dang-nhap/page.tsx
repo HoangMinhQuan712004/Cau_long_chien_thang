@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getDictionary } from "@/i18n/dictionaries";
@@ -29,11 +30,13 @@ export default function LoginPage({ searchParams }: PageProps<"/dang-nhap">) {
 
 async function LoginCard({ skeleton }: { skeleton: React.ReactNode }) {
   const t = (await getDictionary()).login;
+  // Chỉ thử khôi phục phiên khi trình duyệt còn refresh token (tránh 401 thừa trong console khi chưa đăng nhập)
+  const canRestore = (await cookies()).has("refresh_token");
   return (
     <AuthCard title={t.title}>
       {/* Form đọc query (?next, ?ly-do) ⇒ cần Suspense riêng */}
       <Suspense fallback={skeleton}>
-        <LoginForm t={t} />
+        <LoginForm t={t} canRestore={canRestore} />
       </Suspense>
     </AuthCard>
   );
