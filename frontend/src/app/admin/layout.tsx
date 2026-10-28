@@ -20,6 +20,7 @@ const NAV: { href: string; label: string; roles: Role[] }[] = [
   { href: "/admin/lich-su-giao-dich", label: "Lịch sử giao dịch", roles: ["admin"] },
   { href: "/admin/tien-ve", label: "Tiền về", roles: ["admin"] },
   { href: "/admin/san", label: "Sân & bảng giá", roles: ["admin"] },
+  { href: "/admin/cai-dat/thanh-toan", label: "Cài đặt thanh toán", roles: ["admin"] },
 ];
 
 export default function AdminLayout({ children }: LayoutProps<"/admin">) {
