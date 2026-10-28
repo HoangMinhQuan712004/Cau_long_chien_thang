@@ -1,9 +1,18 @@
+import base64
+import binascii
 from functools import lru_cache
 from typing import Literal
 from zoneinfo import ZoneInfo
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _valid_fernet_key(key: str) -> bool:
+    try:
+        return len(base64.urlsafe_b64decode(key.encode())) == 32 and len(key) == 44
+    except (ValueError, binascii.Error):
+        return False
 
 
 class Settings(BaseSettings):
@@ -46,7 +55,7 @@ class Settings(BaseSettings):
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
     # Giờ mở cửa, khung, giữ chỗ… cấu hình theo sân trong booking engine (T-005, T-006)
 
-    # Đặt online + SePay (T-008, ADR-007). Đủ 5 biến SEPAY_* đầu -> bật đặt online.
+    # Đặt online + SePay (T-008, ADR-007): dự phòng khi Admin chưa lưu cài đặt trên trang (T-012).
     SEPAY_BANK_CODE: str = ""  # mã NH cho qr.sepay.vn (vd "Vietcombank")
     SEPAY_BANK_NAME: str = ""
     SEPAY_ACCOUNT_NUMBER: str = ""
@@ -59,6 +68,9 @@ class Settings(BaseSettings):
     ONLINE_HOLD_GRACE_SECONDS: int = 60
     # Chỉ dev/staging: POST /payments/dev/simulate. ENV=production + bật -> app không khởi động
     PAYMENTS_SIMULATE: bool = False
+    # Khóa mã hóa khóa webhook lưu trong DB (T-012): Fernet = 32 byte base64 urlsafe (44 ký tự).
+    # Bắt buộc ở staging/production; development thiếu -> sinh tạm + cảnh báo.
+    PAYMENTS_ENCRYPTION_KEY: str | None = None
 
     # Seed
     FIRST_ADMIN_EMAIL: str = "admin@example.com"
@@ -70,6 +82,10 @@ class Settings(BaseSettings):
             raise ValueError(f"SECRET_KEY phải được đặt (>= 32 ký tự) khi ENV={self.ENV}")
         if self.is_production and self.PAYMENTS_SIMULATE:
             raise ValueError("PAYMENTS_SIMULATE không được bật khi ENV=production")
+        if self.is_deployed and not _valid_fernet_key(self.PAYMENTS_ENCRYPTION_KEY or ""):
+            raise ValueError(
+                f"PAYMENTS_ENCRYPTION_KEY phải là 32 byte base64 urlsafe khi ENV={self.ENV}"
+            )
         return self
 
     @property
@@ -84,18 +100,6 @@ class Settings(BaseSettings):
     def is_deployed(self) -> bool:
         """Chạy trên server (link dev hoặc production): kiểm SECRET_KEY, tắt /docs."""
         return self.ENV in ("staging", "production")
-
-    @property
-    def online_enabled(self) -> bool:
-        return all(
-            (
-                self.SEPAY_BANK_CODE,
-                self.SEPAY_BANK_NAME,
-                self.SEPAY_ACCOUNT_NUMBER,
-                self.SEPAY_ACCOUNT_NAME,
-                self.SEPAY_WEBHOOK_SECRET,
-            )
-        )
 
 
 @lru_cache

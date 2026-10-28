@@ -22,7 +22,8 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
 from app.modules.booking_engine.dto import OnlinePaymentIn
-from app.modules.payments.models import BankTransaction
+from app.modules.payments import config
+from app.modules.payments.models import BankTransaction, PaymentSettings
 from app.modules.payments.schemas import BankInfo, BankTransactionOut
 
 logger = logging.getLogger(__name__)
@@ -43,35 +44,37 @@ class WebhookError(Exception):
 # ------------------------------------------------------------------ cấu hình / QR
 
 
-def online_enabled() -> bool:
-    return settings.online_enabled
+async def online_enabled(session: AsyncSession) -> bool:
+    return (await config.load(session)).online_enabled
 
 
-def bank_info(amount: int, pay_ref: str) -> BankInfo | None:
-    if not settings.online_enabled:
-        return None
+def qr_url(cfg: config.PaymentConfig, amount: int, pay_ref: str) -> str:
     query = urlencode(
-        {
-            "acc": settings.SEPAY_ACCOUNT_NUMBER,
-            "bank": settings.SEPAY_BANK_CODE,
-            "amount": amount,
-            "des": pay_ref,
-        }
+        {"acc": cfg.account_number, "bank": cfg.qr_bank, "amount": amount, "des": pay_ref}
     )
+    return f"https://qr.sepay.vn/img?{query}"
+
+
+async def bank_info(session: AsyncSession, amount: int, pay_ref: str) -> BankInfo | None:
+    cfg = await config.load(session)
+    if cfg.missing:
+        return None
     return BankInfo(
-        bank_name=settings.SEPAY_BANK_NAME,
-        account_number=settings.SEPAY_ACCOUNT_NUMBER,
-        account_name=settings.SEPAY_ACCOUNT_NAME,
-        qr_url=f"https://qr.sepay.vn/img?{query}",
+        bank_name=cfg.bank_name or cfg.bank_code or "",
+        account_number=cfg.account_number,
+        account_name=cfg.account_name,
+        qr_url=qr_url(cfg, amount, pay_ref),
     )
 
 
 # ------------------------------------------------------------------ webhook
 
 
-def verify_signature(raw_body: bytes, signature: str | None, timestamp: str | None) -> None:
+async def verify_signature(
+    session: AsyncSession, raw_body: bytes, signature: str | None, timestamp: str | None
+) -> None:
     """HMAC-SHA256(secret, "{timestamp}.{raw_body}") – so sánh hằng thời gian (T-001 AC4)."""
-    secret = settings.SEPAY_WEBHOOK_SECRET
+    secret = (await config.load(session)).webhook_secret
     if not secret:
         raise WebhookError(503, "webhook secret not configured")
     if not signature or not timestamp or not timestamp.strip().isdigit():
@@ -153,7 +156,8 @@ async def process_transaction(session: AsyncSession, payload: Any, provider: str
         return "duplicate"
     txn = await session.get(BankTransaction, new_id)
 
-    if data["transferType"] != "in" or (account and account != settings.SEPAY_ACCOUNT_NUMBER):
+    receiving = (await config.load(session)).account_number
+    if data["transferType"] != "in" or (account and account != receiving):
         txn.outcome = "ignored"
         return txn.outcome
     code = extract_code(data)
@@ -193,7 +197,7 @@ async def simulate(session: AsyncSession, pay_ref: str, amount: int) -> BankTran
             "transferAmount": amount,
             "code": None,
             "content": f"{pay_ref} giả lập",
-            "accountNumber": settings.SEPAY_ACCOUNT_NUMBER or None,
+            "accountNumber": (await config.load(session)).account_number,
             "transactionDate": datetime.now(settings.tz).strftime("%Y-%m-%d %H:%M:%S"),
             "gateway": "SIMULATE",
         },
@@ -204,6 +208,18 @@ async def simulate(session: AsyncSession, pay_ref: str, amount: int) -> BankTran
         )
     )
     return _out(txn)
+
+
+async def mark_webhook_seen(session: AsyncSession) -> None:
+    """Chữ ký hợp lệ (kể cả "Gửi thử" của SePay) -> cập nhật "Lần cuối nhận thông báo" (AC10).
+
+    Chỉ khi đã có dòng cài đặt (chưa có: đang dùng .env, không tạo dòng để khỏi đổi nguồn cấu hình).
+    """
+    await session.execute(
+        update(PaymentSettings)
+        .where(PaymentSettings.tenant_id == settings.TENANT_ID)
+        .values(last_webhook_at=func.now(), updated_at=PaymentSettings.updated_at)
+    )
 
 
 async def mark_expired_partials(session: AsyncSession, pay_ref: str) -> int:

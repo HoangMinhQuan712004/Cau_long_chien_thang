@@ -9,7 +9,7 @@ import secrets
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -413,6 +413,15 @@ async def get_checkout(session: AsyncSession, tenant_id: int, token: str) -> Che
     if checkout is None:
         raise _not_found_checkout()
     return await checkout_view(session, ctx, checkout)
+
+
+async def count_pending_checkouts(session: AsyncSession, tenant_id: int) -> int:
+    """Lượt thanh toán còn chờ (kể cả trong ân hạn) – chặn đổi tài khoản nhận tiền (T-012 AC6)."""
+    return await session.scalar(
+        select(func.count())
+        .select_from(Checkout)
+        .where(Checkout.tenant_id == tenant_id, Checkout.status == "pending")
+    )
 
 
 # ------------------------------------------------------------------ tra cứu (AC25–AC27)

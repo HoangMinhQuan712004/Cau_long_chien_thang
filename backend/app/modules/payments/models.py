@@ -8,10 +8,13 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     Index,
     Integer,
+    LargeBinary,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -63,3 +66,29 @@ class BankTransaction(Base):
     resolved_by_id: Mapped[int | None] = mapped_column(BigInteger)
     resolved_by_label: Mapped[str | None] = mapped_column(String(100))
     note: Mapped[str | None] = mapped_column(String(500))
+
+
+class PaymentSettings(Base):
+    """Cài đặt nhận tiền online do Admin nhập (T-012) – 1 dòng / tenant.
+
+    Có dòng -> nguồn duy nhất (không trộn với ``SEPAY_*`` của .env); chưa có dòng -> dùng .env.
+    Khóa webhook chỉ lưu dạng mã hóa (Fernet, ``PAYMENTS_ENCRYPTION_KEY``) + 4 ký tự cuối.
+    """
+
+    __tablename__ = "settings"
+    __table_args__ = {"schema": SCHEMA}
+
+    tenant_id: Mapped[int] = mapped_column(SmallInteger, primary_key=True, autoincrement=False)
+    bank_code: Mapped[str | None] = mapped_column(String(20))
+    bank_name: Mapped[str | None] = mapped_column(String(100))
+    account_number: Mapped[str | None] = mapped_column(String(20))
+    account_name: Mapped[str | None] = mapped_column(String(50))
+    online_toggle: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    webhook_secret_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
+    secret_last4: Mapped[str | None] = mapped_column(String(4))
+    last_webhook_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    updated_by_id: Mapped[int | None] = mapped_column(BigInteger)
+    updated_by_label: Mapped[str | None] = mapped_column(String(100))

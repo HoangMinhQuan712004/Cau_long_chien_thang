@@ -17,8 +17,16 @@ from app.core.db import SessionDep
 from app.core.errors import AppError
 from app.core.idempotency import IdempotencyDep
 from app.core.permissions import Perm, Principal, require
-from app.modules.payments import service
-from app.modules.payments.schemas import BankTransactionOut, ResolveIn, SimulateIn
+from app.modules.payments import config, service, settings_service
+from app.modules.payments.banks import BANKS
+from app.modules.payments.schemas import (
+    BankOut,
+    BankTransactionOut,
+    PaymentSettingsIn,
+    PaymentSettingsOut,
+    ResolveIn,
+    SimulateIn,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +34,7 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 
 PaymentsViewer = Annotated[Principal, Depends(require(Perm.PAYMENTS_VIEW))]
 PaymentsResolver = Annotated[Principal, Depends(require(Perm.PAYMENTS_RESOLVE))]
+SettingsManager = Annotated[Principal, Depends(require(Perm.PAYMENTS_SETTINGS))]
 
 
 def _result(ok: bool, status_code: int = 200) -> JSONResponse:
@@ -46,7 +55,9 @@ async def sepay_webhook(
     """
     raw = await request.body()
     try:
-        service.verify_signature(raw, x_sepay_signature, x_sepay_timestamp)
+        await service.verify_signature(session, raw, x_sepay_signature, x_sepay_timestamp)
+        await service.mark_webhook_seen(session)
+        await session.commit()
         try:
             payload = json.loads(raw)
         except ValueError:
@@ -110,3 +121,38 @@ async def simulate_payment(
         principal.key,
         lambda: service.simulate(session, data.pay_ref.strip(), data.amount),
     )
+
+
+# ---------------------------------------------------------------- cài đặt thanh toán (T-012)
+
+
+@router.get("/settings", response_model=PaymentSettingsOut)
+async def get_settings(_: SettingsManager, session: SessionDep):
+    """Cài đặt nhận tiền online (chỉ Admin). Khóa webhook không trả ra – chỉ 4 ký tự cuối."""
+    return await settings_service.view(session)
+
+
+@router.put("/settings", response_model=PaymentSettingsOut)
+async def put_settings(
+    data: PaymentSettingsIn,
+    principal: SettingsManager,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Lưu cài đặt – luôn cần ``current_password``.
+
+    Lỗi: 400 E-AUTH-7 (sai mật khẩu; 5 lần / 15 phút -> 429 E-SEC-5), 422 E-PAY-4 (dữ liệu),
+    409 E-PAY-3 (đổi ngân hàng / số TK khi còn lượt chờ thanh toán).
+    """
+    actor = AuditActor(type=principal.actor_type, id=principal.actor_id, label=principal.label)
+    response = await idem.run(
+        session, principal.key, lambda: settings_service.save(session, data, actor)
+    )
+    config.clear_cache()  # sau commit: lần đọc sau lấy cấu hình mới
+    return response
+
+
+@router.get("/banks", response_model=list[BankOut])
+async def list_banks(_: SettingsManager):
+    """Danh sách ngân hàng (mã VietQR) cho ô chọn."""
+    return BANKS

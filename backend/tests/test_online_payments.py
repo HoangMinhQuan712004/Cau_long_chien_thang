@@ -351,14 +351,24 @@ def test_env_values_and_guards():
         Settings(ENV="production", SECRET_KEY=strong, PAYMENTS_SIMULATE=True)
     with pytest.raises(ValidationError):
         Settings(ENV="staging", SECRET_KEY="change-me")
-    staging = Settings(ENV="staging", SECRET_KEY=strong, PAYMENTS_SIMULATE=True)
+    key = "dGVzdC1rZXktZm9yLXBheW1lbnRzLWVuY3J5cHRpb24="
+    with pytest.raises(ValidationError):  # thiếu khóa mã hóa ở staging (T-012)
+        Settings(ENV="staging", SECRET_KEY=strong)
+    staging = Settings(
+        ENV="staging", SECRET_KEY=strong, PAYMENTS_SIMULATE=True, PAYMENTS_ENCRYPTION_KEY=key
+    )
     assert staging.is_deployed and not staging.is_production
     assert Settings(ENV="development").is_deployed is False
 
 
 def test_staging_hides_api_docs():
     code = "from app.main import app; print(app.docs_url, app.openapi_url)"
-    env = {**os.environ, "ENV": "staging", "SECRET_KEY": "s" * 40}
+    env = {
+        **os.environ,
+        "ENV": "staging",
+        "SECRET_KEY": "s" * 40,
+        "PAYMENTS_ENCRYPTION_KEY": "dGVzdC1rZXktZm9yLXBheW1lbnRzLWVuY3J5cHRpb24=",
+    }
     out = subprocess.run(
         [sys.executable, "-c", code], cwd=BACKEND_DIR, env=env, capture_output=True, text=True
     )
