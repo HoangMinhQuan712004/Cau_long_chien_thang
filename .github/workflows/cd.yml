@@ -170,3 +170,20 @@ jobs:
           done
           echo "::error::Website không phản hồi sau khi deploy"
           exit 1
+
+      - name: Smoke test (API qua web + đặt sân online)
+        if: needs.target.outputs.name == 'dev' || vars.SITE_URL != ''
+        env:
+          URL: ${{ (needs.target.outputs.name == 'dev' && (vars.DEV_SITE_URL || 'https://chienthang-dev.superbai.vip')) || vars.SITE_URL }}
+        run: |
+          # Bảng giá công khai (booking engine) và trang đặt sân của khách phải trả 200;
+          # lịch public dùng ngày hôm nay theo giờ Việt Nam.
+          TODAY=$(TZ=Asia/Ho_Chi_Minh date +%F)
+          for path in "/api/v1/booking/prices/public" "/api/v1/web/booking/calendar?date=$TODAY" "/dat-san" "/tra-cuu"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$URL$path")
+            echo "$path -> $code"
+            if [ "$code" != "200" ]; then
+              echo "::error::$path trả $code (mong đợi 200)"
+              exit 1
+            fi
+          done
