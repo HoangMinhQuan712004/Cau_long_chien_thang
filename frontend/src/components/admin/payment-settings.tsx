@@ -67,7 +67,9 @@ export function PaymentSettingsScreen({ initial, banks }: { initial: PaymentSett
     form.bank !== base.bank ||
     form.account !== base.account ||
     form.name !== base.name ||
-    effectiveToggle !== settings.online_toggle ||
+    // So lựa chọn của người dùng (form.toggle) với giá trị server, không phải effectiveToggle: server có thể trả
+    // online_toggle=true khi còn thiếu cấu hình (đang dùng .env) → effectiveToggle=false sẽ báo "chưa lưu" oan.
+    form.toggle !== base.toggle ||
     (form.changingSecret && secretTyped);
   const valid = Boolean(form.bank) && accountOk && nameOk && secretOk;
   const accountChanged = form.bank !== base.bank || form.account !== base.account;
