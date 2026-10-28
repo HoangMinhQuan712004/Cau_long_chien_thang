@@ -75,7 +75,7 @@ async def create_booking(
 
     Lỗi: E-001/E-002 (hồ sơ tạm), E-014 (không có hội viên), E-018 (SĐT là của hội viên),
     E-004 (khung đã qua), E-CFG-10 (khung không bán), E-019 (thiếu giá), E-003 (vừa có người đặt),
-    403 (ngày khác hôm nay).
+    403 E-AUTH-2 (ngày khác hôm nay – cả Admin; ngày sau chỉ Đặt sự kiện).
     """
 
     async def run() -> ItemOut:

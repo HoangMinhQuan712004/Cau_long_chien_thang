@@ -15,7 +15,6 @@ from app.core.audit import audit
 from app.core.errors import AppError
 from app.modules.booking_engine import outbox
 from app.modules.booking_engine.booking_service import (
-    check_viewable,
     normalize_code,
     session_counts,
     session_resources,
@@ -253,7 +252,6 @@ async def create_session(
         raise not_sold("Giờ kết thúc phải sau giờ bắt đầu.")
     if data.date < ctx.today or ctx.at(data.date, (data.start_hour + 1) * 60) <= ctx.now:
         raise AppError("E-004", PAST_SLOT, 422)
-    check_viewable(ctx, data.date)
     resources = await _resources_for(session, ctx, data.resource_codes, data)
 
     start_at = ctx.at(data.date, data.start_hour * 60)

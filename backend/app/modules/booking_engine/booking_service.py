@@ -45,7 +45,7 @@ from app.modules.booking_engine.dto import (
     QuoteItem,
     SearchResult,
 )
-from app.modules.booking_engine.holds import expire_holds
+from app.modules.booking_engine.holds import expire_holds, hold_visible
 from app.modules.booking_engine.models import (
     Allocation,
     Booking,
@@ -117,20 +117,19 @@ async def session_counts(
 # ------------------------------------------------------------------ lịch ngày (BR-001, 002, 004)
 
 
-def check_viewable(ctx: Ctx, day: date) -> None:
-    if day > ctx.last_bookable_day:
-        raise AppError(
-            "E-BOOK-1",
-            f"Chỉ xem và đặt được tới hết ngày {ctx.last_bookable_day:%d/%m/%Y}.",
-            422,
-        )
-
-
 async def calendar(
-    session: AsyncSession, tenant_id: int, day: date, can_counter: bool, can_session: bool
+    session: AsyncSession,
+    tenant_id: int,
+    day: date,
+    can_counter: bool,
+    can_session: bool,
 ) -> CalendarOut:
+    """Xem được mọi ngày (ngày đã qua: chỉ xem) – T-008 AC31b.
+
+    ``can.counter_book``: chỉ hôm nay (cả Admin);
+    ``can.create_session``: từ hôm nay, không giới hạn ngày tới.
+    """
     ctx = await context(session, tenant_id)
-    check_viewable(ctx, day)
     day_start, day_end = ctx.at(day, 0), ctx.at(day, 24 * 60)
 
     resources = list(
@@ -235,8 +234,7 @@ async def calendar(
             Allocation.kind == "hold",
             Allocation.active.is_(True),
             Allocation.time_range.overlaps(Range(day_start, day_end, bounds="[)")),
-            Hold.status == "active",
-            Hold.expires_at > ctx.now,
+            hold_visible(ctx.now),
         )
     )
     for alloc, hold in holds:

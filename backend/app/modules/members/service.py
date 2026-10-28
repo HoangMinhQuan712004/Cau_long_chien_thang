@@ -43,6 +43,7 @@ def _profile(c: Customer, created: bool = False) -> CustomerProfile:
         member_code=c.member_code,
         tier=c.tier,
         created=created,
+        is_active=c.is_active,
     )
 
 
@@ -170,3 +171,9 @@ async def upsert_temp(session: AsyncSession, full_name: str, phone: str) -> None
         .values(kind="temp", full_name=full_name, phone=phone, is_active=True)
         .on_conflict_do_nothing(index_elements=[Customer.phone])
     )
+
+
+async def find_by_phone(session: AsyncSession, phone: str) -> CustomerProfile | None:
+    """Hồ sơ theo SĐT đã chuẩn hóa – chỉ đọc (đặt online không tạo hồ sơ lúc giữ chỗ)."""
+    c = await session.scalar(select(Customer).where(Customer.phone == phone))
+    return _profile(c) if c else None

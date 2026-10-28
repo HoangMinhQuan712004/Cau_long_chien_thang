@@ -8,10 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import AuditActor
 from app.modules.members import service
 from app.modules.members.schemas import CustomerIn, CustomerProfile, MemberSearchItem
+from app.modules.members.service import PHONE_RE, normalize_phone
 
 __all__ = [
     "CustomerIn",
     "CustomerProfile",
+    "PHONE_RE",
+    "find_by_phone",
+    "normalize_phone",
     "MemberSearchItem",
     "resolve_customer",
     "search_members",
@@ -43,3 +47,7 @@ async def upsert_member(
 
 async def upsert_temp(session: AsyncSession, full_name: str, phone: str) -> None:
     await service.upsert_temp(session, full_name, phone)
+
+
+async def find_by_phone(session: AsyncSession, phone: str) -> CustomerProfile | None:
+    return await service.find_by_phone(session, phone)

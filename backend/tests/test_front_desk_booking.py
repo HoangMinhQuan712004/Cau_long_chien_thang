@@ -46,17 +46,21 @@ async def test_calendar_seed_layout(staff):
 
 async def test_calendar_permissions_and_range(admin, staff):
     tomorrow = today() + timedelta(days=1)
-    assert (await calendar(admin, tomorrow))["can"] == {
+    # Admin: tạo sự kiện ngày sau, không giới hạn "hết tháng sau" (T-008 AC31b);
+    # đặt quầy chỉ hôm nay (cả Admin)
+    for day in (tomorrow, today() + timedelta(days=200)):
+        assert (await calendar(admin, day))["can"] == {
+            "counter_book": False,
+            "create_session": True,
+        }
+    # Tài khoản tại máy: chỉ đặt hôm nay, không tạo sự kiện
+    assert (await calendar(staff, tomorrow))["can"] == {
         "counter_book": False,
-        "create_session": True,
+        "create_session": False,
     }
-    assert (await calendar(staff, tomorrow))["can"]["counter_book"] is False
-    past = await calendar(staff, today() - timedelta(days=3))
-    assert past["is_past"] is True and past["can"]["counter_book"] is False
-    r = await staff.get(
-        f"{BK}/calendar", params={"date": (today() + timedelta(days=70)).isoformat()}
-    )
-    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-BOOK-1"
+    past = await calendar(admin, today() - timedelta(days=3))
+    assert past["is_past"] is True
+    assert past["can"] == {"counter_book": False, "create_session": False}
 
 
 async def test_calendar_shows_booking_block_and_unpaid_chip(admin, staff):
@@ -232,13 +236,14 @@ async def test_counter_booking_server_rules(admin, staff):
     court = await new_court(admin, open_time="06:00", close_time="22:00")
     hour = await safe_hour()
     tomorrow = today() + timedelta(days=1)
-    # Ngày mai: chỉ Đặt sự kiện (quầy và Admin) -> 403
+    # Ngày sau: chỉ Đặt sự kiện (quầy và Admin) -> 403
     for client in (staff, admin):
         r = await book(client, court["code"], 8, day=tomorrow)
         assert r.status_code == 403 and r.json()["detail"]["code"] == "E-AUTH-2"
-    # Ngày đã qua
-    r = await book(staff, court["code"], 8, day=today() - timedelta(days=1))
-    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-004"
+    # Ngày đã qua (cả Admin)
+    for client in (staff, admin):
+        r = await book(client, court["code"], 8, day=today() - timedelta(days=1))
+        assert r.status_code == 422 and r.json()["detail"]["code"] == "E-004"
     # Khung đã qua trong hôm nay (giờ kết thúc ≤ bây giờ)
     if hour >= 1:
         full = await new_court(admin)

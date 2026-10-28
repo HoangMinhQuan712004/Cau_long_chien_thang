@@ -47,3 +47,4 @@ class CustomerProfile:
     member_code: str | None
     tier: str | None
     created: bool  # vừa tạo hồ sơ tạm mới
+    is_active: bool = True

@@ -118,11 +118,11 @@ async def test_create_session_rules(admin):
     # Sân không liền nhau
     r = await create_session(admin, [a["code"], c["code"]])
     assert r.status_code == 422 and r.json()["detail"]["code"] == "E-BOOK-2"
-    # Ngày đã qua / quá hết tháng sau
+    # Ngày đã qua -> E-004; ngày rất xa -> được (bỏ giới hạn "hết tháng sau", T-008 AC31b)
     r = await create_session(admin, [a["code"]], day=today() - timedelta(days=1))
     assert r.status_code == 422 and r.json()["detail"]["code"] == "E-004"
-    r = await create_session(admin, [a["code"]], day=today() + timedelta(days=75))
-    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-BOOK-1"
+    r = await create_session(admin, [a["code"]], day=today() + timedelta(days=200))
+    assert r.status_code == 201, r.text
     # Vướng booking tại quầy
     hour = await safe_hour()
     assert (await book(admin, b["code"], hour)).status_code == 201

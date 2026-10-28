@@ -31,6 +31,10 @@ class Backend(Protocol):
         """Tăng bộ đếm của khóa, trả số lần trong cửa sổ hiện tại."""
         ...
 
+    async def peek(self, key: str) -> int:
+        """Số lần hiện tại của khóa (không tăng)."""
+        ...
+
 
 class RedisBackend:
     def __init__(self, url: str):
@@ -43,6 +47,9 @@ class RedisBackend:
             count, _ = await pipe.execute()
         return int(count)
 
+    async def peek(self, key: str) -> int:
+        return int(await self._redis.get(key) or 0)
+
 
 class MemoryBackend:
     """Dùng cho test / chạy cục bộ không có Redis (một tiến trình)."""
@@ -53,6 +60,9 @@ class MemoryBackend:
     async def hit(self, key: str, window_s: int) -> int:
         self.counts[key] = self.counts.get(key, 0) + 1
         return self.counts[key]
+
+    async def peek(self, key: str) -> int:
+        return self.counts.get(key, 0)
 
     def clear(self) -> None:
         self.counts.clear()
@@ -95,6 +105,40 @@ async def check(scope: str, key: str, limit: int, window_s: int) -> int | None:
     if count > limit:
         return max(1, math.ceil((window + 1) * window_s - now))
     return None
+
+
+def _window_key(scope: str, key: str, window_s: int) -> tuple[str, float, int]:
+    now = _clock()
+    window = int(now // window_s)
+    return f"rl:{scope}:{key}:{window}", now, window
+
+
+async def failures_exceeded(scope: str, key: str, limit: int, window_s: int) -> int | None:
+    """Đã có ≥ ``limit`` lần sai trong cửa sổ -> ``Retry-After`` (giây); không tăng bộ đếm.
+
+    Dùng cho đếm nhập sai mật khẩu (ghi bằng ``record_failure``). Backend lỗi -> cho qua.
+    """
+    rl_key, now, window = _window_key(scope, key, window_s)
+    try:
+        count = await get_backend().peek(rl_key)
+    except Exception:
+        logger.warning("Rate limit backend unavailable, allowing request", exc_info=True)
+        return None
+    if count >= limit:
+        return max(1, math.ceil((window + 1) * window_s - now))
+    return None
+
+
+async def record_failure(scope: str, key: str, window_s: int) -> None:
+    rl_key, _, _ = _window_key(scope, key, window_s)
+    try:
+        await get_backend().hit(rl_key, window_s)
+    except Exception:
+        logger.warning("Rate limit backend unavailable, failure not recorded", exc_info=True)
+
+
+def too_many(retry_after: int) -> AppError:
+    return _too_many(retry_after)
 
 
 def _too_many(retry_after: int) -> AppError:
