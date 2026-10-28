@@ -18,6 +18,7 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
   const router = useRouter();
   const [checkout, setCheckout] = useState<Checkout | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     let stop = false;
@@ -26,13 +27,15 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
       const res = await getCheckout(token);
       if (stop) return;
       if (res.ok) {
+        setOffline(false);
         setCheckout(res.data);
         if (res.data.status !== "pending") return; // kết quả cuối từ server: dừng hỏi
       } else if (res.error.status === 404 || res.error.code === "E-WEB-6") {
         setNotFound(true);
         return;
       }
-      // lỗi mạng tạm thời → thử lại
+      // lỗi mạng tạm thời → báo nhẹ và thử lại
+      setOffline(true);
       timer = setTimeout(run, document.visibilityState === "visible" ? 3000 : 10_000);
     };
     void run();
@@ -123,6 +126,12 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
           </button>
         </div>
       )}
+
+      {offline ? (
+        <p role="status" className="mt-3 text-xs text-muted">
+          Chưa kết nối được máy chủ, đang thử lại… (nếu bạn đã chuyển khoản, trang sẽ tự cập nhật khi có mạng.)
+        </p>
+      ) : null}
 
       <div className="mt-5 space-y-1.5 border-t border-border pt-4 text-sm">
         {checkout.items.map((it) => (

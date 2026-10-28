@@ -29,6 +29,7 @@ export function LookupScreen({ hotline }: { hotline: string }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Lookup | null>(null);
   const query = useRef<{ code: string; phone: string } | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
 
   const errCode = !code.trim() ? "Vui lòng nhập mã booking." : "";
   const normalized = normalizePhone(phone);
@@ -47,6 +48,8 @@ export function LookupScreen({ hotline }: { hotline: string }) {
     if (res.ok) {
       query.current = q;
       setResult(res.data);
+      // Điện thoại: kết quả nằm dưới form, đưa vào tầm nhìn.
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     } else {
       query.current = null;
       setError(res.error.code === "E-WEB-7" || res.error.status === 404 ? "Không tìm thấy booking. Kiểm tra lại mã và số điện thoại." : errorText(res.error));
@@ -130,7 +133,9 @@ export function LookupScreen({ hotline }: { hotline: string }) {
         </button>
       </form>
 
-      {result ? <ResultCard result={result} hotline={hotline} /> : null}
+      <div ref={resultRef} className="scroll-mt-20">
+        {result ? <ResultCard result={result} hotline={hotline} /> : null}
+      </div>
     </div>
   );
 }

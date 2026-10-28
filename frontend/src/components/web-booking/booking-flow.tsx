@@ -211,6 +211,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
 
   // ---- Chọn ô / đổi ngày ----
   function toggle(code: string, hour: number) {
+    if (loading) return;
     const cur = cellsRef.current;
     const k = `${code}|${hour}`;
     if (cur.some((c) => cellKey(c) === k)) {
@@ -227,6 +228,8 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
   function applyDate(d: string) {
     dateRef.current = d;
     setDate(d);
+    setCalendar(null);
+    setLoadError("");
     applyCells([]);
     applyStep(1);
     setNotice("");
@@ -253,7 +256,11 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
   async function submit() {
     setSubmitted(true);
     setBanner("");
-    if (errors.name || errors.phone || errors.note || !calendar || !cells.length) return;
+    if (errors.name || errors.phone || errors.note || !calendar || !cells.length) {
+      const first = errors.name ? ids.name : errors.phone ? ids.phone : errors.note ? ids.note : null;
+      if (first) document.getElementById(first)?.focus();
+      return;
+    }
     const order = new Map(calendar.resources.map((r, i) => [r.code, i]));
     const slots = [...cells]
       .sort((a, b) => (order.get(a.code) ?? 0) - (order.get(b.code) ?? 0) || a.hour - b.hour)
@@ -463,10 +470,10 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
           <Legend swatch="bg-primary" text="Xanh = Đang chọn" />
         </ul>
 
-        {loadError && !calendar ? (
+        {loadError ? (
           <div role="alert" className="space-y-2 py-6 text-center text-sm">
             <p className="text-danger">{loadError}</p>
-            <button type="button" onClick={() => void load(date)} className="rounded-lg border border-border px-4 py-2">
+            <button type="button" onClick={() => void load(date)} className="min-h-10 rounded-lg border border-border px-4 py-2">
               Thử lại
             </button>
           </div>
@@ -520,6 +527,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
                           key={h}
                           type="button"
                           onClick={() => toggle(r.code, h)}
+                          disabled={loading}
                           aria-pressed={on}
                           aria-label={`${label}, trống${s.price != null ? `, ${formatVnd(s.price)}` : ""}`}
                           title={s.price != null ? formatVnd(s.price) : undefined}
@@ -548,7 +556,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
           <div className="min-w-0 flex-1">
             <p className="text-xs text-muted">Bạn đang chọn</p>
             {groups.length ? (
-              <ul className="text-sm font-semibold">
+              <ul className="max-h-28 overflow-y-auto text-sm font-semibold">
                 {groups.map((g) => (
                   <li key={g.code}>
                     {g.name} · {formatLongDate(date)} · {g.ranges} ({g.hours.length} giờ)

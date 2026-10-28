@@ -53,7 +53,7 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
       type="button"
       onClick={copy}
       aria-label={`Sao chép ${label}`}
-      className="shrink-0 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium hover:bg-free"
+      className="min-h-8 shrink-0 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium hover:bg-free"
     >
       {done ? "Đã chép" : "Sao chép"}
     </button>
@@ -82,7 +82,7 @@ export function BankBox({ bank, amount, payRef, dim = false }: { bank: Bank; amo
 
 function Row({ label, value, copy, bold, large }: { label: string; value: string; copy?: string; bold?: boolean; large?: boolean }) {
   return (
-    <div className="grid grid-cols-[7rem_1fr] items-center gap-2">
+    <div className="grid gap-0.5 sm:grid-cols-[7rem_1fr] sm:items-center sm:gap-2">
       <dt className="text-muted">{label}</dt>
       <dd className="flex min-w-0 items-center gap-2">
         <span className={`min-w-0 break-all ${bold ? "font-semibold" : ""} ${large ? "text-base" : ""}`}>{value}</span>

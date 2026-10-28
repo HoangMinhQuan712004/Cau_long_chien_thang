@@ -7,8 +7,8 @@ import { phoneHref, site } from "@/lib/site";
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-primary">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:gap-6">
+        <Link href="/" className="flex min-w-0 items-center gap-2 font-bold text-primary">
           <span aria-hidden className="grid size-8 place-items-center rounded-lg bg-primary text-xs text-primary-fg">
             CL
           </span>
@@ -17,8 +17,8 @@ export function SiteHeader() {
         <Suspense fallback={null}>
           <SiteNav />
         </Suspense>
-        <a href={phoneHref} className="ml-auto text-sm hover:text-primary">
-          <span className="text-muted">Hotline </span>
+        <a href={phoneHref} className="ml-auto shrink-0 text-sm hover:text-primary">
+          <span className="hidden text-muted sm:inline">Hotline </span>
           <b>{site.phone}</b>
         </a>
       </div>
