@@ -2,6 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, Query, status
 
+from app.core.errors import Conflict
 from app.modules.auth.deps import CurrentUser, SessionDep, StaffUser
 from app.modules.bookings import service
 from app.modules.bookings.models import BookingSource, BookingStatus
@@ -27,8 +28,21 @@ async def quote(slots: list[SlotIn], session: SessionDep):
     return await service.quote(session, slots)
 
 
-@router.post("", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=BookingOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={409: {"description": "code: phone_required (xác minh SĐT qua /auth/phone/*)"}},
+)
 async def create_booking(data: BookingCreateIn, user: CurrentUser, session: SessionDep):
+    # khách Google phải xác minh SĐT trước
+    if user.phone is None:
+        raise Conflict(
+            {
+                "code": "phone_required",
+                "message": "Vui lòng xác minh số điện thoại trước khi đặt sân.",
+            }
+        )
     return await service.create_booking(
         session,
         data.slots,
