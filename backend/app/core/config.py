@@ -16,7 +16,8 @@ def _valid_fernet_key(key: str) -> bool:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # hide_input_in_errors: lỗi cấu hình lúc khởi động không in giá trị env (DATABASE_URL, khóa…)
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
 
     APP_NAME: str = "Cau Long API"
     # development (máy dev) | staging (link dev công khai) | production.
