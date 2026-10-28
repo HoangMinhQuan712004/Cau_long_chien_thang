@@ -23,20 +23,25 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
   useEffect(() => {
     let stop = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const next = () => {
+      timer = setTimeout(run, document.visibilityState === "visible" ? 3000 : 10_000);
+    };
     const run = async () => {
       const res = await getCheckout(token);
       if (stop) return;
       if (res.ok) {
         setOffline(false);
         setCheckout(res.data);
-        if (res.data.status !== "pending") return; // kết quả cuối từ server: dừng hỏi
-      } else if (res.error.status === 404 || res.error.code === "E-WEB-6") {
+        if (res.data.status === "pending") next(); // còn chờ tiền → hỏi tiếp; paid/expired là kết quả cuối → dừng
+        return;
+      }
+      if (res.error.status === 404 || res.error.code === "E-WEB-6") {
         setNotFound(true);
         return;
       }
-      // lỗi mạng tạm thời → báo nhẹ và thử lại
+      // Chỉ lỗi thật (mạng / 5xx) mới báo mất kết nối, rồi thử lại.
       setOffline(true);
-      timer = setTimeout(run, document.visibilityState === "visible" ? 3000 : 10_000);
+      next();
     };
     void run();
     return () => {
