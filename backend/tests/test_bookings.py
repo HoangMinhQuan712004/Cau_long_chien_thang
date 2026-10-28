@@ -7,7 +7,8 @@ from sqlalchemy import update
 from app.core.db import SessionLocal
 from app.modules.bookings import service as bookings_service
 from app.modules.bookings.models import Booking
-from tests.conftest import API, new_customer, slot
+from tests.client import API
+from tests.conftest import new_customer, slot
 
 
 async def test_quote_uses_price_rules(anon):
@@ -98,9 +99,9 @@ async def test_expire_pending_frees_slot(customer):
 
 
 async def test_staff_counter_booking_and_payment(admin, customer):
-    # Khách không vào được API admin
+    # Khách (JWT cổng khách) không có phiên quản trị ⇒ không vào được API admin
     r = await customer.get(f"{API}/admin/bookings")
-    assert r.status_code == 403
+    assert r.status_code == 401
 
     r = await admin.post(
         f"{API}/admin/bookings",
@@ -115,8 +116,8 @@ async def test_staff_counter_booking_and_payment(admin, customer):
     assert r.status_code == 201, r.text
     assert r.json()["amount"] == booking["total_amount"]
 
-    r = await admin.get(f"{API}/bookings/{booking['id']}")
-    assert r.json()["status"] == "confirmed"
+    r = await admin.get(f"{API}/admin/bookings", params={"status": "confirmed"})
+    assert booking["id"] in [b["id"] for b in r.json()]
 
 
 async def test_availability_lists_busy_ranges(anon, customer):
