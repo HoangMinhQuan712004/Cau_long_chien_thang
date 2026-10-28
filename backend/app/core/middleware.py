@@ -15,8 +15,8 @@ from app.core.config import settings
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 # Cookie xác thực của trình duyệt (app.modules.auth.deps)
 SESSION_COOKIES = ("access_token", "refresh_token")
-# Đường dẫn công khai nhận request từ bên thứ ba (webhook cổng thanh toán – T-007)
-ORIGIN_EXEMPT_PATHS: set[str] = set()
+# Đường dẫn công khai nhận request từ bên thứ ba (webhook cổng thanh toán – xác thực bằng HMAC)
+ORIGIN_EXEMPT_PATHS: set[str] = {f"{settings.API_PREFIX}/payments/sepay/webhook"}
 
 
 def _error(status: int, code: str, message: str) -> JSONResponse:
@@ -35,6 +35,16 @@ def _origin_of(url: str) -> str | None:
     if not parts.scheme or not parts.netloc:
         return None
     return f"{parts.scheme}://{parts.netloc}".lower()
+
+
+def origin_allowed(headers: dict[bytes, bytes]) -> bool:
+    """Origin (hoặc Referer khi thiếu Origin) thuộc ``ALLOWED_ORIGINS``."""
+    origin = headers.get(b"origin", b"").decode("latin-1").strip()
+    if not origin or origin == "null":
+        referer = headers.get(b"referer", b"").decode("latin-1").strip()
+        origin = _origin_of(referer) if referer else None
+    allowed = {o.rstrip("/").lower() for o in settings.ALLOWED_ORIGINS}
+    return bool(origin) and origin.rstrip("/").lower() in allowed
 
 
 def _has_session_cookie(cookie_header: str) -> bool:
@@ -57,17 +67,11 @@ class OriginCheckMiddleware:
         ):
             headers = _headers(scope)
             cookie = headers.get(b"cookie", b"").decode("latin-1")
-            if cookie and _has_session_cookie(cookie):
-                origin = headers.get(b"origin", b"").decode("latin-1").strip()
-                if not origin or origin == "null":
-                    referer = headers.get(b"referer", b"").decode("latin-1").strip()
-                    origin = _origin_of(referer) if referer else None
-                allowed = {o.rstrip("/").lower() for o in settings.ALLOWED_ORIGINS}
-                if not origin or origin.rstrip("/").lower() not in allowed:
-                    await _error(
-                        403, "E-SEC-1", "Yêu cầu không hợp lệ (nguồn gửi không được phép)."
-                    )(scope, receive, send)
-                    return
+            if cookie and _has_session_cookie(cookie) and not origin_allowed(headers):
+                await _error(403, "E-SEC-1", "Yêu cầu không hợp lệ (nguồn gửi không được phép).")(
+                    scope, receive, send
+                )
+                return
         await self.app(scope, receive, send)
 
 

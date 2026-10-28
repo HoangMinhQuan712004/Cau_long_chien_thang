@@ -471,3 +471,116 @@ class PublicPrices(BaseModel):
     opening_hours: PublicOpeningHours
     peak_bands: list[PublicPeakBands]
     special_days: list[PublicSpecialDay]
+
+
+# ---------- Đặt online (T-008, ADR-007) ----------
+
+
+class PublicSlot(BaseModel):
+    start_hour: int
+    state: Literal["free", "booked", "event", "closed"]
+    price: int | None = None
+    band: Literal["offpeak", "partial", "peak"] | None = None
+    taken: int | None = None
+    capacity: int | None = None
+
+
+class PublicCalendarResource(BaseModel):
+    code: str
+    name: str
+    slots: list[PublicSlot]
+
+
+class PublicCalendar(BaseModel):
+    """Lịch cho khách: không tên, SĐT, mã của ai."""
+
+    date: dt.date
+    server_now: dt.datetime
+    columns: list[int]
+    resources: list[PublicCalendarResource]
+
+
+class OnlineSlotIn(StrictIn):
+    resource_code: str = Field(max_length=10)
+    start_hour: int = Field(ge=0, le=23)
+
+
+class CheckoutCreate(StrictIn):
+    """Phần engine của lượt đặt online – khách (snapshot) do lớp gọi dựng."""
+
+    date: dt.date
+    slots: list[OnlineSlotIn] = Field(max_length=200)
+    note: str | None = Field(default=None, max_length=200)
+
+
+class CheckoutItem(BaseModel):
+    code: str
+    resource_code: str
+    resource_name: str
+    play_date: dt.date
+    start_time: str
+    end_time: str
+    start_hour: int
+    end_hour: int
+    hours: int
+    amount: int
+
+
+class CheckoutView(BaseModel):
+    """Trạng thái lượt thanh toán (engine) – lớp gọi che SĐT và thêm thông tin ngân hàng."""
+
+    status: Literal["pending", "paid", "expired"]
+    expires_at: dt.datetime
+    server_now: dt.datetime
+    amount: int
+    paid_amount: int
+    paid_at: dt.datetime | None
+    pay_ref: str
+    customer_name: str
+    customer_phone: str
+    play_date: dt.date
+    items: list[CheckoutItem]
+
+
+class CheckoutCreated(CheckoutView):
+    token: str = Field(description="Chuỗi truy cập – chỉ trả ở lần tạo; DB chỉ lưu SHA-256")
+
+
+class LookupPending(BaseModel):
+    expires_at: dt.datetime
+    server_now: dt.datetime
+    pay_ref: str
+    amount: int
+
+
+class LookupResult(BaseModel):
+    code: str
+    status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
+    resource_name: str
+    play_date: dt.date
+    start_time: str
+    end_time: str
+    hours: int
+    customer_name: str
+    customer_phone: str
+    amount: int
+    payment_method: PaymentMethod | None
+    paid_at: dt.datetime | None
+    pending: LookupPending | None = None
+
+
+class OnlinePaymentIn(BaseModel):
+    pay_ref: str
+    amount: int
+    transaction_at: dt.datetime
+    reference: str = Field(description="Mã giao dịch cổng (vd 'sepay:123') – gắn vào gateway_ref")
+
+
+class OnlinePaymentResult(BaseModel):
+    outcome: Literal["applied", "partial", "refund_needed", "unmatched"]
+    refund_amount: int = 0
+    booking_codes: list[str] = Field(default_factory=list)
+    checkout_closed_unpaid: bool = Field(
+        default=False,
+        description="Lượt thanh toán hết hạn khi chưa đủ tiền -> tiền đã nhận cần hoàn",
+    )

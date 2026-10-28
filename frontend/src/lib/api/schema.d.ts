@@ -558,6 +558,152 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/web/booking/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Calendar
+         * @description Lịch đặt sân cho khách: trạng thái + giá từng ô; ngày đã qua -> 422 ``E-WEB-2``.
+         */
+        get: operations["calendar_api_v1_web_booking_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Checkout
+         * @description Giữ chỗ 5 phút + cấp mã, trả ``token`` (một lần) để mở trang thanh toán.
+         *
+         *     Lỗi: E-WEB-1 (dữ liệu), E-WEB-2 (khung không đặt được), E-WEB-3 (vừa có người đặt, kèm
+         *     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng), E-019.
+         */
+        post: operations["create_checkout_api_v1_web_booking_checkouts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/checkouts/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Checkout
+         * @description Trạng thái lượt thanh toán (trang hỏi mỗi 3 giây). Token sai -> 404 ``E-WEB-6``.
+         */
+        get: operations["get_checkout_api_v1_web_booking_checkouts__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lookup
+         * @description Tra cứu theo mã booking + SĐT. Sai mã hay sai SĐT -> cùng 404 ``E-WEB-7``.
+         */
+        post: operations["lookup_api_v1_web_booking_lookup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/bank-transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Bank Transactions
+         * @description Tiền về (mới nhất trước). ``needs_action=true``: chưa xử lý và cần Admin xem
+         *     (``unmatched``, ``refund_needed``, ``applied`` có tiền thừa).
+         */
+        get: operations["list_bank_transactions_api_v1_payments_bank_transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/bank-transactions/{txn_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Bank Transaction
+         * @description Đánh dấu Đã xử lý (ghi chú 1–500 ký tự, E-001); đã xử lý rồi -> 409 ``E-PAY-2``.
+         */
+        post: operations["resolve_bank_transaction_api_v1_payments_bank_transactions__txn_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/dev/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Simulate Payment
+         * @description Giả lập tiền về cho ``pay_ref`` (chỉ dev/staging, ``PAYMENTS_SIMULATE=true``).
+         *
+         *     Trả giao dịch vừa ghi (``outcome``, ``refund_amount``, ``booking_codes``…).
+         */
+        post: operations["simulate_payment_api_v1_payments_dev_simulate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -579,6 +725,60 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * BankInfo
+         * @description Thông tin chuyển khoản hiển thị cho khách (QR SePay).
+         */
+        BankInfo: {
+            /** Bank Name */
+            bank_name: string;
+            /** Account Number */
+            account_number: string;
+            /** Account Name */
+            account_name: string;
+            /** Qr Url */
+            qr_url: string;
+        };
+        /** BankTransactionOut */
+        BankTransactionOut: {
+            /** Id */
+            id: number;
+            /** Provider */
+            provider: string;
+            /** Provider Txn Id */
+            provider_txn_id: string;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /**
+             * Transaction At
+             * Format: date-time
+             */
+            transaction_at: string;
+            /** Amount */
+            amount: number;
+            /** Content */
+            content: string;
+            /** Code */
+            code: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "applied" | "partial" | "refund_needed" | "unmatched" | "ignored";
+            /** Refund Amount */
+            refund_amount: number;
+            /** Booking Codes */
+            booking_codes: string[];
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Resolved By Label */
+            resolved_by_label: string | null;
+            /** Note */
+            note: string | null;
+        };
         /** CalendarBlock */
         CalendarBlock: {
             /**
@@ -671,6 +871,95 @@ export interface components {
              * @description Giờ bắt đầu các ô Xám (không bán) của sân này
              */
             off_hours: number[];
+        };
+        /** CheckoutCreatedOut */
+        CheckoutCreatedOut: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "paid" | "expired";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /** Amount */
+            amount: number;
+            /** Paid Amount */
+            paid_amount: number;
+            /** Paid At */
+            paid_at: string | null;
+            /** Pay Ref */
+            pay_ref: string;
+            /** @description Chỉ có khi đang chờ thanh toán */
+            bank: components["schemas"]["BankInfo"] | null;
+            customer: components["schemas"]["WebCustomer"];
+            /** Items */
+            items: components["schemas"]["WebCheckoutItem"][];
+            /**
+             * Token
+             * @description Chìa khóa trang /thanh-toan/{token} – chỉ trả ở lần tạo
+             */
+            token: string;
+        };
+        /** CheckoutIn */
+        CheckoutIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Slots */
+            slots?: components["schemas"]["OnlineSlotIn"][];
+            /**
+             * Full Name
+             * @default
+             */
+            full_name: string;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+            /** Note */
+            note?: string | null;
+        };
+        /** CheckoutOut */
+        CheckoutOut: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "paid" | "expired";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /** Amount */
+            amount: number;
+            /** Paid Amount */
+            paid_amount: number;
+            /** Paid At */
+            paid_at: string | null;
+            /** Pay Ref */
+            pay_ref: string;
+            /** @description Chỉ có khi đang chờ thanh toán */
+            bank: components["schemas"]["BankInfo"] | null;
+            customer: components["schemas"]["WebCustomer"];
+            /** Items */
+            items: components["schemas"]["WebCheckoutItem"][];
         };
         /** CollectIn */
         CollectIn: {
@@ -824,6 +1113,71 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** LookupIn */
+        LookupIn: {
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+        };
+        /** LookupOut */
+        LookupOut: {
+            /** Code */
+            code: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "paid" | "unpaid" | "uncollectible" | "pending" | "expired";
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Hours */
+            hours: number;
+            /** Customer Name */
+            customer_name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+            /** Amount */
+            amount: number;
+            /** Payment Method Label */
+            payment_method_label: string | null;
+            /** Paid At */
+            paid_at: string | null;
+            pending?: components["schemas"]["LookupPendingOut"] | null;
+        };
+        /** LookupPendingOut */
+        LookupPendingOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /** Pay Ref */
+            pay_ref: string;
+            /** Amount */
+            amount: number;
+            bank: components["schemas"]["BankInfo"] | null;
+        };
         /**
          * MemberSearchItem
          * @description Một dòng kết quả tìm hội viên – SĐT đã che (BR-021), không lộ id nội bộ.
@@ -844,6 +1198,13 @@ export interface components {
             tier: string | null;
             /** Is Active */
             is_active: boolean;
+        };
+        /** OnlineSlotIn */
+        OnlineSlotIn: {
+            /** Resource Code */
+            resource_code: string;
+            /** Start Hour */
+            start_hour: number;
         };
         /** PostIn */
         PostIn: {
@@ -964,6 +1325,15 @@ export interface components {
             /** Prices */
             prices: components["schemas"]["PriceCellIn"][];
         };
+        /** PublicCalendarResource */
+        PublicCalendarResource: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Slots */
+            slots: components["schemas"]["PublicSlot"][];
+        };
         /** PublicOpeningHours */
         PublicOpeningHours: {
             /** Earliest Open */
@@ -1018,6 +1388,24 @@ export interface components {
             name: string;
             /** Resource Count */
             resource_count: number;
+        };
+        /** PublicSlot */
+        PublicSlot: {
+            /** Start Hour */
+            start_hour: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "free" | "booked" | "event" | "closed";
+            /** Price */
+            price?: number | null;
+            /** Band */
+            band?: ("offpeak" | "partial" | "peak") | null;
+            /** Taken */
+            taken?: number | null;
+            /** Capacity */
+            capacity?: number | null;
         };
         /** PublicSpecialDay */
         PublicSpecialDay: {
@@ -1100,6 +1488,14 @@ export interface components {
             full_name: string;
             /** Phone */
             phone?: string | null;
+        };
+        /** ResolveIn */
+        ResolveIn: {
+            /**
+             * Note
+             * @default
+             */
+            note: string;
         };
         /** ResourceCreate */
         ResourceCreate: {
@@ -1335,6 +1731,13 @@ export interface components {
              */
             created_at: string;
         };
+        /** SimulateIn */
+        SimulateIn: {
+            /** Pay Ref */
+            pay_ref: string;
+            /** Amount */
+            amount: number;
+        };
         /** SpecialDayIn */
         SpecialDayIn: {
             /**
@@ -1534,6 +1937,58 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WebCalendarOut */
+        WebCalendarOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /** Online Enabled */
+            online_enabled: boolean;
+            /** Hold Minutes */
+            hold_minutes: number;
+            /** Columns */
+            columns: number[];
+            /** Resources */
+            resources: components["schemas"]["PublicCalendarResource"][];
+        };
+        /** WebCheckoutItem */
+        WebCheckoutItem: {
+            /** Code */
+            code: string;
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Start Hour */
+            start_hour: number;
+            /** Hours */
+            hours: number;
+            /** Amount */
+            amount: number;
+        };
+        /** WebCustomer */
+        WebCustomer: {
+            /** Full Name */
+            full_name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
         };
     };
     responses: never;
@@ -2577,6 +3032,243 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calendar_api_v1_web_booking_calendar_get: {
+        parameters: {
+            query: {
+                date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_checkout_api_v1_web_booking_checkouts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_checkout_api_v1_web_booking_checkouts__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lookup_api_v1_web_booking_lookup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LookupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_bank_transactions_api_v1_payments_bank_transactions_get: {
+        parameters: {
+            query?: {
+                needs_action?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankTransactionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_bank_transaction_api_v1_payments_bank_transactions__txn_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                txn_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankTransactionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simulate_payment_api_v1_payments_dev_simulate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankTransactionOut"];
                 };
             };
             /** @description Validation Error */

@@ -91,13 +91,29 @@ class RequestIdLogFilter(logging.Filter):
         return True
 
 
+# Token truy cập lượt thanh toán nằm trong đường dẫn – không được ghi ra log (T-008 SEC3)
+_SECRET_PATH = re.compile(r"(/web/booking/checkouts/)[^/?\s]+")
+
+
 class StripQueryLogFilter(logging.Filter):
-    """Access log của uvicorn: bỏ query string (có thể chứa SĐT, mã tìm kiếm)."""
+    """Access log của uvicorn: bỏ query string (SĐT, mã tìm kiếm) và che token checkout."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         args = record.args
         if isinstance(args, tuple) and len(args) >= 3 and isinstance(args[2], str):
-            record.args = (*args[:2], args[2].split("?", 1)[0], *args[3:])
+            path = _SECRET_PATH.sub(lambda m: m.group(1) + "***", args[2].split("?", 1)[0])
+            record.args = (*args[:2], path, *args[3:])
+        return True
+
+
+class SecretPathLogFilter(logging.Filter):
+    """Che token checkout trong mọi thông điệp log (đã ghép tham số)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        masked = _SECRET_PATH.sub(lambda m: m.group(1) + "***", message)
+        if masked != message:
+            record.msg, record.args = masked, None
         return True
 
 
@@ -114,3 +130,7 @@ def setup_logging() -> None:
     access = logging.getLogger("uvicorn.access")
     if not any(isinstance(f, StripQueryLogFilter) for f in access.filters):
         access.addFilter(StripQueryLogFilter())
+    # Client HTTP (httpx) ghi cả URL – che token checkout nếu có
+    client = logging.getLogger("httpx")
+    if not any(isinstance(f, SecretPathLogFilter) for f in client.filters):
+        client.addFilter(SecretPathLogFilter())
