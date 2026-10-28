@@ -113,21 +113,26 @@ async def anon() -> AsyncIterator[AsyncClient]:
 
 
 _counter = 0
+CUSTOMER_PASSWORD = "Password123"
+
+
+def unique_phone() -> str:
+    """SĐT duy nhất cho test (``08`` + 8 số ngẫu nhiên)."""
+    return "08" + str(uuid.uuid4().int)[:8]
 
 
 @asynccontextmanager
-async def new_customer() -> AsyncIterator[AsyncClient]:
-    """Client đã đăng ký + đăng nhập (cookie) bằng một khách hàng mới."""
+async def new_customer(phone: str | None = None) -> AsyncIterator[AsyncClient]:
+    """Client đã đăng ký + đăng nhập (JWT cookie) bằng một khách mới (SĐT chưa xác minh)."""
     global _counter
     _counter += 1
     async with _client() as c:
         r = await c.post(
             f"{API}/auth/register",
             json={
-                "email": f"user{_counter}@test.vn",
-                "password": "password123",
                 "full_name": f"Khách {_counter}",
-                "phone": "0900000000",
+                "phone": phone or unique_phone(),
+                "password": CUSTOMER_PASSWORD,
             },
         )
         assert r.status_code == 201, r.text
@@ -140,42 +145,40 @@ async def customer() -> AsyncIterator[AsyncClient]:
         yield c
 
 
+async def sign_in(client: AsyncClient, login: str, password: str):
+    return await client.post(f"{API}/auth/sign-in", json={"login": login, "password": password})
+
+
 @pytest.fixture
 async def admin() -> AsyncIterator[AsyncClient]:
+    """Admin đăng nhập bằng SĐT (phiên quản trị, cookie ``admin_session``)."""
     async with _client() as c:
-        r = await c.post(
-            f"{API}/auth/login",
-            json={"email": settings.FIRST_ADMIN_EMAIL, "password": settings.FIRST_ADMIN_PASSWORD},
-        )
+        r = await sign_in(c, settings.FIRST_ADMIN_PHONE, settings.FIRST_ADMIN_PASSWORD)
         assert r.status_code == 200, r.text
         yield c
 
 
-_STAFF_EMAIL = "quay@test.vn"
-_STAFF_PASSWORD = "password123"
+STAFF_NAME = "Nhân Viên Quầy"
+STAFF_PASSWORD = "Password123"
+_staff_username: str | None = None
+
+
+def is_staff_label(label: str | None) -> bool:
+    """Nhãn người thao tác của nhân viên fixture: ``NV00x · Nhân Viên Quầy`` (ADR-008 §2)."""
+    return bool(label) and label.startswith("NV") and label.endswith(f" · {STAFF_NAME}")
 
 
 @pytest.fixture
 async def staff(admin: AsyncClient) -> AsyncIterator[AsyncClient]:
-    """Client đăng nhập bằng "Tài khoản tại máy" (vai ``staff``) – tạo lần đầu qua API admin."""
-    async with _client() as c:
-        r = await c.post(
-            f"{API}/auth/login", json={"email": _STAFF_EMAIL, "password": _STAFF_PASSWORD}
+    """Nhân viên (vai ``staff``): tạo một lần qua ``/admin/staff``, đăng nhập bằng tên đăng nhập."""
+    global _staff_username
+    if _staff_username is None:
+        created = await admin.post(
+            f"{API}/admin/staff", json={"full_name": STAFF_NAME, "password": STAFF_PASSWORD}
         )
-        if r.status_code == 401:
-            created = await admin.post(
-                f"{API}/admin/users",
-                json={
-                    "email": _STAFF_EMAIL,
-                    "password": _STAFF_PASSWORD,
-                    "full_name": "Tài khoản tại máy",
-                    "phone": "0911222333",
-                    "role": "staff",
-                },
-            )
-            assert created.status_code == 201, created.text
-            r = await c.post(
-                f"{API}/auth/login", json={"email": _STAFF_EMAIL, "password": _STAFF_PASSWORD}
-            )
+        assert created.status_code == 201, created.text
+        _staff_username = created.json()["username"]
+    async with _client() as c:
+        r = await sign_in(c, _staff_username, STAFF_PASSWORD)
         assert r.status_code == 200, r.text
         yield c

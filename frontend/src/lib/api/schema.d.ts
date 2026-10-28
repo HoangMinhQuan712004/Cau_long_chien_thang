@@ -4,6 +4,29 @@
  */
 
 export interface paths {
+    "/api/v1/auth/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign In
+         * @description Một ô "SĐT hoặc tên đăng nhập" + mật khẩu.
+         *
+         *     Khách -> JWT (cookie); Admin / NV -> phiên quản trị (cookie ``admin_session``, 12 giờ cứng).
+         *     Lỗi: 401 E-AUTH-10 · 423 E-AUTH-11 (khóa 15 phút, ``retry_after``) · 429 E-AUTH-12 (theo IP).
+         */
+        post: operations["sign_in_api_v1_auth_sign_in_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -13,25 +36,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register */
+        /**
+         * Register
+         * @description Đăng ký khách bằng SĐT (chưa xác minh – cần OTP mới coi là đã xác minh).
+         *
+         *     Lỗi: 409 E-AUTH-22 (SĐT đã có chủ) · 429 E-SEC-5 (> 10 lần / giờ / IP).
+         */
         post: operations["register_api_v1_auth_register_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Login */
-        post: operations["login_api_v1_auth_login_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -89,19 +100,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/users": {
+    "/api/v1/admin/auth/me": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Users */
-        get: operations["list_users_api_v1_admin_users_get"];
+        /** Admin Me */
+        get: operations["admin_me_api_v1_admin_auth_me_get"];
         put?: never;
-        /** Create Staff */
-        post: operations["create_staff_api_v1_admin_users_post"];
+        post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Logout
+         * @description Kết thúc phiên trên máy này (không ảnh hưởng phiên ở máy khác).
+         */
+        post: operations["admin_logout_api_v1_admin_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Staff
+         * @description Mã, họ tên, tên đăng nhập, trạng thái, lần đăng nhập gần nhất, số phiên đang mở.
+         */
+        get: operations["list_staff_api_v1_admin_staff_get"];
+        put?: never;
+        /**
+         * Create Staff
+         * @description Chỉ họ tên + mật khẩu; mã ``NV…`` + tên đăng nhập tự sinh.
+         */
+        post: operations["create_staff_api_v1_admin_staff_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Staff
+         * @description Sửa họ tên; khóa (thu hồi mọi phiên – ``account_disabled``) / mở khóa. 404 E-STAFF-1.
+         */
+        patch: operations["update_staff_api_v1_admin_staff__staff_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Staff Password
+         * @description Đặt lại mật khẩu: thu hồi mọi phiên (``password_changed``), gỡ khóa do nhập sai.
+         */
+        post: operations["reset_staff_password_api_v1_admin_staff__staff_id__password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Staff Sessions
+         * @description Phiên đang mở (IP đã che).
+         */
+        get: operations["list_staff_sessions_api_v1_admin_staff__staff_id__sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Staff Session
+         * @description Đăng xuất từ xa một phiên (``revoked_by_admin``). 404 E-STAFF-1 / E-STAFF-2.
+         */
+        delete: operations["revoke_staff_session_api_v1_admin_staff__staff_id__sessions__session_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -773,6 +907,46 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AdminAccountOut
+         * @description Thẻ tài khoản khu quản trị.
+         */
+        AdminAccountOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "admin" | "staff";
+            /** Display Name */
+            display_name: string;
+            /** Role Label */
+            role_label: string;
+            /** Staff Code */
+            staff_code?: string | null;
+        };
+        /** AdminSessionOut */
+        AdminSessionOut: {
+            account: components["schemas"]["AdminAccountOut"];
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** AdminSignInOut */
+        AdminSignInOut: {
+            account: components["schemas"]["AdminAccountOut"];
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "admin";
+        };
+        /**
          * BankInfo
          * @description Thông tin chuyển khoản hiển thị cho khách (QR SePay).
          */
@@ -1036,6 +1210,15 @@ export interface components {
             member_code?: string | null;
             temp?: components["schemas"]["TempCustomerIn"] | null;
         };
+        /** CustomerSignInOut */
+        CustomerSignInOut: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "customer";
+            account: components["schemas"]["UserOut"];
+        };
         /** FrontDeskBookingIn */
         FrontDeskBookingIn: {
             /** Resource Code */
@@ -1158,16 +1341,6 @@ export interface components {
             code: string;
             /** Name */
             name: string;
-        };
-        /** LoginIn */
-        LoginIn: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Password */
-            password: string;
         };
         /** LookupIn */
         LookupIn: {
@@ -1586,17 +1759,15 @@ export interface components {
         };
         /** RegisterIn */
         RegisterIn: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Password */
-            password: string;
             /** Full Name */
             full_name: string;
             /** Phone */
-            phone?: string | null;
+            phone: string;
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
         };
         /** ResolveIn */
         ResolveIn: {
@@ -1840,6 +2011,16 @@ export interface components {
              */
             created_at: string;
         };
+        /**
+         * SignInIn
+         * @description Ô "Số điện thoại hoặc tên đăng nhập" – chuẩn hóa ở service.
+         */
+        SignInIn: {
+            /** Login */
+            login: string;
+            /** Password */
+            password: string;
+        };
         /** SimulateIn */
         SimulateIn: {
             /** Pay Ref */
@@ -1884,21 +2065,74 @@ export interface components {
              */
             day_type: "holiday";
         };
-        /** StaffCreateIn */
+        /**
+         * StaffCreateIn
+         * @description Chỉ họ tên + mật khẩu; mã ``NV…`` và tên đăng nhập do hệ thống sinh.
+         */
         StaffCreateIn: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Password */
-            password: string;
             /** Full Name */
             full_name: string;
-            /** Phone */
-            phone?: string | null;
-            /** @default staff */
-            role: components["schemas"]["Role"];
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
+        };
+        /** StaffOut */
+        StaffOut: {
+            /** Id */
+            id: number;
+            /** Staff Code */
+            staff_code: string;
+            /** Full Name */
+            full_name: string;
+            /** Username */
+            username: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Login At */
+            last_login_at: string | null;
+            /** Active Sessions */
+            active_sessions: number;
+        };
+        /** StaffPasswordIn */
+        StaffPasswordIn: {
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
+        };
+        /** StaffSessionOut */
+        StaffSessionOut: {
+            /** Id */
+            id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** User Agent */
+            user_agent: string | null;
+            /** Ip Masked */
+            ip_masked: string | null;
+        };
+        /** StaffUpdateIn */
+        StaffUpdateIn: {
+            /** Full Name */
+            full_name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
         };
         /** TempCustomerIn */
         TempCustomerIn: {
@@ -2004,32 +2238,22 @@ export interface components {
             version: number;
         };
         /**
-         * UserListItem
-         * @description Dòng danh sách tài khoản: SĐT đã che ở server (ADR-004 S12).
+         * UserOut
+         * @description Tài khoản khách – chỉ trả cho **chính người đó** (SĐT đầy đủ của mình).
          */
-        UserListItem: {
-            /** Id */
-            id: number;
-            /** Email */
-            email: string;
-            /** Full Name */
-            full_name: string;
-            /** Phone Masked */
-            phone_masked: string | null;
-            role: components["schemas"]["Role"];
-            /** Is Active */
-            is_active: boolean;
-        };
-        /** UserOut */
         UserOut: {
             /** Id */
             id: number;
-            /** Email */
-            email: string;
-            /** Full Name */
-            full_name: string;
             /** Phone */
             phone: string | null;
+            /** Phone Verified */
+            phone_verified: boolean;
+            /** Username */
+            username: string | null;
+            /** Full Name */
+            full_name: string;
+            /** Google Email */
+            google_email: string | null;
             role: components["schemas"]["Role"];
             /** Is Active */
             is_active: boolean;
@@ -2108,6 +2332,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    sign_in_api_v1_auth_sign_in_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignInIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerSignInOut"] | components["schemas"]["AdminSignInOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     register_api_v1_auth_register_post: {
         parameters: {
             query?: never;
@@ -2123,39 +2380,6 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    login_api_v1_auth_login_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LoginIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2232,7 +2456,7 @@ export interface operations {
             };
         };
     };
-    list_users_api_v1_admin_users_get: {
+    admin_me_api_v1_admin_auth_me_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2247,12 +2471,50 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserListItem"][];
+                    "application/json": components["schemas"]["AdminSessionOut"];
                 };
             };
         };
     };
-    create_staff_api_v1_admin_users_post: {
+    admin_logout_api_v1_admin_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_staff_api_v1_admin_staff_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOut"][];
+                };
+            };
+        };
+    };
+    create_staff_api_v1_admin_staff_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2271,8 +2533,137 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserOut"];
+                    "application/json": components["schemas"]["StaffOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_staff_api_v1_admin_staff__staff_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_staff_password_api_v1_admin_staff__staff_id__password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPasswordIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_staff_sessions_api_v1_admin_staff__staff_id__sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_staff_session_api_v1_admin_staff__staff_id__sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: number;
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

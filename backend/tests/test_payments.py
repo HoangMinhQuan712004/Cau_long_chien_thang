@@ -10,7 +10,7 @@ from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.booking_engine.models import Booking, Resource
-from tests.conftest import API, idem
+from tests.conftest import API, idem, is_staff_label
 from tests.helpers_booking import (
     BK,
     at,
@@ -70,7 +70,7 @@ async def test_collect_cash(admin, staff):
     assert item["version"] == 2 and item["actions"] == []
     pay = item["payment"]
     assert (pay["payment_status"], pay["payment_method"]) == ("paid", "cash")
-    assert pay["collected_by"] == "Tài khoản tại máy" and pay["paid_at"]
+    assert is_staff_label(pay["collected_by"]) and pay["paid_at"]
     assert pay["amount"] == b["payment"]["amount"]
     cal = await calendar(staff)
     assert cal["unpaid_count"] == before - 1
@@ -142,7 +142,7 @@ async def test_uncollectible_keeps_slot(admin, staff):
     pay = r.json()["payment"]
     assert pay["payment_status"] == "uncollectible"
     assert pay["uncollectible_reason"] == "<script>alert(1)</script>"
-    assert pay["marked_by"] == "Tài khoản tại máy" and pay["marked_at"]
+    assert is_staff_label(pay["marked_by"]) and pay["marked_at"]
     assert r.json()["actions"] == []
     # Khung không trống lại
     r = await book(staff, court["code"], hour)
