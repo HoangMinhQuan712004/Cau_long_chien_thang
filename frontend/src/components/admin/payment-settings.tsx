@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { btnCls, btnPrimaryCls, ErrorBanner, Hint, inputCls } from "@/components/booking-engine/ui";
 import { Modal } from "@/components/ui/modal";
 import { CopyButton } from "@/components/web-booking/pay-parts";
@@ -309,15 +309,17 @@ export function PaymentSettingsScreen({ initial, banks }: { initial: PaymentSett
         <ConfirmDialog
           onClose={() => setConfirming(false)}
           onSubmit={async (password) => {
-            const res = await write((key) =>
-              sendSavePaymentSettings(key, {
-                bank_code: form.bank,
-                account_number: form.account,
-                account_name: nameTrim,
-                online_toggle: effectiveToggle,
-                webhook_secret: form.changingSecret && secretTyped ? form.secret : null,
-                current_password: password,
-              }),
+            const res = await write(
+              (key) =>
+                sendSavePaymentSettings(key, {
+                  bank_code: form.bank,
+                  account_number: form.account,
+                  account_name: nameTrim,
+                  online_toggle: effectiveToggle,
+                  webhook_secret: form.changingSecret && secretTyped ? form.secret : null,
+                  current_password: password,
+                }),
+              { retryRateLimit: false }, // E-SEC-5 = khóa 15 phút: báo ngay, không tự gửi lại mật khẩu
             );
             if (res.ok) {
               const next = res.data;
@@ -382,10 +384,16 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 /** Nhập lại mật khẩu Admin để lưu. `onSubmit` trả thông báo lỗi (hiện ngay trong hộp) hoặc null khi xong. */
 function ConfirmDialog({ onClose, onSubmit }: { onClose: () => void; onSubmit: (password: string) => Promise<string | null> }) {
   const pwId = useId();
+  const pwRef = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // <dialog>.showModal() chạy sau khi ô được mount nên `autoFocus` của React bị bỏ qua; effect của cha chạy sau effect của Modal.
+  useEffect(() => {
+    pwRef.current?.focus();
+  }, []);
 
   async function submit() {
     if (!password) {
@@ -433,10 +441,10 @@ function ConfirmDialog({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
         <div className="flex gap-2">
           <input
             id={pwId}
+            ref={pwRef}
             type={show ? "text" : "password"}
             value={password}
             autoComplete="current-password"
-            autoFocus
             maxLength={128}
             onChange={(e) => setPassword(e.target.value)}
             className={`${inputCls} min-w-0 flex-1`}
