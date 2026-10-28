@@ -147,8 +147,8 @@ function ResolveDialog({ tx, onClose, onDone }: { tx: BankTransaction; onClose: 
     try {
       const res = await write((key) => sendResolve(key, tx.id, trimmed));
       if (!res.ok) {
-        // E-PAY-1: đã được xử lý ở máy khác → tải lại danh sách
-        if (res.error.code === "E-PAY-1") {
+        // E-PAY-2 (spec cũ: E-PAY-1): đã được xử lý ở máy khác → tải lại danh sách
+        if (res.error.code === "E-PAY-2" || res.error.code === "E-PAY-1") {
           toast(errorText(res.error), undefined, "error");
           onDone();
           return;
