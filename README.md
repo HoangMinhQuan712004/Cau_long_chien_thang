@@ -20,9 +20,10 @@ project_caulong/
 │   └── tests/
 ├── frontend/                Next.js App Router (Cache Components)
 │   └── src/
-│       ├── app/(public)/    trang SEO: /, /dat-san, /bang-gia, /tin-tuc, tài khoản
-│       ├── app/admin/       dashboard chủ sân / nhân viên (noindex)
+│       ├── app/(public)/    trang khách: /, /dat-san, /thanh-toan/[token], /tra-cuu, /bang-gia, /tin-tuc, tài khoản
+│       ├── app/admin/       chủ sân / nhân viên (noindex): dat-san (lịch quầy), san, san/bang-gia, lich-su-giao-dich, tien-ve (chỉ Admin)
 │       ├── app/sitemap.ts, robots.ts
+│       ├── components/      booking-engine/ (màn quản trị), web-booking/ (đặt online, thanh toán, tra cứu), admin/, ui/
 │       ├── lib/api/         client sinh từ OpenAPI (server.ts / client.ts)
 │       └── proxy.ts         chặn sớm /admin, /tai-khoan khi chưa đăng nhập
 └── docker-compose.yml
@@ -186,7 +187,9 @@ Khách đặt sân trên web, chuyển khoản QR qua **SePay**; SePay báo ti�
 
    Kết quả là `BankTransactionOut` (`outcome`, `refund_amount`, `booking_codes`). Lần sau nhớ đổi `Idempotency-Key`. Đổi `localhost:3000` nếu bạn chạy `WEB_PORT` khác (và thêm origin đó vào `ALLOWED_ORIGINS`).
 5. Trang thanh toán tự chuyển sang "Đặt sân thành công". Thử `amount` nhỏ hơn → `partial` (vẫn chờ); lớn hơn → `applied` kèm `refund_amount`.
-6. Admin xem tiền cần hoàn / không khớp mã ở `GET /api/v1/payments/bank-transactions`; giao diện `/admin/tien-ve` do FRONTEND làm.
+6. Admin xem tiền cần hoàn / không khớp mã ở trang `/admin/tien-ve` (menu "Tiền về", kèm số giao dịch chưa xử lý); bấm **Đã xử lý** phải ghi chú. Cùng dữ liệu ở `GET /api/v1/payments/bank-transactions`.
+
+Các trang khách của T-008: `/dat-san` (lưới chọn giờ, `?ngay=YYYY-MM-DD`), `/thanh-toan/{token}` (QR + đếm ngược, tự chuyển khi tiền về; `noindex`, `no-store`, chặn trong `robots.txt`, không vào sitemap), `/tra-cuu` (mã booking + SĐT). Header: Đặt sân · Tra cứu booking · Hotline (Đăng nhập/Đăng ký đang ẩn). Số hotline vẫn là số mẫu trong `frontend/src/lib/site.ts` cho tới khi chủ dự án cung cấp số thật.
 
 ### Người dùng cấu hình SePay (một lần, trước khi bật production)
 

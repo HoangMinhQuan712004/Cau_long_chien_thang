@@ -44,7 +44,7 @@ vẫn là 422 mặc định của FastAPI, khi đó `detail` là **mảng**.
 | Code | HTTP | Khi nào |
 |---|---|---|
 | E-AUTH-1 | 401 | Chưa đăng nhập |
-| E-AUTH-2 | 403 | Đăng nhập rồi nhưng thiếu quyền. Cũng dùng khi đặt tại quầy cho ngày khác hôm nay (kể cả Admin: ngày sau chỉ Đặt sự kiện) |
+| E-AUTH-2 | 403 | Đăng nhập rồi nhưng thiếu quyền. Cũng dùng khi Tài khoản tại máy đặt tại quầy cho ngày khác hôm nay (T-008: Admin đặt được ngày sau, xem mục 5) |
 | E-SEC-1 | 403 | `Origin`/`Referer` không thuộc `ALLOWED_ORIGINS` |
 | E-SEC-2 | 400 | Thiếu hoặc sai dạng `Idempotency-Key` |
 | E-SEC-3 | 409 | Key đang được xử lý ở request khác |
@@ -88,7 +88,7 @@ vẫn là 422 mặc định của FastAPI, khi đó `detail` là **mảng**.
 | E-021 | 404 | Không thấy mã khi tìm |
 | E-023 | 409 | Xóa buổi nhưng đã có vé hoặc chỗ đang giữ |
 | E-024 | 409 | Sự kiện đã đủ chỗ |
-| E-BOOK-1 | 422 | Ngày sau "hết tháng sau" (lịch, sự kiện) |
+| E-BOOK-1 | 422 | Ngày sau "hết tháng sau" – **T-008 bỏ giới hạn này** (người dùng chốt 28/10); mã còn trong bảng cho tới khi BACKEND gỡ hẳn, không dùng cho lịch, đặt quầy hay sự kiện |
 | E-BOOK-2 | 422 | Sân của sự kiện không liền nhau |
 | E-PAY-0 | 422 | Thu chuyển khoản tại quầy – chưa hỗ trợ (chờ T-007) |
 | E-PAY-1 | 422 | Đánh dấu Không thu được với booking online, hoặc chưa tới giờ chơi |
@@ -196,7 +196,7 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
   booking → `payment_status, customer_name, phone_masked, source`; sự kiện → `name, taken, capacity, is_full, unpaid_tickets`; giữ chỗ → `expires_at` (`code` là `null`).
 - `unpaid_count`: số booking + vé Chưa thanh toán của **ngày đang xem**.
 - `can`: `{counter_book, create_session}` – theo quyền của người đang đăng nhập.
-- Xem được ngày đã qua (chỉ xem) và **mọi ngày tương lai** (từ T-008: booking online đặt xa vẫn phải hiện). `can.create_session` chỉ `true` tới hết tháng sau; tạo sự kiện ngày xa hơn vẫn 422 `E-BOOK-1`.
+- Xem được ngày đã qua (chỉ xem) và **mọi ngày tương lai** (từ T-008: booking online đặt xa vẫn phải hiện). Admin tạo sự kiện và đặt quầy cho **mọi ngày tương lai** (T-008 bỏ giới hạn "hết tháng sau", `can.*` không còn phụ thuộc tháng).
 
 ### Booking và vé (`ItemOut`)
 
@@ -221,7 +221,8 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 
 ### Quy tắc cần nhớ
 
-- Đặt tại quầy: **một sân, hôm nay**; ngày khác hoặc nhiều sân → 403/422 ngay cả khi giao diện bị sửa. Ngày sau và nhiều sân chỉ qua "Tạo sự kiện" (Admin).
+- Đặt tại quầy: **Tài khoản tại máy chỉ đặt hôm nay** (ngày khác → 403 `E-AUTH-2` ngay cả khi giao diện bị sửa). Từ T-008, **Admin đặt được cả ngày sau**, không giới hạn số ngày; ngày/khung đã qua vẫn cấm. Nhiều sân chỉ qua "Tạo sự kiện" (Admin).
+  *Đang được BACKEND sửa trên `be/T-008-web-khach`; câu này theo spec T-008 AC31b, tôi sẽ đối chiếu lại code khi BE handoff.*
 - Server tự tính tiền từ bảng giá lúc lưu; thiếu giá → `E-019`. Đổi bảng giá sau đó không đổi `amount` đã lưu.
 - Không thu được: chỉ booking/vé `source=counter`, đang Chưa thanh toán và **đã tới giờ chơi** (`E-PAY-1` nếu không). Khung **không** bán lại.
 - Vé tại quầy chỉ cho buổi **hôm nay, chưa kết thúc** (ngược lại `E-004`).
