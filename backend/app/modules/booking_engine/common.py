@@ -1,6 +1,5 @@
 """Tiện ích dùng chung cho các dịch vụ đặt chỗ của engine (T-006)."""
 
-import calendar
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -36,13 +35,6 @@ class Ctx:
     @property
     def code_prefix(self) -> str:
         return str(self.settings["code_prefix"])
-
-    @property
-    def last_bookable_day(self) -> date:
-        """Hết tháng sau (``max_advance_days = end_of_next_month``)."""
-        year, month = divmod(self.today.year * 12 + self.today.month, 12)  # tháng sau, 0-based
-        month += 1
-        return date(year, month, calendar.monthrange(year, month)[1])
 
     def at(self, day: date, minute: int) -> datetime:
         """Thời điểm ``minute`` phút sau 0h ngày ``day`` (cho phép 24:00)."""

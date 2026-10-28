@@ -36,6 +36,16 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 # Origin check (ADR-004 S4): client test gửi Origin của "site" test
 settings.ALLOWED_ORIGINS = [ORIGIN]
+# Đặt online (T-008): cấu hình SePay giả để bật online + giả lập tiền về
+SEPAY_SECRET = "test-webhook-secret"
+settings.SEPAY_BANK_CODE = "Vietcombank"
+settings.SEPAY_BANK_NAME = "Vietcombank"
+settings.SEPAY_ACCOUNT_NUMBER = "0123456789"
+settings.SEPAY_ACCOUNT_NAME = "SAN CAU LONG TEST"
+settings.SEPAY_WEBHOOK_SECRET = SEPAY_SECRET
+settings.PAYMENTS_SIMULATE = True
+# Khóa mã hóa cố định cho test (T-012). Không ghi dòng payments.settings: test T-008 dùng .env
+settings.PAYMENTS_ENCRYPTION_KEY = "dGVzdC1rZXktZm9yLXBheW1lbnRzLWVuY3J5cHRpb24="
 # Rate limit chạy bằng bộ nhớ trong test (không cần Redis); reset trước mỗi test
 _rate_limit_backend = ratelimit.MemoryBackend()
 ratelimit.set_backend(_rate_limit_backend)
@@ -61,6 +71,7 @@ async def setup_db() -> AsyncIterator[None]:
     async with engine.begin() as conn:
         # Xóa sạch (gồm bảng legacy_* và enum của luồng cũ – không còn trong metadata)
         await conn.execute(text("DROP SCHEMA IF EXISTS booking CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS payments CASCADE"))
         await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(text("CREATE SCHEMA public"))
     # env.py của alembic tự chạy asyncio.run -> chạy ở thread riêng
@@ -68,6 +79,14 @@ async def setup_db() -> AsyncIterator[None]:
     await seed.main()
     yield
     await engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def reset_payment_config_cache() -> None:
+    """Cấu hình thanh toán cache ≤ 10 giây theo tiến trình – mỗi test đọc lại từ DB / .env."""
+    from app.modules.payments import config as payment_config
+
+    payment_config.clear_cache()
 
 
 @pytest.fixture(autouse=True)

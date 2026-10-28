@@ -38,3 +38,11 @@ async def authenticate(session: AsyncSession, email: str, password: str) -> User
     if not user.is_active:
         raise Unauthorized("Tài khoản đã bị khóa")
     return user
+
+
+async def check_password(session: AsyncSession, user_id: int, password: str) -> bool:
+    """Xác nhận lại mật khẩu của người đang đăng nhập (thao tác nhạy cảm, T-012)."""
+    user = await get_user(session, user_id)
+    return bool(
+        user and user.is_active and password and verify_password(password, user.hashed_password)
+    )

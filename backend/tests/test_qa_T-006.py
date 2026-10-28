@@ -297,13 +297,14 @@ async def test_ac2_rows_columns_and_off_hours(admin):
 
 
 async def test_ac2_past_and_far_dates(staff):
-    # past day: view only (200); next month still viewable; beyond the end of next month rejected
+    # past day: view only (200); any future day is viewable since T-008 (AC31b)
     assert (
         await staff.get(f"{B}/calendar", params={"date": (today() - timedelta(days=3)).isoformat()})
     ).status_code == 200
     far = today() + timedelta(days=120)
     r = await staff.get(f"{B}/calendar", params={"date": far.isoformat()})
-    assert r.status_code in (400, 422), r.text
+    assert r.status_code == 200, r.text
+    assert (await staff.get(f"{B}/search", params={"code": "BK-20200101-999"})).status_code == 404
     bad = await staff.get(f"{B}/calendar", params={"date": "2026-13-45"})
     assert bad.status_code == 422
 
@@ -1342,3 +1343,31 @@ async def test_payment_state_machine_is_enforced_in_db():
         ).all()
     blob = " ".join(d[0] for d in defs)
     assert "paid" in blob and "uncollectible" in blob and "payment_method" in blob
+
+
+async def test_t008_ac31b_admin_can_create_session_on_any_future_day(admin, staff):
+    """User decision 28/10: no "end of next month" limit for events; staff still cannot."""
+    res = await new_resource(admin)
+    far = today() + timedelta(days=200)
+    body = {
+        "resource_codes": [res["code"]],
+        "date": far.isoformat(),
+        "start_hour": 10,
+        "end_hour": 11,
+        "name": "QA xa",
+        "capacity": 2,
+        "ticket_price": 0,
+    }
+    denied = await w(staff, "POST", f"{B}/sessions", body)
+    assert denied.status_code == 403 and code_of(denied) == "E-AUTH-2", denied.text
+    ok = await w(admin, "POST", f"{B}/sessions", body)
+    assert ok.status_code == 201, ok.text
+    blocks = [
+        b for b in (await calendar(admin, far))["blocks"] if b.get("code") == ok.json()["code"]
+    ]
+    assert blocks, "the far-future event shows on that day's calendar"
+    assert (await calendar(admin, far))["can"]["create_session"] is True
+    past = await w(
+        admin, "POST", f"{B}/sessions", {**body, "date": (today() - timedelta(days=1)).isoformat()}
+    )
+    assert past.status_code == 422 and code_of(past) == "E-004", past.text

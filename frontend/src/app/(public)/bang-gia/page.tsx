@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { PriceTable } from "@/components/price-table";
 import { openingText, WithPublicPrices } from "@/components/public-prices";
@@ -30,13 +31,18 @@ export default function PricePage() {
         </WithPublicPrices>
       </Suspense>
       <p className="text-sm text-muted">Giá tính theo giờ, đồng/giờ. Đặt cố định hằng tuần vui lòng liên hệ {site.phone}.</p>
-      <p className="rounded-lg border border-border bg-surface p-4 text-sm">
-        Đặt sân tại quầy hoặc gọi{" "}
-        <a href={phoneHref} className="font-semibold text-primary">
-          {site.phone}
-        </a>
-        . Đặt sân trực tuyến sẽ sớm có.
-      </p>
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-4 text-sm">
+        <Link href="/dat-san" className="rounded-md bg-primary px-5 py-2.5 font-medium text-primary-fg">
+          Đặt sân
+        </Link>
+        <p>
+          Hoặc đặt tại quầy, gọi{" "}
+          <a href={phoneHref} className="font-semibold text-primary">
+            {site.phone}
+          </a>
+          .
+        </p>
+      </div>
     </article>
   );
 }

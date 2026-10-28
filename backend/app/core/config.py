@@ -1,15 +1,27 @@
+import base64
+import binascii
 from functools import lru_cache
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _valid_fernet_key(key: str) -> bool:
+    try:
+        return len(base64.urlsafe_b64decode(key.encode())) == 32 and len(key) == 44
+    except (ValueError, binascii.Error):
+        return False
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     APP_NAME: str = "Cau Long API"
-    ENV: str = "development"
+    # development (máy dev) | staging (link dev công khai) | production.
+    # Giá trị khác -> không khởi động.
+    ENV: Literal["development", "staging", "production"] = "development"
     API_PREFIX: str = "/api/v1"
 
     DATABASE_URL: str = "postgresql+asyncpg://caulong:caulong@localhost:5432/caulong"
@@ -43,14 +55,37 @@ class Settings(BaseSettings):
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
     # Giờ mở cửa, khung, giữ chỗ… cấu hình theo sân trong booking engine (T-005, T-006)
 
+    # Đặt online + SePay (T-008, ADR-007): dự phòng khi Admin chưa lưu cài đặt trên trang (T-012).
+    SEPAY_BANK_CODE: str = ""  # mã NH cho qr.sepay.vn (vd "Vietcombank")
+    SEPAY_BANK_NAME: str = ""
+    SEPAY_ACCOUNT_NUMBER: str = ""
+    SEPAY_ACCOUNT_NAME: str = ""
+    SEPAY_WEBHOOK_SECRET: str = ""
+    # 0 = không chặn theo tuổi timestamp (ADR-001 §2); > 0: lệch quá số giây này -> 401
+    SEPAY_TIMESTAMP_TOLERANCE_SECONDS: int = 0
+    ONLINE_HOLD_MINUTES: int = 5
+    # Ân hạn nhận tiền báo trễ sau khi hết giữ chỗ; trong ân hạn khung vẫn bị chiếm
+    ONLINE_HOLD_GRACE_SECONDS: int = 60
+    # Chỉ dev/staging: POST /payments/dev/simulate. ENV=production + bật -> app không khởi động
+    PAYMENTS_SIMULATE: bool = False
+    # Khóa mã hóa khóa webhook lưu trong DB (T-012): Fernet = 32 byte base64 urlsafe (44 ký tự).
+    # Bắt buộc ở staging/production; development thiếu -> sinh tạm + cảnh báo.
+    PAYMENTS_ENCRYPTION_KEY: str | None = None
+
     # Seed
     FIRST_ADMIN_EMAIL: str = "admin@example.com"
     FIRST_ADMIN_PASSWORD: str = "admin12345"
 
     @model_validator(mode="after")
-    def _check_production(self):
-        if self.is_production and (self.SECRET_KEY == "change-me" or len(self.SECRET_KEY) < 32):
-            raise ValueError("SECRET_KEY phải được đặt (>= 32 ký tự) khi ENV=production")
+    def _check_deployed(self):
+        if self.is_deployed and (self.SECRET_KEY == "change-me" or len(self.SECRET_KEY) < 32):
+            raise ValueError(f"SECRET_KEY phải được đặt (>= 32 ký tự) khi ENV={self.ENV}")
+        if self.is_production and self.PAYMENTS_SIMULATE:
+            raise ValueError("PAYMENTS_SIMULATE không được bật khi ENV=production")
+        if self.is_deployed and not _valid_fernet_key(self.PAYMENTS_ENCRYPTION_KEY or ""):
+            raise ValueError(
+                f"PAYMENTS_ENCRYPTION_KEY phải là 32 byte base64 urlsafe khi ENV={self.ENV}"
+            )
         return self
 
     @property
@@ -60,6 +95,11 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENV == "production"
+
+    @property
+    def is_deployed(self) -> bool:
+        """Chạy trên server (link dev hoặc production): kiểm SECRET_KEY, tắt /docs."""
+        return self.ENV in ("staging", "production")
 
 
 @lru_cache

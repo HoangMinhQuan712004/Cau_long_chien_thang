@@ -72,7 +72,11 @@ const retryAfterMs = (r: Response) => {
  * Gửi một lệnh ghi. `send` nhận Idempotency-Key và gọi `api.POST/PUT/PATCH/DELETE`
  * (truyền `headers: { "Idempotency-Key": key }`). Hàm tự thử lại với CÙNG key khi mất kết nối.
  */
-export async function write<T>(send: (idempotencyKey: string) => Promise<Sent<T>>): Promise<WriteResult<T>> {
+export async function write<T>(
+  send: (idempotencyKey: string) => Promise<Sent<T>>,
+  /** `retryRateLimit: false` cho lệnh bị khóa theo thời gian (vd nhập sai mật khẩu): báo ngay, không tự thử lại. */
+  opts: { retryRateLimit?: boolean } = {},
+): Promise<WriteResult<T>> {
   const key = newIdempotencyKey();
   const started = Date.now();
   let endReconnect: (() => void) | null = null;
@@ -112,7 +116,7 @@ export async function write<T>(send: (idempotencyKey: string) => Promise<Sent<T>
         await sleep(700);
         continue;
       }
-      if (status === 429 && rateRetries < 2) {
+      if (status === 429 && opts.retryRateLimit !== false && rateRetries < 2) {
         rateRetries += 1;
         await sleep(retryAfterMs(res!.response));
         continue;
