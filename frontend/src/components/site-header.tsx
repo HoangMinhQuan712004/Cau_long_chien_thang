@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { HeaderAccount } from "@/components/header-account";
 import { SiteNav } from "@/components/site-nav";
 import { phoneHref, site } from "@/lib/site";
 
-// Header khách (T-008 AC28): logo, Đặt sân, Tra cứu booking, Hotline. Đăng nhập / Đăng ký tạm ẩn (đăng nhập hội viên làm sau).
+// Header khách: logo, Đặt sân, Tra cứu booking, Hotline, Đăng nhập / Đăng ký (T-013 AC23). Ô "Bạn là hội viên?" vẫn ẩn.
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur">
@@ -21,10 +22,20 @@ export function SiteHeader() {
           <span className="hidden text-muted sm:inline">Hotline </span>
           <b>{site.phone}</b>
         </a>
+        <div className="hidden sm:block">
+          <Suspense fallback={<div aria-hidden className="h-8 w-40" />}>
+            <HeaderAccount />
+          </Suspense>
+        </div>
       </div>
-      <Suspense fallback={null}>
-        <SiteNav mobile />
-      </Suspense>
+      <div className="flex items-center justify-between gap-3 px-4 pb-2 sm:hidden">
+        <Suspense fallback={null}>
+          <SiteNav mobile />
+        </Suspense>
+        <Suspense fallback={<div aria-hidden className="h-8 w-36" />}>
+          <HeaderAccount />
+        </Suspense>
+      </div>
     </header>
   );
 }

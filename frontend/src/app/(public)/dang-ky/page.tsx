@@ -20,6 +20,6 @@ export default function RegisterPage() {
 }
 
 async function RegisterForm() {
-  const { passwordRules } = await getDictionary();
-  return <AuthForm rules={passwordRules} />;
+  const { passwordRules, login } = await getDictionary();
+  return <AuthForm rules={passwordRules} login={login} />;
 }

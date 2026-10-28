@@ -66,11 +66,12 @@ export async function authedApi() {
   return createClient<paths>({ baseUrl: BACKEND_URL, headers: { cookie: cookieHeader } });
 }
 
-export async function getCurrentUser(): Promise<User | null> {
+// Một lần mỗi request (header và trang cùng hỏi)
+export const getCurrentUser = cache(async (): Promise<User | null> => {
   const api = await authedApi();
   const { data } = await api.GET("/api/v1/auth/me");
   return data ?? null;
-}
+});
 
 /** Phiên Admin/nhân viên (cookie `admin_session`); lỗi ⇒ lý do để màn đăng nhập giải thích. Một lần mỗi request. */
 export const getAdminSession = cache(

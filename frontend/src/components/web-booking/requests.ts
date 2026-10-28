@@ -1,4 +1,5 @@
 import "client-only";
+import { callOtpApi } from "@/lib/api/auth";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { toApiError, type ApiError } from "@/lib/api/write";
@@ -43,3 +44,10 @@ export const sendResolve = (key: string, id: number, note: string) =>
     body: { note },
     headers: { "Idempotency-Key": key },
   });
+
+// ---- Xác minh SĐT bằng OTP trước khi giữ chỗ (T-013 AC25) ----
+export const requestBookingPhone = (phone: string) =>
+  callOtpApi(() => api.POST("/api/v1/web/booking/phone/request", { body: { phone } }));
+
+export const verifyBookingPhone = (phone: string, otp: string) =>
+  callOtpApi(() => api.POST("/api/v1/web/booking/phone/verify", { body: { phone, otp } }));

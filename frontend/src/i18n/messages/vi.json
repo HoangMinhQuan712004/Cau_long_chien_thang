@@ -161,7 +161,7 @@
     "resent": "Đã gửi mã mới.",
     "changePhone": "Đổi số",
     "merged": "Đã liên kết với tài khoản sẵn có của số này.",
-    "passwordCleared": "Mật khẩu cũ của tài khoản này đã bị hủy. Muốn đăng nhập bằng mật khẩu, hãy dùng {link}.",
+    "passwordCleared": "Mật khẩu cũ của tài khoản này đã bị hủy. Từ nay hãy đăng nhập bằng Google hoặc dùng {link}.",
     "forgotPassword": "Quên mật khẩu",
     "errors": {
       "phoneRequired": "Vui lòng nhập số điện thoại.",
@@ -170,14 +170,21 @@
       "otp_invalid": "Mã không đúng. Bạn còn {n} lần thử.",
       "otp_expired": "Mã đã hết hạn hoặc nhập sai quá nhiều lần. Vui lòng bấm \"Gửi lại mã\".",
       "phone_unusable": "Số điện thoại không dùng được.",
-      "merge_has_bookings": "Không gộp được tài khoản. Vui lòng liên hệ sân để được hỗ trợ.",
       "network": "Mất kết nối. Vui lòng kiểm tra mạng rồi thử lại.",
-      "unavailable": "Hệ thống đang bận, vui lòng thử lại sau ít phút."
-    }
+      "unavailable": "Hệ thống đang bận, vui lòng thử lại sau ít phút.",
+      "E-AUTH-17": "Tài khoản đã có số điện thoại."
+    },
+    "verified": "Đã xác minh số điện thoại."
   },
   "account": {
     "googleEmail": "Đăng nhập bằng Google: {email}",
-    "noPhone": "Chưa có số điện thoại"
+    "noPhone": "Chưa có số điện thoại",
+    "phoneVerified": "Đã xác minh",
+    "phoneUnverified": "Chưa xác minh",
+    "phoneUnverifiedHint": "Số điện thoại sẽ được xác minh bằng mã OTP khi bạn đặt sân online.",
+    "username": "Tên đăng nhập: {username}",
+    "verifyTitle": "Thêm và xác minh số điện thoại",
+    "adminLink": "Trang quản lý →"
   },
   "passwordRules": {
     "title": "Mật khẩu cần có:",
