@@ -24,7 +24,7 @@ from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
-from app.core import ratelimit  # noqa: E402
+from app.core import queue, ratelimit  # noqa: E402
 from app.core.db import engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.scripts import seed  # noqa: E402
@@ -53,6 +53,18 @@ ratelimit.set_backend(_rate_limit_backend)
 # bị tách sang cửa sổ mới (nguyên nhân test 429 chập chờn khi chạy qua mốc đổi phút)
 _RATE_LIMIT_NOW = (time.time() // 60) * 60 + 1
 ratelimit.set_clock(lambda: _RATE_LIMIT_NOW)
+# OTP (T-013): chế độ thử = có kênh gửi mã (link dev); job worker ghi vào danh sách thay vì Redis
+settings.OTP_TEST_MODE = True
+# Mọi test gọi từ cùng IP 127.0.0.1 -> nới giới hạn OTP theo IP; test giới hạn IP tự hạ + IP riêng
+settings.OTP_IP_MAX_PER_HOUR = 1_000_000
+ENQUEUED_JOBS: list[tuple[str, tuple]] = []
+
+
+async def _record_job(job: str, args: tuple) -> None:
+    ENQUEUED_JOBS.append((job, args))
+
+
+queue.set_sink(_record_job)
 
 
 def _alembic_upgrade_head() -> None:

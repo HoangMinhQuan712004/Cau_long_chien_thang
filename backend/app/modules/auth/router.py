@@ -15,7 +15,7 @@ from app.core.errors import AppError
 from app.core.middleware import require_origin
 from app.core.permissions import Perm, Principal, require
 from app.core.security import decode_token, hash_password
-from app.modules.auth import cookies, login, service, sessions, staff
+from app.modules.auth import cookies, google, login, phone, recovery, service, sessions, staff
 from app.modules.auth.deps import (
     REFRESH_COOKIE,
     AuthStateDep,
@@ -28,7 +28,14 @@ from app.modules.auth.schemas import (
     AdminSessionOut,
     AdminSignInOut,
     CustomerSignInOut,
+    GoogleSignInIn,
+    OtpSentOut,
+    PhoneIn,
+    PhoneOtpIn,
+    PhoneVerifyOut,
     RegisterIn,
+    ResetConfirmIn,
+    ResetTokenOut,
     SignInIn,
     SignInOut,
     UserOut,
@@ -59,6 +66,17 @@ async def sign_in(data: SignInIn, request: Request, response: Response, session:
     admin_session, token = admin
     cookies.set_admin_cookie(response, token)
     return AdminSignInOut(account=sessions.to_account(user), expires_at=admin_session.expires_at)
+
+
+@router.post("/google", response_model=CustomerSignInOut)
+async def google_sign_in(data: GoogleSignInIn, response: Response, session: SessionDep):
+    """Đăng nhập khách bằng ID token Google; lần đầu tạo tài khoản (không mật khẩu, không SĐT).
+
+    Lỗi: 401 E-AUTH-20 · 404 E-AUTH-19 (chưa bật) · 429 E-AUTH-12 (IP) · 503 E-AUTH-21.
+    """
+    user = await google.sign_in(session, data.credential, client_ip())
+    cookies.set_auth_cookies(response, user)
+    return CustomerSignInOut(account=user_out(user))
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -114,6 +132,57 @@ async def logout(response: Response):
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentCustomer):
     return user_out(user)
+
+
+# ---------------------------------------------------------------- quên mật khẩu (OTP)
+
+
+@router.post(
+    "/password-reset/request", response_model=OtpSentOut, status_code=status.HTTP_202_ACCEPTED
+)
+async def password_reset_request(data: PhoneIn, session: SessionDep):
+    """Gửi mã (SĐT không có tài khoản cũng trả y hệt). 429 E-AUTH-13 · 503 E-AUTH-23."""
+    result = await recovery.request_reset(session, data.phone, client_ip())
+    return OtpSentOut(resend_after=result.resend_after, test_otp=result.test_otp)
+
+
+@router.post("/password-reset/verify", response_model=ResetTokenOut)
+async def password_reset_verify(data: PhoneOtpIn, session: SessionDep):
+    """Mã đúng -> ``reset_token`` (10 phút). 400 E-AUTH-14 (``attempts_left``) / E-AUTH-15."""
+    return ResetTokenOut(reset_token=await recovery.verify_reset(session, data.phone, data.otp))
+
+
+@router.post("/password-reset/confirm", status_code=status.HTTP_204_NO_CONTENT)
+async def password_reset_confirm(data: ResetConfirmIn, session: SessionDep):
+    """Đặt mật khẩu mới; JWT / phiên cũ hết hiệu lực. 400 E-AUTH-16."""
+    await recovery.confirm_reset(session, data.reset_token, hash_password(data.password))
+
+
+# ---------------------------------------------------------------- xác minh SĐT (khách)
+
+
+@router.post("/phone/request", response_model=OtpSentOut, status_code=status.HTTP_202_ACCEPTED)
+async def phone_verify_request(data: PhoneIn, user: CurrentCustomer, session: SessionDep):
+    """Gửi mã xác minh SĐT. 409 E-AUTH-17 · 429 E-AUTH-13 · 503 E-AUTH-24 (không có kênh gửi)."""
+    sent = await phone.request_code(session, user, data.phone, client_ip())
+    return OtpSentOut(resend_after=sent.resend_after, test_otp=sent.test_otp)
+
+
+@router.post("/phone/verify", response_model=PhoneVerifyOut)
+async def phone_verify(
+    data: PhoneOtpIn, user: CurrentCustomer, response: Response, session: SessionDep
+):
+    """Mã đúng -> gắn SĐT; SĐT đã có chủ là khách -> gộp tài khoản Google vào đó (JWT mới).
+
+    Lỗi: 400 E-AUTH-14 / E-AUTH-15 · 409 E-AUTH-17 / E-AUTH-18.
+    """
+    result = await phone.verify(session, user.id, data.phone, data.otp)
+    cookies.set_auth_cookies(response, result.account)
+    return PhoneVerifyOut(
+        merged=result.merged,
+        password_cleared=result.password_cleared,
+        account=user_out(result.account),
+    )
 
 
 # ---------------------------------------------------------------- phiên quản trị

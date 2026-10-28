@@ -3,7 +3,8 @@
 T-013 (ADR-008, port PR #17): đăng nhập SĐT / tên đăng nhập / Google, phiên quản trị phía server,
 mã OTP, nhiều tài khoản nhân viên (NV001…). Thứ tự chuyển dữ liệu theo T-013 AC32:
 1. chuẩn hóa ``phone`` (không hợp lệ -> NULL; trùng -> giữ id nhỏ nhất);
-2. Admin chưa có SĐT -> ``FIRST_ADMIN_PHONE`` (thiếu / sai / đã có chủ -> DỪNG, không đổi gì);
+2. Admin chưa có SĐT -> ``FIRST_ADMIN_PHONE`` (thiếu / sai / thuộc người không phải Admin -> DỪNG,
+   không đổi gì; đã thuộc một Admin -> bỏ qua);
 3. user không có SĐT -> ``username`` từ email + id;
 4. nhân viên -> ``NV001``… theo id, ``username = lower(staff_code)``;
 5. ``email`` cho phép NULL (giữ dữ liệu); 6. Admin / nhân viên có SĐT coi như đã xác minh.
@@ -61,7 +62,7 @@ def _upgrade_users() -> None:
 
     # 1. SĐT cũ lưu tự do -> 0xxxxxxxxx; không chuẩn hóa được -> NULL; trùng -> giữ id nhỏ nhất
     op.execute(
-        """
+        r"""
         UPDATE users u SET phone = CASE
             WHEN u.phone !~ '^\+?[0-9\s.\-]+$' THEN NULL
             WHEN n.digits ~ '^0[0-9]{9}$' THEN n.digits
@@ -96,15 +97,17 @@ def _upgrade_users() -> None:
                 "Việt Nam 10 số – cần để gán cho tài khoản Admin chưa có SĐT. "
                 "Đặt biến trong .env rồi chạy lại."
             )
-        owner = conn.scalar(sa.text("SELECT id FROM users WHERE phone = :p"), {"p": phone})
-        if owner is not None:
-            raise RuntimeError(
-                "Migration dừng: SĐT trong FIRST_ADMIN_PHONE đã thuộc một tài khoản khác. "
-                "Dùng SĐT khác cho Admin rồi chạy lại."
+        owner_role = conn.scalar(sa.text("SELECT role FROM users WHERE phone = :p"), {"p": phone})
+        if owner_role is None:
+            conn.execute(
+                sa.text("UPDATE users SET phone = :p WHERE id = :id"), {"p": phone, "id": admin_id}
             )
-        conn.execute(
-            sa.text("UPDATE users SET phone = :p WHERE id = :id"), {"p": phone, "id": admin_id}
-        )
+        elif owner_role != "admin":
+            raise RuntimeError(
+                "Migration dừng: SĐT trong FIRST_ADMIN_PHONE đã thuộc một tài khoản không phải "
+                "Admin. Dùng SĐT khác cho Admin rồi chạy lại."
+            )
+        # SĐT đã thuộc một Admin (vd. lên lại sau downgrade) -> bỏ qua; Admin còn lại sang bước 3
 
     # 3. Không có SĐT (không phải nhân viên) -> tên đăng nhập từ email + id
     op.execute(

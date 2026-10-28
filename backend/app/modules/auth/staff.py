@@ -180,24 +180,12 @@ async def update_staff(
     return await _one(session, user)
 
 
-async def replace_password(session: AsyncSession, user: User, hashed: str | None) -> int:
-    """Thay / hủy mật khẩu: gỡ khóa, thu hồi phiên quản trị, tăng ``token_version``.
-
-    Chưa commit; trả số phiên vừa thu hồi.
-    """
-    user.hashed_password = hashed
-    user.token_version += 1
-    user.failed_login_count = 0
-    user.locked_until = None
-    return await sessions.revoke_all(session, user.id, SessionEndReason.PASSWORD_CHANGED)
-
-
 async def reset_staff_password(
     session: AsyncSession, actor: AuditActor, staff_id: int, password: str
 ) -> None:
     hashed = hash_password(password)  # băm trước khi khóa dòng
     user = await _get_staff(session, staff_id, lock=True)
-    revoked = await replace_password(session, user, hashed)
+    revoked = await sessions.replace_password(session, user, hashed)
     audit(session, actor, "staff.password_reset", "user", user.staff_code, {"revoked": revoked})
     await session.commit()
 

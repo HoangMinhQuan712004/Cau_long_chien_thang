@@ -140,6 +140,24 @@ async def test_auth_writes_require_origin_even_without_cookie(anon):
     assert r.status_code == 401
 
 
+async def test_customer_me_without_origin(customer):
+    # Next gọi GET /auth/me từ server component (không có Origin) – không được chặn (lỗi mốc 1)
+    customer.headers.pop("Origin")
+    r = await customer.get(f"{API}/auth/me")
+    assert r.status_code == 200, r.text
+    r = await customer.get(f"{API}/auth/me", headers={"Origin": "https://evil.example"})
+    assert r.status_code == 200
+    r = await customer.post(f"{API}/auth/refresh")
+    assert r.status_code == 403 and r.json()["detail"]["code"] == "E-SEC-1"
+
+
+async def test_admin_me_without_origin(admin):
+    admin.headers.pop("Origin")
+    assert (await admin.get(f"{API}/admin/auth/me")).status_code == 200
+    r = await admin.post(f"{API}/admin/auth/logout")
+    assert r.status_code == 403 and r.json()["detail"]["code"] == "E-SEC-1"
+
+
 async def test_origin_check_allows_safe_methods(admin):
     r = await admin.get(f"{BK}/resources", headers={"Origin": "https://evil.example"})
     assert r.status_code == 200
