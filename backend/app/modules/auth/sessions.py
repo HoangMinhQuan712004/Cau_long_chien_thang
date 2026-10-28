@@ -106,3 +106,15 @@ async def revoke_all(
         .values(revoked_at=now or func.now(), revoked_reason=reason)
     )
     return result.rowcount or 0
+
+
+async def replace_password(session: AsyncSession, user: User, hashed: str | None) -> int:
+    """Thay / hủy mật khẩu: gỡ khóa, thu hồi phiên quản trị, tăng ``token_version``.
+
+    Chưa commit; trả số phiên vừa thu hồi.
+    """
+    user.hashed_password = hashed
+    user.token_version += 1
+    user.failed_login_count = 0
+    user.locked_until = None
+    return await revoke_all(session, user.id, SessionEndReason.PASSWORD_CHANGED)

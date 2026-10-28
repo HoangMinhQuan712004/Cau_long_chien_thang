@@ -24,6 +24,28 @@ class CheckoutIn(StrictIn):
     full_name: str = Field(default="", max_length=500)
     phone: str = Field(default="", max_length=50)
     note: str | None = Field(default=None, max_length=1000)
+    # Token từ /web/booking/phone/verify (T-013 AC26); khách đăng nhập có SĐT đã xác minh trùng
+    # ``phone`` thì không cần
+    phone_token: str | None = Field(default=None, max_length=128)
+
+
+class PhoneCodeIn(StrictIn):
+    phone: str = Field(max_length=50)
+
+
+class PhoneCodeSentOut(BaseModel):
+    resend_after: int = Field(description="Giây tới lúc được gửi lại mã")
+    test_otp: str | None = Field(default=None, description="Chỉ khi OTP_TEST_MODE (link dev)")
+
+
+class PhoneVerifyIn(StrictIn):
+    phone: str = Field(max_length=50)
+    otp: str = Field(pattern=r"^\d{6}$")
+
+
+class PhoneTokenOut(BaseModel):
+    phone_token: str
+    expires_at: dt.datetime
 
 
 class WebCustomer(BaseModel):

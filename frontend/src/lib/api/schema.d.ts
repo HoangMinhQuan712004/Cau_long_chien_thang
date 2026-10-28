@@ -27,6 +27,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Google Sign In
+         * @description Đăng nhập khách bằng ID token Google; lần đầu tạo tài khoản (không mật khẩu, không SĐT).
+         *
+         *     Lỗi: 401 E-AUTH-20 · 404 E-AUTH-19 (chưa bật) · 429 E-AUTH-12 (IP) · 503 E-AUTH-21.
+         */
+        post: operations["google_sign_in_api_v1_auth_google_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -94,6 +116,108 @@ export interface paths {
         get: operations["me_api_v1_auth_me_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Password Reset Request
+         * @description Gửi mã (SĐT không có tài khoản cũng trả y hệt). 429 E-AUTH-13 · 503 E-AUTH-23.
+         */
+        post: operations["password_reset_request_api_v1_auth_password_reset_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Password Reset Verify
+         * @description Mã đúng -> ``reset_token`` (10 phút). 400 E-AUTH-14 (``attempts_left``) / E-AUTH-15.
+         */
+        post: operations["password_reset_verify_api_v1_auth_password_reset_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Password Reset Confirm
+         * @description Đặt mật khẩu mới; JWT / phiên cũ hết hiệu lực. 400 E-AUTH-16.
+         */
+        post: operations["password_reset_confirm_api_v1_auth_password_reset_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Verify Request
+         * @description Gửi mã xác minh SĐT. 409 E-AUTH-17 · 429 E-AUTH-13 · 503 E-AUTH-24 (không có kênh gửi).
+         */
+        post: operations["phone_verify_request_api_v1_auth_phone_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Verify
+         * @description Mã đúng -> gắn SĐT; SĐT đã có chủ là khách -> gộp tài khoản Google vào đó (JWT mới).
+         *
+         *     Lỗi: 400 E-AUTH-14 / E-AUTH-15 · 409 E-AUTH-17 / E-AUTH-18.
+         */
+        post: operations["phone_verify_api_v1_auth_phone_verify_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -725,10 +849,56 @@ export interface paths {
          * Create Checkout
          * @description Giữ chỗ 5 phút + cấp mã, trả ``token`` (một lần) để mở trang thanh toán.
          *
+         *     Cần ``phone_token`` của đúng SĐT (trừ khách đăng nhập có SĐT đã xác minh trùng ``phone``).
          *     Lỗi: E-WEB-1 (dữ liệu), E-WEB-2 (khung không đặt được), E-WEB-3 (vừa có người đặt, kèm
-         *     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng), E-019.
+         *     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng),
+         *     E-WEB-8 (chưa xác minh SĐT), E-019.
          */
         post: operations["create_checkout_api_v1_web_booking_checkouts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/phone/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Request
+         * @description Gửi OTP xác minh SĐT trước khi đặt (T-013 AC25).
+         *
+         *     Lỗi: E-WEB-1 (SĐT sai), E-WEB-5 (đặt online tạm ngưng), E-AUTH-13 (gửi quá nhiều, 429).
+         */
+        post: operations["phone_request_api_v1_web_booking_phone_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/phone/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Verify
+         * @description Mã đúng -> ``phone_token`` (30 phút, dùng cho nhiều lượt đặt của SĐT này trong hạn).
+         *
+         *     Lỗi: E-WEB-1 (SĐT sai), E-AUTH-14 (sai mã, ``attempts_left``), E-AUTH-15 (mã hết hiệu lực).
+         */
+        post: operations["phone_verify_api_v1_web_booking_phone_verify_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1159,6 +1329,8 @@ export interface components {
             phone: string;
             /** Note */
             note?: string | null;
+            /** Phone Token */
+            phone_token?: string | null;
         };
         /** CheckoutOut */
         CheckoutOut: {
@@ -1233,6 +1405,14 @@ export interface components {
             /** End Hour */
             end_hour: number;
             customer: components["schemas"]["CustomerIn"];
+        };
+        /** GoogleSignInIn */
+        GoogleSignInIn: {
+            /**
+             * Credential
+             * @description ID token của Google
+             */
+            credential: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1435,6 +1615,19 @@ export interface components {
             /** Start Hour */
             start_hour: number;
         };
+        /** OtpSentOut */
+        OtpSentOut: {
+            /**
+             * Resend After
+             * @description Giây tới lúc được gửi lại mã
+             */
+            resend_after: number;
+            /**
+             * Test Otp
+             * @description Chỉ khi OTP_TEST_MODE (link dev) và là mã của khách
+             */
+            test_otp?: string | null;
+        };
         /** PaymentSettingsIn */
         PaymentSettingsIn: {
             /** Bank Code */
@@ -1487,6 +1680,67 @@ export interface components {
             pending_checkouts: number;
             /** Simulate Enabled */
             simulate_enabled: boolean;
+        };
+        /** PhoneCodeIn */
+        PhoneCodeIn: {
+            /** Phone */
+            phone: string;
+        };
+        /** PhoneCodeSentOut */
+        PhoneCodeSentOut: {
+            /**
+             * Resend After
+             * @description Giây tới lúc được gửi lại mã
+             */
+            resend_after: number;
+            /**
+             * Test Otp
+             * @description Chỉ khi OTP_TEST_MODE (link dev)
+             */
+            test_otp?: string | null;
+        };
+        /** PhoneIn */
+        PhoneIn: {
+            /** Phone */
+            phone: string;
+        };
+        /** PhoneOtpIn */
+        PhoneOtpIn: {
+            /** Phone */
+            phone: string;
+            /** Otp */
+            otp: string;
+        };
+        /** PhoneTokenOut */
+        PhoneTokenOut: {
+            /** Phone Token */
+            phone_token: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** PhoneVerifyIn */
+        PhoneVerifyIn: {
+            /** Phone */
+            phone: string;
+            /** Otp */
+            otp: string;
+        };
+        /** PhoneVerifyOut */
+        PhoneVerifyOut: {
+            /**
+             * Merged
+             * @description SĐT đã thuộc tài khoản khác -> đã gộp tài khoản Google vào
+             */
+            merged: boolean;
+            /**
+             * Password Cleared
+             * @description Gộp vào tài khoản có mật khẩu -> mật khẩu đó đã bị hủy (đăng nhập bằng Google hoặc Quên mật khẩu)
+             */
+            password_cleared: boolean;
+            account: components["schemas"]["UserOut"];
         };
         /** PostIn */
         PostIn: {
@@ -1768,6 +2022,21 @@ export interface components {
              * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
              */
             password: string;
+        };
+        /** ResetConfirmIn */
+        ResetConfirmIn: {
+            /** Reset Token */
+            reset_token: string;
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
+        };
+        /** ResetTokenOut */
+        ResetTokenOut: {
+            /** Reset Token */
+            reset_token: string;
         };
         /** ResolveIn */
         ResolveIn: {
@@ -2365,6 +2634,39 @@ export interface operations {
             };
         };
     };
+    google_sign_in_api_v1_auth_google_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleSignInIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerSignInOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     register_api_v1_auth_register_post: {
         parameters: {
             query?: never;
@@ -2452,6 +2754,169 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+        };
+    };
+    password_reset_request_api_v1_auth_password_reset_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtpSentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    password_reset_verify_api_v1_auth_password_reset_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneOtpIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetTokenOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    password_reset_confirm_api_v1_auth_password_reset_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetConfirmIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_verify_request_api_v1_auth_phone_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtpSentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_verify_api_v1_auth_phone_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneOtpIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneVerifyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3599,6 +4064,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckoutCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_request_api_v1_web_booking_phone_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneCodeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneCodeSentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_verify_api_v1_web_booking_phone_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneVerifyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneTokenOut"];
                 };
             };
             /** @description Validation Error */

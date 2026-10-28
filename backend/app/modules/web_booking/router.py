@@ -20,6 +20,7 @@ from app.core.idempotency import IdempotencyDep
 from app.core.middleware import require_origin
 from app.core.privacy import mask_phone
 from app.core.ratelimit import rate_limit
+from app.modules.auth import api as auth
 from app.modules.booking_engine import api as engine
 from app.modules.booking_engine.dto import CheckoutCreate, CheckoutView, CustomerSnapshot
 from app.modules.members import api as members
@@ -31,6 +32,10 @@ from app.modules.web_booking.schemas import (
     LookupIn,
     LookupOut,
     LookupPendingOut,
+    PhoneCodeIn,
+    PhoneCodeSentOut,
+    PhoneTokenOut,
+    PhoneVerifyIn,
     WebCalendarOut,
     WebCheckoutItem,
     WebCustomer,
@@ -54,6 +59,16 @@ def no_store(response: Response) -> None:
 
 def _web_error(message: str) -> AppError:
     return AppError("E-WEB-1", message, 422)
+
+
+async def _online_enabled(session: AsyncSession) -> bool:
+    """Đủ cấu hình thanh toán **và** có kênh gửi OTP xác minh SĐT (T-013 AC27)."""
+    return auth.otp_channel_ready() and await payments.online_enabled(session)
+
+
+async def _require_online(session: AsyncSession) -> None:
+    if not await _online_enabled(session):
+        raise AppError("E-WEB-5", "Đặt online đang tạm ngưng. Vui lòng gọi hotline.", 503)
 
 
 async def _checkout_out(session: AsyncSession, view: CheckoutView) -> dict:
@@ -88,12 +103,19 @@ async def calendar(session: SessionDep, day: Annotated[dt.date, Query(alias="dat
     cal = await engine.public_calendar(session, day)
     return WebCalendarOut(
         **cal.model_dump(),
-        online_enabled=await payments.online_enabled(session),
+        online_enabled=await _online_enabled(session),
         hold_minutes=settings.ONLINE_HOLD_MINUTES,
     )
 
 
 # ------------------------------------------------------------------ lượt thanh toán (AC6–AC18)
+
+
+def _valid_phone(raw: str) -> str:
+    phone = members.normalize_phone(raw)
+    if not members.PHONE_RE.match(phone):
+        raise _web_error("Số điện thoại không hợp lệ — cần đủ 10 số.")
+    return phone
 
 
 def _validate_customer(data: CheckoutIn) -> tuple[str, str, str | None]:
@@ -102,9 +124,7 @@ def _validate_customer(data: CheckoutIn) -> tuple[str, str, str | None]:
         raise _web_error("Vui lòng nhập họ tên.")
     if len(full_name) > NAME_MAX:
         raise _web_error(f"Họ tên tối đa {NAME_MAX} ký tự.")
-    phone = members.normalize_phone(data.phone)
-    if not members.PHONE_RE.match(phone):
-        raise _web_error("Số điện thoại không hợp lệ — cần đủ 10 số.")
+    phone = _valid_phone(data.phone)
     note = (data.note or "").strip() or None
     if note and len(note) > NOTE_MAX:
         raise _web_error(f"Ghi chú tối đa {NOTE_MAX} ký tự.")
@@ -120,15 +140,25 @@ def _validate_customer(data: CheckoutIn) -> tuple[str, str, str | None]:
         Depends(rate_limit("web.checkout", 6, window_s=600)),
     ],
 )
-async def create_checkout(data: CheckoutIn, idem: IdempotencyDep, session: SessionDep):
+async def create_checkout(
+    data: CheckoutIn,
+    idem: IdempotencyDep,
+    session: SessionDep,
+    verified_phone: auth.VerifiedCustomerPhone,
+):
     """Giữ chỗ 5 phút + cấp mã, trả ``token`` (một lần) để mở trang thanh toán.
 
+    Cần ``phone_token`` của đúng SĐT (trừ khách đăng nhập có SĐT đã xác minh trùng ``phone``).
     Lỗi: E-WEB-1 (dữ liệu), E-WEB-2 (khung không đặt được), E-WEB-3 (vừa có người đặt, kèm
-    ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng), E-019.
+    ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng),
+    E-WEB-8 (chưa xác minh SĐT), E-019.
     """
-    if not await payments.online_enabled(session):
-        raise AppError("E-WEB-5", "Đặt online đang tạm ngưng. Vui lòng gọi hotline.", 503)
+    await _require_online(session)
     full_name, phone, note = _validate_customer(data)
+    if verified_phone != phone and not await auth.booking_phone_token_valid(
+        session, data.phone_token, phone
+    ):
+        raise AppError("E-WEB-8", "Vui lòng xác minh số điện thoại trước khi đặt sân.", 403)
 
     async def run() -> CheckoutCreatedOut:
         profile = await members.find_by_phone(session, phone)
@@ -158,6 +188,36 @@ async def create_checkout(data: CheckoutIn, idem: IdempotencyDep, session: Sessi
 
     actor_key = f"web:{client_ip() or 'unknown'}"
     return await idem.run(session, actor_key, run, status_code=status.HTTP_201_CREATED)
+
+
+@router.post(
+    "/phone/request",
+    response_model=PhoneCodeSentOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_origin)],
+)
+async def phone_request(data: PhoneCodeIn, session: SessionDep):
+    """Gửi OTP xác minh SĐT trước khi đặt (T-013 AC25).
+
+    Lỗi: E-WEB-1 (SĐT sai), E-WEB-5 (đặt online tạm ngưng), E-AUTH-13 (gửi quá nhiều, 429).
+    """
+    await _require_online(session)
+    sent = await auth.send_booking_phone_code(session, _valid_phone(data.phone), client_ip())
+    return PhoneCodeSentOut(resend_after=sent.resend_after, test_otp=sent.test_otp)
+
+
+@router.post(
+    "/phone/verify",
+    response_model=PhoneTokenOut,
+    dependencies=[Depends(require_origin), Depends(no_store)],
+)
+async def phone_verify(data: PhoneVerifyIn, session: SessionDep):
+    """Mã đúng -> ``phone_token`` (30 phút, dùng cho nhiều lượt đặt của SĐT này trong hạn).
+
+    Lỗi: E-WEB-1 (SĐT sai), E-AUTH-14 (sai mã, ``attempts_left``), E-AUTH-15 (mã hết hiệu lực).
+    """
+    token = await auth.verify_booking_phone(session, _valid_phone(data.phone), data.otp)
+    return PhoneTokenOut(phone_token=token.token, expires_at=token.expires_at)
 
 
 @router.get(

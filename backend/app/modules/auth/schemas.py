@@ -106,3 +106,49 @@ def user_out(user) -> UserOut:
         role=user.role,
         is_active=user.is_active,
     )
+
+
+# ---------- OTP: quên mật khẩu, xác minh SĐT ----------
+
+OtpDigits = Annotated[str, Field(pattern=r"^\d{6}$")]
+
+
+class PhoneIn(_In):
+    phone: Phone
+
+
+class OtpSentOut(BaseModel):
+    resend_after: int = Field(description="Giây tới lúc được gửi lại mã")
+    test_otp: str | None = Field(
+        default=None, description="Chỉ khi OTP_TEST_MODE (link dev) và là mã của khách"
+    )
+
+
+class PhoneOtpIn(_In):
+    phone: Phone
+    otp: OtpDigits
+
+
+class ResetTokenOut(BaseModel):
+    reset_token: str
+
+
+class ResetConfirmIn(_In):
+    reset_token: str = Field(min_length=1, max_length=128)
+    password: NewPassword
+
+
+# ---------- Google, xác minh SĐT của khách ----------
+
+
+class GoogleSignInIn(_In):
+    credential: str = Field(min_length=1, max_length=4096, description="ID token của Google")
+
+
+class PhoneVerifyOut(BaseModel):
+    merged: bool = Field(description="SĐT đã thuộc tài khoản khác -> đã gộp tài khoản Google vào")
+    password_cleared: bool = Field(
+        description="Gộp vào tài khoản có mật khẩu -> mật khẩu đó đã bị hủy (đăng nhập bằng Google "
+        "hoặc Quên mật khẩu)"
+    )
+    account: UserOut
