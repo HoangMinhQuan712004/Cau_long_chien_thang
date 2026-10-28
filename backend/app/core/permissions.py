@@ -37,7 +37,7 @@ class Perm(enum.StrEnum):
     PAYMENTS_SETTINGS = "payments.settings"  # tài khoản nhận tiền, khóa SePay (chỉ Admin, T-012)
 
 
-# Vai hiện có: admin = Admin (chủ sân), staff = Tài khoản tại máy, customer = khách
+# Vai hiện có: admin = Admin (chủ sân), staff = nhân viên (NV001…), customer = khách
 ROLE_PERMS: dict[str, frozenset[Perm]] = {
     "admin": frozenset(Perm),
     "staff": frozenset(
@@ -59,7 +59,7 @@ ROLE_PERMS: dict[str, frozenset[Perm]] = {
 }
 
 # Nhãn hiển thị người thao tác (nhật ký, "người thu") – không lộ email / tên đăng nhập
-ROLE_LABELS = {"admin": "Admin", "staff": "Tài khoản tại máy", "customer": "Khách đặt online"}
+ROLE_LABELS = {"admin": "Admin", "staff": "Nhân viên", "customer": "Khách đặt online"}
 
 
 @dataclass(frozen=True)

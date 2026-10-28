@@ -129,6 +129,9 @@ class BodyLimitMiddleware:
 
 async def require_origin(request: Request) -> None:
     """Dependency cho route ghi công khai (đăng nhập, web khách): Origin / Referer phải là site
-    của mình **kể cả khi chưa có cookie phiên** (ADR-004 S4, T-013 SEC9)."""
+    của mình **kể cả khi chưa có cookie phiên** (ADR-004 S4, T-013 SEC9). GET / HEAD / OPTIONS
+    bỏ qua: Next gọi ``GET /auth/me`` từ server component, không có Origin."""
+    if request.method in SAFE_METHODS:
+        return
     if not origin_allowed(dict(request.scope.get("headers", []))):
         raise AppError("E-SEC-1", "Yêu cầu không hợp lệ (nguồn gửi không được phép).", 403)
