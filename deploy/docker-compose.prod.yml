@@ -11,6 +11,8 @@ x-backend: &backend
     ENV: production
     DATABASE_URL: postgresql+asyncpg://caulong:${POSTGRES_PASSWORD}@db:5432/caulong
     REDIS_URL: redis://redis:6379/0
+    # `web` gọi `api` qua mạng compose (subnet riêng tư) ⇒ tin X-Forwarded-For từ các subnet này
+    TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12,192.168.0.0/16}
   depends_on:
     db:
       condition: service_healthy

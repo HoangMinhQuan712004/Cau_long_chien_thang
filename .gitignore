@@ -18,3 +18,7 @@ out/
 .DS_Store
 .vscode/
 .idea/
+
+# AI
+.claude
+CLAUDE.md

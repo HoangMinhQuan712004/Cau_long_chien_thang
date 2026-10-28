@@ -64,6 +64,7 @@ jobs:
           build-args: |
             BACKEND_URL=http://api:8000
             NEXT_PUBLIC_SITE_URL=${{ vars.SITE_URL || 'http://localhost:3000' }}
+            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID || '' }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
