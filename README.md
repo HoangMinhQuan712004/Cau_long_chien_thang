@@ -7,7 +7,7 @@ project_caulong/
 ├── backend/                 FastAPI, chia module theo domain
 │   ├── app/core/            config, db, security, event bus nội bộ
 │   ├── app/modules/
-│   │   ├── auth/            user, role (admin/staff/customer), JWT cookie
+│   │   ├── auth/            user, role (admin/staff/customer), JWT cookie cho khách; từ T-013: phiên Admin/nhân viên phía server, OTP, Google, quản lý nhân viên
 │   │   ├── booking_engine/  sân, giờ, bảng giá, lịch, booking, sự kiện/vé, thu tiền (schema `booking`)
 │   │   ├── front_desk/      đặt sân tại quầy: ghép hội viên + booking_engine
 │   │   ├── members/         hội viên và hồ sơ tạm (tối thiểu)
@@ -20,8 +20,8 @@ project_caulong/
 │   └── tests/
 ├── frontend/                Next.js App Router (Cache Components)
 │   └── src/
-│       ├── app/(public)/    trang khách: /, /dat-san, /thanh-toan/[token], /tra-cuu, /bang-gia, /tin-tuc, tài khoản
-│       ├── app/admin/       chủ sân / nhân viên (noindex): dat-san (lịch quầy), san, san/bang-gia, lich-su-giao-dich, tien-ve (chỉ Admin)
+│       ├── app/(public)/    trang khách: /, /dat-san, /thanh-toan/[token], /tra-cuu, /bang-gia, /tin-tuc, tài khoản (T-013: /dang-nhap, /dang-ky, /quen-mat-khau, /xac-minh, /dat-lai, /tai-khoan)
+│       ├── app/admin/       chủ sân / nhân viên (noindex): dat-san (lịch quầy), san, san/bang-gia, lich-su-giao-dich, tien-ve, cai-dat/thanh-toan (chỉ Admin; T-013 thêm nhan-vien)
 │       ├── app/sitemap.ts, robots.ts
 │       ├── components/      booking-engine/ (màn quản trị), web-booking/ (đặt online, thanh toán, tra cứu), admin/, ui/
 │       ├── lib/api/         client sinh từ OpenAPI (server.ts / client.ts)
@@ -129,7 +129,8 @@ npm install
 npm run dev                      # http://localhost:3000
 ```
 
-Tài khoản chủ sân mặc định: `admin@example.com` / `admin12345` (đổi trong `backend/.env`).
+Tài khoản chủ sân trên `dev` hiện tại: `admin@example.com` / `admin12345` (đổi trong `backend/.env`).
+**Từ T-013** Admin đăng nhập bằng **số điện thoại**: `FIRST_ADMIN_PHONE` (mặc định `0912345678`) và mật khẩu `FIRST_ADMIN_PASSWORD` trong `backend/.env`; seed chỉ tạo Admin khi DB chưa có Admin. Xem mục "Đăng nhập, nhân viên và OTP".
 
 Chạy toàn bộ bằng Docker: `docker compose --profile app up --build`.
 
@@ -137,7 +138,7 @@ API nền tảng booking engine (Idempotency-Key, mã lỗi, bảng quyền, bi�
 
 ## Đặt online và SePay (T-008)
 
-> Backend xong ở nhánh `be/T-008-web-khach`; chưa vào `dev` cho tới khi RELEASE đẩy. Chi tiết API, mã lỗi, webhook: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 10.
+> Đã có trong `dev` (PR #16). Chưa lên production. Chi tiết API, mã lỗi, webhook: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 10.
 
 Khách đặt sân trên web, chuyển khoản QR qua **SePay**; SePay báo tiền về bằng webhook, server tạo booking. Giữ chỗ **5 phút** (+ 60 giây ân hạn nhận tiền báo trễ).
 
@@ -187,7 +188,7 @@ Admin vào **`/admin/cai-dat/thanh-toan`** (menu "Cài đặt thanh toán", ch�
    ```
 
 2. Chạy migration một lần để có schema `payments`: `cd backend; .venv\Scripts\alembic upgrade head`.
-3. Mở `http://localhost:3000/dat-san`, chọn ô, nhập họ tên + SĐT, bấm xác nhận. Trang thanh toán hiện **Nội dung CK** dạng `BK20261020023` (chính là `pay_ref`) và số tiền.
+3. Mở `http://localhost:3000/dat-san`, chọn ô, nhập họ tên + SĐT, bấm xác nhận (từ T-013: bấm **Gửi mã** và nhập mã thử trước, xem mục "Đăng nhập, nhân viên và OTP"). Trang thanh toán hiện **Nội dung CK** dạng `BK20261020023` (chính là `pay_ref`) và số tiền.
 4. Giả lập tiền về bằng tài khoản Admin. Lệnh ghi cần cookie phiên, header `Origin` thuộc `ALLOWED_ORIGINS` (mặc định `http://localhost:3000`) và `Idempotency-Key` mới mỗi lần. Ví dụ PowerShell, đổi `pay_ref` và `amount` theo trang thanh toán:
 
    ```powershell
@@ -200,11 +201,13 @@ Admin vào **`/admin/cai-dat/thanh-toan`** (menu "Cài đặt thanh toán", ch�
      -ContentType "application/json" -Body '{"pay_ref":"BK20261020023","amount":288000}'
    ```
 
+   **Từ T-013** thay dòng đăng nhập bằng `.../api/v1/auth/sign-in` với body `{"login":"0912345678","password":"<FIRST_ADMIN_PASSWORD trong backend/.env>"}` (`/auth/login` bị gỡ). Phiên Admin là cookie `admin_session`; `-WebSession` vẫn giữ cookie như trên.
+
    Kết quả là `BankTransactionOut` (`outcome`, `refund_amount`, `booking_codes`). Lần sau nhớ đổi `Idempotency-Key`. Đổi `localhost:3000` nếu bạn chạy `WEB_PORT` khác (và thêm origin đó vào `ALLOWED_ORIGINS`).
 5. Trang thanh toán tự chuyển sang "Đặt sân thành công". Thử `amount` nhỏ hơn → `partial` (vẫn chờ); lớn hơn → `applied` kèm `refund_amount`.
 6. Admin xem tiền cần hoàn / không khớp mã ở trang `/admin/tien-ve` (menu "Tiền về", kèm số giao dịch chưa xử lý); bấm **Đã xử lý** phải ghi chú. Cùng dữ liệu ở `GET /api/v1/payments/bank-transactions`.
 
-Các trang khách của T-008: `/dat-san` (lưới chọn giờ, `?ngay=YYYY-MM-DD`), `/thanh-toan/{token}` (QR + đếm ngược, tự chuyển khi tiền về; `noindex`, `no-store`, chặn trong `robots.txt`, không vào sitemap), `/tra-cuu` (mã booking + SĐT). Header: Đặt sân · Tra cứu booking · Hotline (Đăng nhập/Đăng ký đang ẩn). Số hotline vẫn là số mẫu trong `frontend/src/lib/site.ts` cho tới khi chủ dự án cung cấp số thật.
+Các trang khách của T-008: `/dat-san` (lưới chọn giờ, `?ngay=YYYY-MM-DD`), `/thanh-toan/{token}` (QR + đếm ngược, tự chuyển khi tiền về; `noindex`, `no-store`, chặn trong `robots.txt`, không vào sitemap), `/tra-cuu` (mã booking + SĐT). Header: Đặt sân · Tra cứu booking · Hotline (Đăng nhập/Đăng ký đang ẩn; T-013 hiện lại). Số hotline vẫn là số mẫu trong `frontend/src/lib/site.ts` cho tới khi chủ dự án cung cấp số thật.
 
 ### Hướng dẫn chủ sân cài SePay (một lần, trước khi bật production)
 
@@ -221,6 +224,88 @@ Thử không tốn tiền: bật **Test Mode** trên SePay → menu Giao dịch 
 Khóa webhook là secret: chỉ dán vào trang Cài đặt, không gửi qua board hay tin nhắn. Nghi lộ khóa → tạo khóa mới trên SePay rồi dán lại trên trang (khóa cũ ngừng được chấp nhận ngay khi Lưu).
 
 Giao dịch không tự khớp (sai nội dung, tiền về sau khi hết hạn, trả thừa) không bị mất: nằm ở "Tiền về cần xử lý" để Admin hoàn tiền thủ công rồi bấm Đã xử lý.
+
+## Đăng nhập, nhân viên và OTP (T-013)
+
+> **Viết theo spec T-013** (`board/tasks/T-013-dang-nhap-nhan-vien.md`, ADR-008); chưa vào `dev`. Tên biến, trang và lệnh sẽ được đối chiếu với code khi backend/frontend bàn giao. Chi tiết API và mã lỗi: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 11.
+
+Mục này dùng để biết ai đăng nhập bằng gì, cấu hình biến môi trường mới, cứu Admin khi quên mật khẩu, và thử OTP khi chưa có Zalo.
+
+### Ai đăng nhập bằng gì
+
+| Vai | Đăng nhập bằng | Trang |
+|---|---|---|
+| Admin (chủ sân) | Số điện thoại + mật khẩu | `/dang-nhap` → `/admin` |
+| Nhân viên | Tên đăng nhập + mật khẩu. **Mỗi nhân viên một tài khoản** (mã `NV001`…), đăng nhập ở máy nào cũng được | `/dang-nhap` → `/admin` |
+| Khách | SĐT hoặc tên đăng nhập + mật khẩu, hoặc Google. Tự đăng ký tại `/dang-ky` | `/dang-nhap` → `/tai-khoan` |
+
+- Chỉ có **một** trang `/dang-nhap` với một ô "Số điện thoại hoặc tên đăng nhập".
+- Sai mật khẩu 5 lần liên tiếp → khóa 15 phút. Phiên Admin/nhân viên tồn tại tối đa 12 giờ, rồi phải đăng nhập lại.
+- Nhân viên có quyền như "Tài khoản tại máy" trước đây (đặt sân tại quầy, thu tiền, xem lịch). Không tạo/xóa sự kiện, không xem Lịch sử giao dịch, không vào Nhân viên và Cài đặt thanh toán.
+- Đặt tại quầy **không** cần OTP. OTP chỉ dùng khi khách **đặt online**, khi **quên mật khẩu** và khi **xác minh SĐT** trong `/tai-khoan`.
+
+### Chủ sân quản lý nhân viên
+
+Vào `/admin/nhan-vien` (menu "Nhân viên", chỉ Admin):
+
+1. **Thêm nhân viên:** nhập họ tên và mật khẩu (hoặc bấm sinh mật khẩu ngẫu nhiên). Hệ thống tự cấp mã (`NV007`) và tên đăng nhập (`an.nv007`). **Mật khẩu chỉ hiện một lần**: bấm sao chép và đưa cho nhân viên ngay.
+2. **Đặt lại mật khẩu** khi nhân viên quên: mọi phiên đang mở của người đó bị đăng xuất.
+3. **Khóa** khi nhân viên nghỉ việc: không đăng nhập được nữa, phiên đang mở bị đăng xuất ngay. Mở khóa lại được.
+4. **Đăng xuất từ xa** một phiên lạ: bấm vào nhân viên để xem các phiên đang mở (giờ, hạn, trình duyệt) rồi thu hồi từng phiên.
+
+Mã nhân viên không dùng lại, kể cả khi đã khóa.
+
+### Biến môi trường mới
+
+Khai báo ở `backend/.env` (máy dev) và `.env` trên server. Danh sách đầy đủ kèm mặc định: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 6.
+
+| Biến | Dùng cho | Ghi chú |
+|---|---|---|
+| `FIRST_ADMIN_PHONE` | SĐT Admin đầu tiên (thay `FIRST_ADMIN_EMAIL`) | Link dev: `0912345678`. **Production: SĐT thật, phải có trong `.env` trước khi deploy** (thiếu → migration dừng, API không lên) |
+| `FIRST_ADMIN_PASSWORD` | Mật khẩu Admin đầu tiên | Chỉ dùng khi **chưa có Admin**; không bao giờ ghi đè mật khẩu đã có. Production từ chối mật khẩu mẫu hoặc yếu. **Secret** |
+| `OTP_TEST_MODE` | Hiện mã OTP trên màn hình khi chưa có Zalo | Chỉ máy dev và link dev. `true` + `ENV=production` → API không khởi động |
+| `ZALO_APP_ID`, `ZALO_SECRET_KEY`, `ZALO_REFRESH_TOKEN`, `ZALO_TEMPLATE_OTP` | Gửi OTP qua Zalo | **Chưa dùng được** (làm sau). Secret |
+| `GOOGLE_CLIENT_ID` | Đăng nhập Google (backend) | Để trống thì nút Google hiện "đang được cấu hình" |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Nút Google (frontend) | Client ID là thông tin công khai. Deploy lấy từ biến repo `GOOGLE_CLIENT_ID` (Settings → Secrets and variables → Variables), build vào image web |
+
+Các hạn mức (số lần sai, thời gian khóa, hạn OTP…) có mặc định hợp lý; chỉ đổi khi cần, xem bảng ở tài liệu API.
+
+### Thử OTP khi chưa có Zalo (`OTP_TEST_MODE`)
+
+Đặt `OTP_TEST_MODE=true` trong `backend/.env` rồi chạy lại API.
+
+- **Khách** (đặt online, xác minh SĐT, quên mật khẩu): sau khi bấm "Gửi mã", màn hình hiện hộp vàng **"Mã thử (chỉ link dev): 123456"**. Nhập mã đó.
+- **Admin/nhân viên quên mật khẩu:** mã **không** hiện trên màn hình (người lạ vào link dev công khai không được chiếm Admin). Đọc mã trong log API:
+  - Máy dev: terminal đang chạy `uvicorn` / `npm run dev`.
+  - Link dev: `docker compose -p caulong-dev logs api --tail 50` trên VPS.
+- `OTP_TEST_MODE=false` (mặc định): mã không bao giờ xuất hiện trong response hay log.
+
+Thử đặt online trên máy dev (thay bước 3 của mục "Thử trên máy dev" phía trên): chọn ô, nhập họ tên + SĐT, bấm **Gửi mã**, nhập mã thử, rồi mới xác nhận đặt. Đã đăng nhập khách có SĐT xác minh thì bỏ qua bước OTP.
+
+> Khi chưa có Zalo, **production không bật được đặt online** (thiếu kênh OTP) và quên mật khẩu hiện "Chức năng quên mật khẩu đang tạm ngưng. Vui lòng liên hệ chủ sân." Production chỉ đặt tại quầy cho tới khi Zalo xong.
+
+### Cứu Admin khi quên mật khẩu
+
+Khi chưa có Zalo, Admin không tự đặt lại được. Chạy trên VPS, trong thư mục compose của môi trường (`/opt/caulong-dev` hoặc `/opt/caulong`):
+
+```bash
+docker compose -p caulong-dev exec api python -m app.scripts.reset_admin_password   # link dev
+docker compose -p caulong     exec api python -m app.scripts.reset_admin_password   # production
+```
+
+Lệnh hỏi mật khẩu mới hai lần (gõ không hiện trên màn hình; **không** truyền mật khẩu qua tham số dòng lệnh). Có nhiều Admin thì hỏi SĐT. Xong: mọi phiên đăng nhập bị đăng xuất, tài khoản được mở khóa, thao tác ghi vào nhật ký. Chỉ người có quyền SSH vào VPS chạy được. Máy dev không dùng Docker: `cd backend; .venv\Scripts\python -m app.scripts.reset_admin_password`.
+
+### Lên T-013: việc phải làm trước khi deploy
+
+| Việc | Vì sao |
+|---|---|
+| Ghi `FIRST_ADMIN_PHONE` vào `.env` của server **trước** deploy | Admin cũ đăng nhập bằng email, chưa có SĐT. Migration gán SĐT này cho Admin cũ; thiếu hoặc sai thì dừng, API không lên. Mật khẩu cũ giữ nguyên |
+| Production: **không** bật `OTP_TEST_MODE` | Bật cùng `ENV=production` thì API không khởi động |
+| Link dev: `OTP_TEST_MODE=true`, `GOOGLE_CLIENT_ID` | Để thử OTP và Google |
+| Đặt biến repo `GOOGLE_CLIENT_ID` | `cd.yml` build vào image web |
+| Sau deploy dev: kiểm `0912345678` + mật khẩu cũ và `nv001` + mật khẩu cũ của "Tài khoản tại máy" | "Tài khoản tại máy" hiện tại được đổi thành nhân viên `NV001` / `nv001` |
+
+Sau khi lên T-013, route cũ `/auth/login` và `/admin/users` bị gỡ (trả 404); `UserOut` không còn `email`.
 
 ## Lệnh thường dùng
 
@@ -302,6 +387,7 @@ nhật ký thao tác chỉ thêm (không sửa), quyền khai báo tập trung �
 **Auth.** JWT trong cookie httpOnly (access 30 phút, refresh 14 ngày, path `/api/v1/auth`).
 Trình duyệt gọi `/api/v1/*` cùng domain, Next rewrite sang FastAPI → không cần CORS.
 Client tự gọi `/auth/refresh` khi gặp 401; trang đăng nhập tự khôi phục phiên nếu refresh còn hạn.
+**Từ T-013 (ADR-008):** JWT chỉ còn cho **khách** (thêm `token_version`: đổi mật khẩu thì JWT cũ hết hiệu lực). Admin và nhân viên dùng **phiên phía server** (cookie `admin_session`, 12 giờ cứng, thu hồi được, đăng xuất từ xa). OTP chỉ bắt buộc ở đặt online; đặt tại quầy không cần.
 
 **SEO.** Trang public prerender tĩnh, dữ liệu qua `'use cache'` + `cacheLife` (tự làm mới).
 Mỗi trang tự khai báo `alternates.canonical`; JSON-LD `SportsActivityLocation` (trang chủ),
@@ -318,4 +404,4 @@ Thứ tự và phạm vi do ARCHITECT giữ trong `board/tasks/` (T-007 thu ti�
 - Màn Hội viên đầy đủ, Báo cáo.
 - Gọi `revalidateTag("posts")` (qua route handler có secret) khi admin đăng bài để sitemap/tin tức cập nhật ngay.
 - Gửi thông báo email / Zalo ZNS từ `notifications/handlers.py` qua worker.
-- Upload ảnh lên S3/R2, rate limit đăng nhập (Redis), Sentry.
+- Upload ảnh lên S3/R2, Sentry. Gửi OTP qua Zalo ZNS (T-013 để lại `TODO`).
