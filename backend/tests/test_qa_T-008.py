@@ -40,7 +40,9 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.modules.members.api import normalize_phone
 from tests.conftest import API, ORIGIN, idem
+from tests.helpers_web import phone_token
 
 W = f"{API}/web/booking"
 PAY = f"{API}/payments"
@@ -121,6 +123,13 @@ def slots(code: str, *hours: int) -> list[dict]:
     return [{"resource_code": code, "start_hour": h} for h in hours]
 
 
+async def with_token(web, body: dict) -> dict:
+    """T-013 AC26: đặt online cần ``phone_token`` của đúng SĐT (OTP chế độ thử)."""
+    if "phone_token" not in body:
+        body["phone_token"] = await phone_token(web, normalize_phone(body["phone"]), required=False)
+    return body
+
+
 async def checkout(web, sl, *, d: date | None = None, name="QA Khách Web", ph=None, note=None, **x):
     body = {
         "date": (d or day()).isoformat(),
@@ -131,7 +140,7 @@ async def checkout(web, sl, *, d: date | None = None, name="QA Khách Web", ph=N
     }
     if note is not None:
         body["note"] = note
-    return await web.post(f"{W}/checkouts", json=body, headers=idem())
+    return await web.post(f"{W}/checkouts", json=await with_token(web, body), headers=idem())
 
 
 async def make_checkout(web, sl, **kw) -> dict:
@@ -449,7 +458,7 @@ async def test_ac7_sec4_validation_and_forbidden_fields(anon, admin, sepay, patc
         "phone": phone(),
         **patch,
     }
-    r = await anon.post(f"{W}/checkouts", json=body, headers=idem())
+    r = await anon.post(f"{W}/checkouts", json=await with_token(anon, body), headers=idem())
     assert r.status_code == status, r.text
     assert (state_of((await calendar(anon)).json(), c["code"], 10) or {}).get("state") == "free"
 
@@ -494,28 +503,24 @@ async def test_ac10_past_and_closed_slots_rejected(anon, admin, sepay):
     c = await court(admin, open_time="06:00", close_time="22:00")
     err(await checkout(anon, slots(c["code"], 5)), 422, "E-WEB-2")  # before opening
     err(await checkout(anon, slots(c["code"], 22)), 422, "E-WEB-2")  # at closing
-    past = await anon.post(
-        f"{W}/checkouts",
-        json={
-            "date": (date.today() - timedelta(days=1)).isoformat(),
-            "slots": slots(c["code"], 10),
-            "full_name": "QA Quá Khứ",
-            "phone": phone(),
-        },
-        headers=idem(),
-    )
+    past_body = {
+        "date": (date.today() - timedelta(days=1)).isoformat(),
+        "slots": slots(c["code"], 10),
+        "full_name": "QA Quá Khứ",
+        "phone": phone(),
+    }
+    past = await anon.post(f"{W}/checkouts", json=await with_token(anon, past_body), headers=idem())
     assert past.status_code == 422, past.text
     # today: only hours that start in the future may be booked
     h = datetime.now(settings.tz).hour
+    started_body = {
+        "date": date.today().isoformat(),
+        "slots": slots(c["code"], h),
+        "full_name": "QA Đang Chơi",
+        "phone": phone(),
+    }
     started = await anon.post(
-        f"{W}/checkouts",
-        json={
-            "date": date.today().isoformat(),
-            "slots": slots(c["code"], h),
-            "full_name": "QA Đang Chơi",
-            "phone": phone(),
-        },
-        headers=idem(),
+        f"{W}/checkouts", json=await with_token(anon, started_body), headers=idem()
     )
     err(started, 422, "E-WEB-2")
 
@@ -589,11 +594,12 @@ async def test_idempotent_checkout_replay_creates_one(anon, admin, sepay):
         "full_name": "QA Lặp",
         "phone": phone(),
     }
+    await with_token(anon, body)
     a = await anon.post(f"{W}/checkouts", json=body, headers=k)
     b = await anon.post(f"{W}/checkouts", json=body, headers=k)
     assert a.status_code == b.status_code == 201
     assert a.json()["pay_ref"] == b.json()["pay_ref"]
-    missing = await anon.post(f"{W}/checkouts", json={**body, "phone": phone()})
+    missing = await anon.post(f"{W}/checkouts", json=body)
     assert missing.status_code == 400, missing.text
 
 
