@@ -19,7 +19,7 @@ export default async function PricePage() {
       <p className="text-sm text-muted">
         Giá đã bao gồm đèn và nước uống. Đặt cố định hằng tuần vui lòng liên hệ {site.phone}.
       </p>
-      <Link href="/dat-san" className="inline-block rounded-md bg-primary px-5 py-3 text-primary-fg">
+      <Link href="/dat-san" className="inline-block rounded-md bg-primary px-5 py-3 text-surface">
         Đặt sân ngay
       </Link>
     </article>

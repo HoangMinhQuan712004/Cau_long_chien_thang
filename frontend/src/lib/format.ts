@@ -11,6 +11,10 @@ export const formatTime = (iso: string) =>
 export const formatDate = (iso: string) =>
   new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeZone: TZ }).format(new Date(iso));
 
+/** Số giây đồng hồ đếm ngược */
+export const formatCountdown = (seconds: number) =>
+  `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
 /** Ngày hiện tại theo giờ Việt Nam, dạng YYYY-MM-DD. */
 export const todayVn = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
 

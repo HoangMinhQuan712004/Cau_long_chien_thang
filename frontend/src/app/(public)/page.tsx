@@ -63,7 +63,7 @@ export default async function HomePage() {
           <div className="mt-6 flex gap-3">
             <Link
               href="/dat-san"
-              className="rounded-md bg-primary px-5 py-3 font-medium text-primary-fg"
+              className="rounded-md bg-primary px-5 py-3 font-medium text-surface"
             >
               Xem lịch trống &amp; đặt sân
             </Link>

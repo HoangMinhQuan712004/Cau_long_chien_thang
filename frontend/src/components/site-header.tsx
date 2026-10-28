@@ -28,7 +28,7 @@ export function SiteHeader() {
           </Link>
           <Link
             href="/dat-san"
-            className="rounded-md bg-primary px-3 py-2 font-medium text-primary-fg"
+            className="rounded-md bg-primary px-3 py-2 font-medium text-surface"
           >
             Đặt sân ngay
           </Link>

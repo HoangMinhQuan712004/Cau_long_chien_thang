@@ -34,7 +34,7 @@ async function Courts() {
             <li key={c.id} className="rounded-lg border border-border bg-surface p-4">
               <p className="font-semibold">{c.name}</p>
               <p className="text-sm text-muted">{c.surface ?? "—"}</p>
-              <p className={`mt-1 text-xs ${c.is_active ? "text-success" : "text-danger"}`}>
+              <p className={`mt-1 text-xs ${c.is_active ? "text-primary" : "text-danger"}`}>
                 {c.is_active ? "Đang hoạt động" : "Tạm ngưng"}
               </p>
             </li>
