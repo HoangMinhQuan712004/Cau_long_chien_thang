@@ -175,7 +175,7 @@ function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string })
         <Row label="Sân" value={r.resource_name} />
         <Row label="Ngày" value={formatLongDate(r.play_date)} />
         <Row label="Khung giờ" value={`${hhmm(r.start_time)} – ${hhmm(r.end_time)} (${r.hours} giờ)`} />
-        <Row label="Người đặt" value={`${r.customer_name} · ${r.phone_masked}`} />
+        <Row label="Người đặt" value={`${r.customer_name} · ${r.phone_masked ?? "—"}`} />
         <Row label="Số tiền" value={money} />
         {r.status === "paid" && r.paid_at ? <Row label="Thời gian TT" value={formatDateTime(r.paid_at)} /> : null}
       </dl>

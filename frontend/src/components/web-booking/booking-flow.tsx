@@ -7,7 +7,7 @@ import { errorText, write } from "@/lib/api/write";
 import { formatLongDate, formatVnd } from "@/lib/format";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { getWebCalendar, sendCheckout } from "./requests";
-import { MAX_CELLS, RESTORE_KEY, type Cell, type Checkout, type WebCalendar } from "./types";
+import { MAX_CELLS, RESTORE_KEY, type Cell, type WebCalendar } from "./types";
 
 // /dat-san – bước 1: chọn khung giờ trên lưới (nhiều ô, nhiều sân, cùng 1 ngày, tối đa 16 ô); bước 2: nhập thông tin người đặt.
 // Server tự tính giá và kiểm lại mọi điều kiện; FE chỉ gửi sân + giờ + thông tin khách (T-008 AC1–AC9).
@@ -15,7 +15,7 @@ import { MAX_CELLS, RESTORE_KEY, type Cell, type Checkout, type WebCalendar } fr
 const STORAGE_KEY = "wk-booking-v1";
 
 type Saved = { date: string; cells: Cell[]; name: string; phone: string; note: string; step: 1 | 2 };
-type Restore = { date: string; items: { name: string; hour: number }[] };
+type Restore = { date: string; items: Cell[] };
 
 const cellKey = (c: Cell) => `${c.code}|${c.hour}`;
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -125,9 +125,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
       setLoadError("");
 
       const freeSet = new Set<string>();
-      const nameToCode = new Map<string, string>();
       for (const r of cal.resources) {
-        nameToCode.set(r.name, r.code);
         for (const s of r.slots) if (s.state === "free") freeSet.add(`${r.code}|${s.start_hour}`);
       }
 
@@ -135,8 +133,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
       if (restore && restore.date === d) {
         restoreRef.current = null;
         const wanted = restore.items
-          .map((i) => ({ code: nameToCode.get(i.name) ?? "", hour: i.hour }))
-          .filter((c) => c.code && freeSet.has(cellKey(c)))
+          .filter((c) => freeSet.has(cellKey(c)))
           .slice(0, MAX_CELLS);
         if (wanted.length) {
           applyCells(wanted);
@@ -270,7 +267,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
     try {
       const res = await write((key) => sendCheckout(key, { date, slots, full_name: cleanName, phone, ...(note ? { note } : {}) }));
       if (res.ok) {
-        const token = (res.data as Checkout).token;
+        const token = res.data.token;
         if (!token) {
           setBanner("Không nhận được mã thanh toán. Vui lòng thử lại.");
           return;

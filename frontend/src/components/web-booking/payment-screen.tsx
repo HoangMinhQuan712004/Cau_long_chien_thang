@@ -78,8 +78,7 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
     if (!date) return router.push("/dat-san");
     try {
       const items = checkout!.items.flatMap((it) => {
-        const from = Number(it.start_time.slice(0, 2));
-        return Array.from({ length: it.hours }, (_, i) => ({ name: it.resource_name, hour: from + i }));
+        return Array.from({ length: it.hours }, (_, i) => ({ code: it.resource_code, hour: it.start_hour + i }));
       });
       sessionStorage.setItem(RESTORE_KEY, JSON.stringify({ date, items }));
     } catch {
@@ -175,7 +174,7 @@ function PaidView({ checkout }: { checkout: Checkout }) {
           label="Khung giờ"
           value={checkout.items.map((i) => `${checkout.items.length > 1 ? `${i.resource_name}: ` : ""}${hhmm(i.start_time)} – ${hhmm(i.end_time)} (${i.hours} giờ)`).join("; ")}
         />
-        <Row label="Người đặt" value={`${checkout.customer.full_name} · ${checkout.customer.phone_masked}`} />
+        <Row label="Người đặt" value={`${checkout.customer.full_name} · ${checkout.customer.phone_masked ?? "—"}`} />
         <Row label="Đã thanh toán" value={`${formatVnd(checkout.amount)} · Chuyển khoản`} />
       </dl>
 
