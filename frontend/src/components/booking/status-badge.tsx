@@ -3,9 +3,9 @@ import { BOOKING_STATUS_LABEL } from "@/lib/format";
 const STYLE: Record<string, string> = {
   pending: "bg-accent/20 text-foreground",
   confirmed: "bg-primary/15 text-primary",
-  completed: "bg-busy text-muted",
+  completed: "bg-foreground/10 text-muted",
   cancelled: "bg-danger/10 text-danger",
-  expired: "bg-busy text-muted",
+  expired: "bg-foreground/10 text-muted",
 };
 
 export function StatusBadge({ status }: { status: string }) {
