@@ -247,7 +247,7 @@ function CollectDialog({ item, onBack, onClose, onDone, onStale }: StepProps) {
       <ItemSummary item={item} />
       <div>
         <span className="mb-1 block text-sm font-medium">Số tiền phải thu</span>
-        <p className="rounded-md border border-border bg-busy/40 px-3 py-2 text-sm font-semibold">{formatVnd(item.payment.amount)}</p>
+        <p className="rounded-md border border-border bg-background px-3 py-2 text-sm font-semibold">{formatVnd(item.payment.amount)}</p>
       </div>
       <fieldset>
         <legend className="mb-1 text-sm font-medium">Phương thức</legend>

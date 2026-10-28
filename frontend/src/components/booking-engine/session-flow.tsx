@@ -181,7 +181,7 @@ export function SessionFlow({ code, onClose, onChanged, onOpenTicket }: Props) {
               </thead>
               <tbody>
                 {s.tickets.map((t) => (
-                  <tr key={t.code} className="border-b border-border last:border-0 hover:bg-free/60">
+                  <tr key={t.code} className="border-b border-border last:border-0 hover:bg-primary-softer">
                     <td className="px-3 py-2 font-mono text-xs">
                       <button type="button" onClick={() => onOpenTicket(t.code)} className="text-primary hover:underline">
                         {t.code.slice(-3)}

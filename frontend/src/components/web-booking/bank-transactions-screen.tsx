@@ -103,7 +103,7 @@ export function BankTransactionsScreen({ initial }: { initial: BankTransaction[]
                         {r.note ? <span className="block">{r.note}</span> : null}
                       </span>
                     ) : (
-                      <button type="button" onClick={() => setTarget(r)} className="rounded-md border border-border px-3 py-1 text-xs font-medium hover:bg-free">
+                      <button type="button" onClick={() => setTarget(r)} className="rounded-md border border-border px-3 py-1 text-xs font-medium hover:bg-primary-softer">
                         Đã xử lý<span className="sr-only"> giao dịch {r.provider_txn_id}</span>
                       </button>
                     )}
@@ -173,7 +173,7 @@ function ResolveDialog({ tx, onClose, onDone }: { tx: BankTransaction; onClose: 
           <button type="button" onClick={onClose} disabled={busy} className="rounded-md border border-border px-4 py-2 text-sm disabled:opacity-60">
             Hủy
           </button>
-          <button type="button" onClick={submit} disabled={busy} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-fg disabled:opacity-60">
+          <button type="button" onClick={submit} disabled={busy} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
             {busy ? "Đang lưu…" : "Đã xử lý"}
           </button>
         </>

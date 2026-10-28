@@ -95,7 +95,7 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
 
   return (
     <div className="space-y-3">
-      <div role="tablist" aria-label="Loại hồ sơ khách" className="flex gap-1 rounded-lg bg-busy/60 p-1">
+      <div role="tablist" aria-label="Loại hồ sơ khách" className="flex gap-1 rounded-lg bg-background p-1">
         <button type="button" role="tab" aria-selected={state.mode === "member"} onClick={() => set({ mode: "member" })} className={tab(state.mode === "member")}>
           Hồ sơ hội viên
         </button>
@@ -147,7 +147,7 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
                       <tr
                         key={m.ref}
                         onClick={() => set({ picked: m })}
-                        className={`cursor-pointer border-b border-border last:border-0 ${on ? "bg-free" : "hover:bg-free/60"}`}
+                        className={`cursor-pointer border-b border-border last:border-0 ${on ? "bg-primary-softer" : "hover:bg-primary-softer"}`}
                       >
                         <td className="px-3 py-2 font-mono text-xs">{m.member_code}</td>
                         <td className="px-3 py-2">

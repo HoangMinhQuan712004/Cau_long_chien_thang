@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { dismissToast, useReconnecting, useToasts } from "@/lib/feedback";
 
 const KIND_STYLE = {
-  success: "border-l-success",
+  success: "border-l-primary",
   error: "border-l-danger",
   info: "border-l-muted",
 } as const;

@@ -152,7 +152,7 @@ export function CourtsManager({
         <button
           type="button"
           onClick={openAdd}
-          className="ml-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-fg"
+          className="ml-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-white"
         >
           + Thêm sân
         </button>
@@ -179,7 +179,7 @@ export function CourtsManager({
                 <tr
                   key={r.code}
                   className={`border-b border-border last:border-0 ${r.is_active ? "" : "opacity-60"} ${
-                    fresh === r.code ? "bg-free" : ""
+                    fresh === r.code ? "bg-primary-softer" : ""
                   }`}
                 >
                   <td className="px-4 py-3 font-mono text-xs">{r.code}</td>
@@ -200,7 +200,7 @@ export function CourtsManager({
                   <td className="px-4 py-3">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        r.is_active ? "bg-free text-success" : "bg-busy text-muted"
+                        r.is_active ? "bg-primary-softer text-primary" : "bg-border text-muted"
                       }`}
                     >
                       {r.is_active ? "Hoạt động" : "Ngừng hoạt động"}
@@ -364,7 +364,7 @@ function CourtFormDialog({
             type="button"
             onClick={submit}
             disabled={busy}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-fg disabled:opacity-60"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           >
             {busy ? "Đang lưu…" : edit ? "Lưu" : "Thêm sân"}
           </button>
@@ -398,7 +398,7 @@ function CourtFormDialog({
           <input
             readOnly
             value={initial.code ?? "Tự cấp khi thêm"}
-            className="w-full rounded-md border border-border bg-busy px-3 py-2 text-sm text-muted"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-muted"
           />
           <p className="mt-1 text-xs text-muted">Hệ thống cấp, cố định.</p>
         </div>

@@ -20,7 +20,7 @@ export const METHOD_LABEL: Record<PaymentMethod, string> = {
 
 const BADGE_STYLE: Record<PaymentStatus, string> = {
   unpaid: "bg-blk-unpaid text-blk-unpaid-fg",
-  paid: "bg-free text-success",
+  paid: "bg-primary-softer text-primary",
   uncollectible: "bg-blk-bad text-blk-bad-fg",
 };
 
@@ -63,13 +63,13 @@ export function ErrorBanner({ children }: { children: ReactNode }) {
 }
 
 export function Hint({ children }: { children: ReactNode }) {
-  return <p className="rounded-md bg-free p-2.5 text-xs text-muted">{children}</p>;
+  return <p className="rounded-md bg-primary-softer p-2.5 text-xs text-muted">{children}</p>;
 }
 
 export const inputCls = "w-full rounded-md border border-border bg-background px-3 py-2 text-sm";
 export const btnCls = "rounded-md border border-border px-4 py-2 text-sm disabled:opacity-60";
-export const btnPrimaryCls = "rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-fg disabled:opacity-60";
-export const btnDangerCls = "rounded-md bg-danger px-4 py-2 text-sm font-medium text-primary-fg disabled:opacity-60";
+export const btnPrimaryCls = "rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-60";
+export const btnDangerCls = "rounded-md bg-danger px-4 py-2 text-sm font-medium text-white disabled:opacity-60";
 export const btnDangerOutlineCls = "mr-auto rounded-md border border-danger px-4 py-2 text-sm text-danger disabled:opacity-60";
 
 /** "S01 · Sân 1, S02 · Sân 2" */

@@ -55,7 +55,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
             <Link key={n.href} href={n.href} className="hover:text-primary">
               {n.label}
               {n.href === "/admin/tien-ve" && moneyCount > 0 ? (
-                <span className="ml-1.5 rounded-full bg-danger px-1.5 py-0.5 text-xs font-semibold text-primary-fg" aria-label={`${moneyCount} chưa xử lý`}>
+                <span className="ml-1.5 rounded-full bg-danger px-1.5 py-0.5 text-xs font-semibold text-white" aria-label={`${moneyCount} chưa xử lý`}>
                   {moneyCount}
                 </span>
               ) : null}

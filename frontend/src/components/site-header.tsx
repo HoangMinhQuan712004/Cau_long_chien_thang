@@ -9,7 +9,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:gap-6">
         <Link href="/" className="flex min-w-0 items-center gap-2 font-bold text-primary">
-          <span aria-hidden className="grid size-8 place-items-center rounded-lg bg-primary text-xs text-primary-fg">
+          <span aria-hidden className="grid size-8 place-items-center rounded-lg bg-primary text-xs text-white">
             CL
           </span>
           {site.shortName}

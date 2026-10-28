@@ -53,7 +53,7 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
       type="button"
       onClick={copy}
       aria-label={`Sao chép ${label}`}
-      className="min-h-8 shrink-0 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium hover:bg-free"
+      className="min-h-8 shrink-0 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium hover:bg-primary-softer"
     >
       {done ? "Đã chép" : "Sao chép"}
     </button>

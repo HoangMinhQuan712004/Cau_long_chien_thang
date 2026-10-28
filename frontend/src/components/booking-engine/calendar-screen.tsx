@@ -135,7 +135,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
       : "Kéo chọn ô trống trên 1 sân trong hôm nay để Đặt sân · bấm khối để xem Thông tin booking hoặc Sự kiện.";
 
   const chip = (active: boolean) =>
-    `rounded-full border px-3 py-1.5 text-sm ${active ? "border-primary bg-primary text-primary-fg" : "border-border bg-surface hover:bg-free"}`;
+    `rounded-full border px-3 py-1.5 text-sm ${active ? "border-primary bg-primary text-white" : "border-border bg-surface hover:bg-primary-softer"}`;
 
   return (
     <div className="space-y-4">
@@ -146,7 +146,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
             type="button"
             onClick={() => goto(addDaysIso(calendar.date, -1))}
             aria-label="Ngày trước"
-            className="grid size-9 place-items-center rounded-lg border border-border bg-surface hover:bg-free"
+            className="grid size-9 place-items-center rounded-lg border border-border bg-surface hover:bg-primary-softer"
           >
             ‹
           </button>
@@ -157,7 +157,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
             type="button"
             onClick={() => goto(addDaysIso(calendar.date, 1))}
             aria-label="Ngày sau"
-            className="grid size-9 place-items-center rounded-lg border border-border bg-surface hover:bg-free"
+            className="grid size-9 place-items-center rounded-lg border border-border bg-surface hover:bg-primary-softer"
           >
             ›
           </button>
@@ -165,7 +165,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
             type="button"
             onClick={() => goto(today)}
             disabled={isToday}
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:bg-free disabled:opacity-50"
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:bg-primary-softer disabled:opacity-50"
           >
             Hôm nay
           </button>
@@ -218,7 +218,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
             </p>
           ) : null}
         </div>
-        <button type="submit" className="rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:bg-free">
+        <button type="submit" className="rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:bg-primary-softer">
           Tìm
         </button>
         {unpaidOnly ? (

@@ -193,7 +193,7 @@ export function TransactionsScreen({
               </tr>
             ) : (
               data.rows.map((r) => (
-                <tr key={r.code} className="border-b border-border last:border-0 hover:bg-free/60">
+                <tr key={r.code} className="border-b border-border last:border-0 hover:bg-primary-softer">
                   <td className="px-3 py-2.5 font-mono text-xs">
                     <button type="button" onClick={() => setDialog({ kind: "item", code: r.code })} className="text-primary hover:underline">
                       {r.code}

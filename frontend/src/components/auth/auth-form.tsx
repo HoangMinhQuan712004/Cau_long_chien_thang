@@ -85,7 +85,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       )}
       <button
         disabled={pending}
-        className="w-full rounded-md bg-primary py-2.5 font-medium text-primary-fg disabled:opacity-50"
+        className="w-full rounded-md bg-primary py-2.5 font-medium text-white disabled:opacity-50"
       >
         {pending ? "Đang xử lý…" : mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
       </button>

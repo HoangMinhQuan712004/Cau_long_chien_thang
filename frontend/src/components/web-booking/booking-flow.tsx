@@ -415,7 +415,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
             type="button"
             onClick={submit}
             disabled={busy || onlineOff}
-            className="mt-5 w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-fg disabled:opacity-60"
+            className="mt-5 w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
           >
             {busy ? "Đang xử lý…" : "Xác nhận & thanh toán"}
           </button>
@@ -528,7 +528,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
                           aria-pressed={on}
                           aria-label={`${label}, trống${s.price != null ? `, ${formatVnd(s.price)}` : ""}`}
                           title={s.price != null ? formatVnd(s.price) : undefined}
-                          className={`${base} border font-medium ${on ? "border-primary bg-primary text-primary-fg" : "border-border bg-surface hover:bg-free"} focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary`}
+                          className={`${base} border font-medium ${on ? "border-primary bg-primary text-white" : "border-border bg-surface hover:bg-primary-softer"} focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary`}
                         >
                           {on ? `${h}h–${h + 1}h` : null}
                         </button>
@@ -579,7 +579,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
               type="button"
               onClick={() => applyStep(2)}
               disabled={!cells.length || onlineOff || !calendar}
-              className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-fg disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
               Tiếp tục
             </button>
@@ -603,7 +603,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
                 setPendingDate(null);
                 if (d) applyDate(d);
               }}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-fg"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white"
             >
               Đổi ngày
             </button>

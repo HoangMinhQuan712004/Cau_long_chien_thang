@@ -1,59 +1,37 @@
 @import "tailwindcss";
 
-/* Màu sân cầu: xanh thảm + vàng quả cầu */
 :root {
-  --background: #f6f8f6;
+  color-scheme: light;
+  --foreground: #1b211d;
   --surface: #ffffff;
-  --foreground: #14201a;
-  --muted: #5b6b62;
-  --border: #dde5df;
-  --primary: #13744a;
-  --primary-fg: #ffffff;
+  --primary: #1a7354;
+  --primary-hover: #22503e;
+  --danger: #b4231b;
   --accent: #f2b705;
-  --free: #e8f3ec;
-  --busy: #e6e8e7;
-  --danger: #b42318;
-  --success: #13744a;
-  /* Khối trên lịch đặt sân (BR-002): Chưa TT vàng, Đã TT đỏ, Không thu được xám gạch, Sự kiện tím, Giữ chỗ viền đứt */
-  --blk-unpaid: #fcd34d; /* ≈ Figma P3 (lấy từ ảnh, chờ hex chính thức) */
+
+  --muted: color-mix(in srgb, var(--foreground) 80%, white);
+  --subtle: color-mix(in srgb, var(--foreground) 59%, white);
+  --border-strong: color-mix(in srgb, var(--foreground) 24%, white);
+  --border: color-mix(in srgb, var(--foreground) 14%, white);
+  --background: color-mix(in srgb, var(--foreground) 4.5%, white);
+  --primary-softer: color-mix(in srgb, var(--primary) 6%, white);
+  --danger-soft: color-mix(in srgb, var(--danger) 11%, white);
+
+  --card-shadow: 0 1px 2px rgb(20 40 30 / 0.06), 0 4px 16px rgb(20 40 30 / 0.06);
+
+  /* Trạng thái ô lịch đặt sân (BR-002) – chỉ giao diện sáng. Chữ/nền đều ≥ 4.5:1.
+     Chưa TT vàng · Đã TT đỏ · Không thu được xám · Sự kiện tím · Giữ chỗ viền đứt. */
+  --blk-unpaid: #fcd34d;
   --blk-unpaid-fg: #78350f;
-  --blk-paid: #ef4444;
+  --blk-paid: #dc2626;
   --blk-paid-fg: #ffffff;
   --blk-bad: #e6e8e7;
   --blk-bad-fg: #4a554e;
   --blk-session: #e9d5ff;
   --blk-session-fg: #6b21a8;
-  --blk-hold-fg: #5b6b62;
+  --blk-hold-fg: #4f5d55;
   --cell-off: #e5e7eb;
   --cell-sel: #c9e7d6;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0e1411;
-    --surface: #161e19;
-    --foreground: #e7eee9;
-    --muted: #93a39a;
-    --border: #2a352e;
-    --primary: #3fb67d;
-    --primary-fg: #06120c;
-    --accent: #f5c84a;
-    --free: #1b2a21;
-    --busy: #252b27;
-    --danger: #f97066;
-    --success: #3fb67d;
-    --blk-unpaid: #4a3b0c;
-    --blk-unpaid-fg: #f9e3a0;
-    --blk-paid: #4d1f1a;
-    --blk-paid-fg: #fbc9c3;
-    --blk-bad: #2c332f;
-    --blk-bad-fg: #a9b7af;
-    --blk-session: #34285c;
-    --blk-session-fg: #d9ccfa;
-    --blk-hold-fg: #93a39a;
-    --cell-off: #1d2420;
-    --cell-sel: #1f4a35;
-  }
 }
 
 @theme inline {
@@ -61,14 +39,15 @@
   --color-surface: var(--surface);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-primary: var(--primary);
-  --color-primary-fg: var(--primary-fg);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-softer: var(--primary-softer);
   --color-accent: var(--accent);
-  --color-free: var(--free);
-  --color-busy: var(--busy);
   --color-danger: var(--danger);
-  --color-success: var(--success);
+  --color-danger-soft: var(--danger-soft);
   --color-blk-unpaid: var(--blk-unpaid);
   --color-blk-unpaid-fg: var(--blk-unpaid-fg);
   --color-blk-paid: var(--blk-paid);
@@ -80,10 +59,70 @@
   --color-blk-hold-fg: var(--blk-hold-fg);
   --color-cell-off: var(--cell-off);
   --color-cell-sel: var(--cell-sel);
+  --shadow-card: var(--card-shadow);
+  --radius-card: 14px;
+  /* Cỡ theo prototype, viết bằng rem để phóng to cùng trang trên màn lớn */
+  --text-ui: 0.8125rem;
+  --text-ui--line-height: 1.45;
+  --text-label: 0.78125rem;
+  --container-auth: 23.75rem;
+  /* Màn lớn: 3xl 1920px, 4xl 2560px (html phóng to chữ gốc, xem app/layout.tsx) */
+  --breakpoint-3xl: 120rem;
+  --breakpoint-4xl: 160rem;
   --font-sans: var(--font-be-vietnam), ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Viền mặc định theo token (Tailwind 4 mặc định currentColor) ⇒ chỉ cần viết `border` */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+}
+
+/* Vòng focus của prototype (--focus-ring) – thay 3 class focus-visible:ring/outline */
+@utility focus-ring {
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent);
+  }
+}
+
+/* Ô đã kín trên lịch đặt sân: gạch chéo để không chỉ dựa vào màu */
+@utility bg-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--border-strong) 0 2px,
+    transparent 2px 7px
+  );
+}
+
+/* Padding dọc ≥ 2.5rem, chừa tai thỏ / thanh home khi chạy toàn màn hình (webview) */
+@utility py-safe {
+  padding-top: max(2.5rem, env(safe-area-inset-top));
+  padding-bottom: max(2.5rem, env(safe-area-inset-bottom));
+}
+
+/* Nét SVG tự vẽ ra (tick thành công): phần tử cần pathLength="1"; giảm chuyển động ⇒ hiện sẵn, không vẽ */
+@keyframes draw-stroke {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@utility animate-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-stroke 400ms ease-out forwards;
+
+  @media (prefers-reduced-motion: reduce) {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
 }
