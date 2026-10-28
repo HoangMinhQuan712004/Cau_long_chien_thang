@@ -187,3 +187,12 @@ jobs:
               exit 1
             fi
           done
+          # Link công khai (dev và production) không được lộ tài liệu API.
+          for path in "/docs" "/api/v1/docs" "/api/v1/openapi.json"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$URL$path")
+            echo "$path -> $code"
+            if [ "$code" != "404" ]; then
+              echo "::error::$path trả $code (mong đợi 404: không lộ tài liệu API)"
+              exit 1
+            fi
+          done
