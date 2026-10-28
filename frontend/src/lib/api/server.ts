@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import createClient from "openapi-fetch";
 import type { components, paths } from "./schema";
 
@@ -11,6 +12,11 @@ export type PublicPrices = Omit<components["schemas"]["PublicPrices"], "peak_ban
 export type PostSummary = components["schemas"]["PostSummary"];
 export type Post = components["schemas"]["PostOut"];
 export type User = components["schemas"]["UserOut"];
+export type Staff = components["schemas"]["StaffOut"];
+export type StaffSession = components["schemas"]["StaffSessionOut"];
+export type AdminSession = components["schemas"]["AdminSessionOut"];
+/** Lý do phiên Admin/nhân viên không dùng được (backend: E-AUTH-1 + detail.reason). */
+export type AdminSessionError = "unauthenticated" | "expired" | "password_changed" | "account_disabled";
 
 export const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
@@ -65,6 +71,18 @@ export async function getCurrentUser(): Promise<User | null> {
   const { data } = await api.GET("/api/v1/auth/me");
   return data ?? null;
 }
+
+/** Phiên Admin/nhân viên (cookie `admin_session`); lỗi ⇒ lý do để màn đăng nhập giải thích. Một lần mỗi request. */
+export const getAdminSession = cache(
+  async (): Promise<{ ok: true; session: AdminSession } | { ok: false; reason: AdminSessionError }> => {
+    const api = await authedApi();
+    const { data, error } = await api.GET("/api/v1/admin/auth/me");
+    if (data) return { ok: true, session: data };
+    const reason = (error as { detail?: { reason?: string } } | undefined)?.detail?.reason;
+    const known: AdminSessionError[] = ["expired", "password_changed", "account_disabled"];
+    return { ok: false, reason: known.find((c) => c === reason) ?? "unauthenticated" };
+  },
+);
 
 /**
  * GET JSON kèm cookie người dùng cho endpoint chưa có trong schema.d.ts (booking engine T-006).

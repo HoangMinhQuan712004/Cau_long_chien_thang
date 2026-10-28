@@ -28,7 +28,7 @@ async function Account() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Xin chào, {user.full_name}</h1>
-          <p className="text-sm text-muted">{user.email}</p>
+          <p className="text-sm text-muted">{user.phone ?? user.username ?? user.google_email}</p>
         </div>
         <div className="flex items-center gap-4">
           {user.role !== "customer" && (

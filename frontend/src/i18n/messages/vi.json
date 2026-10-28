@@ -43,7 +43,7 @@
     "nav": "Nhân viên",
     "title": "Nhân viên",
     "intro": "Cấp tài khoản cho nhân viên. Nhân viên đăng nhập bằng tên đăng nhập và mật khẩu tại màn đăng nhập chung.",
-    "forbidden": "Chỉ chủ sân xem được trang này.",
+    "forbidden": "Bạn không có quyền xem mục này.",
     "loadError": "Không tải được danh sách nhân viên. Vui lòng tải lại trang.",
     "empty": "Chưa có nhân viên nào. Bấm \"Thêm nhân viên\" để cấp tài khoản đầu tiên.",
     "add": "Thêm nhân viên",

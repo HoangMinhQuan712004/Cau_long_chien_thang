@@ -1,12 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-// Kiểm tra lạc quan: chỉ xem có cookie phiên hay không để chuyển hướng sớm.
-// Quyền thật (role) luôn được backend kiểm tra trên từng API.
+// Chuyển hướng sớm khi thiếu cookie phiên; quyền thật luôn kiểm ở server/backend
 export function proxy(request: NextRequest) {
-  if (request.cookies.has("access_token")) return NextResponse.next();
+  const { pathname, search } = request.nextUrl;
+  // Khu quản trị: phiên `admin_session`; khách: JWT `access_token`; cả hai dùng chung màn /dang-nhap
+  const isAdmin = pathname.startsWith("/admin");
+  if (request.cookies.has(isAdmin ? "admin_session" : "access_token")) return NextResponse.next();
 
   const login = new URL("/dang-nhap", request.url);
-  login.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
+  login.searchParams.set("next", pathname + search);
   return NextResponse.redirect(login);
 }
 
