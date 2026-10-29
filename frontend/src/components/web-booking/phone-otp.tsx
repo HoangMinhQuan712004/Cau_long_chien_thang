@@ -40,8 +40,8 @@ export function BookingPhoneOtp({
     setError(null);
     setNotice(null);
     const result = await verifyBookingPhone(phone, code);
-    // account_verified: BE (AC40) đã đặt phone_verified_at cho tài khoản; bản BE cũ không có trường này ⇒ false
-    if (result.ok) return onVerified(result.phone_token, result.expires_at, (result as { account_verified?: boolean }).account_verified === true);
+    // account_verified: BE (AC40) đã đặt phone_verified_at cho tài khoản ⇒ lần đặt sau bỏ OTP
+    if (result.ok) return onVerified(result.phone_token, result.expires_at, result.account_verified === true);
     setIsPending(false);
     setError(otpErrorText(t.errors, result));
     setDigits(EMPTY_OTP);
