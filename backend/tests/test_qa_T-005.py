@@ -172,8 +172,8 @@ async def drop_holiday(adm, special_id):
 async def adm():
     async with _http() as c:
         r = await c.post(
-            f"{API}/auth/login",
-            json={"email": settings.FIRST_ADMIN_EMAIL, "password": settings.FIRST_ADMIN_PASSWORD},
+            f"{API}/auth/sign-in",
+            json={"login": settings.FIRST_ADMIN_PHONE, "password": settings.FIRST_ADMIN_PASSWORD},
         )
         assert r.status_code == 200, r.text
         yield c
@@ -182,22 +182,24 @@ async def adm():
 @asynccontextmanager
 async def _registered(role_by_admin: tuple | None = None):
     n = uuid.uuid4().hex[:8]
-    creds = {
-        "email": f"qa{n}@test.vn",
-        "password": "password123",
-        "full_name": f"QA {n}",
-        "phone": "0912345678",
-    }
+    password = "Password123"
     async with _http() as c:
         if role_by_admin is None:
-            r = await c.post(f"{API}/auth/register", json=creds)
+            phone = "08" + str(uuid.uuid4().int)[:8]
+            r = await c.post(
+                f"{API}/auth/register",
+                json={"password": password, "full_name": f"QA {n}", "phone": phone},
+            )
             assert r.status_code == 201, r.text
         else:
             admin_client, role = role_by_admin
-            r = await admin_client.post(f"{API}/admin/users", json={**creds, "role": role})
+            assert role == "staff"
+            r = await admin_client.post(
+                f"{API}/admin/staff", json={"full_name": f"QA Nhan Vien {n}", "password": password}
+            )
             assert r.status_code == 201, r.text
             r = await c.post(
-                f"{API}/auth/login", json={"email": creds["email"], "password": creds["password"]}
+                f"{API}/auth/sign-in", json={"login": r.json()["username"], "password": password}
             )
             assert r.status_code == 200, r.text
         yield c
@@ -665,6 +667,8 @@ async def test_sec4_all_admin_routes_require_login_and_role(anon_c, customer_c):
     routes = list(_sweep_routes((f"{API}/admin/", f"{B}/"), set()))
     assert len(routes) >= 8, "route sweep found too few admin/booking routes"
     for method, path in routes:
+        if path.startswith(f"{API}/admin/auth/"):
+            continue  # phiên quản trị tự kiểm (401 cho khách) – xem test_qa_T-013 AC5/AC8
         a = await write(anon_c, method, path, json_body={})
         assert a.status_code == 401, f"anon {method} {path} -> {a.status_code}"
         if path.startswith(f"{B}/"):
@@ -719,11 +723,12 @@ async def test_q2_quote_rate_limit_60_per_minute_per_user(adm, clean_rate_limit)
 
 async def test_q3_cookie_write_without_origin_and_referer_is_forbidden(adm):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as c:
-        r = await c.post(
-            f"{API}/auth/login",
-            json={"email": settings.FIRST_ADMIN_EMAIL, "password": settings.FIRST_ADMIN_PASSWORD},
-        )
-        assert r.status_code == 200, "login has no cookie yet, so it must not need an Origin"
+        creds = {"login": settings.FIRST_ADMIN_PHONE, "password": settings.FIRST_ADMIN_PASSWORD}
+        r = await c.post(f"{API}/auth/sign-in", json=creds)
+        # T-013 SEC9: every POST /auth/* needs an allowed Origin, even without a cookie yet
+        assert r.status_code == 403 and r.json()["detail"]["code"] == "E-SEC-1", r.text
+        r = await c.post(f"{API}/auth/sign-in", json=creds, headers={"Origin": _allowed_origin()})
+        assert r.status_code == 200, r.text
         w = await write(
             c,
             "POST",
@@ -917,7 +922,7 @@ FORBIDDEN_FIELDS = ("hashed_password", "password", "access_token", "refresh_toke
 
 async def test_sec8_no_secrets_in_responses(adm, customer_c):
     paths = [
-        f"{API}/admin/users",
+        f"{API}/admin/staff",
         f"{B}/resources",
         f"{B}/prices",
         f"{B}/special-days",
@@ -933,22 +938,22 @@ async def test_sec8_no_secrets_in_responses(adm, customer_c):
                 assert word not in body, f"{path} leaks '{word}'"
     async with _http() as c:  # login response body must not contain tokens either (cookies only)
         r = await c.post(
-            f"{API}/auth/login",
-            json={"email": settings.FIRST_ADMIN_EMAIL, "password": settings.FIRST_ADMIN_PASSWORD},
+            f"{API}/auth/sign-in",
+            json={"login": settings.FIRST_ADMIN_PHONE, "password": settings.FIRST_ADMIN_PASSWORD},
         )
         assert "access_token" not in r.text and "refresh_token" not in r.text
 
 
 async def test_sec8_phone_numbers_masked_in_lists(adm, customer_c):
-    """Q1: the users list returns `phone_masked` instead of `phone` (S12 / BR-021)."""
-    users = await adm.get(f"{API}/admin/users")
-    assert users.status_code == 200
-    assert "0912345678" not in users.text, "full phone number visible in the users list"
-    rows = users.json()
-    assert rows and all("phone" not in row for row in rows), "`phone` must be replaced"
-    masked = [row["phone_masked"] for row in rows if row.get("phone_masked")]
-    assert masked, "no `phone_masked` values returned"
-    assert all(re.search(r"[xX*•]", m) for m in masked), masked
+    """Q1 (T-013): the staff list and staff sessions never carry a full phone number or an IP."""
+    staff_list = await adm.get(f"{API}/admin/staff")
+    assert staff_list.status_code == 200
+    rows = staff_list.json()
+    assert rows and all("phone" not in row and "hashed_password" not in row for row in rows), rows[
+        :1
+    ]
+    me = await customer_c.get(f"{API}/auth/me")
+    assert me.status_code == 200 and "email" not in me.json(), "UserOut has no email"
 
 
 # ---------------------------------------------------------------------------

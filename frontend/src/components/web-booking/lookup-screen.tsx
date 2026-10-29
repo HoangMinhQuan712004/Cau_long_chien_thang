@@ -13,7 +13,7 @@ import type { Lookup, LookupStatus } from "./types";
 const hhmm = (t: string) => t.slice(0, 5);
 
 const BADGE: Record<LookupStatus, { label: string; cls: string }> = {
-  paid: { label: "Đã thanh toán", cls: "bg-free text-success" },
+  paid: { label: "Đã thanh toán", cls: "bg-primary-softer text-primary" },
   unpaid: { label: "Chưa thanh toán", cls: "bg-blk-unpaid text-blk-unpaid-fg" },
   uncollectible: { label: "Không thu được", cls: "bg-blk-bad text-blk-bad-fg" },
   pending: { label: "Đang chờ thanh toán", cls: "bg-blk-unpaid text-blk-unpaid-fg" },
@@ -128,7 +128,7 @@ export function LookupScreen({ hotline }: { hotline: string }) {
             {error}
           </p>
         ) : null}
-        <button type="submit" disabled={busy} className="mt-5 w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-fg disabled:opacity-60">
+        <button type="submit" disabled={busy} className="mt-5 w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
           {busy ? "Đang tra cứu…" : "Tra cứu"}
         </button>
       </form>
@@ -162,7 +162,7 @@ function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string })
       {r.status === "pending" && r.pending ? (
         <div className="mt-4 space-y-3">
           {r.pending.bank ? <BankBox bank={r.pending.bank} amount={r.pending.amount} payRef={r.pending.pay_ref} dim={timedOut} /> : null}
-          <p role="status" className="flex items-center gap-2 rounded-lg border border-border bg-free px-4 py-3 text-sm">
+          <p role="status" className="flex items-center gap-2 rounded-lg border border-border bg-primary-softer px-4 py-3 text-sm">
             <span aria-hidden className="size-4 animate-spin rounded-full border-2 border-border border-t-primary" />
             {timedOut
               ? "Đã hết thời gian giữ chỗ, đang chờ hệ thống xác nhận lần cuối…"

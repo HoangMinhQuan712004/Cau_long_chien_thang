@@ -319,7 +319,7 @@ function ReadOnly({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <span className="mb-1 block text-sm font-medium">{label}</span>
-      <p className="rounded-md border border-border bg-busy/40 px-3 py-2 text-sm text-muted">{value}</p>
+      <p className="rounded-md border border-border bg-background px-3 py-2 text-sm text-muted">{value}</p>
     </div>
   );
 }

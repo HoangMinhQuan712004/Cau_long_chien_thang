@@ -346,7 +346,7 @@ export function ResourceTimeline({
                   onClick={() => onCellClick({ r, h })}
                   onKeyDown={(e) => onKeyDown(e, { r, h })}
                   className={`${base} touch-manipulation select-none ${
-                    selected ? "bg-cell-sel" : selectable ? "bg-surface hover:bg-free" : "bg-surface"
+                    selected ? "bg-cell-sel" : selectable ? "bg-surface hover:bg-primary-softer" : "bg-surface"
                   } focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary`}
                 />
               );

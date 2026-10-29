@@ -9,13 +9,14 @@ chỉ tạo khi ENV != production và engine chưa có sân nào.
 import asyncio
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 import app.models  # noqa: F401
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.security import hash_password
 from app.modules.auth.models import Role, User
+from app.modules.auth.utils import normalize_phone, password_problems
 from app.modules.booking_engine import api as booking_engine
 from app.modules.booking_engine.dto import (
     Actor,
@@ -142,20 +143,44 @@ async def seed_booking_engine(session) -> None:
     print("Created booking engine demo config (6 resources, prices, holidays 2026)")
 
 
+SAMPLE_ADMIN_PASSWORDS = {"Admin@12345", "admin12345", "change-me"}
+
+
+async def seed_admin(session) -> None:
+    """Chưa có Admin -> tạo từ FIRST_ADMIN_PHONE / FIRST_ADMIN_PASSWORD (T-013 AC33).
+
+    Đã có Admin -> không đụng (không ghi đè mật khẩu, SĐT). Production từ chối mật khẩu mẫu / yếu.
+    """
+    if await session.scalar(select(User.id).where(User.role == Role.ADMIN).limit(1)):
+        return
+    phone = normalize_phone(settings.FIRST_ADMIN_PHONE)
+    if phone is None:
+        raise SystemExit("FIRST_ADMIN_PHONE thiếu hoặc không phải SĐT di động Việt Nam 10 số.")
+    if settings.first_admin_phone_is_sample:
+        raise SystemExit("FIRST_ADMIN_PHONE chưa được đặt hoặc vẫn là SĐT mẫu – đặt SĐT thật.")
+    password = settings.FIRST_ADMIN_PASSWORD
+    if settings.is_production and (
+        password in SAMPLE_ADMIN_PASSWORDS or password_problems(password)
+    ):
+        raise SystemExit(
+            "FIRST_ADMIN_PASSWORD là mật khẩu mẫu hoặc chưa đủ mạnh – đặt mật khẩu riêng."
+        )
+    session.add(
+        User(
+            phone=phone,
+            phone_verified_at=func.now(),
+            full_name="Chủ sân",
+            hashed_password=hash_password(password),
+            role=Role.ADMIN,
+            is_active=True,
+        )
+    )
+    print("Created admin (FIRST_ADMIN_PHONE)")
+
+
 async def main() -> None:
     async with SessionLocal() as session:
-        email = settings.FIRST_ADMIN_EMAIL.lower()
-        if not await session.scalar(select(User).where(User.email == email)):
-            session.add(
-                User(
-                    email=email,
-                    full_name="Chủ sân",
-                    hashed_password=hash_password(settings.FIRST_ADMIN_PASSWORD),
-                    role=Role.ADMIN,
-                )
-            )
-            print(f"Created admin {email}")
-
+        await seed_admin(session)
         await seed_booking_engine(session)
         await seed_members(session)
         await session.commit()

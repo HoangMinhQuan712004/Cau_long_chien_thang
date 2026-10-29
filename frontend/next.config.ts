@@ -4,6 +4,8 @@ import type { NextConfig } from "next";
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 const isDev = process.env.NODE_ENV === "development";
+// Chỉ mở nguồn Google Identity Services trong CSP khi đã cấp client ID (T-013 AC37).
+const GSI = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? "https://accounts.google.com/gsi/" : "";
 
 // Header bảo mật (ADR-004 S5 / T-005 B9). HSTS và Referrer-Policy do Caddy đặt.
 // CSP KHÔNG dùng nonce: nonce buộc mọi trang render động, làm mất prerender + Partial Prerendering của trang public (SEO).
@@ -14,11 +16,12 @@ const isDev = process.env.NODE_ENV === "development";
 // (React tự escape, không dùng dangerouslySetInnerHTML với dữ liệu người dùng).
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${GSI && ` ${GSI}client`}`,
+  `style-src 'self' 'unsafe-inline'${GSI && ` ${GSI}style`}`,
   "img-src 'self' data: blob: https://qr.sepay.vn",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  `connect-src 'self'${GSI && ` ${GSI}`}`,
+  ...(GSI ? [`frame-src 'self' ${GSI}`] : []),
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -36,14 +39,6 @@ const nextConfig: NextConfig = {
   output: "standalone",
   cacheComponents: true,
   partialPrefetching: true,
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
-  },
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },

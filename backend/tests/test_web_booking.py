@@ -12,7 +12,7 @@ from app.core.db import SessionLocal
 from app.modules.booking_engine.models import Checkout
 from tests.conftest import API, idem
 from tests.helpers_booking import BK, book, calendar, new_court, random_phone, safe_hour, today
-from tests.helpers_web import WEB, checkout, tomorrow, web_calendar
+from tests.helpers_web import WEB, checkout, phone_token, tomorrow, web_calendar
 
 # ------------------------------------------------------------------ lịch (AC1–AC2, SEC1)
 
@@ -195,6 +195,7 @@ async def test_checkout_requires_origin_and_idempotency(anon, admin):
         "full_name": "A",
         "phone": random_phone(),
     }
+    body["phone_token"] = await phone_token(anon, body["phone"])
     anon.headers.pop("Origin")
     r = await anon.post(f"{WEB}/checkouts", json=body, headers=idem())
     assert r.status_code == 403 and r.json()["detail"]["code"] == "E-SEC-1"

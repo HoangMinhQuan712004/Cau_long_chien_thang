@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { WebBookingFlow } from "@/components/web-booking/booking-flow";
+import { getDictionary } from "@/i18n/dictionaries";
 import { todayVn } from "@/lib/format";
 import { site } from "@/lib/site";
 
@@ -30,5 +31,6 @@ async function FlowLoader({ searchParams }: Pick<PageProps<"/dat-san">, "searchP
   const wanted = typeof sp.ngay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.ngay) ? sp.ngay : today;
   // Không cho mở ngày đã qua (kể cả qua liên kết cũ / lưu trong tab).
   const initialDate = wanted < today ? today : wanted;
-  return <WebBookingFlow initialDate={initialDate} today={today} hotline={site.phone} />;
+  const { phoneVerify } = await getDictionary();
+  return <WebBookingFlow initialDate={initialDate} today={today} hotline={site.phone} texts={phoneVerify} />;
 }

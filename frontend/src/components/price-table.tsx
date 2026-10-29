@@ -30,7 +30,7 @@ export function PriceTable({ data }: { data: PublicPrices | null }) {
               {t.name}
               <span className="ml-2 text-sm font-normal text-muted">{t.resource_count} sân</span>
             </h3>
-            <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+            <div className="relative overflow-x-auto rounded-lg border border-border bg-surface">
               <table className="w-full text-left text-sm">
                 <caption className="sr-only">Giá thuê {t.name} (đồng/giờ)</caption>
                 <thead className="border-b border-border">

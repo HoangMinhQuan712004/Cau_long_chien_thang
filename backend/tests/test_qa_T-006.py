@@ -740,7 +740,7 @@ async def test_ac18_collect_cash(admin, staff):
     assert r.status_code == 200, r.text
     done = await item(staff, bk["code"])
     assert done["payment_status"] == "paid"
-    assert "Tài khoản tại máy" in str(done), "collected_by shows the role label"
+    assert re.search(r"NV\d{3} · ", str(done)), "collected_by shows `NV00x · Họ tên` (ADR-008 §2)"
     assert done["amount"] == it["amount"]
 
 
@@ -1023,7 +1023,7 @@ async def test_ac24_exactly_one_audit_row_per_write_and_none_for_blocked(admin, 
     assert len(await audit_rows("action='ticket.create' AND entity_code=:c", {"c": t["code"]})) == 1
     # actor label is the role label, not an email
     row = (await audit_rows("action='booking.counter.create' AND entity_code=:c", {"c": code}))[0]
-    assert row["actor_label"] == "Tài khoản tại máy"
+    assert re.fullmatch(r"NV\d{3} · .+", row["actor_label"]), row["actor_label"]
 
 
 async def test_sec9_audit_log_is_append_only():
@@ -1150,8 +1150,8 @@ async def test_sec2_forbidden_fields_on_other_writes(admin):
 async def test_sec3_evil_origin_blocked_on_all_writes(admin):
     res, bk = await new_booking(admin)
     login = await admin.post(
-        f"{API}/auth/login",
-        json={"email": settings.FIRST_ADMIN_EMAIL, "password": settings.FIRST_ADMIN_PASSWORD},
+        f"{API}/auth/sign-in",
+        json={"login": settings.FIRST_ADMIN_PHONE, "password": settings.FIRST_ADMIN_PASSWORD},
     )
     assert login.status_code == 200
     cookies = dict(admin.cookies)

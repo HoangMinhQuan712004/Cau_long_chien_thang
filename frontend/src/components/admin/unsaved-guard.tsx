@@ -52,7 +52,7 @@ export function UnsavedGuard({ dirty }: { dirty: boolean }) {
               setTarget(null);
               if (to) window.location.assign(to); // tải mới để bỏ hẳn bản nháp và tắt cảnh báo beforeunload
             }}
-            className="rounded-md bg-danger px-4 py-2 text-sm font-medium text-primary-fg"
+            className="rounded-md bg-danger px-4 py-2 text-sm font-medium text-white"
           >
             Rời trang
           </button>

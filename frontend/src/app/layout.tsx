@@ -6,12 +6,12 @@ import "./globals.css";
 const font = Be_Vietnam_Pro({
   variable: "--font-be-vietnam",
   subsets: ["vietnamese", "latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
-  title: { default: `${site.name} – Sân cầu lông`, template: `%s | ${site.name}` },
+  title: { default: `${site.name} – Đặt sân cầu lông online`, template: `%s | ${site.name}` },
   description: site.description,
   applicationName: site.name,
   // Không đặt alternates.canonical ở đây: trang con sẽ kế thừa và trỏ canonical về trang chủ.
@@ -26,15 +26,13 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#13744a" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e1411" },
-  ],
+  viewportFit: "cover",
+  themeColor: "#1a7354",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="vi" className={`${font.variable} h-full antialiased`}>
+    <html lang="vi" className={`${font.variable} h-full antialiased 3xl:text-[112.5%] 4xl:text-[125%]`}>
       <body className="flex min-h-full flex-col font-sans">{children}</body>
     </html>
   );

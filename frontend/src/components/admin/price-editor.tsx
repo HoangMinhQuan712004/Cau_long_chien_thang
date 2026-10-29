@@ -99,7 +99,7 @@ export function PriceEditor({ table, resources }: { table: PriceTable; resources
             {table.updated_by ? ` · ${table.updated_by}` : ""}
           </p>
         </div>
-        <div className="overflow-x-auto p-4">
+        <div className="relative overflow-x-auto p-4">
           <table className="w-full min-w-[40rem] border-collapse text-sm">
             <thead>
               <tr>
@@ -148,7 +148,7 @@ export function PriceEditor({ table, resources }: { table: PriceTable; resources
                               aria-label={`${t.name} · ${d.label} · ${b.label} (đồng/giờ)`}
                               aria-invalid={bad || undefined}
                               className={`w-full min-w-24 rounded-md border px-2 py-1.5 text-right tabular-nums ${
-                                bad ? "border-danger" : changed(k) ? "border-primary bg-free" : "border-border bg-background"
+                                bad ? "border-danger" : changed(k) ? "border-primary bg-primary-softer" : "border-border bg-background"
                               }`}
                             />
                           </td>
@@ -188,7 +188,7 @@ export function PriceEditor({ table, resources }: { table: PriceTable; resources
             type="button"
             onClick={save}
             disabled={!dirty || busy}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-fg disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? "Đang lưu…" : "Lưu bảng giá"}
           </button>

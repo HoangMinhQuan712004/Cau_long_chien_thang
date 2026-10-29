@@ -4,6 +4,51 @@
  */
 
 export interface paths {
+    "/api/v1/auth/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign In
+         * @description Một ô "SĐT hoặc tên đăng nhập" + mật khẩu.
+         *
+         *     Khách -> JWT (cookie); Admin / NV -> phiên quản trị (cookie ``admin_session``, 12 giờ cứng).
+         *     Lỗi: 401 E-AUTH-10 · 423 E-AUTH-11 (khóa 15 phút, ``retry_after``) · 429 E-AUTH-12 (theo IP).
+         */
+        post: operations["sign_in_api_v1_auth_sign_in_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Google Sign In
+         * @description Đăng nhập khách bằng ID token Google; lần đầu tạo tài khoản (không mật khẩu, không SĐT).
+         *
+         *     Lỗi: 401 E-AUTH-20 · 404 E-AUTH-19 (chưa bật) · 429 E-AUTH-12 (IP) · 503 E-AUTH-21.
+         */
+        post: operations["google_sign_in_api_v1_auth_google_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -13,25 +58,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register */
+        /**
+         * Register
+         * @description Đăng ký khách bằng SĐT (chưa xác minh – cần OTP mới coi là đã xác minh).
+         *
+         *     Lỗi: 409 E-AUTH-22 (SĐT đã có chủ) · 429 E-SEC-5 (> 10 lần / giờ / IP).
+         */
         post: operations["register_api_v1_auth_register_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Login */
-        post: operations["login_api_v1_auth_login_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -89,19 +122,244 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/users": {
+    "/api/v1/auth/password-reset/request": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Users */
-        get: operations["list_users_api_v1_admin_users_get"];
+        get?: never;
         put?: never;
-        /** Create Staff */
-        post: operations["create_staff_api_v1_admin_users_post"];
+        /**
+         * Password Reset Request
+         * @description Gửi mã (SĐT không có tài khoản cũng trả y hệt). 429 E-AUTH-13 · 503 E-AUTH-23.
+         */
+        post: operations["password_reset_request_api_v1_auth_password_reset_request_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Password Reset Verify
+         * @description Mã đúng -> ``reset_token`` (10 phút). 400 E-AUTH-14 (``attempts_left``) / E-AUTH-15.
+         */
+        post: operations["password_reset_verify_api_v1_auth_password_reset_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Password Reset Confirm
+         * @description Đặt mật khẩu mới; JWT / phiên cũ hết hiệu lực. 400 E-AUTH-16.
+         */
+        post: operations["password_reset_confirm_api_v1_auth_password_reset_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Verify Request
+         * @description Gửi mã xác minh SĐT. 409 E-AUTH-17 · 429 E-AUTH-13 · 503 E-AUTH-24 (không có kênh gửi).
+         */
+        post: operations["phone_verify_request_api_v1_auth_phone_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Verify
+         * @description Mã đúng -> gắn SĐT; SĐT đã có chủ là khách -> gộp tài khoản Google vào đó (JWT mới).
+         *
+         *     Lỗi: 400 E-AUTH-14 / E-AUTH-15 · 409 E-AUTH-17 / E-AUTH-18.
+         */
+        post: operations["phone_verify_api_v1_auth_phone_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Me */
+        get: operations["admin_me_api_v1_admin_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Logout
+         * @description Kết thúc phiên trên máy này (không ảnh hưởng phiên ở máy khác).
+         */
+        post: operations["admin_logout_api_v1_admin_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Staff
+         * @description Mã, họ tên, tên đăng nhập, trạng thái, lần đăng nhập gần nhất, số phiên đang mở.
+         */
+        get: operations["list_staff_api_v1_admin_staff_get"];
+        put?: never;
+        /**
+         * Create Staff
+         * @description Chỉ họ tên + mật khẩu; mã ``NV…`` + tên đăng nhập tự sinh.
+         */
+        post: operations["create_staff_api_v1_admin_staff_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Staff
+         * @description Sửa họ tên; khóa (thu hồi mọi phiên – ``account_disabled``) / mở khóa. 404 E-STAFF-1.
+         */
+        patch: operations["update_staff_api_v1_admin_staff__staff_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Staff Password
+         * @description Đặt lại mật khẩu: thu hồi mọi phiên (``password_changed``), gỡ khóa do nhập sai.
+         */
+        post: operations["reset_staff_password_api_v1_admin_staff__staff_id__password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Staff Sessions
+         * @description Phiên đang mở (IP đã che).
+         */
+        get: operations["list_staff_sessions_api_v1_admin_staff__staff_id__sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Staff Session
+         * @description Đăng xuất từ xa một phiên (``revoked_by_admin``). 404 E-STAFF-1 / E-STAFF-2.
+         */
+        delete: operations["revoke_staff_session_api_v1_admin_staff__staff_id__sessions__session_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -591,10 +849,56 @@ export interface paths {
          * Create Checkout
          * @description Giữ chỗ 5 phút + cấp mã, trả ``token`` (một lần) để mở trang thanh toán.
          *
+         *     Cần ``phone_token`` của đúng SĐT (trừ khách đăng nhập có SĐT đã xác minh trùng ``phone``).
          *     Lỗi: E-WEB-1 (dữ liệu), E-WEB-2 (khung không đặt được), E-WEB-3 (vừa có người đặt, kèm
-         *     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng), E-019.
+         *     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng),
+         *     E-WEB-8 (chưa xác minh SĐT), E-019.
          */
         post: operations["create_checkout_api_v1_web_booking_checkouts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/phone/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Request
+         * @description Gửi OTP xác minh SĐT trước khi đặt (T-013 AC25).
+         *
+         *     Lỗi: E-WEB-1 (SĐT sai), E-WEB-5 (đặt online tạm ngưng), E-AUTH-13 (gửi quá nhiều, 429).
+         */
+        post: operations["phone_request_api_v1_web_booking_phone_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/phone/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Verify
+         * @description Mã đúng -> ``phone_token`` (30 phút, dùng cho nhiều lượt đặt của SĐT này trong hạn).
+         *
+         *     Lỗi: E-WEB-1 (SĐT sai), E-AUTH-14 (sai mã, ``attempts_left``), E-AUTH-15 (mã hết hiệu lực).
+         */
+        post: operations["phone_verify_api_v1_web_booking_phone_verify_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -772,6 +1076,46 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AdminAccountOut
+         * @description Thẻ tài khoản khu quản trị.
+         */
+        AdminAccountOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "admin" | "staff";
+            /** Display Name */
+            display_name: string;
+            /** Role Label */
+            role_label: string;
+            /** Staff Code */
+            staff_code?: string | null;
+        };
+        /** AdminSessionOut */
+        AdminSessionOut: {
+            account: components["schemas"]["AdminAccountOut"];
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** AdminSignInOut */
+        AdminSignInOut: {
+            account: components["schemas"]["AdminAccountOut"];
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "admin";
+        };
         /**
          * BankInfo
          * @description Thông tin chuyển khoản hiển thị cho khách (QR SePay).
@@ -985,6 +1329,8 @@ export interface components {
             phone: string;
             /** Note */
             note?: string | null;
+            /** Phone Token */
+            phone_token?: string | null;
         };
         /** CheckoutOut */
         CheckoutOut: {
@@ -1036,6 +1382,15 @@ export interface components {
             member_code?: string | null;
             temp?: components["schemas"]["TempCustomerIn"] | null;
         };
+        /** CustomerSignInOut */
+        CustomerSignInOut: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "customer";
+            account: components["schemas"]["UserOut"];
+        };
         /** FrontDeskBookingIn */
         FrontDeskBookingIn: {
             /** Resource Code */
@@ -1050,6 +1405,14 @@ export interface components {
             /** End Hour */
             end_hour: number;
             customer: components["schemas"]["CustomerIn"];
+        };
+        /** GoogleSignInIn */
+        GoogleSignInIn: {
+            /**
+             * Credential
+             * @description ID token của Google
+             */
+            credential: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1159,16 +1522,6 @@ export interface components {
             /** Name */
             name: string;
         };
-        /** LoginIn */
-        LoginIn: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Password */
-            password: string;
-        };
         /** LookupIn */
         LookupIn: {
             /**
@@ -1262,6 +1615,19 @@ export interface components {
             /** Start Hour */
             start_hour: number;
         };
+        /** OtpSentOut */
+        OtpSentOut: {
+            /**
+             * Resend After
+             * @description Giây tới lúc được gửi lại mã
+             */
+            resend_after: number;
+            /**
+             * Test Otp
+             * @description Chỉ khi OTP_TEST_MODE (link dev) và là mã của khách
+             */
+            test_otp?: string | null;
+        };
         /** PaymentSettingsIn */
         PaymentSettingsIn: {
             /** Bank Code */
@@ -1314,6 +1680,67 @@ export interface components {
             pending_checkouts: number;
             /** Simulate Enabled */
             simulate_enabled: boolean;
+        };
+        /** PhoneCodeIn */
+        PhoneCodeIn: {
+            /** Phone */
+            phone: string;
+        };
+        /** PhoneCodeSentOut */
+        PhoneCodeSentOut: {
+            /**
+             * Resend After
+             * @description Giây tới lúc được gửi lại mã
+             */
+            resend_after: number;
+            /**
+             * Test Otp
+             * @description Chỉ khi OTP_TEST_MODE (link dev)
+             */
+            test_otp?: string | null;
+        };
+        /** PhoneIn */
+        PhoneIn: {
+            /** Phone */
+            phone: string;
+        };
+        /** PhoneOtpIn */
+        PhoneOtpIn: {
+            /** Phone */
+            phone: string;
+            /** Otp */
+            otp: string;
+        };
+        /** PhoneTokenOut */
+        PhoneTokenOut: {
+            /** Phone Token */
+            phone_token: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** PhoneVerifyIn */
+        PhoneVerifyIn: {
+            /** Phone */
+            phone: string;
+            /** Otp */
+            otp: string;
+        };
+        /** PhoneVerifyOut */
+        PhoneVerifyOut: {
+            /**
+             * Merged
+             * @description SĐT đã thuộc tài khoản khác -> đã gộp tài khoản Google vào
+             */
+            merged: boolean;
+            /**
+             * Password Cleared
+             * @description Gộp vào tài khoản có mật khẩu -> mật khẩu đó đã bị hủy (đăng nhập bằng Google hoặc Quên mật khẩu)
+             */
+            password_cleared: boolean;
+            account: components["schemas"]["UserOut"];
         };
         /** PostIn */
         PostIn: {
@@ -1586,17 +2013,30 @@ export interface components {
         };
         /** RegisterIn */
         RegisterIn: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Password */
-            password: string;
             /** Full Name */
             full_name: string;
             /** Phone */
-            phone?: string | null;
+            phone: string;
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
+        };
+        /** ResetConfirmIn */
+        ResetConfirmIn: {
+            /** Reset Token */
+            reset_token: string;
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
+        };
+        /** ResetTokenOut */
+        ResetTokenOut: {
+            /** Reset Token */
+            reset_token: string;
         };
         /** ResolveIn */
         ResolveIn: {
@@ -1840,6 +2280,16 @@ export interface components {
              */
             created_at: string;
         };
+        /**
+         * SignInIn
+         * @description Ô "Số điện thoại hoặc tên đăng nhập" – chuẩn hóa ở service.
+         */
+        SignInIn: {
+            /** Login */
+            login: string;
+            /** Password */
+            password: string;
+        };
         /** SimulateIn */
         SimulateIn: {
             /** Pay Ref */
@@ -1884,21 +2334,74 @@ export interface components {
              */
             day_type: "holiday";
         };
-        /** StaffCreateIn */
+        /**
+         * StaffCreateIn
+         * @description Chỉ họ tên + mật khẩu; mã ``NV…`` và tên đăng nhập do hệ thống sinh.
+         */
         StaffCreateIn: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Password */
-            password: string;
             /** Full Name */
             full_name: string;
-            /** Phone */
-            phone?: string | null;
-            /** @default staff */
-            role: components["schemas"]["Role"];
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
+        };
+        /** StaffOut */
+        StaffOut: {
+            /** Id */
+            id: number;
+            /** Staff Code */
+            staff_code: string;
+            /** Full Name */
+            full_name: string;
+            /** Username */
+            username: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Login At */
+            last_login_at: string | null;
+            /** Active Sessions */
+            active_sessions: number;
+        };
+        /** StaffPasswordIn */
+        StaffPasswordIn: {
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
+        };
+        /** StaffSessionOut */
+        StaffSessionOut: {
+            /** Id */
+            id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** User Agent */
+            user_agent: string | null;
+            /** Ip Masked */
+            ip_masked: string | null;
+        };
+        /** StaffUpdateIn */
+        StaffUpdateIn: {
+            /** Full Name */
+            full_name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
         };
         /** TempCustomerIn */
         TempCustomerIn: {
@@ -2004,32 +2507,22 @@ export interface components {
             version: number;
         };
         /**
-         * UserListItem
-         * @description Dòng danh sách tài khoản: SĐT đã che ở server (ADR-004 S12).
+         * UserOut
+         * @description Tài khoản khách – chỉ trả cho **chính người đó** (SĐT đầy đủ của mình).
          */
-        UserListItem: {
-            /** Id */
-            id: number;
-            /** Email */
-            email: string;
-            /** Full Name */
-            full_name: string;
-            /** Phone Masked */
-            phone_masked: string | null;
-            role: components["schemas"]["Role"];
-            /** Is Active */
-            is_active: boolean;
-        };
-        /** UserOut */
         UserOut: {
             /** Id */
             id: number;
-            /** Email */
-            email: string;
-            /** Full Name */
-            full_name: string;
             /** Phone */
             phone: string | null;
+            /** Phone Verified */
+            phone_verified: boolean;
+            /** Username */
+            username: string | null;
+            /** Full Name */
+            full_name: string;
+            /** Google Email */
+            google_email: string | null;
             role: components["schemas"]["Role"];
             /** Is Active */
             is_active: boolean;
@@ -2108,6 +2601,72 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    sign_in_api_v1_auth_sign_in_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignInIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerSignInOut"] | components["schemas"]["AdminSignInOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    google_sign_in_api_v1_auth_google_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleSignInIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerSignInOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     register_api_v1_auth_register_post: {
         parameters: {
             query?: never;
@@ -2123,39 +2682,6 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    login_api_v1_auth_login_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LoginIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2232,7 +2758,170 @@ export interface operations {
             };
         };
     };
-    list_users_api_v1_admin_users_get: {
+    password_reset_request_api_v1_auth_password_reset_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtpSentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    password_reset_verify_api_v1_auth_password_reset_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneOtpIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetTokenOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    password_reset_confirm_api_v1_auth_password_reset_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetConfirmIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_verify_request_api_v1_auth_phone_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtpSentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_verify_api_v1_auth_phone_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneOtpIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneVerifyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_me_api_v1_admin_auth_me_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2247,12 +2936,50 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserListItem"][];
+                    "application/json": components["schemas"]["AdminSessionOut"];
                 };
             };
         };
     };
-    create_staff_api_v1_admin_users_post: {
+    admin_logout_api_v1_admin_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_staff_api_v1_admin_staff_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOut"][];
+                };
+            };
+        };
+    };
+    create_staff_api_v1_admin_staff_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2271,8 +2998,137 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserOut"];
+                    "application/json": components["schemas"]["StaffOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_staff_api_v1_admin_staff__staff_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_staff_password_api_v1_admin_staff__staff_id__password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPasswordIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_staff_sessions_api_v1_admin_staff__staff_id__sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_staff_session_api_v1_admin_staff__staff_id__sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: number;
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -3208,6 +4064,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckoutCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_request_api_v1_web_booking_phone_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneCodeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneCodeSentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_verify_api_v1_web_booking_phone_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneVerifyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneTokenOut"];
                 };
             };
             /** @description Validation Error */

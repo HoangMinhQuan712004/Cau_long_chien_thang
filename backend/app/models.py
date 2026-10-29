@@ -3,13 +3,15 @@
 from app.core.audit import AuditLog
 from app.core.db import Base
 from app.core.idempotency import IdempotencyKey
-from app.modules.auth.models import User
+from app.modules.auth.models import AdminSession, OtpCode, User
 from app.modules.booking_engine import models as booking_engine_models
 from app.modules.content.models import Post
 from app.modules.members.models import Customer
 from app.modules.payments.models import BankTransaction
 
 __all__ = [
+    "AdminSession",
+    "OtpCode",
     "AuditLog",
     "BankTransaction",
     "Base",

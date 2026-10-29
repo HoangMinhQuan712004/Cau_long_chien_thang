@@ -35,6 +35,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.db import SessionLocal
 from tests.conftest import API, ORIGIN, idem
+from tests.helpers_web import phone_token
 
 P = f"{API}/payments"
 W = f"{API}/web/booking"
@@ -159,13 +160,15 @@ async def court(admin) -> dict:
 
 
 async def web_checkout(anon, code: str, hour: int = 10):
+    ph = "09" + str(uuid.uuid4().int)[:8]
     return await anon.post(
         f"{W}/checkouts",
         json={
             "date": (date.today() + timedelta(days=21)).isoformat(),
             "slots": [{"resource_code": code, "start_hour": hour}],
             "full_name": "QA T012",
-            "phone": "09" + str(uuid.uuid4().int)[:8],
+            "phone": ph,
+            "phone_token": await phone_token(anon, ph, required=False),
         },
         headers=idem(),
     )

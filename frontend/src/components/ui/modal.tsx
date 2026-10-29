@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { cn } from "@/lib/cn";
 
 type Props = {
   open: boolean;
@@ -31,9 +32,14 @@ export function Modal({ open, onClose, title, children, footer, size = "narrow" 
       onClick={(e) => {
         if (e.target === ref.current) ref.current?.close(); // bấm vùng tối bên ngoài
       }}
-      className={`m-auto w-[calc(100vw-1.5rem)] rounded-xl border border-border bg-surface p-0 text-foreground shadow-xl backdrop:bg-black/45 ${
-        size === "wide" ? "max-w-2xl" : "max-w-md"
-      }`}
+      className={cn(
+        `
+          m-auto w-[calc(100vw-1.5rem)] rounded-xl border border-border bg-surface p-0
+          text-foreground shadow-xl
+        `,
+        "backdrop:bg-black/45",
+        size === "wide" ? "max-w-2xl" : "max-w-md",
+      )}
     >
       {open ? (
         <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
@@ -45,7 +51,7 @@ export function Modal({ open, onClose, title, children, footer, size = "narrow" 
               type="button"
               onClick={() => ref.current?.close()}
               aria-label="Đóng"
-              className="-m-1 rounded p-1 text-muted hover:text-foreground"
+              className="-m-1 rounded-sm p-1 text-muted hover:text-foreground"
             >
               ✕
             </button>

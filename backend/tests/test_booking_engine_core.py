@@ -73,7 +73,10 @@ async def test_outbox_published_after_commit():
             await s.rollback()  # không commit -> không phát
             add_event(s, TENANT, "test.outbox.ping", {"n": 2})
             await s.commit()
-        published = await api.publish_outbox(SessionLocal)
+        # Phát hết hàng đợi (test khác có thể để lại > 1 lô 100 sự kiện chưa phát)
+        published = 0
+        while batch := await api.publish_outbox(SessionLocal):
+            published += batch
         assert published >= 1
         assert received == [{"tenant_id": TENANT, "n": 2}]
         async with SessionLocal() as s:

@@ -19,7 +19,10 @@ const refreshOnce = () =>
 
 const autoRefresh: Middleware = {
   onRequest({ request }) {
-    if (!request.url.includes("/auth/")) pending.set(request, request.clone());
+    // /auth/* (đăng nhập, refresh…) không thử lại; riêng /auth/phone/* cần phiên khách như API thường.
+    // Khu /admin dùng phiên server (cookie admin_session), không có refresh token.
+    const url = request.url;
+    if (!url.includes("/admin") && (!url.includes("/auth/") || url.includes("/auth/phone/"))) pending.set(request, request.clone());
   },
   async onResponse({ request, response }) {
     const retry = pending.get(request);
@@ -31,11 +34,30 @@ const autoRefresh: Middleware = {
 
 api.use(autoRefresh);
 
+// Phiên Admin/nhân viên (server-side, 12 giờ) hết hạn / bị thu hồi khi đang ở khu /admin ⇒ về màn đăng nhập kèm lý do (T-013 AC5).
+const ADMIN_REASON: Record<string, string> = { expired: "het-han", password_changed: "doi-mat-khau", account_disabled: "tai-khoan-khoa" };
+let leaving = false;
+const adminSessionEnded: Middleware = {
+  async onResponse({ response }) {
+    if (leaving || response.status !== 401 || !window.location.pathname.startsWith("/admin")) return;
+    const detail = errorDetail(await response
+      .clone()
+      .json()
+      .catch(() => null));
+    if (detail.code !== "E-AUTH-1") return;
+    leaving = true;
+    const reason = detail.reason && ADMIN_REASON[detail.reason];
+    window.location.replace(`/dang-nhap?next=${encodeURIComponent(window.location.pathname)}${reason ? `&ly-do=${reason}` : ""}`);
+  },
+};
+api.use(adminSessionEnded);
+
 // Client không ràng kiểu cho các endpoint chưa có trong schema.d.ts (booking engine T-006 cho tới khi BACKEND handoff).
 // TODO(T-006): sau khi `npm run gen:api` có đủ đường dẫn, chuyển các lời gọi sang `api` và xóa `looseApi`.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const looseApi = createClient<any>({ baseUrl: "", credentials: "include" });
 looseApi.use(autoRefresh);
+looseApi.use(adminSessionEnded);
 
 /** Lấy thông báo lỗi tiếng Việt từ response lỗi của FastAPI (hỗ trợ `detail` chuỗi, mảng và `{code, message}`). */
 export function errorMessage(error: unknown, fallback = "Có lỗi xảy ra, vui lòng thử lại"): string {
@@ -47,4 +69,15 @@ export function errorMessage(error: unknown, fallback = "Có lỗi xảy ra, vui
     if (typeof message === "string" && message) return message;
   }
   return fallback;
+}
+
+/** Đọc `detail: { code, retry_after?, attempts_left?, reason? }` của lỗi nghiệp vụ; lỗi khác ⇒ `{}`. */
+export function errorDetail(error: unknown): {
+  code?: string;
+  retry_after?: number;
+  attempts_left?: number;
+  reason?: string;
+} {
+  const detail = (error as { detail?: unknown } | undefined)?.detail;
+  return detail && typeof detail === "object" && !Array.isArray(detail) ? detail : {};
 }

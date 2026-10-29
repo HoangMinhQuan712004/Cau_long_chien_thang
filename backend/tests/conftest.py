@@ -4,6 +4,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -22,11 +23,13 @@ settings.DATABASE_URL = os.environ.get(
 
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
-from sqlalchemy import text  # noqa: E402
+from sqlalchemy import delete, text, update  # noqa: E402
 
-from app.core import ratelimit  # noqa: E402
-from app.core.db import engine  # noqa: E402
+from app.core import queue, ratelimit  # noqa: E402
+from app.core.db import SessionLocal, engine  # noqa: E402
+from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
+from app.modules.auth.models import Role, User  # noqa: E402
 from app.scripts import seed  # noqa: E402
 from tests.db_guard import reset_refusal  # noqa: E402
 
@@ -53,6 +56,18 @@ ratelimit.set_backend(_rate_limit_backend)
 # bị tách sang cửa sổ mới (nguyên nhân test 429 chập chờn khi chạy qua mốc đổi phút)
 _RATE_LIMIT_NOW = (time.time() // 60) * 60 + 1
 ratelimit.set_clock(lambda: _RATE_LIMIT_NOW)
+# OTP (T-013): chế độ thử = có kênh gửi mã (link dev); job worker ghi vào danh sách thay vì Redis
+settings.OTP_TEST_MODE = True
+# Mọi test gọi từ cùng IP 127.0.0.1 -> nới giới hạn OTP theo IP; test giới hạn IP tự hạ + IP riêng
+settings.OTP_IP_MAX_PER_HOUR = 1_000_000
+ENQUEUED_JOBS: list[tuple[str, tuple]] = []
+
+
+async def _record_job(job: str, args: tuple) -> None:
+    ENQUEUED_JOBS.append((job, args))
+
+
+queue.set_sink(_record_job)
 
 
 def _alembic_upgrade_head() -> None:
@@ -113,21 +128,26 @@ async def anon() -> AsyncIterator[AsyncClient]:
 
 
 _counter = 0
+CUSTOMER_PASSWORD = "Password123"
+
+
+def unique_phone() -> str:
+    """SĐT duy nhất cho test (``08`` + 8 số ngẫu nhiên)."""
+    return "08" + str(uuid.uuid4().int)[:8]
 
 
 @asynccontextmanager
-async def new_customer() -> AsyncIterator[AsyncClient]:
-    """Client đã đăng ký + đăng nhập (cookie) bằng một khách hàng mới."""
+async def new_customer(phone: str | None = None) -> AsyncIterator[AsyncClient]:
+    """Client đã đăng ký + đăng nhập (JWT cookie) bằng một khách mới (SĐT chưa xác minh)."""
     global _counter
     _counter += 1
     async with _client() as c:
         r = await c.post(
             f"{API}/auth/register",
             json={
-                "email": f"user{_counter}@test.vn",
-                "password": "password123",
                 "full_name": f"Khách {_counter}",
-                "phone": "0900000000",
+                "phone": phone or unique_phone(),
+                "password": CUSTOMER_PASSWORD,
             },
         )
         assert r.status_code == 201, r.text
@@ -140,42 +160,75 @@ async def customer() -> AsyncIterator[AsyncClient]:
         yield c
 
 
+async def sign_in(client: AsyncClient, login: str, password: str):
+    return await client.post(f"{API}/auth/sign-in", json={"login": login, "password": password})
+
+
 @pytest.fixture
 async def admin() -> AsyncIterator[AsyncClient]:
-    async with _client() as c:
-        r = await c.post(
-            f"{API}/auth/login",
-            json={"email": settings.FIRST_ADMIN_EMAIL, "password": settings.FIRST_ADMIN_PASSWORD},
+    """Admin đăng nhập bằng SĐT (phiên quản trị, cookie ``admin_session``).
+
+    Gỡ khóa nhập sai trước: một test lỗi giữa chừng để Admin bị khóa không kéo đổ mọi test sau.
+    """
+    async with SessionLocal() as s:
+        await s.execute(
+            update(User)
+            .where(User.phone == settings.FIRST_ADMIN_PHONE)
+            .values(failed_login_count=0, locked_until=None)
         )
+        await s.commit()
+    async with _client() as c:
+        r = await sign_in(c, settings.FIRST_ADMIN_PHONE, settings.FIRST_ADMIN_PASSWORD)
         assert r.status_code == 200, r.text
         yield c
 
 
-_STAFF_EMAIL = "quay@test.vn"
-_STAFF_PASSWORD = "password123"
+STAFF_NAME = "Nhân Viên Quầy"
+STAFF_PASSWORD = "Password123"
+_staff_username: str | None = None
+
+
+def is_staff_label(label: str | None) -> bool:
+    """Nhãn người thao tác của nhân viên fixture: ``NV00x · Nhân Viên Quầy`` (ADR-008 §2)."""
+    return bool(label) and label.startswith("NV") and label.endswith(f" · {STAFF_NAME}")
 
 
 @pytest.fixture
 async def staff(admin: AsyncClient) -> AsyncIterator[AsyncClient]:
-    """Client đăng nhập bằng "Tài khoản tại máy" (vai ``staff``) – tạo lần đầu qua API admin."""
-    async with _client() as c:
-        r = await c.post(
-            f"{API}/auth/login", json={"email": _STAFF_EMAIL, "password": _STAFF_PASSWORD}
+    """Nhân viên (vai ``staff``): tạo một lần qua ``/admin/staff``, đăng nhập bằng tên đăng nhập."""
+    global _staff_username
+    if _staff_username is None:
+        created = await admin.post(
+            f"{API}/admin/staff", json={"full_name": STAFF_NAME, "password": STAFF_PASSWORD}
         )
-        if r.status_code == 401:
-            created = await admin.post(
-                f"{API}/admin/users",
-                json={
-                    "email": _STAFF_EMAIL,
-                    "password": _STAFF_PASSWORD,
-                    "full_name": "Tài khoản tại máy",
-                    "phone": "0911222333",
-                    "role": "staff",
-                },
-            )
-            assert created.status_code == 201, created.text
-            r = await c.post(
-                f"{API}/auth/login", json={"email": _STAFF_EMAIL, "password": _STAFF_PASSWORD}
-            )
+        assert created.status_code == 201, created.text
+        _staff_username = created.json()["username"]
+    async with _client() as c:
+        r = await sign_in(c, _staff_username, STAFF_PASSWORD)
         assert r.status_code == 200, r.text
         yield c
+
+
+@asynccontextmanager
+async def extra_admin(password: str, **fields) -> AsyncIterator[tuple[int, str]]:
+    """Admin phụ (tạo rồi **xóa**): ngoài test, DB chỉ có một Admin như thực tế – lệnh
+    ``reset_admin_password`` và test QA dựa vào điều đó. Trả ``(id, SĐT)``."""
+    phone = unique_phone()
+    async with SessionLocal() as s:
+        user = User(
+            phone=phone,
+            phone_verified_at=datetime.now(UTC),
+            full_name="Admin phụ",
+            hashed_password=hash_password(password),
+            role=Role.ADMIN,
+            **fields,
+        )
+        s.add(user)
+        await s.commit()
+        user_id = user.id
+    try:
+        yield user_id, phone
+    finally:
+        async with SessionLocal() as s:
+            await s.execute(delete(User).where(User.id == user_id))
+            await s.commit()

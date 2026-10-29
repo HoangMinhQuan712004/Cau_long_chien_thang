@@ -1,17 +1,33 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { adminLogout } from "@/lib/api/auth";
 import { api } from "@/lib/api/client";
 
-export function LogoutButton() {
+// Đăng xuất rồi tải lại /dang-nhap (điều hướng cứng: bỏ các trang Next đang giữ ẩn, Back không quay lại)
+export function LogoutButton({ area = "customer" }: { area?: "customer" | "admin" }) {
+  const [isPending, setIsPending] = useState(false);
+
+  // Back lấy trang từ bfcache ⇒ tải lại để máy chủ kiểm phiên
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) window.location.reload();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   return (
     <button
       type="button"
+      disabled={isPending}
       onClick={async () => {
-        await api.POST("/api/v1/auth/logout").catch(() => {});
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.href = "/";
+        setIsPending(true);
+        if (area === "admin") await adminLogout();
+        else await api.POST("/api/v1/auth/logout").catch(() => {});
+        window.location.replace("/dang-nhap");
       }}
-      className="text-sm text-muted hover:text-danger"
+      className="text-sm text-muted hover:text-danger disabled:opacity-50"
     >
       Đăng xuất
     </button>
