@@ -16,7 +16,8 @@ def _valid_fernet_key(key: str) -> bool:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # hide_input_in_errors: lỗi cấu hình lúc khởi động không in giá trị env (DATABASE_URL, khóa…)
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
 
     APP_NAME: str = "Cau Long API"
     # development (máy dev) | staging (link dev công khai) | production.
@@ -72,9 +73,33 @@ class Settings(BaseSettings):
     # Bắt buộc ở staging/production; development thiếu -> sinh tạm + cảnh báo.
     PAYMENTS_ENCRYPTION_KEY: str | None = None
 
-    # Seed
-    FIRST_ADMIN_EMAIL: str = "admin@example.com"
-    FIRST_ADMIN_PASSWORD: str = "admin12345"
+    # Đăng nhập, phiên, OTP (T-013, ADR-008)
+    ADMIN_SESSION_HOURS: int = 12  # phiên Admin / nhân viên hết hạn cứng, không gia hạn
+    LOGIN_MAX_ATTEMPTS: int = 5  # sai liên tiếp N lần -> tạm khóa tài khoản
+    LOGIN_LOCK_MINUTES: int = 15
+    LOGIN_IP_MAX_ATTEMPTS: int = 20  # sai từ một IP trong cửa sổ -> chặn IP
+    LOGIN_IP_WINDOW_MINUTES: int = 15
+    REGISTER_IP_MAX_PER_HOUR: int = 10
+    OTP_TTL_MINUTES: int = 5
+    OTP_MAX_ATTEMPTS: int = 5  # nhập sai N lần -> mã chết
+    OTP_RESEND_SECONDS: int = 60
+    OTP_MAX_PER_HOUR: int = 5  # mỗi SĐT (kể cả SĐT chưa có tài khoản)
+    OTP_IP_MAX_PER_HOUR: int = 20
+    OTP_RESET_TOKEN_MINUTES: int = 10  # hạn đặt mật khẩu mới sau khi nhập đúng mã
+    BOOKING_PHONE_TOKEN_MINUTES: int = 30  # hạn phone_token của đặt online
+    # Chỉ link dev / máy dev: mã OTP của khách trả trong response; production + bật -> dừng
+    OTP_TEST_MODE: bool = False
+    # Zalo ZNS (gửi OTP) – làm sau; thiếu -> production tạm ngưng đặt online + quên mật khẩu
+    ZALO_APP_ID: str = ""
+    ZALO_SECRET_KEY: str = ""
+    ZALO_REFRESH_TOKEN: str = ""
+    ZALO_TEMPLATE_OTP: str = ""
+    # Client ID Google (công khai); trống -> tắt đăng nhập Google
+    GOOGLE_CLIENT_ID: str = ""
+
+    # Admin đầu tiên: migration gán SĐT này cho Admin chưa có SĐT; seed tạo Admin khi chưa có
+    FIRST_ADMIN_PHONE: str = "0912345678"
+    FIRST_ADMIN_PASSWORD: str = "Admin@12345"
 
     @model_validator(mode="after")
     def _check_deployed(self):
@@ -82,6 +107,8 @@ class Settings(BaseSettings):
             raise ValueError(f"SECRET_KEY phải được đặt (>= 32 ký tự) khi ENV={self.ENV}")
         if self.is_production and self.PAYMENTS_SIMULATE:
             raise ValueError("PAYMENTS_SIMULATE không được bật khi ENV=production")
+        if self.is_production and self.OTP_TEST_MODE:
+            raise ValueError("OTP_TEST_MODE không được bật khi ENV=production")
         if self.is_deployed and not _valid_fernet_key(self.PAYMENTS_ENCRYPTION_KEY or ""):
             raise ValueError(
                 f"PAYMENTS_ENCRYPTION_KEY phải là 32 byte base64 urlsafe khi ENV={self.ENV}"
@@ -95,6 +122,22 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENV == "production"
+
+    @property
+    def zalo_configured(self) -> bool:
+        return all(
+            (
+                self.ZALO_APP_ID,
+                self.ZALO_SECRET_KEY,
+                self.ZALO_REFRESH_TOKEN,
+                self.ZALO_TEMPLATE_OTP,
+            )
+        )
+
+    @property
+    def otp_channel_ready(self) -> bool:
+        """Có đường gửi OTP: Zalo đủ cấu hình hoặc chế độ thử (dev)."""
+        return self.zalo_configured or self.OTP_TEST_MODE
 
     @property
     def is_deployed(self) -> bool:

@@ -382,3 +382,15 @@ async def test_web_calendar_after_payment_shows_booked(anon, admin):
     cal = (await web_calendar(anon)).json()
     row = next(x for x in cal["resources"] if x["code"] == co["court"]["code"])
     assert {s["start_hour"]: s["state"] for s in row["slots"]}[13] == "booked"
+
+
+def test_settings_errors_do_not_echo_env_values():
+    """Lỗi cấu hình (in ra docker logs) nêu tên biến, không in giá trị bí mật."""
+    secret = "S3cret-" + "k" * 40
+    db_url = "postgresql+asyncpg://user:Pw-should-not-leak@db:5432/caulong"
+    with pytest.raises(ValidationError) as e:
+        Settings(_env_file=None, ENV="staging", SECRET_KEY=secret, DATABASE_URL=db_url)
+    message = str(e.value)
+    assert "PAYMENTS_ENCRYPTION_KEY" in message
+    assert secret not in message and "Pw-should-not-leak" not in message
+    assert "input_value" not in message

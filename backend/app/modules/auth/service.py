@@ -1,42 +1,22 @@
-from sqlalchemy import select
+"""Tra tài khoản – dùng chung trong module auth (không import hạ tầng HTTP để tránh vòng import)."""
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import Conflict, Unauthorized
-from app.core.security import hash_password, verify_password
+from app.core.security import verify_password
 from app.modules.auth.models import Role, User
-from app.modules.auth.schemas import RegisterIn
 
 
 async def get_user(session: AsyncSession, user_id: int) -> User | None:
     return await session.get(User, user_id)
 
 
-async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
-    return await session.scalar(select(User).where(User.email == email.lower()))
-
-
-async def create_user(session: AsyncSession, data: RegisterIn, role: Role = Role.CUSTOMER) -> User:
-    if await get_user_by_email(session, data.email):
-        raise Conflict("Email đã được sử dụng")
-    user = User(
-        email=data.email.lower(),
-        full_name=data.full_name,
-        phone=data.phone,
-        hashed_password=hash_password(data.password),
-        role=role,
-    )
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
-
-
-async def authenticate(session: AsyncSession, email: str, password: str) -> User:
-    user = await get_user_by_email(session, email)
-    if not user or not verify_password(password, user.hashed_password):
-        raise Unauthorized("Email hoặc mật khẩu không đúng")
-    if not user.is_active:
-        raise Unauthorized("Tài khoản đã bị khóa")
+async def get_customer(session: AsyncSession, user_id: int, version: int) -> User | None:
+    """Chủ JWT khách: khách đang hoạt động, đúng ``token_version``; không thì None."""
+    user = await session.get(User, user_id)
+    if user is None or not user.is_active or user.role != Role.CUSTOMER:
+        return None
+    if version != user.token_version:
+        return None
     return user
 
 
@@ -44,5 +24,9 @@ async def check_password(session: AsyncSession, user_id: int, password: str) -> 
     """Xác nhận lại mật khẩu của người đang đăng nhập (thao tác nhạy cảm, T-012)."""
     user = await get_user(session, user_id)
     return bool(
-        user and user.is_active and password and verify_password(password, user.hashed_password)
+        user
+        and user.is_active
+        and user.hashed_password
+        and password
+        and verify_password(password, user.hashed_password)
     )

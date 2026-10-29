@@ -46,6 +46,7 @@ app.add_middleware(RequestContextMiddleware)
 for r in (
     auth.router,
     auth.admin_router,
+    auth.staff_router,
     content.router,
     content.admin_router,
     booking_engine.router,
