@@ -10,7 +10,7 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.core.audit import AuditLog
 from app.core.config import settings
@@ -171,19 +171,24 @@ async def test_google_disabled_and_unavailable(anon, monkeypatch):
 async def test_google_sub_of_staff_or_inactive_is_rejected(anon):
     sub = str(uuid.uuid4().int)[:21]
     async with SessionLocal() as s:
-        s.add(
-            User(
-                username=f"nv{uuid.uuid4().hex[:8]}",
-                staff_code=f"NVG{uuid.uuid4().hex[:8]}",  # NV luôn có mã (test QA AC9/AC33)
-                full_name="NV có Google",
-                hashed_password=hash_password(CUSTOMER_PASSWORD),
-                role=Role.STAFF,
-                google_sub=sub,
-            )
+        staff = User(
+            username=f"nv{uuid.uuid4().hex[:8]}",
+            staff_code=f"NVG{uuid.uuid4().hex[:8]}",
+            full_name="NV có Google",
+            hashed_password=hash_password(CUSTOMER_PASSWORD),
+            role=Role.STAFF,
+            google_sub=sub,
         )
+        s.add(staff)
         await s.commit()
-    r = await anon.post(GOOGLE, json={"credential": id_token(sub)})
-    assert r.status_code == 401 and r.json()["detail"]["code"] == "E-AUTH-20"
+    try:
+        r = await anon.post(GOOGLE, json={"credential": id_token(sub)})
+        assert r.status_code == 401 and r.json()["detail"]["code"] == "E-AUTH-20"
+    finally:
+        # Xóa NV giả: danh sách NV (test QA AC9) chỉ còn NV tạo qua API, mã dạng NVnnn
+        async with SessionLocal() as s:
+            await s.execute(delete(User).where(User.id == staff.id))
+            await s.commit()
 
     sub2 = str(uuid.uuid4().int)[:21]
     async with google_customer(sub2):
