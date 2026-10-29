@@ -570,7 +570,9 @@ async def test_ac9_list_shows_sessions_and_last_login(admin):
     await c1.post(f"{API}/admin/auth/logout")
     me = next(r for r in (await admin.get(f"{API}/admin/staff")).json() if r["id"] == s["id"])
     assert me["active_sessions"] == 1
-    assert all(r["staff_code"].startswith("NV") for r in rows)
+    # Rows other tests insert straight into the DB may have no code; coded ones follow NVnnn.
+    assert re.fullmatch(r"NV\d{3,}", me["staff_code"])
+    assert all(re.fullmatch(r"NV\d{3,}", r["staff_code"]) for r in rows if r["staff_code"])
     assert all("hashed_password" not in r and "phone" not in r for r in rows)
     del c2
 
@@ -822,13 +824,16 @@ async def test_ac19_register_rejects_weak_password_extra_fields_and_email(anon):
 
 async def test_ac33_reseeding_never_overwrites_the_admin(anon):
     before = await q("SELECT id, phone, hashed_password FROM users WHERE role='admin' ORDER BY id")
+    uncoded_before = (
+        await q("SELECT count(*) AS n FROM users WHERE role='staff' AND staff_code IS NULL")
+    )[0]["n"]
     await seed.main()
     after = await q("SELECT id, phone, hashed_password FROM users WHERE role='admin' ORDER BY id")
     assert [dict(r) for r in before] == [dict(r) for r in after]
     assert (await sign_in(anon, ADMIN_LOGIN, ADMIN_PW)).status_code == 200
-    assert not await q("SELECT 1 FROM users WHERE role='staff' AND staff_code IS NULL"), (
-        "seed adds no staff"
-    )
+    assert (await q("SELECT count(*) AS n FROM users WHERE role='staff' AND staff_code IS NULL"))[
+        0
+    ]["n"] == uncoded_before, "seed adds no staff"
 
 
 # ---------------------------------------- SEC9 Origin, SEC2 bí mật
@@ -881,7 +886,6 @@ async def test_sec2_no_password_or_token_in_logs_audit_or_responses(anon, admin,
 
 
 async def test_sec1_unknown_and_wrong_password_take_comparable_time(anon, customer):
-    import statistics
     import time
 
     phone = (await customer.get(f"{API}/auth/me")).json()["phone"]
@@ -892,10 +896,11 @@ async def test_sec1_unknown_and_wrong_password_take_comparable_time(anon, custom
         return time.perf_counter() - t
 
     known, unknown = [], []
-    for _ in range(3):  # tối đa 3 + 3 < 20 lần sai/IP và < 5 lần sai/tài khoản
+    for _ in range(4):  # tối đa 4 + 4 < 20 lần sai/IP và < 5 lần sai/tài khoản
         known.append(await timed(phone))
         unknown.append(await timed(unique_phone()))
-    km, um = statistics.median(known), statistics.median(unknown)
+    # min (not median): a busy CI box inflates single samples, a hash-less path stays ~ms
+    km, um = min(known), min(unknown)
     assert um > km * 0.4, (
         f"unknown account answers far faster ({um:.3f}s vs {km:.3f}s): hash-less path"
     )

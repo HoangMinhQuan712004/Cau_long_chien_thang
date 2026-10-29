@@ -1066,16 +1066,21 @@ def scripted(*answers):
     return lambda _prompt: next(it)
 
 
+def ask_admin_phone(_prompt):
+    """The CLI asks for a phone only when several Admins exist (other tests may leave one)."""
+    return ADMIN_PHONE
+
+
 async def test_ac31_reset_admin_password_by_cli(admin, capsys, monkeypatch):
     uid = (await q("SELECT id, token_version FROM users WHERE phone=:p", p=ADMIN_PHONE))[0]
-    await x(
-        "UPDATE users SET failed_login_count=3, locked_until=now()+interval '10 minutes' WHERE phone=:p",
-        p=ADMIN_PHONE,
-    )
     assert (await admin.get(f"{API}/admin/auth/me")).status_code == 200
     new_pw = "Cli-New-Pass-77"
     try:
-        await cli.run(ask=scripted(), secret=scripted(new_pw, new_pw))
+        await x(
+            "UPDATE users SET failed_login_count=3, locked_until=now()+interval '10 minutes' WHERE phone=:p",
+            p=ADMIN_PHONE,
+        )
+        await cli.run(ask=ask_admin_phone, secret=scripted(new_pw, new_pw))
         out = capsys.readouterr()
         assert new_pw not in out.out + out.err, "the password is never printed"
         assert "xxx" in out.out.lower(), "the phone is masked in the confirmation line"
@@ -1100,7 +1105,8 @@ async def test_ac31_reset_admin_password_by_cli(admin, capsys, monkeypatch):
         assert a["actor_type"] == "system" and new_pw not in a["d"]
     finally:
         await x(
-            "UPDATE users SET hashed_password=:h, token_version=token_version+1 WHERE phone=:p",
+            "UPDATE users SET hashed_password=:h, token_version=token_version+1,"
+            " failed_login_count=0, locked_until=NULL WHERE phone=:p",
             h=hash_password(ADMIN_PW),
             p=ADMIN_PHONE,
         )
@@ -1118,7 +1124,7 @@ async def test_ac31_cli_rejects_weak_or_mismatched_passwords(admin, answers, nee
         await q("SELECT hashed_password, token_version FROM users WHERE phone=:p", p=ADMIN_PHONE)
     )[0]
     with pytest.raises(cli.ResetError, match=needle):
-        await cli.run(ask=scripted(), secret=scripted(*answers))
+        await cli.run(ask=ask_admin_phone, secret=scripted(*answers))
     after = (
         await q("SELECT hashed_password, token_version FROM users WHERE phone=:p", p=ADMIN_PHONE)
     )[0]
