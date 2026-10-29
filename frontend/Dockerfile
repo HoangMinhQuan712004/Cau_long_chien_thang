@@ -8,7 +8,9 @@ WORKDIR /app
 # rewrites /api/v1 được tính lúc build -> cần BACKEND_URL ở bước này
 ARG BACKEND_URL=http://api:8000
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
-ENV BACKEND_URL=$BACKEND_URL NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+# Client ID Google công khai (T-013); trống -> web vẫn build, nút Google ở dạng dự phòng
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=
+ENV BACKEND_URL=$BACKEND_URL NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # public/ có thể trống (git không lưu thư mục rỗng) nhưng runner cần COPY nó
