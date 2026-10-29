@@ -193,6 +193,23 @@ class CustomerSnapshot(BaseModel):
     tier: str | None = None
 
 
+class CustomerStats(BaseModel):
+    """Thống kê đặt sân của một ``customer_ref`` (không tính vé)."""
+
+    bookings: int
+    minutes: int
+
+
+class CustomerBookingRow(BaseModel):
+    code: str
+    play_date: dt.date
+    start_time: str
+    end_time: str
+    resource_name: str
+    amount: int
+    payment_status: PaymentStatus
+
+
 # ---------- Lịch ngày ----------
 
 
@@ -262,7 +279,7 @@ class CounterBookingIn(StrictIn):
 class ItemCustomer(BaseModel):
     name: str
     phone_masked: str | None
-    profile_label: str = Field(description='"Hồ sơ tạm" hoặc "Hội viên (HV0087 · Hạng Bạc)"')
+    profile_label: str = Field(description='"Hồ sơ tạm" hoặc "Hội viên (HV0087 · Hạng Khá)"')
     kind: CustomerKind
     member_code: str | None
     tier: str | None

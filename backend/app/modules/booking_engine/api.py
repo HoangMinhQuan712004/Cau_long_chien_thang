@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.modules.booking_engine import (
     booking_service,
     config_service,
+    customer_history,
     holds,
     online_service,
     outbox,
@@ -29,7 +30,9 @@ from app.modules.booking_engine.dto import (
     CheckoutView,
     CollectIn,
     CounterBookingIn,
+    CustomerBookingRow,
     CustomerSnapshot,
+    CustomerStats,
     ItemOut,
     LookupResult,
     OnlinePaymentIn,
@@ -162,6 +165,25 @@ async def search_code(
 
 async def get_item(session: AsyncSession, code: str, *, tenant_id: int | None = None) -> ItemOut:
     return await booking_service.get_item(session, _tid(tenant_id), code)
+
+
+async def customer_stats(
+    session: AsyncSession, refs: list[str], *, tenant_id: int | None = None
+) -> dict[str, CustomerStats]:
+    """Số lượt đặt + tổng phút theo ``customer_ref`` (màn Hội viên, chỉ đọc)."""
+    return await customer_history.stats(session, _tid(tenant_id), refs)
+
+
+async def customer_bookings(
+    session: AsyncSession,
+    refs: list[str],
+    limit: int = 5,
+    offset: int = 0,
+    *,
+    tenant_id: int | None = None,
+) -> list[CustomerBookingRow]:
+    """Booking mới nhất trước của các ``customer_ref`` (phân trang bằng ``offset``)."""
+    return await customer_history.recent(session, _tid(tenant_id), refs, limit, offset)
 
 
 async def create_counter_booking(
