@@ -46,6 +46,11 @@ class PhoneVerifyIn(StrictIn):
 class PhoneTokenOut(BaseModel):
     phone_token: str
     expires_at: dt.datetime
+    account_verified: bool = Field(
+        default=False,
+        description="Khách đang đăng nhập có SĐT trùng SĐT vừa xác minh -> tài khoản đã xác minh, "
+        "lần đặt sau không cần OTP (cả khi đã xác minh từ trước)",
+    )
 
 
 class WebCustomer(BaseModel):
