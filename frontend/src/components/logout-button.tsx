@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { adminLogout } from "@/lib/api/auth";
 import { api } from "@/lib/api/client";
 
-// Đăng xuất rồi tải lại /dang-nhap (điều hướng cứng: bỏ các trang Next đang giữ ẩn, Back không quay lại)
+// Đăng xuất rồi tải lại: khách về trang chủ, Admin/NV về /dang-nhap (điều hướng cứng: bỏ các trang Next đang giữ ẩn, Back không quay lại)
 export function LogoutButton({ area = "customer" }: { area?: "customer" | "admin" }) {
   const [isPending, setIsPending] = useState(false);
 
@@ -25,7 +25,7 @@ export function LogoutButton({ area = "customer" }: { area?: "customer" | "admin
         setIsPending(true);
         if (area === "admin") await adminLogout();
         else await api.POST("/api/v1/auth/logout").catch(() => {});
-        window.location.replace("/dang-nhap");
+        window.location.replace(area === "admin" ? "/dang-nhap" : "/");
       }}
       className="text-sm text-muted hover:text-danger disabled:opacity-50"
     >
