@@ -4,6 +4,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -22,11 +23,13 @@ settings.DATABASE_URL = os.environ.get(
 
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
-from sqlalchemy import text  # noqa: E402
+from sqlalchemy import delete, text, update  # noqa: E402
 
 from app.core import queue, ratelimit  # noqa: E402
-from app.core.db import engine  # noqa: E402
+from app.core.db import SessionLocal, engine  # noqa: E402
+from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
+from app.modules.auth.models import Role, User  # noqa: E402
 from app.scripts import seed  # noqa: E402
 from tests.db_guard import reset_refusal  # noqa: E402
 
@@ -163,7 +166,17 @@ async def sign_in(client: AsyncClient, login: str, password: str):
 
 @pytest.fixture
 async def admin() -> AsyncIterator[AsyncClient]:
-    """Admin đăng nhập bằng SĐT (phiên quản trị, cookie ``admin_session``)."""
+    """Admin đăng nhập bằng SĐT (phiên quản trị, cookie ``admin_session``).
+
+    Gỡ khóa nhập sai trước: một test lỗi giữa chừng để Admin bị khóa không kéo đổ mọi test sau.
+    """
+    async with SessionLocal() as s:
+        await s.execute(
+            update(User)
+            .where(User.phone == settings.FIRST_ADMIN_PHONE)
+            .values(failed_login_count=0, locked_until=None)
+        )
+        await s.commit()
     async with _client() as c:
         r = await sign_in(c, settings.FIRST_ADMIN_PHONE, settings.FIRST_ADMIN_PASSWORD)
         assert r.status_code == 200, r.text
@@ -194,3 +207,28 @@ async def staff(admin: AsyncClient) -> AsyncIterator[AsyncClient]:
         r = await sign_in(c, _staff_username, STAFF_PASSWORD)
         assert r.status_code == 200, r.text
         yield c
+
+
+@asynccontextmanager
+async def extra_admin(password: str, **fields) -> AsyncIterator[tuple[int, str]]:
+    """Admin phụ (tạo rồi **xóa**): ngoài test, DB chỉ có một Admin như thực tế – lệnh
+    ``reset_admin_password`` và test QA dựa vào điều đó. Trả ``(id, SĐT)``."""
+    phone = unique_phone()
+    async with SessionLocal() as s:
+        user = User(
+            phone=phone,
+            phone_verified_at=datetime.now(UTC),
+            full_name="Admin phụ",
+            hashed_password=hash_password(password),
+            role=Role.ADMIN,
+            **fields,
+        )
+        s.add(user)
+        await s.commit()
+        user_id = user.id
+    try:
+        yield user_id, phone
+    finally:
+        async with SessionLocal() as s:
+            await s.execute(delete(User).where(User.id == user_id))
+            await s.commit()

@@ -174,6 +174,7 @@ async def test_google_sub_of_staff_or_inactive_is_rejected(anon):
         s.add(
             User(
                 username=f"nv{uuid.uuid4().hex[:8]}",
+                staff_code=f"NVG{uuid.uuid4().hex[:8]}",  # NV luôn có mã (test QA AC9/AC33)
                 full_name="NV có Google",
                 hashed_password=hash_password(CUSTOMER_PASSWORD),
                 role=Role.STAFF,

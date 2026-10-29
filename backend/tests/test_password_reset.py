@@ -10,13 +10,13 @@ from sqlalchemy import select, update
 from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.core.security import hash_password
-from app.modules.auth.models import OtpCode, OtpPurpose, Role, User
+from app.modules.auth.models import OtpCode, OtpPurpose, User
 from tests.conftest import (
     API,
     CUSTOMER_PASSWORD,
     ENQUEUED_JOBS,
     _client,
+    extra_admin,
     new_customer,
     sign_in,
     unique_phone,
@@ -44,20 +44,6 @@ async def reset_token_for(client, phone: str) -> str:
     r = await verify_code(client, phone, r.json()["test_otp"])
     assert r.status_code == 200, r.text
     return r.json()["reset_token"]
-
-
-async def make_admin(phone: str) -> None:
-    """Tài khoản Admin thứ hai (không đụng mật khẩu Admin của các test khác)."""
-    async with SessionLocal() as s:
-        user = User(
-            phone=phone,
-            phone_verified_at=datetime.now(UTC),
-            full_name="Admin phụ",
-            hashed_password=hash_password("Admin@12345"),
-            role=Role.ADMIN,
-        )
-        s.add(user)
-        await s.commit()
 
 
 # ------------------------------------------------------------------ luồng đúng
@@ -141,9 +127,7 @@ async def test_confirm_rejects_weak_password(anon):
 
 
 async def test_admin_otp_only_in_server_log_and_sessions_revoked(caplog):
-    phone = unique_phone()
-    await make_admin(phone)
-    async with _client() as admin2:
+    async with extra_admin("Admin@12345") as (_, phone), _client() as admin2:
         assert (await sign_in(admin2, phone, "Admin@12345")).status_code == 200
         async with _client() as c:
             with caplog.at_level(logging.WARNING, logger="app.modules.auth.otp"):
