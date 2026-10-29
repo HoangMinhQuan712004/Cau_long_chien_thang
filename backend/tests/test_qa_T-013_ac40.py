@@ -14,8 +14,6 @@ from tests.conftest import API, _client, new_customer, unique_phone
 from tests.helpers_booking import new_court
 from tests.helpers_web import WEB, checkout
 
-pytestmark = pytest.mark.anyio
-
 
 async def q(sql: str, **params):
     async with engine.begin() as conn:
