@@ -13,7 +13,7 @@ async def get_user(session: AsyncSession, user_id: int) -> User | None:
 async def get_customer(session: AsyncSession, user_id: int, version: int) -> User | None:
     """Chủ JWT khách: khách đang hoạt động, đúng ``token_version``; không thì None."""
     user = await session.get(User, user_id)
-    if user is None or not user.is_active or user.role != Role.CUSTOMER:
+    if user is None or not user.is_active or user.role != Role.MEMBER:
         return None
     if version != user.token_version:
         return None

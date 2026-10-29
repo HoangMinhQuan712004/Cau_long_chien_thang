@@ -109,8 +109,8 @@ async def test_ac1_customer_gets_customer_kind_with_own_full_phone(anon):
         r = await sign_in(c, phone, CUSTOMER_PASSWORD)
         assert r.status_code == 200
         body = r.json()
-        assert body["kind"] == "customer" and body["account"]["phone"] == phone
-        assert body["account"]["role"] == "customer" and "email" not in body["account"]
+        assert body["kind"] == "member" and body["account"]["phone"] == phone
+        assert body["account"]["role"] == "member" and "email" not in body["account"]
         assert (await c.get(f"{API}/auth/me")).status_code == 200
 
 
@@ -326,7 +326,7 @@ async def test_ac4_one_session_kind_per_browser(anon):
     assert (await anon.get(f"{API}/auth/me")).status_code == 401, "admin browser is not a customer"
     assert (await anon.get(f"{API}/admin/auth/me")).status_code == 200
     r = await sign_in(anon, phone, CUSTOMER_PASSWORD)
-    assert r.status_code == 200 and r.json()["kind"] == "customer"
+    assert r.status_code == 200 and r.json()["kind"] == "member"
     assert (await anon.get(f"{API}/admin/auth/me")).status_code == 401
     assert (await anon.get(f"{API}/auth/me")).status_code == 200
 
@@ -727,7 +727,7 @@ async def test_ac19_register_by_phone_leaves_it_unverified(anon):
     )
     assert r.status_code == 201
     body = r.json()
-    assert body["phone"] == phone and body["phone_verified"] is False and body["role"] == "customer"
+    assert body["phone"] == phone and body["phone_verified"] is False and body["role"] == "member"
     assert (
         body["full_name"] == "Khách Mới" and "email" not in body and "hashed_password" not in body
     )

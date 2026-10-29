@@ -79,11 +79,11 @@ async def test_google_creates_customer_once(anon):
     r = await anon.post(GOOGLE, json={"credential": id_token(sub)})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["kind"] == "customer"
+    assert body["kind"] == "member"
     account = body["account"]
     assert account["phone"] is None and account["phone_verified"] is False
     assert account["full_name"] == "Trần Thị Google"
-    assert account["google_email"] == "khach@gmail.com" and account["role"] == "customer"
+    assert account["google_email"] == "khach@gmail.com" and account["role"] == "member"
     assert "access_token=" in r.headers.get("set-cookie", "")
     assert (await anon.get(f"{API}/auth/me")).json()["id"] == account["id"]
 
@@ -102,7 +102,7 @@ async def test_google_never_links_by_email(anon):
             username=f"u{uuid.uuid4().hex[:10]}",
             full_name="Khách cũ",
             hashed_password=hash_password(CUSTOMER_PASSWORD),
-            role=Role.CUSTOMER,
+            role=Role.MEMBER,
         )
         s.add(old)
         await s.commit()

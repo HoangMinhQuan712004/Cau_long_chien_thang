@@ -115,7 +115,7 @@ async def sign_in(session: AsyncSession, credential: str, ip: str | None) -> Use
                     google_sub=identity.sub,
                     google_email=identity.email,
                     full_name=identity.name or DEFAULT_NAME,
-                    role=Role.CUSTOMER,
+                    role=Role.MEMBER,
                     is_active=True,
                 )
                 session.add(user)
@@ -125,7 +125,7 @@ async def sign_in(session: AsyncSession, credential: str, ip: str | None) -> Use
             if user is None:
                 raise
     # google_sub chỉ thuộc về khách còn hoạt động
-    if user.role != Role.CUSTOMER or not user.is_active:
+    if user.role != Role.MEMBER or not user.is_active:
         await session.rollback()
         raise invalid()
     if identity.email is not None:

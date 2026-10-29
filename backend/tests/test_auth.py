@@ -81,7 +81,7 @@ async def test_customer_register_sign_in_me_logout(anon):
 
     async with _client() as c:
         r = await sign_in(c, phone, PASSWORD)
-        assert r.status_code == 200 and r.json()["kind"] == "customer"
+        assert r.status_code == 200 and r.json()["kind"] == "member"
         assert (await c.get(f"{API}/auth/me")).json()["phone"] == phone
         # Khách không vào khu quản trị
         assert (await c.get(f"{API}/admin/auth/me")).status_code == 401
@@ -201,7 +201,7 @@ async def test_old_weak_password_still_signs_in():
 
     async with SessionLocal() as s:
         s.add(
-            User(phone=phone, full_name="Cũ", hashed_password=hash_password("yeu"), role="customer")
+            User(phone=phone, full_name="Cũ", hashed_password=hash_password("yeu"), role="member")
         )
         await s.commit()
     async with _client() as c:
