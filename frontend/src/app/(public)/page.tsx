@@ -30,7 +30,7 @@ export default function HomePage() {
           <p className="mt-4 text-muted">{site.description}</p>
           <p className="mt-2 text-sm text-muted">📍 {fullAddress}</p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/dat-san" className="rounded-md bg-primary px-5 py-3 font-medium text-primary-fg">
+            <Link href="/dat-san" className="rounded-md bg-primary px-5 py-3 font-medium text-white">
               Đặt sân
             </Link>
             <Link href="/bang-gia" className="rounded-md border border-border px-5 py-3">

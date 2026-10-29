@@ -57,7 +57,7 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
       <Card>
         <h1 className="text-xl font-bold">Không tìm thấy lượt thanh toán.</h1>
         <p className="mt-2 text-sm text-muted">Liên kết không đúng hoặc đã cũ. Nếu bạn đã chuyển khoản, vui lòng gọi hotline {hotline} kèm mã booking.</p>
-        <Link href="/dat-san" className="mt-4 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-fg">
+        <Link href="/dat-san" className="mt-4 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white">
           Đặt sân
         </Link>
       </Card>
@@ -115,7 +115,7 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
       ) : null}
 
       {view === "pending" ? (
-        <p role="status" className="mt-5 flex items-center gap-2 rounded-lg border border-border bg-free px-4 py-3 text-sm">
+        <p role="status" className="mt-5 flex items-center gap-2 rounded-lg border border-border bg-primary-softer px-4 py-3 text-sm">
           <span aria-hidden className="size-4 animate-spin rounded-full border-2 border-border border-t-primary" />
           Đang chờ xác nhận thanh toán… Trang sẽ tự chuyển khi nhận được tiền.
         </p>
@@ -125,7 +125,7 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
             Đã hết thời gian giữ chỗ nhưng chưa nhận được tiền. Khung giờ đã được mở lại cho người khác đặt.
           </p>
           <p className="text-sm text-muted">Nếu bạn đã chuyển khoản, vui lòng gọi hotline {hotline} kèm mã booking để được hỗ trợ.</p>
-          <button type="button" onClick={rebook} className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-fg">
+          <button type="button" onClick={rebook} className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white">
             Đặt lại
           </button>
         </div>
@@ -157,7 +157,7 @@ function PaidView({ checkout }: { checkout: Checkout }) {
   return (
     <Card>
       <div className="flex flex-col items-center text-center">
-        <span aria-hidden className="grid size-16 place-items-center rounded-full bg-free text-3xl text-success">
+        <span aria-hidden className="grid size-16 place-items-center rounded-full bg-primary-softer text-3xl text-primary">
           ✓
         </span>
         <h1 className="mt-4 text-2xl font-bold">Đặt sân thành công</h1>
@@ -185,10 +185,10 @@ function PaidView({ checkout }: { checkout: Checkout }) {
 
       <p className="mt-4 text-sm text-muted">Lưu mã booking để tra cứu. Vui lòng đến trước giờ chơi và báo mã tại quầy.</p>
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <Link href="/tra-cuu" className="rounded-lg border border-border px-4 py-3 text-center text-sm font-semibold hover:bg-free">
+        <Link href="/tra-cuu" className="rounded-lg border border-border px-4 py-3 text-center text-sm font-semibold hover:bg-primary-softer">
           Tra cứu booking
         </Link>
-        <Link href="/dat-san" className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-fg">
+        <Link href="/dat-san" className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white">
           Đặt thêm sân
         </Link>
       </div>

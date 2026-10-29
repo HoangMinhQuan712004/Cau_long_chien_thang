@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { FeedbackHost } from "@/components/feedback/feedback-host";
 import { LogoutButton } from "@/components/logout-button";
-import { authedGetJson, getCurrentUser } from "@/lib/api/server";
+import { type AdminSessionError, authedGetJson, getAdminSession } from "@/lib/api/server";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -21,7 +21,15 @@ const NAV: { href: string; label: string; roles: Role[] }[] = [
   { href: "/admin/tien-ve", label: "Tiền về", roles: ["admin"] },
   { href: "/admin/san", label: "Sân & bảng giá", roles: ["admin"] },
   { href: "/admin/cai-dat/thanh-toan", label: "Cài đặt thanh toán", roles: ["admin"] },
+  { href: "/admin/nhan-vien", label: "Nhân viên", roles: ["admin"] },
 ];
+
+// Lý do hết phiên ⇒ câu giải thích ở màn đăng nhập (?ly-do=…): hết 12 giờ, đổi mật khẩu, Admin khóa tài khoản
+const REASON_PARAM: Partial<Record<AdminSessionError, string>> = {
+  expired: "het-han",
+  password_changed: "doi-mat-khau",
+  account_disabled: "tai-khoan-khoa",
+};
 
 export default function AdminLayout({ children }: LayoutProps<"/admin">) {
   return (
@@ -34,12 +42,15 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
   );
 }
 
-/** Chỉ admin/staff được vào. Backend vẫn kiểm tra quyền trên từng API. */
+/** Chỉ phiên quản trị (cookie admin_session) còn hiệu lực được vào. Backend vẫn kiểm tra quyền trên từng API. */
 async function Shell({ children }: { children: React.ReactNode }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/dang-nhap?next=/admin");
-  if (user.role === "customer") redirect("/tai-khoan");
-  const role: Role = user.role === "admin" ? "admin" : "staff";
+  const result = await getAdminSession().catch(() => null);
+  if (!result?.ok) {
+    const reason = result ? REASON_PARAM[result.reason] : undefined;
+    redirect(`/dang-nhap?next=/admin${reason ? `&ly-do=${reason}` : ""}`);
+  }
+  const { account } = result.session;
+  const role: Role = account.kind;
   // Số giao dịch tiền về chưa xử lý (chỉ Admin); lỗi / chưa có API → không hiện số.
   const pendingMoney = role === "admin" ? await authedGetJson<unknown[]>("/api/v1/payments/bank-transactions", { needs_action: "true", limit: "100" }) : null;
   const moneyCount = pendingMoney?.ok ? pendingMoney.data.length : 0;
@@ -55,7 +66,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
             <Link key={n.href} href={n.href} className="hover:text-primary">
               {n.label}
               {n.href === "/admin/tien-ve" && moneyCount > 0 ? (
-                <span className="ml-1.5 rounded-full bg-danger px-1.5 py-0.5 text-xs font-semibold text-primary-fg" aria-label={`${moneyCount} chưa xử lý`}>
+                <span className="ml-1.5 rounded-full bg-danger px-1.5 py-0.5 text-xs font-semibold text-white" aria-label={`${moneyCount} chưa xử lý`}>
                   {moneyCount}
                 </span>
               ) : null}
@@ -66,9 +77,9 @@ async function Shell({ children }: { children: React.ReactNode }) {
       <div className="min-w-0 flex-1 p-4 md:p-8">
         <div className="mb-6 flex items-center justify-end gap-4 text-sm text-muted">
           <span>
-            {user.full_name} · {role === "admin" ? "Chủ sân" : "Tại máy"}
+            {account.display_name} · {account.role_label}
           </span>
-          <LogoutButton />
+          <LogoutButton area="admin" />
         </div>
         {children}
       </div>

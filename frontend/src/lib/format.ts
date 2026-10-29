@@ -55,3 +55,7 @@ export const hhmm = (t: string) => t.slice(0, 5);
 
 /** Ngày + giờ theo giờ Việt Nam: "26/10/2026 18:04". */
 export const formatDateTime = (iso: string) => `${formatDayMonthYear(vnDate(iso))} ${formatTime(iso)}`;
+
+/** Đồng hồ đếm ngược m:ss (giây → "4:05"). */
+export const formatCountdown = (seconds: number) =>
+  `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;

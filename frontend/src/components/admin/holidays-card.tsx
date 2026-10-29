@@ -98,7 +98,7 @@ export function HolidaysCard({ year, items }: { year: number; items: SpecialDay[
               type="button"
               onClick={() => removing && remove(removing)}
               disabled={busy}
-              className="rounded-md bg-danger px-4 py-2 text-sm font-medium text-primary-fg disabled:opacity-60"
+              className="rounded-md bg-danger px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
             >
               {busy ? "Đang xóa…" : "Xóa ngày"}
             </button>
@@ -167,7 +167,7 @@ function HolidayForm({ year, onClose, onSaved }: { year: number; onClose: () => 
             type="button"
             onClick={submit}
             disabled={busy}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-fg disabled:opacity-60"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           >
             {busy ? "Đang thêm…" : "Thêm ngày"}
           </button>

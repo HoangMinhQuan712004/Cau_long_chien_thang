@@ -1,18 +1,48 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Modal } from "@/components/ui/modal";
+import type { Dictionary } from "@/i18n/dictionaries";
+import { otpErrorText, otpResendAt } from "@/lib/api/auth";
+import { api } from "@/lib/api/client";
 import { errorText, write } from "@/lib/api/write";
 import { formatLongDate, formatVnd } from "@/lib/format";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
-import { getWebCalendar, sendCheckout } from "./requests";
+import { BookingPhoneOtp } from "./phone-otp";
+import { getWebCalendar, requestBookingPhone, sendCheckout } from "./requests";
 import { MAX_CELLS, RESTORE_KEY, type Cell, type WebCalendar } from "./types";
 
 // /dat-san – bước 1: chọn khung giờ trên lưới (nhiều ô, nhiều sân, cùng 1 ngày, tối đa 16 ô); bước 2: nhập thông tin người đặt.
 // Server tự tính giá và kiểm lại mọi điều kiện; FE chỉ gửi sân + giờ + thông tin khách (T-008 AC1–AC9).
 
 const STORAGE_KEY = "wk-booking-v1";
+// phone_token (30 phút) của SĐT đã xác minh OTP: dùng lại cho các lượt đặt kế tiếp, không bắt nhập mã lại
+const PHONE_TOKEN_KEY = "wk-phone-token-v1";
+
+type PhoneToken = { phone: string; token: string; expiresAt: string };
+/** phone_token còn dùng được (còn > 15 giây) cho đúng SĐT này, không thì null. */
+function savedToken(forPhone: string): string | null {
+  const t = readJson<PhoneToken>(PHONE_TOKEN_KEY);
+  return t && t.phone === forPhone && Date.parse(t.expiresAt) - Date.now() > 15_000 ? t.token : null;
+}
+
+// Kho nhỏ quanh sessionStorage để nhãn "đã xác minh" cập nhật khi lưu / xóa token (không setState trong effect)
+const tokenListeners = new Set<() => void>();
+const subscribeToken = (cb: () => void) => {
+  tokenListeners.add(cb);
+  return () => void tokenListeners.delete(cb);
+};
+const notifyToken = () => tokenListeners.forEach((l) => l());
+const readTokenRaw = (): string | null => {
+  try {
+    return sessionStorage.getItem(PHONE_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+};
+
+type Me = { full_name: string; phone: string | null; phone_verified: boolean };
 
 type Saved = { date: string; cells: Cell[]; name: string; phone: string; note: string; step: 1 | 2 };
 type Restore = { date: string; items: Cell[] };
@@ -75,9 +105,9 @@ function summarize(calendar: WebCalendar, cells: Cell[], price: Map<string, numb
   return out;
 }
 
-type Props = { initialDate: string; today: string; hotline: string };
+type Props = { initialDate: string; today: string; hotline: string; texts: Dictionary["phoneVerify"] };
 
-export function WebBookingFlow({ initialDate, today, hotline }: Props) {
+export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
   const router = useRouter();
   const [date, setDate] = useState(initialDate);
   const [calendar, setCalendar] = useState<WebCalendar | null>(null);
@@ -92,6 +122,18 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pendingDate, setPendingDate] = useState<string | null>(null);
+  // Bước nhập OTP (đang mở khi != null); khách đăng nhập đã xác minh SĐT thì bỏ qua (AC26)
+  const [otp, setOtp] = useState<{ phone: string; resendAt: number | null; testOtp: string | null } | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
+  // SĐT đã có phone_token (chỉ để đổi nhãn nút / hiện "đã xác minh"); hạn thật được kiểm lại lúc bấm nút
+  const rawToken = useSyncExternalStore(subscribeToken, readTokenRaw, () => null);
+  const verifiedPhone = useMemo(() => {
+    try {
+      return rawToken ? (JSON.parse(rawToken) as PhoneToken).phone : null;
+    } catch {
+      return null;
+    }
+  }, [rawToken]);
   const ids = { date: useId(), name: useId(), phone: useId(), note: useId() };
 
   const dateRef = useRef(initialDate);
@@ -241,6 +283,18 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
     else applyDate(value);
   }
 
+  // Khách đang đăng nhập: điền sẵn tên + SĐT (không ghi đè nội dung đã nhập / khôi phục)
+  useEffect(() => {
+    api
+      .GET("/api/v1/auth/me")
+      .then(({ data }) => {
+        if (!data) return;
+        setMe({ full_name: data.full_name, phone: data.phone ?? null, phone_verified: data.phone_verified });
+        setForm((f) => ({ ...f, name: f.name || data.full_name, phone: f.phone || data.phone || "" }));
+      })
+      .catch(() => {});
+  }, []);
+
   // ---- Bước 2: kiểm tra + gửi ----
   const cleanName = form.name.trim().replace(/\s+/g, " ");
   const phone = normalizePhone(form.phone);
@@ -250,7 +304,10 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
     note: form.note.trim().length > 200 ? "Ghi chú tối đa 200 ký tự." : "",
   };
 
-  async function submit() {
+  const skipOtp = Boolean(me?.phone_verified && me.phone && normalizePhone(me.phone) === phone);
+
+  /** Bấm nút chính: kiểm form → (cần thì) gửi mã OTP → khi có phone_token mới tạo checkout. */
+  async function submit(tokenOverride?: string) {
     setSubmitted(true);
     setBanner("");
     if (errors.name || errors.phone || errors.note || !calendar || !cells.length) {
@@ -263,9 +320,33 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
       .sort((a, b) => (order.get(a.code) ?? 0) - (order.get(b.code) ?? 0) || a.hour - b.hour)
       .map((c) => ({ resource_code: c.code, start_hour: c.hour }));
     const note = form.note.trim();
+    const phoneToken = skipOtp ? null : (tokenOverride ?? savedToken(phone));
+    if (!skipOtp && !phoneToken) {
+      setBusy(true);
+      try {
+        const sent = await requestBookingPhone(phone);
+        const at = otpResendAt(sent);
+        // 429 vẫn sang bước nhập mã (mã trước còn dùng được); lỗi khác ⇒ báo ngay
+        if (at === null) {
+          if (!sent.ok) {
+            setBanner(otpErrorText(texts.errors, sent));
+            if (sent.code === "E-WEB-5") void load(dateRef.current, true);
+          }
+          return;
+        }
+        setOtp({ phone, resendAt: at, testOtp: sent.ok ? (sent.test_otp ?? null) : null });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     setBusy(true);
     try {
-      const res = await write((key) => sendCheckout(key, { date, slots, full_name: cleanName, phone, ...(note ? { note } : {}) }));
+      // Giới hạn 6 lượt tạo / 10 phút / IP: báo ngay khi bị chặn, không tự gửi lại (mỗi lần gửi lại cũng bị tính)
+      const res = await write(
+        (key) => sendCheckout(key, { date, slots, full_name: cleanName, phone, ...(note ? { note } : {}), ...(phoneToken ? { phone_token: phoneToken } : {}) }),
+        { retryRateLimit: false },
+      );
       if (res.ok) {
         const token = res.data.token;
         if (!token) {
@@ -287,6 +368,10 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
         return;
       }
       if (e.code === "E-WEB-5") void load(dateRef.current, true);
+      if (e.code === "E-WEB-8") {
+        removeKey(PHONE_TOKEN_KEY);
+        notifyToken();
+      } // token hết hạn / không khớp SĐT ⇒ xác minh lại ở lần bấm kế tiếp
       setBanner(errorText(e));
     } finally {
       setBusy(false);
@@ -351,6 +436,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
                 id={ids.name}
                 value={form.name}
                 maxLength={120}
+                readOnly={otp !== null}
                 autoComplete="name"
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 onBlur={() => setTouched((t) => ({ ...t, name: true }))}
@@ -374,6 +460,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
                 inputMode="tel"
                 autoComplete="tel"
                 maxLength={16}
+                readOnly={otp !== null}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                 onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
                 aria-invalid={Boolean(showErr("phone")) || undefined}
@@ -387,6 +474,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
               ) : null}
               <p id={`${ids.phone}-hint`} className="mt-1 text-xs text-muted">
                 Dùng số này cùng mã booking để tra cứu.
+                {isValidPhone(phone) && (skipOtp || verifiedPhone === phone) ? <b className="ml-1 font-semibold text-primary">Số điện thoại đã xác minh.</b> : null}
               </p>
             </div>
             <div>
@@ -411,15 +499,31 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
               {banner}
             </p>
           ) : null}
-          <button
-            type="button"
-            onClick={submit}
-            disabled={busy || onlineOff}
-            className="mt-5 w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-fg disabled:opacity-60"
-          >
-            {busy ? "Đang xử lý…" : "Xác nhận & thanh toán"}
-          </button>
-          <p className="mt-2 text-center text-xs text-muted">Khung giờ được giữ {holdMinutes} phút để thanh toán.</p>
+          {otp ? (
+            <BookingPhoneOtp
+              t={texts}
+              phone={otp.phone}
+              initialResendAt={otp.resendAt}
+              initialTestOtp={otp.testOtp}
+              onChangePhone={() => setOtp(null)}
+              onVerified={(token, expiresAt) => {
+                writeJson(PHONE_TOKEN_KEY, { phone: otp.phone, token, expiresAt } satisfies PhoneToken);
+                notifyToken();
+                setOtp(null);
+                void submit(token); // đã xác minh: giữ chỗ + tạo thanh toán luôn
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => void submit()}
+              disabled={busy || onlineOff}
+              className="mt-5 w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {busy ? "Đang xử lý…" : skipOtp || (isValidPhone(phone) && verifiedPhone === phone) ? "Xác nhận & thanh toán" : "Gửi mã xác minh"}
+            </button>
+          )}
+          <p className="mt-2 text-center text-xs text-muted">Khung giờ được giữ {holdMinutes} phút để thanh toán, bắt đầu sau khi bạn xác minh số điện thoại.</p>
           {onlineOff ? (
             <p className="mt-2 text-center text-xs text-danger">Đặt online đang tạm ngưng. Vui lòng gọi hotline {hotline}.</p>
           ) : null}
@@ -479,7 +583,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
         ) : calendar.resources.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted">Chưa có sân nào mở cho ngày này.</p>
         ) : (
-          <div className={`overflow-x-auto ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
+          <div className={`relative overflow-x-auto ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
             <div className="min-w-max [--c0:5.5rem] [--col:3.25rem] sm:[--c0:6.5rem] sm:[--col:3.5rem]">
               <div className="flex text-xs text-muted">
                 <div className="sticky left-0 z-10 flex w-(--c0) shrink-0 items-center bg-surface pr-2">Sân</div>
@@ -528,7 +632,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
                           aria-pressed={on}
                           aria-label={`${label}, trống${s.price != null ? `, ${formatVnd(s.price)}` : ""}`}
                           title={s.price != null ? formatVnd(s.price) : undefined}
-                          className={`${base} border font-medium ${on ? "border-primary bg-primary text-primary-fg" : "border-border bg-surface hover:bg-free"} focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary`}
+                          className={`${base} border font-medium ${on ? "border-primary bg-primary text-white" : "border-border bg-surface hover:bg-primary-softer"} focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary`}
                         >
                           {on ? `${h}h–${h + 1}h` : null}
                         </button>
@@ -579,7 +683,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
               type="button"
               onClick={() => applyStep(2)}
               disabled={!cells.length || onlineOff || !calendar}
-              className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-fg disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
               Tiếp tục
             </button>
@@ -603,7 +707,7 @@ export function WebBookingFlow({ initialDate, today, hotline }: Props) {
                 setPendingDate(null);
                 if (d) applyDate(d);
               }}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-fg"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white"
             >
               Đổi ngày
             </button>

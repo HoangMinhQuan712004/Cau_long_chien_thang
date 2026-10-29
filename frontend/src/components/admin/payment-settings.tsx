@@ -67,7 +67,9 @@ export function PaymentSettingsScreen({ initial, banks }: { initial: PaymentSett
     form.bank !== base.bank ||
     form.account !== base.account ||
     form.name !== base.name ||
-    effectiveToggle !== settings.online_toggle ||
+    // So lựa chọn của người dùng (form.toggle) với giá trị server, không phải effectiveToggle: server có thể trả
+    // online_toggle=true khi còn thiếu cấu hình (đang dùng .env) → effectiveToggle=false sẽ báo "chưa lưu" oan.
+    form.toggle !== base.toggle ||
     (form.changingSecret && secretTyped);
   const valid = Boolean(form.bank) && accountOk && nameOk && secretOk;
   const accountChanged = form.bank !== base.bank || form.account !== base.account;
@@ -274,7 +276,7 @@ export function PaymentSettingsScreen({ initial, banks }: { initial: PaymentSett
             aria-labelledby="toggle-label"
             disabled={!canEnable}
             onClick={() => set({ toggle: !effectiveToggle })}
-            className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full border border-border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${effectiveToggle ? "bg-primary" : "bg-busy"}`}
+            className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full border border-border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${effectiveToggle ? "bg-primary" : "bg-border-strong"}`}
           >
             <span aria-hidden className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${effectiveToggle ? "left-6" : "left-0.5"}`} />
           </button>
@@ -349,7 +351,7 @@ export function PaymentSettingsScreen({ initial, banks }: { initial: PaymentSett
 
 function StatusBlock({ s }: { s: PaymentSettings }) {
   let badge: { text: string; cls: string };
-  if (s.online_enabled) badge = { text: "Đang nhận đặt online", cls: "bg-free text-success" };
+  if (s.online_enabled) badge = { text: "Đang nhận đặt online", cls: "bg-primary-softer text-primary" };
   else if (s.online_toggle && s.missing.length) badge = { text: `Thiếu cấu hình: ${s.missing.map((m) => MISSING_LABEL[m]).join(", ")}`, cls: "bg-blk-unpaid text-blk-unpaid-fg" };
   else badge = { text: "Đang tắt", cls: "bg-blk-bad text-blk-bad-fg" };
   return (
@@ -526,7 +528,7 @@ function SimulateBlock({ onDone }: { onDone: () => void | Promise<void> }) {
         </p>
       ) : null}
       {result ? (
-        <p role="status" className="mt-3 rounded-md bg-free p-3 text-sm font-medium">
+        <p role="status" className="mt-3 rounded-md bg-primary-softer p-3 text-sm font-medium">
           {result}
         </p>
       ) : null}

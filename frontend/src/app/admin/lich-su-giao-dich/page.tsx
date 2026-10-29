@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { TransactionsScreen } from "@/components/booking-engine/transactions-screen";
 import type { Transactions } from "@/components/booking-engine/types";
@@ -17,6 +18,7 @@ export default function TransactionsPage() {
 
 async function TransactionsLoader() {
   const api = await authedApi(); // đọc cookie trước khi dùng giờ hiện tại
+  await connection(); // giờ hiện tại chỉ dùng ở request, không prerender
   const today = todayVn();
   const [tx, resources] = await Promise.all([
     authedGetJson<Transactions>("/api/v1/booking/transactions", { from: addDaysIso(today, -6), to: today }),
