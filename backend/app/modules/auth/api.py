@@ -8,8 +8,9 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.modules.auth import otp, service
-from app.modules.auth.deps import AuthStateDep
+from app.core.errors import AppError
+from app.modules.auth import member_accounts, otp, service
+from app.modules.auth.deps import AuthStateDep, CurrentCustomer
 from app.modules.auth.models import OtpPurpose, Role
 
 
@@ -74,8 +75,9 @@ async def _verified_customer_phone(state: AuthStateDep) -> str | None:
     if (
         state.admin_session is not None
         or user is None
-        or user.role != Role.CUSTOMER
+        or user.role != Role.MEMBER
         or user.phone_verified_at is None
+        or user.must_change_password
     ):
         return None
     return user.phone
@@ -83,3 +85,30 @@ async def _verified_customer_phone(state: AuthStateDep) -> str | None:
 
 # Dependency: SĐT **đã xác minh** của khách đang đăng nhập (không đăng nhập / chưa xác minh -> None)
 VerifiedCustomerPhone = Annotated[str | None, Depends(_verified_customer_phone)]
+
+
+# ------------------------------------------------------------------ tài khoản hội viên (T-015)
+
+
+async def ensure_customer_account(
+    session: AsyncSession, phone: str, full_name: str, active: bool = True
+) -> bool:
+    """Thêm / nâng hội viên: SĐT chưa có tài khoản -> tạo (MK = SĐT, bắt đổi). Chưa commit."""
+    return await member_accounts.ensure_customer_account(session, phone, full_name, active)
+
+
+async def set_customer_account_active(session: AsyncSession, phone: str, active: bool) -> None:
+    """Hội viên Ngừng / Hoạt động -> khóa / mở tài khoản khách cùng SĐT. Không commit."""
+    await member_accounts.set_customer_account_active(session, phone, active)
+
+
+async def _member_card_phone(user: CurrentCustomer) -> str:
+    if not user.phone or not member_accounts.can_view_member_card(user):
+        raise AppError(
+            "E-AUTH-29", "Vui lòng xác minh số điện thoại để xem thông tin hội viên.", 403
+        )
+    return user.phone
+
+
+# Dependency: SĐT của khách được xem thẻ Hội viên (401 / 403 E-AUTH-25 / 403 E-AUTH-29)
+MemberCardPhone = Annotated[str, Depends(_member_card_phone)]

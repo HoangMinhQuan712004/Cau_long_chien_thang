@@ -918,6 +918,8 @@ async def test_sec7_audit_log_is_append_only_at_database_level(adm):
 
 
 FORBIDDEN_FIELDS = ("hashed_password", "password", "access_token", "refresh_token", "secret")
+# Tên trường cờ boolean (T-015), không phải bí mật – bỏ trước khi dò chuỗi "password"
+ALLOWED_FIELDS = ('"must_change_password"',)
 
 
 async def test_sec8_no_secrets_in_responses(adm, customer_c):
@@ -934,6 +936,8 @@ async def test_sec8_no_secrets_in_responses(adm, customer_c):
             if r.status_code != 200:
                 continue
             body = r.text.lower()
+            for allowed in ALLOWED_FIELDS:
+                body = body.replace(allowed, "")
             for word in FORBIDDEN_FIELDS:
                 assert word not in body, f"{path} leaks '{word}'"
     async with _http() as c:  # login response body must not contain tokens either (cookies only)

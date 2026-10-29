@@ -66,6 +66,9 @@ class UserOut(BaseModel):
     google_email: str | None
     role: Role
     is_active: bool
+    must_change_password: bool = Field(
+        description="Tài khoản hội viên chưa đổi mật khẩu ban đầu -> chuyển trang đổi mật khẩu"
+    )
 
 
 class AdminAccountOut(BaseModel):
@@ -83,7 +86,7 @@ class AdminSessionOut(BaseModel):
 
 
 class CustomerSignInOut(BaseModel):
-    kind: Literal["customer"] = "customer"
+    kind: Literal["member"] = "member"
     account: UserOut
 
 
@@ -105,6 +108,7 @@ def user_out(user) -> UserOut:
         google_email=user.google_email,
         role=user.role,
         is_active=user.is_active,
+        must_change_password=user.must_change_password,
     )
 
 
@@ -131,6 +135,13 @@ class PhoneOtpIn(_In):
 
 class ResetTokenOut(BaseModel):
     reset_token: str
+
+
+class PasswordChangeIn(_In):
+    """Đổi mật khẩu của khách; ``current_password`` không cần khi đang bắt đổi lần đầu."""
+
+    new_password: NewPassword
+    current_password: str | None = Field(default=None, max_length=128)
 
 
 class ResetConfirmIn(_In):

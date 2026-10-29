@@ -11,10 +11,13 @@ from app.core.context import RequestContextMiddleware, setup_logging
 from app.core.db import engine
 from app.core.middleware import BodyLimitMiddleware, OriginCheckMiddleware
 from app.core.ratelimit import RateLimitMiddleware
+from app.modules.auth import account_router
 from app.modules.auth import router as auth
 from app.modules.booking_engine import router as booking_engine
 from app.modules.content import router as content
 from app.modules.front_desk import router as front_desk
+from app.modules.members import me_router as member_me
+from app.modules.members import racket_router
 from app.modules.members import router as members
 from app.modules.payments import router as payments
 from app.modules.web_booking import router as web_booking
@@ -45,12 +48,15 @@ app.add_middleware(RequestContextMiddleware)
 
 for r in (
     auth.router,
+    account_router.router,
     auth.admin_router,
     auth.staff_router,
     content.router,
     content.admin_router,
     booking_engine.router,
     members.router,
+    racket_router.router,
+    member_me.router,
     front_desk.router,
     web_booking.router,
     payments.router,

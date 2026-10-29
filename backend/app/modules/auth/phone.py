@@ -5,7 +5,9 @@
   xóa tài khoản Google, chuyển ``google_sub`` / ``google_email`` sang chủ SĐT, hủy mật khẩu
   của chủ SĐT (``password_cleared``), phát lại JWT cho chủ SĐT.
 - Chủ SĐT là Admin / NV, bị khóa, đã có Google khác (hoặc tài khoản hiện tại không phải Google)
-  -> ``E-AUTH-18``. Tài khoản đã có SĐT -> ``E-AUTH-17``.
+  -> ``E-AUTH-18``. Tài khoản đã có SĐT khác (hoặc đã xác minh) -> ``E-AUTH-17``.
+- Tài khoản đã gắn đúng SĐT này nhưng chưa xác minh (tự đăng ký không OTP) -> xác minh tại chỗ,
+  ghi ``phone_verified_at`` (T-015: điều kiện xem thẻ Hội viên).
 Không kiểm "có booking" như PR: trên ``dev`` booking không gắn tài khoản.
 """
 
@@ -44,13 +46,17 @@ def phone_unusable() -> AppError:
     return AppError("E-AUTH-18", "Số điện thoại không dùng được.", 409)
 
 
+def _verifying_own_phone(user: User, phone: str) -> bool:
+    return user.phone == phone and user.phone_verified_at is None
+
+
 def _actor(user: User) -> AuditActor:
-    return AuditActor(type="customer", id=user.id, label=user.full_name)
+    return AuditActor(type=sessions.actor_type_of(user.role), id=user.id, label=user.full_name)
 
 
 async def request_code(session: AsyncSession, user: User, phone: str, ip: str | None) -> CodeSent:
     """Gửi mã tới SĐT (chủ SĐT chỉ xét lúc nhập mã đúng – không lộ SĐT đã có chủ)."""
-    if user.phone is not None:
+    if user.phone is not None and not _verifying_own_phone(user, phone):
         raise already_has_phone()
     if not settings.otp_channel_ready:
         raise otp.channel_unavailable()
@@ -72,6 +78,11 @@ async def verify(session: AsyncSession, user_id: int, phone: str, code: str) -> 
         .with_for_update()
         .execution_options(populate_existing=True)
     )
+    if current is not None and _verifying_own_phone(current, phone):
+        current.phone_verified_at = now
+        audit(session, _actor(current), "auth.phone_verified", "user", str(current.id))
+        await session.commit()
+        return PhoneVerified(current, merged=False, password_cleared=False)
     if current is None or current.phone is not None:
         await session.commit()  # mã đã dùng
         raise already_has_phone()
@@ -88,7 +99,7 @@ async def verify(session: AsyncSession, user_id: int, phone: str, code: str) -> 
         return PhoneVerified(current, merged=False, password_cleared=False)
 
     if (
-        owner.role != Role.CUSTOMER
+        owner.role != Role.MEMBER
         or not owner.is_active
         or owner.google_sub is not None
         or current.google_sub is None
