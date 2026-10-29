@@ -211,13 +211,22 @@ async def phone_request(data: PhoneCodeIn, session: SessionDep):
     response_model=PhoneTokenOut,
     dependencies=[Depends(require_origin), Depends(no_store)],
 )
-async def phone_verify(data: PhoneVerifyIn, session: SessionDep):
+async def phone_verify(
+    data: PhoneVerifyIn, session: SessionDep, customer_id: auth.SignedInCustomerId
+):
     """Mã đúng -> ``phone_token`` (30 phút, dùng cho nhiều lượt đặt của SĐT này trong hạn).
 
+    Khách đang đăng nhập có SĐT tài khoản trùng -> ``account_verified`` (T-013 AC40).
     Lỗi: E-WEB-1 (SĐT sai), E-AUTH-14 (sai mã, ``attempts_left``), E-AUTH-15 (mã hết hiệu lực).
     """
-    token = await auth.verify_booking_phone(session, _valid_phone(data.phone), data.otp)
-    return PhoneTokenOut(phone_token=token.token, expires_at=token.expires_at)
+    token = await auth.verify_booking_phone(
+        session, _valid_phone(data.phone), data.otp, customer_id
+    )
+    return PhoneTokenOut(
+        phone_token=token.token,
+        expires_at=token.expires_at,
+        account_verified=token.account_verified,
+    )
 
 
 @router.get(
