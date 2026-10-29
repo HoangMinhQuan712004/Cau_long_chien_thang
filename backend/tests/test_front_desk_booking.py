@@ -125,10 +125,10 @@ async def test_counter_booking_member(admin, staff):
     assert item["customer"] == {
         "name": "Phạm Thu Trang",
         "phone_masked": "0987 xxx 087",
-        "profile_label": "Hội viên (HV0087 · Hạng Bạc)",
+        "profile_label": "Hội viên (HV0087 · Hạng Trung bình +)",
         "kind": "member",
         "member_code": "HV0087",
-        "tier": "Bạc",
+        "tier": "Trung bình +",
     }
     assert item["schedule"]["resource_codes"] == [court["code"]]
     assert item["schedule"]["start_time"] == f"{hour:02d}:00"
