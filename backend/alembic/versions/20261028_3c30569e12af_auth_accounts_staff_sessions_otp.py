@@ -3,8 +3,8 @@
 T-013 (ADR-008, port PR #17): đăng nhập SĐT / tên đăng nhập / Google, phiên quản trị phía server,
 mã OTP, nhiều tài khoản nhân viên (NV001…). Thứ tự chuyển dữ liệu theo T-013 AC32:
 1. chuẩn hóa ``phone`` (không hợp lệ -> NULL; trùng -> giữ id nhỏ nhất);
-2. Admin chưa có SĐT -> ``FIRST_ADMIN_PHONE`` (thiếu / sai / thuộc người không phải Admin -> DỪNG,
-   không đổi gì; đã thuộc một Admin -> bỏ qua);
+2. Admin chưa có SĐT -> ``FIRST_ADMIN_PHONE`` (thiếu / sai / thuộc người không phải Admin /
+   production chưa đặt rõ hoặc là SĐT mẫu -> DỪNG, không đổi gì; đã thuộc một Admin -> bỏ qua);
 3. user không có SĐT -> ``username`` từ email + id;
 4. nhân viên -> ``NV001``… theo id, ``username = lower(staff_code)``;
 5. ``email`` cho phép NULL (giữ dữ liệu); 6. Admin / nhân viên có SĐT coi như đã xác minh.
@@ -90,6 +90,12 @@ def _upgrade_users() -> None:
         sa.text("SELECT min(id) FROM users WHERE role = 'admin' AND phone IS NULL")
     )
     if admin_id is not None:
+        if settings.first_admin_phone_is_sample:
+            raise RuntimeError(
+                "Migration dừng: ENV=production nhưng biến FIRST_ADMIN_PHONE chưa được đặt hoặc "
+                "vẫn là SĐT mẫu – cần SĐT thật của chủ sân để gán cho tài khoản Admin chưa có "
+                "SĐT. Đặt biến trong .env rồi chạy lại."
+            )
         phone = _normalize_phone(settings.FIRST_ADMIN_PHONE or "")
         if phone is None:
             raise RuntimeError(

@@ -156,6 +156,8 @@ async def seed_admin(session) -> None:
     phone = normalize_phone(settings.FIRST_ADMIN_PHONE)
     if phone is None:
         raise SystemExit("FIRST_ADMIN_PHONE thiếu hoặc không phải SĐT di động Việt Nam 10 số.")
+    if settings.first_admin_phone_is_sample:
+        raise SystemExit("FIRST_ADMIN_PHONE chưa được đặt hoặc vẫn là SĐT mẫu – đặt SĐT thật.")
     password = settings.FIRST_ADMIN_PASSWORD
     if settings.is_production and (
         password in SAMPLE_ADMIN_PASSWORDS or password_problems(password)

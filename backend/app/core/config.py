@@ -15,6 +15,10 @@ def _valid_fernet_key(key: str) -> bool:
         return False
 
 
+# SĐT Admin mẫu (link dev, máy local) – không bao giờ dùng trên production
+SAMPLE_ADMIN_PHONE = "0912345678"
+
+
 class Settings(BaseSettings):
     # hide_input_in_errors: lỗi cấu hình lúc khởi động không in giá trị env (DATABASE_URL, khóa…)
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
@@ -97,8 +101,9 @@ class Settings(BaseSettings):
     # Client ID Google (công khai); trống -> tắt đăng nhập Google
     GOOGLE_CLIENT_ID: str = ""
 
-    # Admin đầu tiên: migration gán SĐT này cho Admin chưa có SĐT; seed tạo Admin khi chưa có
-    FIRST_ADMIN_PHONE: str = "0912345678"
+    # Admin đầu tiên: migration gán SĐT này cho Admin chưa có SĐT; seed tạo Admin khi chưa có.
+    # Production phải đặt rõ SĐT thật (mặc định / SĐT mẫu -> migration + seed dừng)
+    FIRST_ADMIN_PHONE: str = SAMPLE_ADMIN_PHONE
     FIRST_ADMIN_PASSWORD: str = "Admin@12345"
 
     @model_validator(mode="after")
@@ -122,6 +127,18 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENV == "production"
+
+    @property
+    def first_admin_phone_is_sample(self) -> bool:
+        """Production mà ``FIRST_ADMIN_PHONE`` không đặt rõ (đang lấy mặc định) hoặc là SĐT mẫu."""
+        if not self.is_production:
+            return False
+        digits = "".join(ch for ch in self.FIRST_ADMIN_PHONE if ch.isdigit())
+        sample = SAMPLE_ADMIN_PHONE.removeprefix("0")
+        return "FIRST_ADMIN_PHONE" not in self.model_fields_set or digits in (
+            "0" + sample,
+            "84" + sample,
+        )
 
     @property
     def zalo_configured(self) -> bool:
