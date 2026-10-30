@@ -187,42 +187,7 @@
     "phoneVerified": "Đã xác minh",
     "phoneUnverified": "Chưa xác minh",
     "phoneUnverifiedHint": "Số điện thoại sẽ được xác minh bằng mã OTP khi bạn đặt sân online.",
-    "username": "Tên đăng nhập: {username}",
-    "verifyTitle": "Thêm và xác minh số điện thoại",
-    "adminLink": "Trang quản lý →",
-    "member": {
-      "title": "Hội viên",
-      "code": "Mã hội viên",
-      "tier": "Hạng",
-      "tierNone": "Chưa xếp hạng",
-      "status": "Trạng thái",
-      "active": "Hoạt động",
-      "inactive": "Ngừng",
-      "gender": "Giới tính",
-      "genders": {
-        "male": "Nam",
-        "female": "Nữ"
-      },
-      "racket": "Vợt đang dùng",
-      "created": "Ngày tạo",
-      "bookings": "Số lần đặt",
-      "totalHours": "Tổng giờ đã đặt",
-      "hours": "{n} giờ",
-      "history": "Lịch sử đặt sân",
-      "historyEmpty": "Bạn chưa có lượt đặt sân nào.",
-      "cols": {
-        "code": "Mã booking",
-        "when": "Ngày · giờ",
-        "court": "Sân",
-        "amount": "Số tiền"
-      },
-      "more": "Xem thêm",
-      "loading": "Đang tải…",
-      "loadError": "Không tải được lịch sử đặt sân. Thử lại sau.",
-      "verifyTitle": "Số điện thoại này là của hội viên",
-      "verifyText": "Xác minh số điện thoại để xem thông tin hội viên của bạn.",
-      "verifyButton": "Xác minh số điện thoại"
-    }
+    "username": "Tên đăng nhập: {username}"
   },
   "passwordRules": {
     "title": "Mật khẩu cần có:",
@@ -251,7 +216,6 @@
   },
   "adminNav": {
     "brand": "QUẢN LÝ SÂN CẦU LÔNG",
-    "brandMark": "CL",
     "navLabel": "Quản lý",
     "openMenu": "Mở menu",
     "closeMenu": "Đóng menu",
