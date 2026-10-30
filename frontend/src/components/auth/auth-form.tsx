@@ -6,7 +6,7 @@ import { useState } from "react";
 import { GoogleSignIn } from "@/app/(auth)/dang-nhap/_components/google-sign-in";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { googleSignIn } from "@/lib/api/auth";
-import { api, errorMessage } from "@/lib/api/client";
+import { api, errorDetail, errorMessage } from "@/lib/api/client";
 import { destination, safeNext } from "@/lib/safe-next";
 import { isPasswordValid, PASSWORD_MAX, PasswordRules, type PasswordRulesTexts } from "./password-rules";
 
@@ -20,12 +20,15 @@ export function AuthForm({ rules, login }: { rules: PasswordRulesTexts; login: D
   const [pending, setPending] = useState(false);
   const [password, setPassword] = useState("");
   const [isGoogleOff, setIsGoogleOff] = useState(false);
+  // E-AUTH-22: SĐT đã có tài khoản ⇒ câu của BE + link Đăng nhập / Quên mật khẩu
+  const [taken, setTaken] = useState<{ message: string; phone: string } | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     setPending(true);
     setError(null);
+    setTaken(null);
     try {
       const { error } = await api.POST("/api/v1/auth/register", {
         body: {
@@ -34,9 +37,15 @@ export function AuthForm({ rules, login }: { rules: PasswordRulesTexts; login: D
           full_name: String(f.get("full_name")),
         },
       });
-      if (error) return setError(errorMessage(error));
+      if (error) {
+        const detail = errorDetail(error) as { code?: string; phone?: string };
+        if (detail.code === "E-AUTH-22") {
+          return setTaken({ message: errorMessage(error), phone: detail.phone ?? String(f.get("phone")).trim() });
+        }
+        return setError(errorMessage(error));
+      }
       // Khách mới không vào khu quản trị dù ?next=/admin…
-      router.replace(destination("customer", next));
+      router.replace(destination("member", next));
       router.refresh();
     } catch {
       setError("Không kết nối được máy chủ, vui lòng thử lại");
@@ -51,7 +60,7 @@ export function AuthForm({ rules, login }: { rules: PasswordRulesTexts; login: D
     setError(null);
     const result = await googleSignIn(credential);
     if (result.ok) {
-      router.replace(destination("customer", next));
+      router.replace(destination("member", next));
       router.refresh();
       return;
     }
@@ -90,6 +99,7 @@ export function AuthForm({ rules, login }: { rules: PasswordRulesTexts; login: D
           {error}
         </p>
       )}
+      {taken && <PhoneTaken message={taken.message} phone={taken.phone} t={login.phoneTaken} />}
       <button
         disabled={pending || !isPasswordValid(password)}
         className="w-full rounded-md bg-primary py-2.5 font-medium text-surface disabled:opacity-50"
@@ -104,5 +114,23 @@ export function AuthForm({ rules, login }: { rules: PasswordRulesTexts; login: D
         </Link>
       </p>
     </form>
+  );
+}
+
+// SĐT đã có tài khoản (mọi loại – không lộ là hội viên hay không): câu của BE + Đăng nhập / Quên mật khẩu
+function PhoneTaken({ message, phone, t }: { message: string; phone: string; t: Dictionary["login"]["phoneTaken"] }) {
+  const query = phone ? `?sdt=${encodeURIComponent(phone)}` : "";
+  return (
+    <div role="alert" className="flex flex-col gap-2 rounded-lg border border-danger/30 bg-danger-soft p-3 text-sm">
+      <p>{message}</p>
+      <p className="flex flex-wrap gap-x-4 gap-y-1 font-semibold">
+        <Link href="/dang-nhap" className="rounded-sm text-primary focus-ring hover:underline">
+          {t.login}
+        </Link>
+        <Link href={`/quen-mat-khau${query}`} className="rounded-sm text-primary focus-ring hover:underline">
+          {t.forgot}
+        </Link>
+      </p>
+    </div>
   );
 }

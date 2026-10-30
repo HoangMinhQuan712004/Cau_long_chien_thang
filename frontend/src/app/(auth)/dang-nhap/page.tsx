@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getDictionary } from "@/i18n/dictionaries";
-import { getAdminSession, getCurrentUser } from "@/lib/api/server";
+import { getAdminSession, readCurrentUser } from "@/lib/api/server";
 import { destination, safeNext } from "@/lib/safe-next";
 import { AuthCard, AuthFormSkeleton } from "../_components/auth-card";
 import { LoginForm } from "./_components/login-form";
@@ -49,7 +49,7 @@ async function RedirectIfSignedIn({ searchParams }: Pick<PageProps<"/dang-nhap">
   // Máy chủ không phản hồi thì vẫn hiện form, người dùng thử đăng nhập sau
   const admin = await getAdminSession().catch(() => null);
   if (admin?.ok) redirect(destination("admin", next));
-  const user = await getCurrentUser().catch(() => null);
-  if (user) redirect(destination("customer", next));
+  const { user } = await readCurrentUser();
+  if (user) redirect(destination("member", next));
   return null;
 }

@@ -52,12 +52,31 @@ const adminSessionEnded: Middleware = {
 };
 api.use(adminSessionEnded);
 
+// Khách còn mật khẩu ban đầu (= SĐT): 403 E-AUTH-25 ⇒ trang đổi mật khẩu; E-AUTH-30 (quá hạn) ⇒ Quên mật khẩu (T-015)
+export const MUST_CHANGE_PASSWORD_PATH = "/doi-mat-khau";
+const mustChangePassword: Middleware = {
+  async onResponse({ response }) {
+    if (leaving || response.status !== 403 || window.location.pathname === MUST_CHANGE_PASSWORD_PATH) return;
+    const detail = errorDetail(await response
+      .clone()
+      .json()
+      .catch(() => null));
+    // E-AUTH-30: mật khẩu ban đầu hết hạn ⇒ chỉ còn cách Quên mật khẩu (OTP)
+    const target = detail.code === "E-AUTH-25" ? MUST_CHANGE_PASSWORD_PATH : detail.code === "E-AUTH-30" ? "/quen-mat-khau" : null;
+    if (!target) return;
+    leaving = true;
+    window.location.replace(target);
+  },
+};
+api.use(mustChangePassword);
+
 // Client không ràng kiểu cho các endpoint chưa có trong schema.d.ts (booking engine T-006 cho tới khi BACKEND handoff).
 // TODO(T-006): sau khi `npm run gen:api` có đủ đường dẫn, chuyển các lời gọi sang `api` và xóa `looseApi`.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const looseApi = createClient<any>({ baseUrl: "", credentials: "include" });
 looseApi.use(autoRefresh);
 looseApi.use(adminSessionEnded);
+looseApi.use(mustChangePassword);
 
 /** Lấy thông báo lỗi tiếng Việt từ response lỗi của FastAPI (hỗ trợ `detail` chuỗi, mảng và `{code, message}`). */
 export function errorMessage(error: unknown, fallback = "Có lỗi xảy ra, vui lòng thử lại"): string {
