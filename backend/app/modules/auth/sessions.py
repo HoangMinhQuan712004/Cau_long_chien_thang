@@ -28,6 +28,12 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def actor_type_of(role: Role | str) -> str:
+    """Loại người thao tác lưu ở ``audit_log.actor_type`` / ``*_by_type``: vai ``member`` vẫn ghi
+    ``customer`` (T-015 đổi tên vai, giữ dữ liệu nhật ký cũ + CHECK + ``Principal.key``)."""
+    return "customer" if str(role) == Role.MEMBER else str(role)
+
+
 def actor_label(user: User) -> str:
     """Nhãn người thao tác: "Admin" / "NV007 · Nguyễn Văn An" (ADR-008 §2)."""
     if user.role == Role.ADMIN:

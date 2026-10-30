@@ -8,6 +8,7 @@
   --primary-hover: #22503e;
   --danger: #b4231b;
   --accent: #f2b705;
+  --info: #1e4e8c;
 
   --muted: color-mix(in srgb, var(--foreground) 80%, white);
   --subtle: color-mix(in srgb, var(--foreground) 59%, white);
@@ -32,6 +33,15 @@
   --blk-hold-fg: #4f5d55;
   --cell-off: #e5e7eb;
   --cell-sel: #c9e7d6;
+
+  --primary-soft: color-mix(in srgb, var(--primary) 15%, white);
+  --sidebar: color-mix(in srgb, var(--primary-hover) 75%, black);
+  --sidebar-fg: var(--surface);
+  --sidebar-active: var(--primary-soft);
+
+  --accent-soft: color-mix(in srgb, var(--accent) 22%, white);
+  --accent-fg: color-mix(in srgb, var(--accent) 40%, black);
+  --info-soft: color-mix(in srgb, var(--info) 10%, white);
 }
 
 @theme inline {
@@ -59,6 +69,14 @@
   --color-blk-hold-fg: var(--blk-hold-fg);
   --color-cell-off: var(--cell-off);
   --color-cell-sel: var(--cell-sel);
+  --color-primary-soft: var(--primary-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-fg: var(--sidebar-fg);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
   --shadow-card: var(--card-shadow);
   --radius-card: 14px;
   /* Cỡ theo prototype, viết bằng rem để phóng to cùng trang trên màn lớn */
@@ -70,6 +88,38 @@
   --breakpoint-3xl: 120rem;
   --breakpoint-4xl: 160rem;
   --font-sans: var(--font-be-vietnam), ui-sans-serif, system-ui, sans-serif;
+
+  /* Chuyển động chung (150–250ms); `both` ⇒ giữ trạng thái đầu trong lúc chờ stagger */
+  --animate-fade-in: fade-in 200ms ease-out both;
+  --animate-slide-up: slide-up 220ms ease-out both;
+  --animate-scale-in: scale-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+}
+
+/* Giảm chuyển động ⇒ hiện ngay ở trạng thái cuối (animate-spin để người gọi tự thêm motion-reduce:animate-none) */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in {
+    animation: none;
+  }
 }
 
 body {
@@ -86,12 +136,33 @@ body {
   }
 }
 
+/* Ô tìm: ẩn ✕ gốc của trình duyệt (màu không đổi được), dùng ClearButton chung qua Input `onClear` */
+@layer base {
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration {
+    appearance: none;
+  }
+}
+
 /* Vòng focus của prototype (--focus-ring) – thay 3 class focus-visible:ring/outline */
 @utility focus-ring {
   &:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent);
   }
+}
+
+/* Vòng focus trên nền tối (sidebar quản trị): vòng xanh nhạt thấy rõ trên xanh đậm */
+@utility focus-ring-inverse {
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--sidebar-active);
+  }
+}
+
+/* Hàng cuộn ngang (chip lọc trên điện thoại): ẩn thanh cuộn, vẫn vuốt được */
+@utility scrollbar-none {
+  scrollbar-width: none;
 }
 
 /* Ô đã kín trên lịch đặt sân: gạch chéo để không chỉ dựa vào màu */
@@ -124,5 +195,93 @@ body {
   @media (prefers-reduced-motion: reduce) {
     stroke-dashoffset: 0;
     animation: none;
+  }
+}
+
+/* Vệt sáng chạy ngang cho khung tải (đặt trên phần tử có nền, vd bg-border); giảm chuyển động ⇒ đứng yên */
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+@utility animate-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0,
+    color-mix(in srgb, var(--surface) 60%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.4s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    background-image: none;
+  }
+}
+
+/* Lần lượt hiện: mỗi phần tử trễ 30ms theo --i (đặt bằng style, xem lib/motion.ts), tối đa 10 bậc để danh sách dài không chờ lâu */
+@utility stagger {
+  animation-delay: calc(min(var(--i, 0), 10) * 30ms);
+}
+
+
+/* Mở/đóng mượt theo chiều cao thật: grid 0fr → 1fr; con trực tiếp tự cắt phần thừa.
+   Mở bằng data-open="true" trên chính phần tử; phần đóng nên kèm `inert` để Tab không lọt vào.
+   Khi mở: con nới vùng cắt 4px mỗi phía (padding + margin âm, bố cục không đổi) để viền / vòng focus sát mép không bị cắt;
+   khi đóng về 0 nên không thừa khoảng trống */
+@utility collapsible {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease-out;
+
+  & > * {
+    min-height: 0;
+    overflow: hidden;
+    transition:
+      padding 200ms ease-out,
+      margin 200ms ease-out;
+  }
+
+  &[data-open="true"] {
+    grid-template-rows: 1fr;
+  }
+
+  &[data-open="true"] > * {
+    padding: 4px;
+    margin: -4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    & > * {
+      transition: none;
+    }
+  }
+}
+
+/* Vòng focus vẽ vào trong (phần tử sát mép khung cuộn, vd tab trong hàng overflow-x-auto, vòng ngoài sẽ bị cắt) */
+@utility focus-ring-inset {
+  &:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent);
+  }
+}
+
+/* Toast ở góc dưới; trang có thanh dính đáy (đánh dấu data-bottom-bar) thì trên điện thoại đưa toast lên trên cùng để không che nút chính.
+   Viết mobile-first: từ sm trả về góc dưới (giá trị khớp class sm:bottom-… của FeedbackHost) */
+body:has([data-bottom-bar]) [data-toast-host] {
+  top: max(0.75rem, env(safe-area-inset-top));
+  bottom: auto;
+
+  @media (min-width: 40rem) {
+    top: auto;
+    bottom: max(1.25rem, env(safe-area-inset-bottom));
   }
 }

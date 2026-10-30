@@ -18,6 +18,7 @@ from sqlalchemy import (
     Sequence,
     String,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,7 +28,7 @@ from app.core.db import Base, TimestampMixin
 class Role(enum.StrEnum):
     ADMIN = "admin"  # chủ sân – đăng nhập bằng SĐT
     STAFF = "staff"  # nhân viên (mỗi người một tài khoản, mã NV001…) – tên đăng nhập
-    CUSTOMER = "customer"
+    MEMBER = "member"  # khách hàng = hội viên (T-015; trước là "customer")
 
 
 # Mã nhân viên NV001…, không dùng lại
@@ -55,13 +56,18 @@ class User(TimestampMixin, Base):
     hashed_password: Mapped[str | None] = mapped_column(String(255))  # NULL = chỉ Google
     role: Mapped[Role] = mapped_column(
         Enum(Role, name="user_role", values_callable=lambda e: [m.value for m in e]),
-        default=Role.CUSTOMER,
+        default=Role.MEMBER,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     failed_login_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Claim ``ver`` của JWT khách; đổi / đặt lại mật khẩu tăng -> JWT cũ hết hiệu lực
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Tài khoản hội viên do sân tạo (mật khẩu ban đầu = SĐT): bắt đổi trước khi dùng (T-015)
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false")
+    )
+    member_account_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class SessionEndReason(enum.StrEnum):

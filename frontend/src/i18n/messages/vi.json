@@ -27,7 +27,8 @@
       "network": "Mất kết nối. Vui lòng kiểm tra mạng rồi thử lại.",
       "unavailable": "Hệ thống đang bận, vui lòng thử lại sau ít phút.",
       "google_invalid": "Không đăng nhập được bằng Google. Vui lòng thử lại.",
-      "google_unavailable": "Chưa kết nối được Google. Vui lòng thử lại sau."
+      "google_unavailable": "Chưa kết nối được Google. Vui lòng thử lại sau.",
+      "initial_expired": "Mật khẩu ban đầu đã hết hạn. Vui lòng đặt mật khẩu mới bằng Quên mật khẩu."
     },
     "lockedCountdown": "Bạn đã nhập sai 5 lần. Vui lòng thử lại sau {time}.",
     "ipLockedCountdown": "Có quá nhiều lần đăng nhập sai từ mạng này. Vui lòng thử lại sau {time}.",
@@ -36,6 +37,10 @@
       "doi-mat-khau": "Phiên đã kết thúc vì mật khẩu tài khoản của bạn vừa được đổi. Vui lòng đăng nhập lại.",
       "het-han": "Phiên đăng nhập đã hết hạn sau 12 giờ. Vui lòng đăng nhập lại.",
       "tai-khoan-khoa": "Tài khoản đã bị khóa. Vui lòng liên hệ chủ sân."
+    },
+    "phoneTaken": {
+      "login": "Đăng nhập",
+      "forgot": "Quên mật khẩu"
     }
   },
   "staff": {
@@ -182,9 +187,7 @@
     "phoneVerified": "Đã xác minh",
     "phoneUnverified": "Chưa xác minh",
     "phoneUnverifiedHint": "Số điện thoại sẽ được xác minh bằng mã OTP khi bạn đặt sân online.",
-    "username": "Tên đăng nhập: {username}",
-    "verifyTitle": "Thêm và xác minh số điện thoại",
-    "adminLink": "Trang quản lý →"
+    "username": "Tên đăng nhập: {username}"
   },
   "passwordRules": {
     "title": "Mật khẩu cần có:",
@@ -210,5 +213,246 @@
     "booked": "Đã giữ chỗ, mã đơn {code}. Vui lòng thanh toán trước {time}.",
     "beforePlay": "giờ chơi",
     "network": "Không kết nối được máy chủ, vui lòng thử lại"
+  },
+  "adminNav": {
+    "brand": "QUẢN LÝ SÂN CẦU LÔNG",
+    "navLabel": "Quản lý",
+    "openMenu": "Mở menu",
+    "closeMenu": "Đóng menu",
+    "accountMenu": "Tùy chọn tài khoản",
+    "section": "Phân hệ",
+    "collapse": "Thu gọn menu",
+    "expand": "Mở rộng menu",
+    "logout": "Đăng xuất",
+    "pendingMoney": "{n} giao dịch chưa xử lý",
+    "items": {
+      "datSan": "Đặt sân",
+      "lichSu": "Lịch sử giao dịch",
+      "hoiVien": "Hội viên",
+      "san": "Sân & bảng giá",
+      "tienVe": "Tiền về",
+      "thanhToan": "Cài đặt thanh toán",
+      "nhanVien": "Nhân viên"
+    },
+    "brandLines": [
+      "QUẢN LÝ SÂN",
+      "CẦU LÔNG"
+    ]
+  },
+  "members": {
+    "metaTitle": "Hội viên",
+    "title": "Hội viên",
+    "summary": "Tổng {total} · {members} hội viên · {temps} hồ sơ tạm",
+    "addTemp": "Tạo hồ sơ tạm",
+    "addMember": "Thêm hội viên",
+    "addShort": "Thêm",
+    "moreActions": "Thao tác khác",
+    "kindLabel": "Loại",
+    "kinds": {
+      "all": "Tất cả",
+      "member": "Hội viên",
+      "temp": "Hồ sơ tạm"
+    },
+    "filterBar": {
+      "activeCount": "{n} bộ lọc đang bật",
+      "all": "Tất cả",
+      "clear": "Xóa lọc",
+      "remove": "Bỏ lọc {label}",
+      "clearSearch": "Xóa chữ tìm"
+    },
+    "searchLabel": "Tìm hội viên",
+    "searchPlaceholder": "Mã HV / tên / SĐT",
+    "statusLabel": "Trạng thái",
+    "statuses": {
+      "all": "Tất cả",
+      "active": "Hoạt động",
+      "inactive": "Ngừng"
+    },
+    "tierLabel": "Hạng",
+    "columns": {
+      "code": "Mã HV",
+      "name": "Họ tên",
+      "phone": "SĐT",
+      "kind": "Loại",
+      "tier": "Hạng",
+      "bookings": "Số lần đặt",
+      "status": "Trạng thái",
+      "actions": "Thao tác"
+    },
+    "detail": "Xem chi tiết",
+    "edit": "Sửa",
+    "detailLabel": "Xem chi tiết: {name}",
+    "editLabel": "Sửa: {name}",
+    "showing": "Hiển thị {from}–{to} / {total} hồ sơ",
+    "empty": {
+      "title": "Không tìm thấy hồ sơ nào",
+      "text": "Không có hồ sơ khớp bộ lọc. Thử bỏ bớt điều kiện tìm.",
+      "clear": "Xóa lọc"
+    },
+    "pagination": {
+      "label": "Phân trang",
+      "prev": "Trang trước",
+      "next": "Trang sau",
+      "page": "Trang {n}"
+    },
+    "emptyAll": {
+      "title": "Chưa có hội viên nào",
+      "text": "Tạo hồ sơ đầu tiên để bắt đầu quản lý hội viên."
+    },
+    "listLoading": "Đang tải danh sách hội viên…",
+    "loadError": "Không tải được danh sách hội viên. Tải lại trang để thử lại.",
+    "forbidden": "Bạn không có quyền xem danh sách hội viên.",
+    "form": {
+      "codeLabel": "Mã hội viên",
+      "codeHint": "Mã tự cấp khi lưu",
+      "nameLabel": "Họ tên *",
+      "namePlaceholder": "Nhập họ tên",
+      "genderLabel": "Giới tính",
+      "genders": {
+        "male": "Nam",
+        "female": "Nữ"
+      },
+      "phoneLabel": "Số điện thoại *",
+      "phonePlaceholder": "09xx xxx xxx",
+      "tierLabel": "Hạng",
+      "racketLabel": "Vợt đang dùng",
+      "racketPlaceholder": "Chọn vợt",
+      "racketOther": "Khác…",
+      "racketOtherLabel": "Tên vợt khác",
+      "statusLabel": "Trạng thái",
+      "inactiveHint": "Hội viên Ngừng không chọn được khi đặt sân",
+      "lockedHint": "Chỉ Admin được đổi trạng thái.",
+      "cancel": "Hủy",
+      "addTitle": "Thêm hội viên",
+      "editTitle": "Sửa hội viên · {code}",
+      "saveNew": "Lưu hội viên",
+      "saveEdit": "Lưu thay đổi",
+      "saving": "Đang lưu…",
+      "loading": "Đang tải…",
+      "loadError": "Không tải được thông tin hồ sơ. Đóng lại rồi thử lại.",
+      "genderUnknown": "Không rõ",
+      "editTempTitle": "Sửa hồ sơ tạm",
+      "upgradeNote": "SĐT này đang là hồ sơ tạm “{name}”{bookings}. Lưu sẽ nâng hồ sơ này thành hội viên {code}, lịch sử đặt sân được giữ lại.",
+      "upgradeBookings": " ({n} lần đặt sân)",
+      "upgrade": "Nâng thành hội viên",
+      "upgrading": "Đang nâng…"
+    },
+    "temp": {
+      "title": "Tạo hồ sơ tạm",
+      "note": "Hồ sơ tạm chỉ gồm tên, giới tính, SĐT. Có thể chuyển thành hội viên sau.",
+      "submit": "Tạo hồ sơ tạm"
+    },
+    "toast": {
+      "added": "Đã thêm hội viên",
+      "memberSub": "{name} · {code} · Hạng {tier}",
+      "saved": "Đã lưu thay đổi",
+      "tempCreated": "Đã tạo hồ sơ tạm",
+      "tempSub": "{name} · {phone}",
+      "memberSubNoTier": "{name} · {code}"
+    },
+    "errors": {
+      "forbidden": "Bạn không có quyền thực hiện thao tác này.",
+      "outOfCodes": "Đã hết mã hội viên. Báo quản trị hệ thống để mở rộng mã.",
+      "network": "Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.",
+      "unknown": "Có lỗi xảy ra, vui lòng thử lại."
+    },
+    "drawer": {
+      "title": "Chi tiết hội viên",
+      "tierLine": "{code} · Hạng {tier}",
+      "gender": "Giới tính",
+      "phone": "Số điện thoại",
+      "racket": "Vợt đang dùng",
+      "created": "Ngày tạo",
+      "bookings": "Số lần đặt",
+      "totalHours": "Tổng giờ đã đặt",
+      "hours": "{n} giờ",
+      "historyEmpty": "Chưa có lượt đặt sân nào.",
+      "cols": {
+        "code": "Mã booking",
+        "date": "Ngày",
+        "time": "Giờ",
+        "court": "Sân",
+        "amount": "Số tiền"
+      },
+      "edit": "Sửa hội viên",
+      "close": "Đóng",
+      "historyTitle": "Lịch sử đặt sân",
+      "editTemp": "Sửa",
+      "tierLineNone": "{code} · Chưa xếp hạng",
+      "resize": "Kéo để đổi bề rộng ngăn chi tiết"
+    },
+    "pageEmpty": "Trang này không còn hồ sơ nào.",
+    "firstPage": "Về trang đầu",
+    "rackets": {
+      "open": "Danh mục vợt",
+      "title": "Danh mục vợt",
+      "close": "Đóng",
+      "summary": "{n} vợt · {hidden} đã ẩn",
+      "searchLabel": "Tìm vợt",
+      "searchPlaceholder": "Tìm theo tên vợt",
+      "clearSearch": "Xóa chữ tìm",
+      "addLabel": "Thêm vợt",
+      "addPlaceholder": "Tên vợt mới, vd Yonex Astrox 88D Pro",
+      "adding": "Đang thêm…",
+      "addOpen": "Thêm vợt",
+      "addSave": "Lưu",
+      "addCancel": "Hủy",
+      "addFromSearch": "Thêm “{q}”",
+      "nameLabel": "Tên vợt",
+      "rename": "Sửa tên",
+      "save": "Lưu",
+      "saving": "Đang lưu…",
+      "cancel": "Hủy",
+      "hide": "Ẩn",
+      "show": "Hiện",
+      "hidden": "Đã ẩn",
+      "empty": {
+        "title": "Chưa có vợt nào",
+        "text": "Gõ tên ở ô trên rồi bấm “Thêm vợt”."
+      },
+      "emptySearch": {
+        "title": "Không tìm thấy vợt",
+        "text": "Không có vợt nào khớp “{q}”."
+      },
+      "resize": "Kéo để đổi bề rộng ngăn danh mục vợt",
+      "loadError": "Không tải được danh mục vợt. Đóng lại rồi thử lại.",
+      "toast": {
+        "added": "Đã thêm vợt",
+        "renamed": "Đã đổi tên vợt",
+        "hidden": "Đã ẩn vợt",
+        "shown": "Đã hiện lại vợt",
+        "deleted": "Đã xóa vợt {name}"
+      },
+      "delete": "Xóa",
+      "deleteTitle": "Xóa vợt",
+      "confirmDelete": "Xóa vợt {name}?",
+      "confirmInUse": "Có {n} hội viên đang dùng vợt này. Tên trong hồ sơ của họ vẫn giữ.",
+      "deleting": "Đang xóa…",
+      "deleteGone": "Vợt này đã bị xóa trước đó. Danh sách đã được tải lại.",
+      "hiddenOption": "{name} (đã ẩn)"
+    },
+    "tierNone": "Chưa xếp hạng",
+    "racketFilterLabel": "Vợt",
+    "pageSizeLabel": "Số dòng mỗi trang",
+    "pageSizeOption": "Hiển thị {n} dòng"
+  },
+  "changePassword": {
+    "metaTitle": "Đổi mật khẩu",
+    "title": "Đổi mật khẩu",
+    "description": "Bạn đang dùng mật khẩu ban đầu (là số điện thoại). Hãy đặt mật khẩu mới để tiếp tục.",
+    "passwordLabel": "Mật khẩu mới",
+    "confirmLabel": "Nhập lại mật khẩu mới",
+    "showPassword": "Hiện mật khẩu",
+    "hidePassword": "Ẩn mật khẩu",
+    "passwordMatch": "Mật khẩu khớp",
+    "passwordMismatch": "Mật khẩu nhập lại chưa khớp.",
+    "submit": "Đổi mật khẩu",
+    "submitting": "Đang lưu…",
+    "done": "Đã đổi mật khẩu",
+    "logout": "Đăng xuất",
+    "errors": {
+      "network": "Mất kết nối. Vui lòng kiểm tra mạng rồi thử lại.",
+      "unavailable": "Hệ thống đang bận, vui lòng thử lại sau ít phút."
+    }
   }
 }

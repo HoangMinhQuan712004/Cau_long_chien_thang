@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import AuditActor, audit
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.security import verify_password
 from app.modules.auth import otp, sessions
+from app.modules.auth.member_accounts import same_as_phone
 from app.modules.auth.models import OtpPurpose, Role, User
 
 SYSTEM = AuditActor(type="system", id=None, label="Hệ thống")
@@ -49,7 +51,7 @@ async def request_reset(session: AsyncSession, phone: str, ip: str | None) -> Re
     is_staff = user.role in sessions.ADMIN_ROLES
     await otp.deliver(issued, phone, show_in_log=is_staff)
     # Chế độ thử: chỉ mã của KHÁCH trả trong response; Admin / NV chỉ ghi log server (AC29)
-    test_otp = issued.otp if settings.OTP_TEST_MODE and user.role == Role.CUSTOMER else None
+    test_otp = issued.otp if settings.OTP_TEST_MODE and user.role == Role.MEMBER else None
     return ResetRequested(issued.resend_after, test_otp)
 
 
@@ -78,12 +80,18 @@ async def confirm_reset(session: AsyncSession, reset_token: str, hashed_password
     if user is None:
         await session.rollback()
         raise token_invalid()
+    if user.phone and verify_password(user.phone, hashed_password):
+        await session.rollback()
+        raise same_as_phone()  # "mật khẩu = SĐT" chỉ cho lúc sân tạo tài khoản hội viên
     revoked = await sessions.replace_password(session, user, hashed_password)
+    user.must_change_password = False  # vừa chứng minh giữ SĐT -> không bắt đổi nữa (T-015)
     if user.phone == row.phone and user.phone_verified_at is None:
         user.phone_verified_at = datetime.now(UTC)  # vừa nhận mã ở SĐT này
     audit(
         session,
-        AuditActor(type=str(user.role), id=user.id, label=sessions.actor_label(user)),
+        AuditActor(
+            type=sessions.actor_type_of(user.role), id=user.id, label=sessions.actor_label(user)
+        ),
         "auth.password_reset_done",
         "user",
         str(user.id),

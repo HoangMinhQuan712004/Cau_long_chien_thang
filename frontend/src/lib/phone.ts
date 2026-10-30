@@ -9,3 +9,8 @@ export function normalizePhone(raw: string): string {
 
 /** SĐT hợp lệ: "0" + 9 chữ số (đã chuẩn hóa). */
 export const isValidPhone = (normalized: string) => /^0\d{9}$/.test(normalized);
+
+/** Hiển thị SĐT 10 số dạng "0912 345 678"; dạng khác giữ nguyên. */
+export function formatPhone(phone: string): string {
+  return /^0\d{9}$/.test(phone) ? `${phone.slice(0, 4)} ${phone.slice(4, 7)} ${phone.slice(7)}` : phone;
+}

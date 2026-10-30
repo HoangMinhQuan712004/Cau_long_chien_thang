@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/modal";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
 import { formatDateTime, formatDayMonthYear, formatVnd, hhmm } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
 import { authFailure } from "./booking-dialogs";
 import { getItem, sendCollect, sendUncollectible } from "./requests";
 import type { Item } from "./types";
@@ -163,7 +164,7 @@ function InfoDialog({
         <Kv
           rows={[
             ["Tên", item.customer.name],
-            ["SĐT", item.customer.phone_masked ?? "—"],
+            ["SĐT", item.customer.phone ? formatPhone(item.customer.phone) : "—"],
             ["Loại hồ sơ", item.customer.profile_label],
           ]}
         />

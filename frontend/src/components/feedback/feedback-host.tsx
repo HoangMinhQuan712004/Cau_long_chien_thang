@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { AlertCircleIcon, CheckCircleIcon, CloseIcon, InfoIcon } from "@/components/ui/icons";
+import { cn } from "@/lib/cn";
 import { dismissToast, useReconnecting, useToasts } from "@/lib/feedback";
 
 const KIND_STYLE = {
@@ -9,7 +11,17 @@ const KIND_STYLE = {
   info: "border-l-muted",
 } as const;
 
-/** Toast góc phải + lớp phủ "Mất kết nối". Gắn một lần trong layout; dùng top layer để nổi trên cả hộp thoại đang mở. */
+// Icon đầu toast theo loại (Figma P5e/P5g: ✓ xanh khi thành công) – không chỉ dựa vào màu viền
+const KIND_ICON = {
+  success: <CheckCircleIcon className="size-4 shrink-0 text-primary sm:size-5" />,
+  error: <AlertCircleIcon className="size-4 shrink-0 text-danger sm:size-5" />,
+  info: <InfoIcon className="size-4 shrink-0 text-muted sm:size-5" />,
+} as const;
+
+// Điện thoại: thành công / thông tin gọn một dòng (cắt "…"); lỗi phải đọc trọn vì nói cách xử lý
+const isOneLine = (kind: keyof typeof KIND_STYLE) => kind !== "error";
+
+/** Toast góc dưới bên phải (điện thoại: hẹp ~17rem, mỗi dòng một hàng cắt "…" cho thấp) + lớp phủ "Mất kết nối". Gắn một lần trong layout; dùng top layer để nổi trên cả hộp thoại đang mở. */
 export function FeedbackHost() {
   const toasts = useToasts();
   const reconnecting = useReconnecting();
@@ -42,25 +54,53 @@ export function FeedbackHost() {
         ref={toastBox}
         popover="manual"
         aria-live="polite"
-        className="fixed inset-auto top-4 right-4 m-0 w-[min(24rem,calc(100vw-2rem))] flex-col gap-2 open:flex overflow-visible border-0 bg-transparent p-0"
+        data-toast-host
+        // Góc dưới phải, chừa thanh home / tai thỏ (safe-area); điện thoại cách mép 12px
+        className={cn(`
+          fixed inset-auto right-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] m-0
+          w-[min(17rem,calc(100vw-1.5rem))] flex-col gap-2 overflow-visible border-0 bg-transparent p-0
+          open:flex
+          sm:w-[min(24rem,calc(100vw-2.5rem))]
+          sm:right-5 sm:bottom-[max(1.25rem,env(safe-area-inset-bottom))]
+        `)}
       >
         {toasts.map((t) => (
           <div
             key={t.id}
             role={t.kind === "error" ? "alert" : "status"}
-            className={`flex items-start gap-3 rounded-lg border border-l-4 border-border bg-surface p-3 text-sm text-foreground shadow-lg ${KIND_STYLE[t.kind]}`}
+            className={cn(
+              `
+                flex animate-slide-up gap-2 rounded-lg border border-l-4 border-border bg-surface
+                py-1.5 pr-1 pl-2.5 text-xs text-foreground shadow-lg
+                sm:gap-3 sm:p-3 sm:text-sm
+              `,
+              KIND_STYLE[t.kind],
+              // Một dòng ⇒ canh giữa; lỗi nhiều dòng (và từ sm) ⇒ icon / nút đóng canh trên
+              isOneLine(t.kind) ? "items-center sm:items-start" : "items-start",
+            )}
           >
+            {KIND_ICON[t.kind]}
             <div className="min-w-0 flex-1">
-              <p className="font-semibold">{t.title}</p>
-              {t.sub ? <p className="mt-0.5 text-xs text-muted">{t.sub}</p> : null}
+              <p className={cn("font-semibold", isOneLine(t.kind) && "truncate sm:whitespace-normal")}>{t.title}</p>
+              {t.sub ? <p className={cn(
+                  "text-[0.6875rem] text-muted sm:mt-0.5 sm:text-xs",
+                  isOneLine(t.kind) ? "truncate sm:whitespace-normal" : "wrap-break-word",
+                )}>
+                  {t.sub}
+                </p> : null}
             </div>
             <button
               type="button"
               onClick={() => dismissToast(t.id)}
               aria-label="Đóng thông báo"
-              className="-m-1 rounded p-1 text-muted hover:text-foreground"
+              // Hình nhỏ, vùng chạm mở rộng vô hình
+              className={cn(`
+                relative grid size-6 shrink-0 sm:-my-1 sm:size-7 place-items-center rounded-md text-muted focus-ring
+                before:absolute before:-inset-2
+                hover:bg-background hover:text-foreground
+              `)}
             >
-              ✕
+              <CloseIcon size={14} />
             </button>
           </div>
         ))}

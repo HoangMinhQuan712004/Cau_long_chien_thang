@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { vnDate, vnMinutes } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
 import type { Calendar, CalendarBlock, Selection } from "./types";
 
 // ResourceTimeline – lịch một ngày: hàng = tài nguyên (sân), cột = khung 1 giờ.
@@ -418,7 +419,7 @@ function BlockText({ block: b, nowMs }: { block: CalendarBlock; nowMs: number })
           <span className="shrink-0 rounded bg-black/10 px-1 text-[10px] font-semibold">Chưa TT</span>
         ) : null}
       </b>
-      <span className="truncate">{bad ? "Không thu được" : b.phone_masked}</span>
+      <span className="truncate tabular-nums">{bad ? "Không thu được" : b.phone ? formatPhone(b.phone) : null}</span>
       <span className="truncate font-mono text-[10px] opacity-80">{b.code}</span>
     </>
   );

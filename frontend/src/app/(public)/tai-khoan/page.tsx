@@ -24,6 +24,7 @@ export default function AccountPage() {
 async function Account() {
   const user = await getCurrentUser();
   if (!user) redirect("/dang-nhap?next=/tai-khoan");
+  if (user.must_change_password) redirect("/doi-mat-khau");
   const dictionary = await getDictionary();
   const t = dictionary.account;
 

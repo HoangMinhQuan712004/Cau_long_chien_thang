@@ -659,7 +659,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
         </p>
       ) : null}
 
-      <section className="sticky bottom-3 z-20 rounded-2xl border border-border bg-surface p-4 shadow-lg" aria-label="Bạn đang chọn">
+      <section data-bottom-bar className="sticky bottom-3 z-20 rounded-2xl border border-border bg-surface p-4 shadow-lg" aria-label="Bạn đang chọn">
         <div className="flex flex-wrap items-center gap-4">
           <div className="min-w-0 flex-1">
             <p className="text-xs text-muted">Bạn đang chọn</p>

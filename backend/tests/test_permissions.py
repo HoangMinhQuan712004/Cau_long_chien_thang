@@ -65,7 +65,7 @@ def test_every_booking_route_declares_a_permission():
 
 def test_quote_is_admin_and_staff_only():
     assert Perm.BOOKING_QUOTE in ROLE_PERMS["staff"]
-    assert Perm.BOOKING_QUOTE not in ROLE_PERMS["customer"]
+    assert Perm.BOOKING_QUOTE not in ROLE_PERMS["member"]
     assert Perm.BOOKING_CONFIG_MANAGE not in ROLE_PERMS["staff"]
 
 
@@ -77,7 +77,7 @@ async def test_permission_matrix(path, method, perms, anon, customer, staff, adm
     assert r.status_code == 401, r.text
     assert r.json()["detail"]["code"] == "E-AUTH-1"
 
-    for role, client in (("customer", customer), ("staff", staff), ("admin", admin)):
+    for role, client in (("member", customer), ("staff", staff), ("admin", admin)):
         allowed = perms <= ROLE_PERMS[role]
         r = await _call(client, path, method)
         if allowed:

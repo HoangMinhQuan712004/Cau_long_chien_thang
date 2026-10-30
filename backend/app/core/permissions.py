@@ -12,7 +12,7 @@ from fastapi import Depends
 
 from app.core.errors import AppError
 from app.modules.auth.deps import AuthStateDep, unauthenticated
-from app.modules.auth.sessions import actor_label
+from app.modules.auth.sessions import actor_label, actor_type_of
 
 
 class Perm(enum.StrEnum):
@@ -30,6 +30,9 @@ class Perm(enum.StrEnum):
     BOOKING_UNCOLLECTIBLE = "booking.uncollectible"
     BOOKING_TRANSACTIONS_VIEW = "booking.transactions.view"
     MEMBER_SEARCH = "member.search"
+    MEMBER_MANAGE = "member.manage"  # màn Hội viên: xem, thêm, sửa, hồ sơ tạm, chuyển (T-014)
+    MEMBER_STATUS = "member.status"  # đổi trạng thái Hoạt động / Ngừng của hội viên (chỉ Admin)
+    RACKET_MANAGE = "racket.manage"  # danh mục vợt: thêm / sửa / ẩn (chỉ Admin)
     PAYMENTS_VIEW = "payments.view"  # Tiền về cần xử lý (chỉ Admin)
     PAYMENTS_RESOLVE = "payments.resolve"  # đánh dấu đã xử lý, giả lập tiền về (dev)
     STAFF_MANAGE = "staff.manage"  # tài khoản nhân viên (chỉ Admin, T-013)
@@ -53,20 +56,21 @@ ROLE_PERMS: dict[str, frozenset[Perm]] = {
             Perm.BOOKING_COLLECT,
             Perm.BOOKING_UNCOLLECTIBLE,
             Perm.MEMBER_SEARCH,
+            Perm.MEMBER_MANAGE,
         }
     ),
-    "customer": frozenset(),
+    "member": frozenset(),
 }
 
 # Nhãn hiển thị người thao tác (nhật ký, "người thu") – không lộ email / tên đăng nhập
-ROLE_LABELS = {"admin": "Admin", "staff": "Nhân viên", "customer": "Khách đặt online"}
+ROLE_LABELS = {"admin": "Admin", "staff": "Nhân viên", "member": "Khách đặt online"}
 
 
 @dataclass(frozen=True)
 class Principal:
     """Người đang thao tác – truyền xuống service/engine thay cho ORM ``User``."""
 
-    actor_type: str  # admin | staff | customer
+    actor_type: str  # admin | staff | customer (vai member – xem ``actor_type_of``)
     actor_id: int
     label: str
     perms: frozenset[Perm]
@@ -83,9 +87,9 @@ class Principal:
 def principal_of(user, session_id: int | None = None) -> Principal:
     role = str(user.role)
     return Principal(
-        actor_type=role,
+        actor_type=actor_type_of(role),
         actor_id=user.id,
-        label=actor_label(user) if role != "customer" else ROLE_LABELS["customer"],
+        label=actor_label(user) if role != "member" else ROLE_LABELS["member"],
         perms=ROLE_PERMS.get(role, frozenset()),
         session_id=session_id,
     )

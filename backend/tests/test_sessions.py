@@ -169,7 +169,7 @@ async def test_register_ticket_and_session_detail(admin, staff):
     }  # fmt: skip
     assert detail["taken"] == 2
     assert [t["code"] for t in detail["tickets"]] == [t2["code"], t1["code"]]  # mới nhất trước
-    assert detail["tickets"][0]["phone_masked"] == "0978 xxx 145"
+    assert detail["tickets"][0]["phone"] == "0978220145"  # màn quản trị: SĐT đầy đủ
     assert detail["can"] == {"register": True, "delete": False}  # quầy không xóa buổi
     assert (await calendar(staff))["unpaid_count"] == before + 2
 

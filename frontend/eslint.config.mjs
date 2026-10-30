@@ -7,6 +7,8 @@ import betterTailwindcss from "eslint-plugin-better-tailwindcss";
 const TAILWIND_CHECKED = [
   "src/components/ui/**/*.tsx",
   "src/app/(auth)/**/*.tsx",
+  "src/app/admin/_components/**/*.tsx",
+  "src/app/admin/hoi-vien/**/*.tsx",
 ];
 
 const eslintConfig = defineConfig([

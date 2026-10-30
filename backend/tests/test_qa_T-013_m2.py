@@ -483,9 +483,9 @@ async def test_ac20_google_creates_a_customer_without_password_or_phone(gsetup, 
     r = await google_login(anon, gtoken(sub, name="  Trần   Văn Gu  ", email="gu@gmail.com"))
     assert r.status_code == 200
     body = r.json()
-    assert body["kind"] == "customer"
+    assert body["kind"] == "member"
     acc = body["account"]
-    assert acc["phone"] is None and acc["phone_verified"] is False and acc["role"] == "customer"
+    assert acc["phone"] is None and acc["phone_verified"] is False and acc["role"] == "member"
     assert acc["google_email"] == "gu@gmail.com" and acc["full_name"] == "Trần Văn Gu"
     assert any(c.startswith("access_token=") for c in r.headers.get_list("set-cookie"))
     assert (await anon.get(f"{API}/auth/me")).status_code == 200
@@ -511,7 +511,7 @@ async def test_ac20_google_never_links_by_email(gsetup, anon):
     r = await google_login(
         _client(), gtoken(f"g-{uuid.uuid4().hex}", email=admin_email or "a@b.vn")
     )
-    assert r.json()["account"]["role"] == "customer"
+    assert r.json()["account"]["role"] == "member"
 
 
 async def test_ac20_unverified_email_is_not_stored(gsetup, anon):

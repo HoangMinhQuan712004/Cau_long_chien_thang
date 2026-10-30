@@ -62,16 +62,16 @@ DEMO_HOLIDAYS_2026 = [
 
 # Hội viên + hồ sơ tạm mẫu (prototype) – chỉ dữ liệu thử ở dev
 DEMO_MEMBERS = [
-    ("HV0012", "Trần Minh Đức", "0912111222", "Vàng", True),
-    ("HV0031", "Phạm Văn Nam", "0934567019", "Vàng", True),
-    ("HV0045", "Hoàng Thị Mai", "0978220145", "Bạc", True),
-    ("HV0058", "Nguyễn Văn Tú", "0905334058", "Đồng", True),
-    ("HV0087", "Phạm Thu Trang", "0987654087", "Bạc", True),
-    ("HV0102", "Nguyễn Thị Hoa", "0966102102", "Đồng", True),
-    ("HV0115", "Vũ Đức Anh", "0915115300", "Vàng", True),
-    ("HV0120", "Bùi Thanh Hà", "0938120777", "Đồng", False),
-    ("HV0133", "Lý Minh Khoa", "0977133456", "Bạc", True),
-    ("HV0141", "Ngô Đức Huy", "0909141662", "Vàng", True),
+    ("HV0012", "Trần Minh Đức", "0912111222", "Khá", True),
+    ("HV0031", "Phạm Văn Nam", "0934567019", "Bán chuyên", True),
+    ("HV0045", "Hoàng Thị Mai", "0978220145", "Trung bình", True),
+    ("HV0058", "Nguyễn Văn Tú", "0905334058", "Trung bình yếu", True),
+    ("HV0087", "Phạm Thu Trang", "0987654087", "Trung bình +", True),
+    ("HV0102", "Nguyễn Thị Hoa", "0966102102", None, True),
+    ("HV0115", "Vũ Đức Anh", "0915115300", "Chuyên nghiệp", True),
+    ("HV0120", "Bùi Thanh Hà", "0938120777", "Yếu", False),
+    ("HV0133", "Lý Minh Khoa", "0977133456", "Trung bình -", True),
+    ("HV0141", "Ngô Đức Huy", "0909141662", None, True),
 ]
 DEMO_TEMPS = [
     ("Lê Thị Lan", "0967532821"),

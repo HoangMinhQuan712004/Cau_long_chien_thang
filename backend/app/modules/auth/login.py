@@ -19,7 +19,7 @@ from app.core.audit import AuditActor, audit
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
-from app.modules.auth import sessions
+from app.modules.auth import member_accounts, sessions
 from app.modules.auth.models import AdminSession, User
 from app.modules.auth.utils import parse_login
 
@@ -122,6 +122,10 @@ async def check_credentials(
         await session.commit()
         await record_ip_failure(ip)
         raise error
+    if member_accounts.initial_password_expired(user, now):
+        # Chỉ báo SAU khi mật khẩu đúng (sai thì vẫn là E-AUTH-10 + đếm lần sai)
+        await session.rollback()
+        raise member_accounts.expired_error()
     user.failed_login_count = 0
     return user
 
@@ -137,7 +141,9 @@ async def sign_in(
     admin_session, token = await sessions.create_session(session, user, user_agent, ip)
     audit(
         session,
-        AuditActor(type=str(user.role), id=user.id, label=sessions.actor_label(user)),
+        AuditActor(
+            type=sessions.actor_type_of(user.role), id=user.id, label=sessions.actor_label(user)
+        ),
         "auth.login_success",
         "user",
         str(user.id),

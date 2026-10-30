@@ -37,6 +37,8 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
   });
   // Backend chưa bật Google ⇒ nút thay thế báo "đang cấu hình"
   const [isGoogleOff, setIsGoogleOff] = useState(false);
+  // Mật khẩu ban đầu hết hạn ⇒ link Quên mật khẩu điền sẵn SĐT vừa nhập
+  const [expiredLogin, setExpiredLogin] = useState<string | null>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   useResetOnHide(() => {
     setIsPending(false);
@@ -57,7 +59,7 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
       // Trình duyệt chặn bộ nhớ ⇒ vẫn thử một lần
     }
     fetch("/api/v1/auth/refresh", { method: "POST", credentials: "include" })
-      .then((r) => r.ok && router.replace(destination("customer", next)))
+      .then((r) => r.ok && router.replace(destination("member", next)))
       .catch(() => {});
   }, [canRestore, next, router]);
 
@@ -72,13 +74,15 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
 
   function handleResult(result: Awaited<ReturnType<typeof signIn>>) {
     if (result.ok) {
-      router.replace(destination(result.kind, next));
+      // Hội viên đăng nhập lần đầu bằng mật khẩu = SĐT ⇒ bắt đổi mật khẩu trước
+      router.replace(result.mustChangePassword ? "/doi-mat-khau" : destination(result.kind, next));
       router.refresh();
       return;
     }
     setIsPending(false);
     if (result.code === "google_disabled") return setIsGoogleOff(true);
     setError(t.errors[result.code]);
+    setExpiredLogin(result.code === "initial_expired" ? trimmedLogin : null);
     setAttempt((n) => n + 1);
     setNotice(null);
     setPassword("");
@@ -111,6 +115,17 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
         error && (
           <Alert key={attempt} variant="error">
             {error}
+            {expiredLogin !== null && (
+              <>
+                {" "}
+                <Link
+                  href={`/quen-mat-khau?sdt=${encodeURIComponent(expiredLogin)}`}
+                  className="font-semibold underline focus-ring"
+                >
+                  {t.forgotPassword}
+                </Link>
+              </>
+            )}
           </Alert>
         )
       )}
