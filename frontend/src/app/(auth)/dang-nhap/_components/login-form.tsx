@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useResetOnHide } from "@/hooks/use-reset-on-hide";
 import type { Dictionary } from "@/i18n/dictionaries";
-import { customerDestination, googleSignIn, signIn } from "@/lib/api/auth";
+import { memberDestination, googleSignIn, signIn } from "@/lib/api/auth";
 import { destination, safeNext } from "@/lib/safe-next";
 import { AuthTextLink } from "../../_components/auth-card";
 import { GoogleSignIn } from "./google-sign-in";
@@ -37,6 +37,8 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
   });
   // Backend chưa bật Google ⇒ nút thay thế báo "đang cấu hình"
   const [isGoogleOff, setIsGoogleOff] = useState(false);
+  // Mật khẩu ban đầu hết hạn ⇒ link Quên mật khẩu điền sẵn SĐT vừa nhập
+  const [expiredLogin, setExpiredLogin] = useState<string | null>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   useResetOnHide(() => {
     setIsPending(false);
@@ -57,7 +59,7 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
       // Trình duyệt chặn bộ nhớ ⇒ vẫn thử một lần
     }
     fetch("/api/v1/auth/refresh", { method: "POST", credentials: "include" })
-      .then(async (r) => r.ok && router.replace(await customerDestination(next)))
+      .then(async (r) => r.ok && router.replace(await memberDestination(next)))
       .catch(() => {});
   }, [canRestore, next, router]);
 
@@ -76,13 +78,16 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
         router.replace(to);
         router.refresh();
       };
-      if (result.kind === "customer") void customerDestination(next).then(go);
+      // Hội viên đăng nhập lần đầu bằng mật khẩu = SĐT ⇒ bắt đổi mật khẩu trước
+      if (result.mustChangePassword) go("/doi-mat-khau");
+      else if (result.kind === "member") void memberDestination(next).then(go);
       else go(destination(result.kind, next));
       return;
     }
     setIsPending(false);
     if (result.code === "google_disabled") return setIsGoogleOff(true);
     setError(t.errors[result.code]);
+    setExpiredLogin(result.code === "initial_expired" ? trimmedLogin : null);
     setAttempt((n) => n + 1);
     setNotice(null);
     setPassword("");
@@ -115,6 +120,17 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
         error && (
           <Alert key={attempt} variant="error">
             {error}
+            {expiredLogin !== null && (
+              <>
+                {" "}
+                <Link
+                  href={`/quen-mat-khau?sdt=${encodeURIComponent(expiredLogin)}`}
+                  className="font-semibold underline focus-ring"
+                >
+                  {t.forgotPassword}
+                </Link>
+              </>
+            )}
           </Alert>
         )
       )}

@@ -25,6 +25,7 @@ export default function AccountPage() {
 async function Account() {
   const user = await getCurrentUser();
   if (!user) redirect("/dang-nhap?next=/tai-khoan");
+  if (user.must_change_password) redirect("/doi-mat-khau");
   const dictionary = await getDictionary();
   const t = dictionary.account;
   // `is_member`: tài khoản đã liên kết hồ sơ hội viên (T-016); bản API cũ chưa có trường này ⇒ không hiện gì

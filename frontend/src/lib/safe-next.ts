@@ -13,8 +13,8 @@ export function safeNext(next: string | null | undefined, fallback = "/tai-khoan
   }
 }
 
-/** Đích sau đăng nhập theo quyền: Admin/nhân viên chỉ vào khu quản trị, khách không vào khu quản trị. */
-export function destination(kind: "admin" | "customer", next: string): string {
+/** Đích sau đăng nhập theo quyền: Admin/nhân viên chỉ vào khu quản trị, khách (`member`) không vào khu quản trị. */
+export function destination(kind: "admin" | "member", next: string): string {
   // Đúng khu /admin (không nhận nhầm "/administrator", "/admin-x")
   const isAdminPath = /^\/admin(?:[/?#]|$)/.test(next);
   if (kind === "admin") return isAdminPath ? next : "/admin";

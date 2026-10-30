@@ -223,12 +223,6 @@ async def member_row(active: bool = True):
         return res.mappings().first()
 
 
-async def all_phones() -> set[str]:
-    async with SessionLocal() as s:
-        res = await s.execute(text("SELECT phone FROM customer"))
-        return {r[0] for r in res}
-
-
 def walk(data):
     if isinstance(data, dict):
         for k, v in data.items():
@@ -314,7 +308,7 @@ async def test_ac3_block_fields_booking_session_uncollectible(admin):
     blocks = {b["code"]: b for b in (await calendar(admin))["blocks"] if "code" in b}
     b = blocks[bk["code"]]
     assert b["payment_status"] == "unpaid"
-    assert "0987654321" not in str(b) and "xxx" in str(b)
+    assert b["phone"] == "0987654321"  # màn quản trị: SĐT đầy đủ
     # session block: name + taken/capacity
     r = await new_session(admin, [(await new_resource(admin))["code"]], capacity=2)
     assert r.status_code == 201, r.text
@@ -637,7 +631,7 @@ async def test_ac14_session_detail(admin, staff):
     assert d["taken"] == 2 and d["capacity"] == 4
     tickets = d["tickets"]
     assert [t["code"] for t in tickets][0] == second.json()["code"], "newest first"
-    assert "0900111222" not in str(d)
+    assert "0900111222" in {t["phone"] for t in tickets}
     assert d["can"]["register"] is True
     assert d["can"]["delete"] is False  # staff
 
@@ -714,7 +708,7 @@ async def test_ac17_item_detail_and_actions(admin, staff):
     it = await item(staff, bk["code"])
     assert it["payment_status"] == "unpaid" and it["version"] >= 1
     assert {"collect"} <= set(it["actions"]), it["actions"]
-    assert "0977888999" not in str(it)
+    assert it["customer"]["phone"] == "0977888999"
     # staff vs admin created-by label (no email / username leak)
     assert "@" not in str(it)
     r = await w(
@@ -1177,7 +1171,7 @@ async def test_sec3_evil_origin_blocked_on_all_writes(admin):
     assert (await item(admin, bk["code"]))["payment_status"] == "unpaid"
 
 
-async def test_sec4_no_full_phone_or_internal_ids_in_responses(admin, staff):
+async def test_sec4_no_internal_ids_in_responses(admin, staff):
     ph = "0944556677"
     res, bk = await new_booking(admin, customer=temp("QA Riêng Tư", ph))
     s = (await new_session(admin, [(await new_resource(admin))["code"]])).json()
@@ -1199,11 +1193,7 @@ async def test_sec4_no_full_phone_or_internal_ids_in_responses(admin, staff):
         (await staff.get(f"{MEMBERS}/search", params={"q": "HV"})).json(),
         (await staff.get(f"{B}/search", params={"code": bk["code"]})).json(),
     ]
-    phones = await all_phones()
-    for data in responses:
-        blob = str(data)
-        for p in phones:
-            assert p not in blob, f"full phone {p} leaked"
+    for data in responses:  # SĐT đầy đủ được phép ở màn quản trị (2026-10-30, thay BR-021)
         for k, v in walk(data):
             assert k not in (
                 "customer_ref",
@@ -1214,8 +1204,7 @@ async def test_sec4_no_full_phone_or_internal_ids_in_responses(admin, staff):
             ), k
             if k == "id":
                 assert not isinstance(v, int), "numeric internal id leaked"
-    # masked phone format
-    assert re.search(r"0944 xxx 677", str(responses[4]))
+    assert responses[4]["customer"]["phone"] == ph
     assert "@" not in str(responses[4])
 
 

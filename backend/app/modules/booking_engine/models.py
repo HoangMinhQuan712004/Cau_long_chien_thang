@@ -205,7 +205,7 @@ class _CustomerSnapshot:
     customer_name: Mapped[str] = mapped_column(String(100))
     customer_phone: Mapped[str] = mapped_column(String(15))  # đầy đủ – chỉ để tìm, không trả ra
     member_code: Mapped[str | None] = mapped_column(String(10))
-    member_tier: Mapped[str | None] = mapped_column(String(10))
+    member_tier: Mapped[str | None] = mapped_column(String(20))
 
 
 class _Payment:
@@ -350,6 +350,7 @@ class Booking(_CustomerSnapshot, _Payment, Base):
         CheckConstraint("start_at < end_at", name="range"),
         Index("ix_booking_tenant_play_date", "tenant_id", "play_date"),
         Index("ix_booking_tenant_status_play_date", "tenant_id", "payment_status", "play_date"),
+        Index("ix_booking_tenant_customer_ref", "tenant_id", "customer_ref"),
         {"schema": SCHEMA},
     )
 

@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react";
 import { formatCountdown } from "@/lib/format";
 import { destination } from "@/lib/safe-next";
 import { api, errorDetail, errorMessage } from "./client";
+import type { operations } from "./schema";
 
 // --- Đăng nhập / đăng xuất (T-013) ---
 
@@ -14,12 +15,17 @@ type LoginErrorCode =
   | "google_invalid"
   | "google_disabled"
   | "google_unavailable"
+  | "initial_expired"
   | "network"
   | "unavailable";
 
 export type LoginResult =
-  | { ok: true; kind: "admin" | "customer" }
+  // `mustChangePassword`: khách hội viên còn mật khẩu ban đầu (= SĐT) ⇒ đi thẳng /doi-mat-khau (T-015)
+  | { ok: true; kind: "admin" | "member"; mustChangePassword: boolean }
   | { ok: false; code: LoginErrorCode; retryAfter?: number };
+
+/** Mã BE: mật khẩu ban đầu hết hạn (đăng nhập, đổi mật khẩu lần đầu). */
+export const INITIAL_PASSWORD_EXPIRED = "E-AUTH-30";
 
 // Mã backend (E-AUTH-*) → mã câu chữ trong i18n/messages/vi.json
 const CODE_MAP: Record<string, LoginErrorCode> = {
@@ -29,6 +35,8 @@ const CODE_MAP: Record<string, LoginErrorCode> = {
   "E-AUTH-19": "google_disabled",
   "E-AUTH-20": "google_invalid",
   "E-AUTH-21": "google_unavailable",
+  // T-015: mật khẩu ban đầu (= SĐT) quá 3 ngày ⇒ phải dùng Quên mật khẩu (mã BE dự kiến, chờ chốt)
+  [INITIAL_PASSWORD_EXPIRED]: "initial_expired",
 };
 
 function toFailure(error: unknown, response?: Response): Extract<LoginResult, { ok: false }> {
@@ -37,11 +45,18 @@ function toFailure(error: unknown, response?: Response): Extract<LoginResult, { 
   return { ok: false, code: (code && CODE_MAP[code]) || "unavailable", retryAfter: retry_after ?? header };
 }
 
+// Kết quả đăng nhập thành công (Admin / khách)
+function toSuccess(data: SignInData): LoginResult {
+  return { ok: true, kind: data.kind, mustChangePassword: data.kind === "member" && data.account.must_change_password };
+}
+// Lấy theo response của API (không phụ thuộc tên schema của từng nhánh)
+type SignInData = operations["sign_in_api_v1_auth_sign_in_post"]["responses"][200]["content"]["application/json"];
+
 // Đăng nhập chung Admin/nhân viên/khách; `kind` cho biết đi tới khu nào
 export async function signIn(body: { login: string; password: string }): Promise<LoginResult> {
   try {
     const { data, error, response } = await api.POST("/api/v1/auth/sign-in", { body });
-    return data ? { ok: true, kind: data.kind } : toFailure(error, response);
+    return data ? toSuccess(data) : toFailure(error, response);
   } catch {
     return { ok: false, code: "network" };
   }
@@ -51,7 +66,7 @@ export async function signIn(body: { login: string; password: string }): Promise
 export async function googleSignIn(credential: string): Promise<LoginResult> {
   try {
     const { data, error, response } = await api.POST("/api/v1/auth/google", { body: { credential } });
-    return data ? { ok: true, kind: data.kind } : toFailure(error, response);
+    return data ? toSuccess(data) : toFailure(error, response);
   } catch {
     return { ok: false, code: "network" };
   }
@@ -182,8 +197,8 @@ export function useResetValue(key: string): string | null | undefined {
 }
 
 /** Đích sau đăng nhập của khách: có ?next thì theo next; không thì hội viên (đã liên kết hồ sơ) vào khu hội viên, còn lại về "/" (T-016 AC3). */
-export async function customerDestination(next: string): Promise<string> {
-  if (next) return destination("customer", next);
+export async function memberDestination(next: string): Promise<string> {
+  if (next) return destination("member", next);
   try {
     const { data } = await api.GET("/api/v1/auth/me");
     if ((data as { is_member?: boolean } | undefined)?.is_member) return "/hoi-vien/ho-so";

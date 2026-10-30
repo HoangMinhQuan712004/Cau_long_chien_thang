@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { cache } from "react";
 import createClient from "openapi-fetch";
 import { MOCK_ME } from "@/components/member-area/mock";
@@ -17,6 +18,13 @@ export type User = components["schemas"]["UserOut"];
 export type Staff = components["schemas"]["StaffOut"];
 export type StaffSession = components["schemas"]["StaffSessionOut"];
 export type AdminSession = components["schemas"]["AdminSessionOut"];
+export type MemberList = components["schemas"]["MemberListOut"];
+export type MemberRow = components["schemas"]["MemberRow"];
+export type MemberDetail = components["schemas"]["MemberDetail"];
+export type Racket = components["schemas"]["RacketOut"];
+export type MemberTier = NonNullable<components["schemas"]["MemberRow"]["tier"]>;
+/** Giá trị `tier` khi lọc danh sách (8 hạng + "chưa xếp hạng"). */
+export type MemberTierFilter = NonNullable<NonNullable<paths["/api/v1/members"]["get"]["parameters"]["query"]>["tier"]>;
 /** Lý do phiên Admin/nhân viên không dùng được (backend: E-AUTH-1 + detail.reason). */
 export type AdminSessionError = "unauthenticated" | "expired" | "password_changed" | "account_disabled";
 
@@ -68,12 +76,27 @@ export async function authedApi() {
   return createClient<paths>({ baseUrl: BACKEND_URL, headers: { cookie: cookieHeader } });
 }
 
-// Một lần mỗi request (header và trang cùng hỏi)
-export const getCurrentUser = cache(async (): Promise<User | null> => {
-  const api = await authedApi();
-  const { data } = await api.GET("/api/v1/auth/me");
-  return data ?? null;
+/** Phiên khách: `expired` = mật khẩu ban đầu (= SĐT) quá hạn (403 E-AUTH-30); lỗi mạng ⇒ coi như chưa đăng nhập. Một lần mỗi request. */
+export const readCurrentUser = cache(async (): Promise<{ user: User | null; expired: boolean }> => {
+  try {
+    const api = await authedApi();
+    const { data, error, response } = await api.GET("/api/v1/auth/me");
+    const code = (error as { detail?: { code?: string } } | undefined)?.detail?.code;
+    return { user: data ?? null, expired: response.status === 403 && code === "E-AUTH-30" };
+  } catch {
+    return { user: null, expired: false };
+  }
 });
+
+/**
+ * Khách đang đăng nhập (header, /tai-khoan, /doi-mat-khau). Mật khẩu ban đầu hết hạn ⇒ sang Quên mật khẩu
+ * (BE không trả SĐT ⇒ không kèm `?sdt=`). Không ném lỗi ⇒ nơi gọi không cần `.catch` (sẽ nuốt mất redirect).
+ */
+export async function getCurrentUser(): Promise<User | null> {
+  const { user, expired } = await readCurrentUser();
+  if (expired) redirect("/quen-mat-khau");
+  return user;
+}
 
 /** Phiên Admin/nhân viên (cookie `admin_session`); lỗi ⇒ lý do để màn đăng nhập giải thích. Một lần mỗi request. */
 export const getAdminSession = cache(
@@ -108,8 +131,19 @@ export async function authedGetJson<T>(
 
 // ---------- Khu hội viên (T-016) ----------
 
-/** Hồ sơ hội viên của phiên hiện tại. 401 → chưa đăng nhập / hết phiên; 403 (E-HV-8) → chưa là hội viên. Một lần mỗi request. */
-export const getMemberMe = cache(async (): Promise<{ ok: true; data: MemberMe } | { ok: false; status: number }> => {
+/**
+ * Hồ sơ hội viên của phiên hiện tại. 401 → chưa đăng nhập / hết phiên; 403: E-HV-8 chưa là hội viên,
+ * E-AUTH-25 chưa đổi mật khẩu ban đầu. Một lần mỗi request.
+ */
+export const getMemberMe = cache(async (): Promise<{ ok: true; data: MemberMe } | { ok: false; status: number; code?: string }> => {
   if (process.env.NEXT_PUBLIC_MEMBER_AREA_MOCK === "1") return { ok: true, data: MOCK_ME };
-  return authedGetJson<MemberMe>("/api/v1/member-area/me");
+  const cookieHeader = (await cookies()).toString();
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/v1/member-area/me`, { headers: { cookie: cookieHeader }, cache: "no-store" });
+    if (res.ok) return { ok: true, data: (await res.json()) as MemberMe };
+    const body = (await res.json().catch(() => null)) as { detail?: { code?: string } } | null;
+    return { ok: false, status: res.status, code: body?.detail?.code };
+  } catch {
+    return { ok: false, status: 0 };
+  }
 });

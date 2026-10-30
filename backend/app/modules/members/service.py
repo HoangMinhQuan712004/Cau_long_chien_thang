@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor, audit
 from app.core.errors import AppError
-from app.core.privacy import mask_phone
 from app.modules.members.models import Customer
 from app.modules.members.schemas import CustomerIn, CustomerProfile, MemberSearchItem
 
@@ -29,9 +28,22 @@ def normalize_phone(raw: str) -> str:
     return phone
 
 
-def _like(value: str) -> str:
+def like_pattern(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
+
+
+def search_condition(q: str):
+    """Mã HV / tên chứa ``q`` (không phân biệt hoa thường) hoặc SĐT chứa ≥ 3 chữ số (BR-007)."""
+    q = q.strip()
+    conditions = [
+        Customer.member_code.ilike(like_pattern(q)),
+        Customer.full_name.ilike(like_pattern(q)),
+    ]
+    digits = normalize_phone(q)
+    if digits.isdigit() and len(digits) >= MIN_PHONE_DIGITS:
+        conditions.append(Customer.phone.like(like_pattern(digits)))
+    return or_(*conditions)
 
 
 def _profile(c: Customer, created: bool = False) -> CustomerProfile:
@@ -52,14 +64,9 @@ async def search_members(session: AsyncSession, q: str) -> list[MemberSearchItem
 
     Mã HV / tên / SĐT (≥ 3 chữ số), chứa chuỗi, không phân biệt hoa thường; gồm hội viên Ngừng.
     """
-    q = q.strip()
-    conditions = [Customer.member_code.ilike(_like(q)), Customer.full_name.ilike(_like(q))]
-    digits = normalize_phone(q)
-    if digits.isdigit() and len(digits) >= MIN_PHONE_DIGITS:
-        conditions.append(Customer.phone.like(_like(digits)))
     rows = await session.scalars(
         select(Customer)
-        .where(Customer.kind == "member", or_(*conditions))
+        .where(Customer.kind == "member", search_condition(q))
         .order_by(Customer.member_code)
         .limit(SEARCH_LIMIT)
     )
@@ -68,7 +75,7 @@ async def search_members(session: AsyncSession, q: str) -> list[MemberSearchItem
             ref=c.member_code,
             member_code=c.member_code,
             name=c.full_name,
-            phone_masked=mask_phone(c.phone),
+            phone=c.phone,
             tier=c.tier,
             is_active=c.is_active,
         )
@@ -80,12 +87,48 @@ def _missing(field: str) -> AppError:
     return AppError("E-001", f"Vui lòng nhập {field}.", 422)
 
 
+def collapse_spaces(raw: str | None) -> str:
+    return " ".join((raw or "").split())
+
+
+def clean_text(raw: str | None, label: str, max_len: int = NAME_MAX) -> str:
+    """Gộp khoảng trắng; rỗng / quá ``max_len`` -> E-001 (``label``: "Họ tên", "tên vợt"…)."""
+    text = collapse_spaces(raw)
+    if not text:
+        raise _missing(label)
+    if len(text) > max_len:
+        raise AppError("E-001", f"{label[0].upper()}{label[1:]} tối đa {max_len} ký tự.", 422)
+    return text
+
+
+def clean_name(raw: str) -> str:
+    return clean_text(raw, "Họ tên")
+
+
+def clean_phone(raw: str) -> str:
+    """Chuẩn hóa SĐT; rỗng -> E-001, sai định dạng -> E-002."""
+    if not raw.strip():
+        raise _missing("Số điện thoại")
+    phone = normalize_phone(raw)
+    if not PHONE_RE.match(phone):
+        raise AppError("E-002", "Số điện thoại không hợp lệ.", 422)
+    return phone
+
+
+def member_phone_taken(member: Customer, hint: str = " Vui lòng chọn Hồ sơ hội viên.") -> AppError:
+    return AppError(
+        "E-018",
+        f"Số điện thoại này đã là của hội viên {member.member_code} – {member.full_name}.{hint}",
+        409,
+    )
+
+
 async def resolve_customer(
     session: AsyncSession, data: CustomerIn, actor: AuditActor
 ) -> CustomerProfile:
     """Xác định khách cho lượt đặt tại quầy.
 
-    - Hội viên: theo mã (không phân biệt hoa thường); không có -> E-014.
+    - Hội viên: theo mã (không phân biệt hoa thường); không có -> E-014; đang Ngừng -> E-MEM-2.
     - Hồ sơ tạm: SĐT trùng hội viên -> E-018; trùng hồ sơ tạm -> dùng lại, giữ tên cũ (OQ-21);
       mới -> tạo (ghi nhật ký ``member.temp.create``).
     """
@@ -98,19 +141,16 @@ async def resolve_customer(
             raise AppError(
                 "E-014", "Không tìm thấy hội viên. Kiểm tra lại hoặc chọn Hồ sơ tạm.", 422
             )
+        if not member.is_active:
+            raise AppError(
+                "E-MEM-2",
+                f"Hội viên {member.member_code} đang Ngừng – không chọn được khi đặt sân.",
+                422,
+            )
         return _profile(member)
 
-    temp = data.temp
-    full_name = " ".join(temp.full_name.split())
-    if not full_name:
-        raise _missing("Họ tên")
-    if len(full_name) > NAME_MAX:
-        raise AppError("E-001", f"Họ tên tối đa {NAME_MAX} ký tự.", 422)
-    if not temp.phone.strip():
-        raise _missing("Số điện thoại")
-    phone = normalize_phone(temp.phone)
-    if not PHONE_RE.match(phone):
-        raise AppError("E-002", "Số điện thoại không hợp lệ.", 422)
+    full_name = clean_name(data.temp.full_name)
+    phone = clean_phone(data.temp.phone)
 
     # Hai máy tạo cùng SĐT cùng lúc: ON CONFLICT DO NOTHING rồi đọc lại -> dùng chung một hồ sơ
     created_id = await session.scalar(
@@ -121,12 +161,7 @@ async def resolve_customer(
     )
     existing = await session.scalar(select(Customer).where(Customer.phone == phone))
     if existing.kind == "member":
-        raise AppError(
-            "E-018",
-            f"Số điện thoại này đã là của hội viên {existing.member_code} – {existing.full_name}. "
-            "Vui lòng chọn Hồ sơ hội viên.",
-            409,
-        )
+        raise member_phone_taken(existing)
     created = created_id is not None
     if created:
         audit(

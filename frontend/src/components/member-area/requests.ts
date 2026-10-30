@@ -1,11 +1,12 @@
 import "client-only";
 import { looseApi } from "@/lib/api/client";
-import { toApiError, type WriteResult, write } from "@/lib/api/write";
-import type { Read } from "@/components/members/requests";
+import { type ApiError, toApiError, type WriteResult, write } from "@/lib/api/write";
 import type { Crop, MeInput, MemberMe } from "./types";
 
 // Lời gọi API khu hội viên (chỉ khách đã liên kết hồ sơ). Mọi API lấy hồ sơ theo phiên.
 // NEXT_PUBLIC_MEMBER_AREA_MOCK=1: dữ liệu giả trong bộ nhớ (dựng giao diện khi API chưa có).
+
+export type Read<T> = { ok: true; data: T } | { ok: false; error: ApiError };
 
 const P = "/api/v1/member-area";
 const MOCK = process.env.NEXT_PUBLIC_MEMBER_AREA_MOCK === "1";

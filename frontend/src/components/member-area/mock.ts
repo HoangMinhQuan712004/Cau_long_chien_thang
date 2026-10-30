@@ -1,6 +1,6 @@
 // DỮ LIỆU GIẢ khu hội viên (T-016) – chỉ chạy khi NEXT_PUBLIC_MEMBER_AREA_MOCK=1. Xóa khi nối API thật.
 import type { ApiError, WriteResult } from "@/lib/api/write";
-import type { Read } from "@/components/members/requests";
+import type { Read } from "./requests";
 import type { MeInput, MemberMe } from "./types";
 
 export const MOCK_ME: MemberMe = {
@@ -12,7 +12,7 @@ export const MOCK_ME: MemberMe = {
   phone: "0912345678",
   joined_at: "2026-03-05",
   tier: "Trung bình",
-  racket: { id: 1, brand: "YONEX", name: "Astrox 88D Pro" },
+  racket: "Astrox 88D Pro",
   show_on_records: false,
   avatar_url: null,
   record_kmh: null,
@@ -50,7 +50,7 @@ export async function putMe(b: MeInput): Promise<WriteResult<MemberMe>> {
     nickname: b.nickname,
     email: b.email,
     tier: b.tier,
-    racket: b.racket_id ? { id: b.racket_id, brand: "YONEX", name: "Astrox 88D Pro" } : null,
+    racket: b.racket,
     show_on_records: b.show_on_records,
     version: me.version + 1,
   };

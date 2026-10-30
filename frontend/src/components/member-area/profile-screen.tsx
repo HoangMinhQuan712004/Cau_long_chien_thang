@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { RacketSelect } from "@/components/members/racket-select";
-import { TIERS } from "@/components/members/types";
+import { TIERS } from "@/app/admin/hoi-vien/_components/member-params";
+import { RACKET_OTHER } from "@/app/admin/hoi-vien/_components/member-form-fields";
+import { useRackets } from "@/app/admin/hoi-vien/_components/use-rackets";
 import { Button } from "@/components/ui/button";
+import { Dropdown } from "@/components/ui/dropdown";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { Select } from "@/components/ui/select";
 import { errorText } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
 import { toast } from "@/lib/feedback";
@@ -159,7 +160,7 @@ function Hero({ me }: { me: MemberMe }) {
             Mã hội viên {me.member_code} · tham gia {joined}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full bg-surface/15 px-3 py-1 text-xs font-medium">Trình độ: {me.tier}</span>
+            {me.tier ? <span className="rounded-full bg-surface/15 px-3 py-1 text-xs font-medium">Trình độ: {me.tier}</span> : null}
             {me.record_kmh !== null ? <span className="rounded-full bg-surface/15 px-3 py-1 text-xs font-medium">Kỷ lục {me.record_kmh} km/h</span> : null}
           </div>
         </div>
@@ -206,17 +207,25 @@ function CourtLines() {
   );
 }
 
-type Values = { full_name: string; nickname: string; email: string; tier: string; racket: MemberMe["racket"]; show_on_records: boolean };
+// `tier` / `racket` rỗng = chưa chọn; `racket` = RACKET_OTHER ⇒ tên gõ ở `racketOther` (BE tự thêm vào danh mục)
+type Values = { full_name: string; nickname: string; email: string; tier: string; racket: string; racketOther: string; show_on_records: boolean };
 type Errors = { full_name?: string; nickname?: string; email?: string; tier?: string };
 
 const toValues = (m: MemberMe): Values => ({
   full_name: m.full_name,
   nickname: m.nickname ?? "",
   email: m.email ?? "",
-  tier: m.tier,
-  racket: m.racket,
+  tier: m.tier ?? "",
+  racket: m.racket ?? "",
+  racketOther: "",
   show_on_records: m.show_on_records,
 });
+
+/** Tên vợt sẽ lưu: vợt trong danh mục hoặc tên gõ ở ô "Khác…"; rỗng ⇒ null. */
+const racketName = (v: Values): string | null => (v.racket === RACKET_OTHER ? v.racketOther.trim() : v.racket) || null;
+
+/** Vợt đã lưu mà danh mục không còn (đã ẩn / đổi tên) ⇒ vẫn đưa vào ô chọn. */
+const v0Racket = (m: MemberMe, names: string[]) => Boolean(m.racket) && !names.includes(m.racket as string);
 
 function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promise<void> }) {
   const { setMe, setDirty } = useMember();
@@ -234,12 +243,16 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
   const set = <K extends keyof Values>(k: K, val: Values[K]) => setV((s) => ({ ...s, [k]: val }));
 
   const saved = toValues(base);
+  // Danh mục vợt đang dùng (GET /rackets, danh sách phẳng); vợt hiện tại không có trong danh mục vẫn hiện được
+  const rackets = useRackets(false);
+  const names = rackets.state.status === "ok" ? rackets.state.items.map((r) => r.name) : [];
+  const racketOptions = (v0Racket(base, names) ? [base.racket as string, ...names] : names).map((r) => ({ value: r, label: r }));
   const dirty =
     v.full_name.trim() !== saved.full_name.trim() ||
     v.nickname.trim() !== saved.nickname.trim() ||
     v.email.trim() !== saved.email.trim() ||
     v.tier !== saved.tier ||
-    (v.racket?.id ?? null) !== (saved.racket?.id ?? null) ||
+    racketName(v) !== racketName(saved) ||
     v.show_on_records !== saved.show_on_records;
 
   // Báo khung (menu, logo, Đăng xuất) có thay đổi chưa lưu ⇒ hỏi E-007 trước khi rời
@@ -253,7 +266,8 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
     if (!v.full_name.trim()) e.full_name = "Vui lòng nhập Họ tên.";
     const email = v.email.trim();
     if (email && (email.length > 254 || !EMAIL_RE.test(email))) e.email = "Email không hợp lệ.";
-    if (!v.tier) e.tier = "Vui lòng chọn Trình độ.";
+    // Chưa từng xếp hạng thì được để trống; đã có hạng thì không được bỏ trống
+    if (!v.tier && saved.tier) e.tier = "Vui lòng chọn Trình độ.";
     return e;
   }
 
@@ -279,8 +293,8 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
       full_name: v.full_name.trim(),
       nickname: v.nickname.trim() || null,
       email: v.email.trim() || null,
-      tier: v.tier,
-      racket_id: v.racket?.id ?? null,
+      tier: v.tier || null,
+      racket: racketName(v),
       show_on_records: v.show_on_records,
       version: base.version,
     });
@@ -294,6 +308,12 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
         // E-010: hết phiên ⇒ đăng nhập lại, xong quay về Hồ sơ của tôi
         setDirty(false);
         window.location.replace(`/dang-nhap?next=${encodeURIComponent("/hoi-vien/ho-so")}&ly-do=het-han`);
+        return;
+      }
+      if (code === "E-AUTH-25") {
+        // Tài khoản do sân tạo chưa đổi mật khẩu ban đầu ⇒ đổi trước
+        setDirty(false);
+        window.location.replace("/doi-mat-khau");
         return;
       }
       if (code === "E-HV-8" || status === 403) {
@@ -420,18 +440,23 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
           </h2>
           <div className="mt-4 space-y-4">
             <Row label="Trình độ" htmlFor={ids.tier} required>
-              <Select id={ids.tier} value={v.tier} onChange={(e) => set("tier", e.target.value)} {...err("tier")}>
-                {TIERS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </Select>
+              <Dropdown id={ids.tier} value={v.tier} onChange={(t) => set("tier", t)} placeholder="Chưa xếp hạng" options={TIERS.map((t) => ({ value: t, label: t }))} />
               {showErr("tier")}
             </Row>
             <Row label="Vợt đang dùng" htmlFor={ids.racket}>
-              <RacketSelect id={ids.racket} value={v.racket} onChange={(r) => set("racket", r)} />
+              <Dropdown
+                id={ids.racket}
+                value={v.racket}
+                onChange={(r) => set("racket", r)}
+                placeholder="Chọn vợt"
+                options={[...racketOptions, { value: RACKET_OTHER, label: "Khác…" }]}
+              />
             </Row>
+            {v.racket === RACKET_OTHER ? (
+              <Row label="Tên vợt khác" htmlFor={`${ids.racket}-other`}>
+                <Input id={`${ids.racket}-other`} value={v.racketOther} maxLength={100} autoComplete="off" onChange={(e) => set("racketOther", e.target.value)} />
+              </Row>
+            ) : null}
             <div className="flex items-start justify-between gap-4 border-t border-border pt-4">
               <div>
                 <label htmlFor={ids.show} className="text-sm font-semibold">

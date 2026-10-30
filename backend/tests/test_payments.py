@@ -267,11 +267,9 @@ async def test_transactions_filters_cards_and_paging(admin, staff):
     row = data["rows"][0]
     assert set(row) == {
         "kind", "code", "play_date", "start_time", "end_time", "resource_codes",
-        "customer_name", "phone_masked", "amount", "payment_status", "payment_method", "source",
+        "customer_name", "phone", "amount", "payment_status", "payment_method", "source",
     }  # fmt: skip
-    assert "xxx" in row["phone_masked"]
-    for p in phones:
-        assert p not in str(data)
+    assert {row["phone"] for row in data["rows"] + page2["rows"]} == set(phones)  # SĐT đầy đủ
 
     assert (await tx(status="paid"))["total"] == 2
     cash = await tx(method="cash")

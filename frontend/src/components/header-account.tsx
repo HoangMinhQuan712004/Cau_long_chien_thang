@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
 import { getAdminSession, getCurrentUser } from "@/lib/api/server";
 
@@ -22,7 +23,9 @@ export async function HeaderAccount() {
       );
     }
   } else if (jar.has("access_token")) {
-    const user = await getCurrentUser().catch(() => null);
+    const user = await getCurrentUser();
+    // Còn mật khẩu ban đầu ⇒ chặn mọi trang khách cho tới khi đổi (T-015)
+    if (user?.must_change_password) redirect("/doi-mat-khau");
     if (user) return <CustomerMenu name={user.full_name} isMember={(user as { is_member?: boolean }).is_member === true} />;
   }
   return (

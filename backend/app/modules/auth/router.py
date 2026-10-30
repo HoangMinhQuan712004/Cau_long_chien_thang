@@ -20,6 +20,7 @@ from app.modules.auth.deps import (
     REFRESH_COOKIE,
     AuthStateDep,
     CurrentCustomer,
+    CustomerAnyState,
     SessionDep,
     unauthenticated,
 )
@@ -46,8 +47,15 @@ from app.modules.auth.schemas import (
 router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(require_origin)])
 
 
-def phone_taken() -> AppError:
-    return AppError("E-AUTH-22", "Số điện thoại đã được sử dụng.", 409)
+def phone_taken(phone: str) -> AppError:
+    """Một lỗi cho MỌI trường hợp SĐT đã có tài khoản (kể cả tài khoản hội viên sân tạo) – không
+    dò được loại tài khoản qua mã / câu chữ. ``phone`` = SĐT người gọi gửi (điền link Quên MK)."""
+    return AppError(
+        "E-AUTH-22",
+        "Số điện thoại đã được sử dụng. Vui lòng đăng nhập hoặc bấm Quên mật khẩu.",
+        409,
+        phone=phone,
+    )
 
 
 @router.post("/sign-in", response_model=SignInOut)
@@ -83,7 +91,7 @@ async def google_sign_in(data: GoogleSignInIn, response: Response, session: Sess
 async def register(data: RegisterIn, response: Response, session: SessionDep):
     """Đăng ký khách bằng SĐT (chưa xác minh – cần OTP mới coi là đã xác minh).
 
-    Lỗi: 409 E-AUTH-22 (SĐT đã có chủ) · 429 E-SEC-5 (> 10 lần / giờ / IP).
+    Lỗi: 409 E-AUTH-22 (SĐT đã có tài khoản – kèm ``phone``) · 429 E-SEC-5 (> 10 lần / giờ / IP).
     """
     retry_after = await ratelimit.check(
         "auth.register", client_ip() or "unknown", settings.REGISTER_IP_MAX_PER_HOUR, 3600
@@ -92,12 +100,12 @@ async def register(data: RegisterIn, response: Response, session: SessionDep):
         raise ratelimit.too_many(retry_after)
     hashed = hash_password(data.password)
     if await session.scalar(select(User.id).where(User.phone == data.phone)):
-        raise phone_taken()
+        raise phone_taken(data.phone)
     user = User(
         phone=data.phone,
         full_name=" ".join(data.full_name.split()),
         hashed_password=hashed,
-        role=Role.CUSTOMER,
+        role=Role.MEMBER,
         is_active=True,
     )
     session.add(user)
@@ -105,7 +113,7 @@ async def register(data: RegisterIn, response: Response, session: SessionDep):
         await session.commit()
     except IntegrityError:
         await session.rollback()
-        raise phone_taken() from None
+        raise phone_taken(data.phone) from None
     await session.refresh(user)
     cookies.set_auth_cookies(response, user)
     return user_out(user)
@@ -130,7 +138,8 @@ async def logout(response: Response):
 
 
 @router.get("/me", response_model=UserOut)
-async def me(user: CurrentCustomer):
+async def me(user: CustomerAnyState):
+    """Không chặn khi còn phải đổi mật khẩu: trả ``must_change_password`` để FE chuyển trang."""
     return user_out(user)
 
 
@@ -219,7 +228,9 @@ async def admin_logout(response: Response, state: AuthStateDep, session: Session
     user = state.user
     audit(
         session,
-        AuditActor(type=str(user.role), id=user.id, label=sessions.actor_label(user)),
+        AuditActor(
+            type=sessions.actor_type_of(user.role), id=user.id, label=sessions.actor_label(user)
+        ),
         "auth.logout",
         "user",
         str(user.id),

@@ -24,7 +24,7 @@ export type CalendarBlock = {
   end_hour: number;
   payment_status?: PaymentStatus | null;
   customer_name?: string | null;
-  phone_masked?: string | null;
+  phone?: string | null;
   source?: Source | null;
   name?: string | null;
   taken?: number | null;
@@ -68,7 +68,7 @@ export type MemberHit = {
   ref: string;
   member_code: string;
   name: string;
-  phone_masked: string;
+  phone: string;
   tier: string | null;
   is_active: boolean;
 };
@@ -82,7 +82,7 @@ export type Item = {
   source: Source;
   customer: {
     name: string;
-    phone_masked: string | null;
+    phone: string | null;
     profile_label: string;
     kind: "member" | "temp";
     member_code: string | null;
@@ -131,7 +131,7 @@ export type SessionDetail = {
   tickets: {
     code: string;
     customer_name: string;
-    phone_masked: string | null;
+    phone: string | null;
     source: Source;
     payment_status: PaymentStatus;
     amount: number;
@@ -151,7 +151,7 @@ export type TransactionRow = {
   end_time: string;
   resource_codes: string[];
   customer_name: string;
-  phone_masked: string | null;
+  phone: string | null;
   amount: number;
   payment_status: PaymentStatus;
   payment_method: PaymentMethod | null;

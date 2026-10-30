@@ -1,5 +1,3 @@
-import type { RacketRef } from "@/components/members/types";
-
 // Khu hội viên (T-016). Contract theo board/tasks/T-016-khu-hoi-vien.md; đổi sang type sinh từ schema.d.ts khi BE handoff.
 
 export type MemberMe = {
@@ -12,8 +10,10 @@ export type MemberMe = {
   /** Đầy đủ – chỉ chính chủ thấy. */
   phone: string;
   joined_at: string;
-  tier: string;
-  racket: RacketRef | null;
+  /** Chưa xếp hạng ⇒ null (ô Trình độ để trống). */
+  tier: string | null;
+  /** Tên vợt (chuỗi) hoặc null. */
+  racket: string | null;
   show_on_records: boolean;
   avatar_url: string | null;
   record_kmh: number | null;
@@ -24,8 +24,10 @@ export type MeInput = {
   full_name: string;
   nickname: string | null;
   email: string | null;
-  tier: string;
-  racket_id: number | null;
+  /** Phải là một trong 8 bậc; null chỉ khi chưa từng có và không đổi. */
+  tier: string | null;
+  /** Gõ tên chưa có thì BE tự thêm vào danh mục. */
+  racket: string | null;
   show_on_records: boolean;
   version: number;
 };

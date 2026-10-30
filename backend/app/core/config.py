@@ -91,6 +91,8 @@ class Settings(BaseSettings):
     OTP_IP_MAX_PER_HOUR: int = 20
     OTP_RESET_TOKEN_MINUTES: int = 10  # hạn đặt mật khẩu mới sau khi nhập đúng mã
     BOOKING_PHONE_TOKEN_MINUTES: int = 30  # hạn phone_token của đặt online
+    # Mật khẩu ban đầu (= SĐT) của tài khoản hội viên sân tạo: quá N ngày chưa đổi -> phải Quên MK
+    MEMBER_INITIAL_PASSWORD_DAYS: int = 3
     # Chỉ link dev / máy dev: mã OTP của khách trả trong response; production + bật -> dừng
     OTP_TEST_MODE: bool = False
     # Zalo ZNS (gửi OTP) – làm sau; thiếu -> production tạm ngưng đặt online + quên mật khẩu

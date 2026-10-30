@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { EMPTY_OTP, OtpForm } from "@/components/auth/otp-form";
 import { PhoneForm } from "@/components/auth/phone-form";
@@ -20,6 +20,7 @@ import {
   useResetValue,
   verifyOtp,
 } from "@/lib/api/auth";
+import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { AuthTextLink } from "../../_components/auth-card";
 
 type ForgotTexts = Dictionary["forgot"];
@@ -27,7 +28,9 @@ type ForgotTexts = Dictionary["forgot"];
 // Màn 1: nhập SĐT ⇒ gửi mã Zalo ⇒ sang màn nhập mã (429 vẫn sang vì mã trước còn dùng được)
 export function RequestForm({ t }: { t: ForgotTexts }) {
   const router = useRouter();
-  const [phone, setPhone] = useState("");
+  // `?sdt=` (từ trang Đăng ký: SĐT đã có tài khoản hội viên) ⇒ điền sẵn
+  const presetPhone = normalizePhone(useSearchParams().get("sdt") ?? "");
+  const [phone, setPhone] = useState(isValidPhone(presetPhone) ? presetPhone : "");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useResetOnHide(() => {

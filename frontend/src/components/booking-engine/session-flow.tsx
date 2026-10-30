@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/modal";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
 import { formatDateTime, formatLongDate, formatVnd, hhmm } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
 import { authFailure, STALE_CODES } from "./booking-dialogs";
 import { CustomerPicker, customerErrors, customerPayload, emptyCustomer, type CustomerErrors, type CustomerState } from "./customer-picker";
 import { getSession, sendDeleteSession, sendTicket } from "./requests";
@@ -189,7 +190,7 @@ export function SessionFlow({ code, onClose, onChanged, onOpenTicket }: Props) {
                       </button>
                     </td>
                     <td className="px-3 py-2">{t.customer_name}</td>
-                    <td className="px-3 py-2">{t.phone_masked ?? "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap tabular-nums">{t.phone ? formatPhone(t.phone) : "—"}</td>
                     <td className="px-3 py-2">{t.source === "online" ? "Web" : "Quầy"}</td>
                     <td className="px-3 py-2">
                       <StatusBadge status={t.payment_status} />

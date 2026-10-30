@@ -235,7 +235,7 @@ async def test_ac40_google_account_without_phone_is_not_given_a_phone():
     sub = "qa-ac40-" + uuid.uuid4().hex[:12]
     row = await q(
         "INSERT INTO users (full_name, google_sub, google_email, role, is_active)"
-        " VALUES ('QA Google AC40', :g, 'qa-ac40@example.com', 'customer', true)"
+        " VALUES ('QA Google AC40', :g, 'qa-ac40@example.com', 'member', true)"
         " RETURNING id, token_version",
         g=sub,
     )

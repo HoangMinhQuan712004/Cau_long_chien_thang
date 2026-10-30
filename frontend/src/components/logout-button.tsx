@@ -4,8 +4,16 @@ import { useEffect, useState } from "react";
 import { adminLogout } from "@/lib/api/auth";
 import { api } from "@/lib/api/client";
 
-// Đăng xuất rồi tải lại: khách về trang chủ, Admin/NV về /dang-nhap (điều hướng cứng: bỏ các trang Next đang giữ ẩn, Back không quay lại)
-export function LogoutButton({ area = "customer" }: { area?: "customer" | "admin" }) {
+// Đăng xuất rồi tải lại: hội viên về trang chủ, Admin/NV về /dang-nhap (điều hướng cứng: bỏ các trang Next đang giữ ẩn, Back không quay lại)
+export function LogoutButton({
+  area = "member",
+  className = "text-sm text-muted hover:text-danger disabled:opacity-50",
+  children = "Đăng xuất",
+}: {
+  area?: "member" | "admin";
+  className?: string;
+  children?: React.ReactNode;
+}) {
   const [isPending, setIsPending] = useState(false);
 
   // Back lấy trang từ bfcache ⇒ tải lại để máy chủ kiểm phiên
@@ -27,9 +35,9 @@ export function LogoutButton({ area = "customer" }: { area?: "customer" | "admin
         else await api.POST("/api/v1/auth/logout").catch(() => {});
         window.location.replace(area === "admin" ? "/dang-nhap" : "/");
       }}
-      className="text-sm text-muted hover:text-danger disabled:opacity-50"
+      className={className}
     >
-      Đăng xuất
+      {children}
     </button>
   );
 }

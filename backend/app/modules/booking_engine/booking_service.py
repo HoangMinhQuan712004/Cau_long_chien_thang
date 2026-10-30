@@ -23,7 +23,6 @@ from app.modules.booking_engine.common import (
     Ctx,
     audit_actor,
     context,
-    masked,
     not_found,
     profile_label,
     sqlstate,
@@ -179,7 +178,7 @@ async def calendar(
                 end_hour=math.ceil(e_min / 60),
                 payment_status=b.payment_status,
                 customer_name=b.customer_name,
-                phone_masked=masked(b.customer_phone),
+                phone=b.customer_phone,
                 source=b.source,
             )
         )
@@ -370,7 +369,7 @@ def _payment(item: Booking | Ticket) -> ItemPayment:
 def _customer(item: Booking | Ticket) -> ItemCustomer:
     return ItemCustomer(
         name=item.customer_name,
-        phone_masked=masked(item.customer_phone),
+        phone=item.customer_phone,
         profile_label=profile_label(item.customer_kind, item.member_code, item.member_tier),
         kind=item.customer_kind,
         member_code=item.member_code,

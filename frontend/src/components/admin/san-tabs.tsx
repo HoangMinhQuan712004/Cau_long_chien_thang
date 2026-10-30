@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { NavTabs } from "@/components/ui/nav-tabs";
 
 const TABS = [
   { href: "/admin/san", label: "Danh mục sân", id: "list" },
@@ -7,22 +7,5 @@ const TABS = [
 
 /** Hai tab của màn Sân & bảng giá (mỗi tab một đường dẫn riêng để mở thẳng và quay lại được). */
 export function SanTabs({ active }: { active: "list" | "prices" }) {
-  return (
-    <nav aria-label="Sân & bảng giá" className="flex gap-1 border-b border-border">
-      {TABS.map((t) => (
-        <Link
-          key={t.id}
-          href={t.href}
-          aria-current={t.id === active ? "page" : undefined}
-          className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
-            t.id === active
-              ? "border-primary text-primary"
-              : "border-transparent text-muted hover:text-foreground"
-          }`}
-        >
-          {t.label}
-        </Link>
-      ))}
-    </nav>
-  );
+  return <NavTabs label="Sân & bảng giá" items={TABS} active={active} />;
 }

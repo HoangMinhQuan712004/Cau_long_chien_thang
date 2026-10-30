@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
 from app.core.errors import AppError
-from app.core.privacy import mask_phone
 from app.modules.booking_engine.dto import Actor
 from app.modules.booking_engine.models import Tenant
 from app.modules.booking_engine.schedules import to_hhmm
@@ -68,10 +67,6 @@ def not_found(what: str = "dữ liệu") -> AppError:
 
 def not_sold(message: str) -> AppError:
     return AppError("E-CFG-10", message, 422)
-
-
-def masked(phone: str | None) -> str | None:
-    return mask_phone(phone)
 
 
 def profile_label(kind: str, member_code: str | None, tier: str | None) -> str:

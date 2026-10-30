@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.errors import AppError
 from app.core.security import decode_token
-from app.modules.auth import service, sessions
+from app.modules.auth import member_accounts, service, sessions
 from app.modules.auth.models import AdminSession, User
 
 ACCESS_COOKIE = "access_token"
@@ -68,11 +68,24 @@ def unauthenticated(reason: str = "unauthenticated") -> AppError:
     return AppError("E-AUTH-1", messages.get(reason, "Chưa đăng nhập"), 401, reason=reason)
 
 
-async def get_current_customer(state: AuthStateDep) -> User:
-    """Khách đã đăng nhập (JWT); phiên quản trị không dùng làm khách (T-013 SEC5)."""
+async def get_customer_any_state(state: AuthStateDep) -> User:
+    """Khách đã đăng nhập (JWT), kể cả còn phải đổi mật khẩu – chỉ cho ``/me``, đổi mật khẩu."""
     if state.user is None or state.admin_session is not None:
         raise unauthenticated(state.reason)
+    if member_accounts.initial_password_expired(state.user):
+        raise member_accounts.expired_error()  # phiên cấp trước khi hết hạn 3 ngày
     return state.user
 
 
+async def get_current_customer(user: Annotated[User, Depends(get_customer_any_state)]) -> User:
+    """Khách đã đăng nhập (JWT); phiên quản trị không dùng làm khách (T-013 SEC5).
+
+    Tài khoản hội viên chưa đổi mật khẩu ban đầu -> 403 ``E-AUTH-25`` (T-015).
+    """
+    if user.must_change_password:
+        raise member_accounts.must_change()
+    return user
+
+
+CustomerAnyState = Annotated[User, Depends(get_customer_any_state)]
 CurrentCustomer = Annotated[User, Depends(get_current_customer)]

@@ -28,7 +28,6 @@ from app.modules.booking_engine.common import (
     Ctx,
     audit_actor,
     context,
-    masked,
     not_found,
     not_sold,
     sqlstate,
@@ -134,7 +133,7 @@ async def session_view(
             SessionTicket(
                 code=t.code,
                 customer_name=t.customer_name,
-                phone_masked=masked(t.customer_phone),
+                phone=t.customer_phone,
                 source=t.source,
                 payment_status=t.payment_status,
                 amount=t.amount,
