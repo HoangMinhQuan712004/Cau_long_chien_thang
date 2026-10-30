@@ -29,6 +29,11 @@ def _valid_name(raw: str | None) -> str:
     return clean_text(raw, "tên vợt")
 
 
+def validate_name(raw: str | None) -> str:
+    """Kiểm tên vợt (độ dài…) mà không ghi gì – để báo lỗi cùng các ô khác (T-016)."""
+    return _valid_name(raw)
+
+
 def _taken(name: str) -> AppError:
     return AppError("E-MEM-5", f"Vợt “{name}” đã có trong danh mục.", 409)
 

@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Response
 
 from app.core.middleware import require_origin
-from app.modules.auth import cookies, member_accounts
+from app.modules.auth import cookies, member_accounts, membership
 from app.modules.auth.deps import CustomerAnyState, SessionDep
 from app.modules.auth.schemas import PasswordChangeIn, UserOut, user_out
 
@@ -23,4 +23,6 @@ async def change_password(
         session, user.id, data.current_password, data.new_password
     )
     cookies.set_auth_cookies(response, updated)
-    return user_out(updated)
+    out = user_out(updated)
+    out.is_member = await membership.member_profile_id(session, updated) is not None
+    return out

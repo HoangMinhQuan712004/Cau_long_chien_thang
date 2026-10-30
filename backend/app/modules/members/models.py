@@ -1,8 +1,21 @@
 """Hồ sơ khách: hội viên + hồ sơ tạm (T-006 §2.1, T-014 màn Hội viên)."""
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, Index, Integer, String, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -53,6 +66,37 @@ class Customer(TimestampMixin, Base):
     racket: Mapped[str | None] = mapped_column(String(100))  # vợt đang dùng
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     note: Mapped[str | None] = mapped_column(String(500))
+    # Khu hội viên (T-016, ADR-009 §2): hội viên tự sửa
+    nickname: Mapped[str | None] = mapped_column(String(20))
+    email: Mapped[str | None] = mapped_column(String(254))  # chỉ để liên hệ, không đăng nhập
+    show_on_records: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # Khóa lạc quan cho Hồ sơ của tôi (E-HV-12) – tăng khi hội viên tự sửa
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+
+# Email không trùng giữa các hồ sơ, không phân biệt hoa thường (ADR-009 §6)
+Index(
+    "uq_customer_email_lower",
+    func.lower(Customer.email),
+    unique=True,
+    postgresql_where=Customer.email.isnot(None),
+)
+
+
+class CustomerAvatar(Base):
+    """Ảnh đại diện đã giải mã + mã hóa lại (WebP vuông ≤ 512 px, không EXIF) – ADR-009 §5."""
+
+    __tablename__ = "customer_avatar"
+
+    customer_id: Mapped[int] = mapped_column(
+        ForeignKey("customer.id", ondelete="CASCADE"), primary_key=True
+    )
+    content_type: Mapped[str] = mapped_column(String(30))
+    bytes: Mapped[bytes] = mapped_column(LargeBinary)
+    etag: Mapped[str] = mapped_column(String(32))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Racket(TimestampMixin, Base):

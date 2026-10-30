@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import ratelimit
 from app.core.audit import AuditActor, audit
@@ -15,7 +16,17 @@ from app.core.errors import AppError
 from app.core.middleware import require_origin
 from app.core.permissions import Perm, Principal, require
 from app.core.security import decode_token, hash_password
-from app.modules.auth import cookies, google, login, phone, recovery, service, sessions, staff
+from app.modules.auth import (
+    cookies,
+    google,
+    login,
+    membership,
+    phone,
+    recovery,
+    service,
+    sessions,
+    staff,
+)
 from app.modules.auth.deps import (
     REFRESH_COOKIE,
     AuthStateDep,
@@ -47,6 +58,13 @@ from app.modules.auth.schemas import (
 router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(require_origin)])
 
 
+async def account_out(session: AsyncSession, user: User) -> UserOut:
+    """``UserOut`` + ``is_member`` (hồ sơ hội viên cùng SĐT – khu hội viên, T-016)."""
+    out = user_out(user)
+    out.is_member = await membership.member_profile_id(session, user) is not None
+    return out
+
+
 def phone_taken(phone: str) -> AppError:
     """Một lỗi cho MỌI trường hợp SĐT đã có tài khoản (kể cả tài khoản hội viên sân tạo) – không
     dò được loại tài khoản qua mã / câu chữ. ``phone`` = SĐT người gọi gửi (điền link Quên MK)."""
@@ -70,7 +88,7 @@ async def sign_in(data: SignInIn, request: Request, response: Response, session:
     )
     if admin is None:
         cookies.set_auth_cookies(response, user)
-        return CustomerSignInOut(account=user_out(user))
+        return CustomerSignInOut(account=await account_out(session, user))
     admin_session, token = admin
     cookies.set_admin_cookie(response, token)
     return AdminSignInOut(account=sessions.to_account(user), expires_at=admin_session.expires_at)
@@ -84,7 +102,7 @@ async def google_sign_in(data: GoogleSignInIn, response: Response, session: Sess
     """
     user = await google.sign_in(session, data.credential, client_ip())
     cookies.set_auth_cookies(response, user)
-    return CustomerSignInOut(account=user_out(user))
+    return CustomerSignInOut(account=await account_out(session, user))
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -116,7 +134,7 @@ async def register(data: RegisterIn, response: Response, session: SessionDep):
         raise phone_taken(data.phone) from None
     await session.refresh(user)
     cookies.set_auth_cookies(response, user)
-    return user_out(user)
+    return await account_out(session, user)
 
 
 @router.post("/refresh", response_model=UserOut)
@@ -129,7 +147,7 @@ async def refresh(request: Request, response: Response, session: SessionDep):
     if user is None:
         raise unauthenticated("expired")
     cookies.set_auth_cookies(response, user)
-    return user_out(user)
+    return await account_out(session, user)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -138,9 +156,9 @@ async def logout(response: Response):
 
 
 @router.get("/me", response_model=UserOut)
-async def me(user: CustomerAnyState):
+async def me(user: CustomerAnyState, session: SessionDep):
     """Không chặn khi còn phải đổi mật khẩu: trả ``must_change_password`` để FE chuyển trang."""
-    return user_out(user)
+    return await account_out(session, user)
 
 
 # ---------------------------------------------------------------- quên mật khẩu (OTP)
@@ -190,7 +208,7 @@ async def phone_verify(
     return PhoneVerifyOut(
         merged=result.merged,
         password_cleared=result.password_cleared,
-        account=user_out(result.account),
+        account=await account_out(session, result.account),
     )
 
 

@@ -77,6 +77,13 @@ class OriginCheckMiddleware:
         await self.app(scope, receive, send)
 
 
+def upload_limit(path: str) -> int | None:
+    """Đường tải tệp được phép body lớn hơn ``MAX_BODY_BYTES`` (ảnh đại diện – T-016)."""
+    if path == f"{settings.API_PREFIX}/member-area/me/avatar":
+        return settings.AVATAR_MAX_BYTES + settings.MAX_BODY_BYTES
+    return None
+
+
 class BodyLimitMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app
@@ -85,7 +92,7 @@ class BodyLimitMiddleware:
         if scope["type"] != "http" or scope["method"] in SAFE_METHODS:
             await self.app(scope, receive, send)
             return
-        limit = settings.MAX_BODY_BYTES
+        limit = upload_limit(scope["path"]) or settings.MAX_BODY_BYTES
         too_large = _error(413, "E-SEC-6", "Dữ liệu gửi lên quá lớn.")
         length = _headers(scope).get(b"content-length")
         if length is not None:

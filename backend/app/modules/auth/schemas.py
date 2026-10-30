@@ -69,6 +69,10 @@ class UserOut(BaseModel):
     must_change_password: bool = Field(
         description="Tài khoản hội viên chưa đổi mật khẩu ban đầu -> chuyển trang đổi mật khẩu"
     )
+    is_member: bool = Field(
+        default=False,
+        description="Có hồ sơ hội viên cùng SĐT (đã xác minh) -> vào được khu hội viên (T-016)",
+    )
 
 
 class AdminAccountOut(BaseModel):
