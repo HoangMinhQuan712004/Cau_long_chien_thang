@@ -8,7 +8,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
-from app.core.privacy import mask_phone
 from app.modules.booking_engine import api as engine
 from app.modules.members.models import Customer
 from app.modules.members.schemas import MemberRow
@@ -48,7 +47,7 @@ def to_row(c: Customer, bookings: int) -> MemberRow:
         kind=c.kind,
         member_code=c.member_code,
         full_name=c.full_name,
-        phone_masked=mask_phone(c.phone),
+        phone=c.phone,
         gender=c.gender,
         tier=c.tier,
         racket=c.racket,

@@ -102,14 +102,13 @@ async def list_members(
 async def get_detail(
     session: AsyncSession, actor: AuditActor, ref: str, can: MemberCan
 ) -> MemberDetail:
-    """Chi tiết + SĐT đầy đủ: ghi nhật ký ``member.view`` (không ghi SĐT)."""
+    """Chi tiết hồ sơ: ghi nhật ký ``member.view`` (không ghi SĐT)."""
     c = await by_ref(session, ref)
     refs = booking_refs(c)
     stats = await engine.customer_stats(session, refs)
     recent = await engine.customer_bookings(session, refs, RECENT_LIMIT)
     detail = MemberDetail(
         **to_row(c, sum(s.bookings for s in stats.values())).model_dump(),
-        phone=c.phone,
         note=c.note,
         total_minutes=sum(s.minutes for s in stats.values()),
         recent_bookings=[MemberBooking(**b.model_dump(exclude={"payment_status"})) for b in recent],

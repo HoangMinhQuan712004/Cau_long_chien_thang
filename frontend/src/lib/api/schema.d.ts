@@ -785,7 +785,7 @@ export interface paths {
         };
         /**
          * Search Members
-         * @description Tìm hội viên theo mã / tên / SĐT (≥ 3 chữ số) – tối đa 20 dòng, SĐT đã che.
+         * @description Tìm hội viên theo mã / tên / SĐT (≥ 3 chữ số) – tối đa 20 dòng, SĐT đầy đủ.
          */
         get: operations["search_members_api_v1_members_search_get"];
         put?: never;
@@ -807,7 +807,7 @@ export interface paths {
          * List Members
          * @description Hội viên + hồ sơ tạm: lọc (q, kind, status, tier, racket), phân trang, đếm theo loại.
          *
-         *     SĐT đã che, không lộ id. ``counts`` áp mọi bộ lọc trừ ``kind``.
+         *     SĐT đầy đủ, không lộ id. ``counts`` áp mọi bộ lọc trừ ``kind``.
          */
         get: operations["list_members_api_v1_members_get"];
         put?: never;
@@ -876,7 +876,7 @@ export interface paths {
         };
         /**
          * Get Member
-         * @description Chi tiết: SĐT đầy đủ (ghi nhật ký), số lượt, tổng phút, 5 lượt gần nhất. 404 E-NOT-FOUND.
+         * @description Chi tiết, số lượt, tổng phút, 5 lượt gần nhất (ghi nhật ký). 404 E-NOT-FOUND.
          */
         get: operations["get_member_api_v1_members__ref__get"];
         put?: never;
@@ -1413,8 +1413,8 @@ export interface components {
             payment_status?: ("unpaid" | "paid" | "uncollectible") | null;
             /** Customer Name */
             customer_name?: string | null;
-            /** Phone Masked */
-            phone_masked?: string | null;
+            /** Phone */
+            phone?: string | null;
             /** Source */
             source?: ("counter" | "online") | null;
             /** Name */
@@ -1634,8 +1634,8 @@ export interface components {
         ItemCustomer: {
             /** Name */
             name: string;
-            /** Phone Masked */
-            phone_masked: string | null;
+            /** Phone */
+            phone: string | null;
             /**
              * Profile Label
              * @description "Hồ sơ tạm" hoặc "Hội viên (HV0087 · Hạng Khá)"
@@ -1865,7 +1865,7 @@ export interface components {
         };
         /**
          * MemberDetail
-         * @description Chi tiết – có SĐT đầy đủ (form Sửa), mỗi lần xem ghi nhật ký ``member.view``.
+         * @description Chi tiết hồ sơ (form Sửa), mỗi lần xem ghi nhật ký ``member.view``.
          */
         MemberDetail: {
             /** Ref */
@@ -1879,8 +1879,8 @@ export interface components {
             member_code: string | null;
             /** Full Name */
             full_name: string;
-            /** Phone Masked */
-            phone_masked: string;
+            /** Phone */
+            phone: string;
             /** Gender */
             gender: ("male" | "female") | null;
             /** Tier */
@@ -1896,8 +1896,6 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /** Phone */
-            phone: string;
             /** Note */
             note: string | null;
             /** Total Minutes */
@@ -1925,7 +1923,7 @@ export interface components {
         };
         /**
          * MemberRow
-         * @description Một dòng danh sách – SĐT đã che (BR-021); ``ref`` = mã HV hoặc mã tham chiếu hồ sơ tạm.
+         * @description Một dòng danh sách – SĐT đầy đủ; ``ref`` = mã HV hoặc mã tham chiếu hồ sơ tạm.
          */
         MemberRow: {
             /** Ref */
@@ -1939,8 +1937,8 @@ export interface components {
             member_code: string | null;
             /** Full Name */
             full_name: string;
-            /** Phone Masked */
-            phone_masked: string;
+            /** Phone */
+            phone: string;
             /** Gender */
             gender: ("male" | "female") | null;
             /** Tier */
@@ -1959,7 +1957,7 @@ export interface components {
         };
         /**
          * MemberSearchItem
-         * @description Một dòng kết quả tìm hội viên – SĐT đã che (BR-021), không lộ id nội bộ.
+         * @description Một dòng kết quả tìm hội viên – SĐT đầy đủ (màn quản trị), không lộ id nội bộ.
          */
         MemberSearchItem: {
             /**
@@ -1971,8 +1969,8 @@ export interface components {
             member_code: string;
             /** Name */
             name: string;
-            /** Phone Masked */
-            phone_masked: string;
+            /** Phone */
+            phone: string;
             /** Tier */
             tier: string | null;
             /** Is Active */
@@ -2745,8 +2743,8 @@ export interface components {
             code: string;
             /** Customer Name */
             customer_name: string;
-            /** Phone Masked */
-            phone_masked: string | null;
+            /** Phone */
+            phone: string | null;
             /**
              * Source
              * @enum {string}
@@ -2951,8 +2949,8 @@ export interface components {
             resource_codes: string[];
             /** Customer Name */
             customer_name: string;
-            /** Phone Masked */
-            phone_masked: string | null;
+            /** Phone */
+            phone: string | null;
             /** Amount */
             amount: number;
             /**

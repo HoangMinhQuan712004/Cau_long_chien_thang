@@ -96,9 +96,9 @@ async def test_create_member_fields_and_next_code(admin, phones):
         admin, phones, phone=f"+84 {phone[1:4]}.{phone[4:]}", gender="female", racket="  Lining  "
     )
     assert row["member_code"] == expected == row["ref"]
-    assert row["phone_masked"] == f"{phone[:4]} xxx {phone[-3:]}"
+    assert row["phone"] == phone  # chuẩn hóa, không che
     assert (row["gender"], row["racket"], row["bookings"]) == ("female", "Lining", 0)
-    assert "id" not in row and "phone" not in row
+    assert "id" not in row
     next_code = (await admin.get(f"{M}/next-code")).json()["member_code"]
     assert int(next_code[2:]) == int(expected[2:]) + 1
 
@@ -271,7 +271,7 @@ async def test_list_filters_counts_and_masking(admin, phones):
 
     data = (await admin.get(M, params={"q": tag})).json()
     assert data["counts"] == {"all": 4, "member": 3, "temp": 1} and data["total"] == 4
-    assert all("xxx" in i["phone_masked"] and "id" not in i for i in data["items"])
+    assert all("xxx" not in i["phone"] and "id" not in i for i in data["items"])
     assert [i["kind"] for i in data["items"]] == ["temp"] + ["member"] * 3  # mới nhất trước
     temps = (await admin.get(M, params={"q": tag, "kind": "temp"})).json()
     assert temps["total"] == 1 and temps["counts"]["all"] == 4

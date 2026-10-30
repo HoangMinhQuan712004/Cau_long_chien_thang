@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import aggregate_order_by, array
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
-from app.modules.booking_engine.common import context, masked
+from app.modules.booking_engine.common import context
 from app.modules.booking_engine.dto import (
     TransactionCard,
     TransactionCards,
@@ -159,7 +159,7 @@ async def list_transactions(
                 end_time=ctx.hhmm(r.play_date, r.end_at),
                 resource_codes=list(r.resource_codes or []),
                 customer_name=r.customer_name,
-                phone_masked=masked(r.customer_phone),
+                phone=r.customer_phone,
                 amount=r.amount,
                 payment_status=r.payment_status,
                 payment_method=r.payment_method,

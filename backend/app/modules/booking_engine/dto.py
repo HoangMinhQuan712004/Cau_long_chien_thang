@@ -232,7 +232,7 @@ class CalendarBlock(BaseModel):
     # booking
     payment_status: PaymentStatus | None = None
     customer_name: str | None = None
-    phone_masked: str | None = None
+    phone: str | None = None
     source: Source | None = None
     # session
     name: str | None = None
@@ -278,7 +278,7 @@ class CounterBookingIn(StrictIn):
 
 class ItemCustomer(BaseModel):
     name: str
-    phone_masked: str | None
+    phone: str | None
     profile_label: str = Field(description='"Hồ sơ tạm" hoặc "Hội viên (HV0087 · Hạng Khá)"')
     kind: CustomerKind
     member_code: str | None
@@ -363,7 +363,7 @@ class ResourceRef(BaseModel):
 class SessionTicket(BaseModel):
     code: str
     customer_name: str
-    phone_masked: str | None
+    phone: str | None
     source: Source
     payment_status: PaymentStatus
     amount: int
@@ -424,7 +424,7 @@ class TransactionRow(BaseModel):
     end_time: str
     resource_codes: list[str]
     customer_name: str
-    phone_masked: str | None
+    phone: str | None
     amount: int
     payment_status: PaymentStatus
     payment_method: PaymentMethod | None

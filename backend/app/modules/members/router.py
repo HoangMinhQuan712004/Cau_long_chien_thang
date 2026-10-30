@@ -46,7 +46,7 @@ async def search_members(
     session: SessionDep,
     q: Annotated[str, Query(min_length=1, max_length=50)],
 ):
-    """Tìm hội viên theo mã / tên / SĐT (≥ 3 chữ số) – tối đa 20 dòng, SĐT đã che."""
+    """Tìm hội viên theo mã / tên / SĐT (≥ 3 chữ số) – tối đa 20 dòng, SĐT đầy đủ."""
     return await api.search_members(session, q)
 
 
@@ -72,7 +72,7 @@ async def list_members(
 ):
     """Hội viên + hồ sơ tạm: lọc (q, kind, status, tier, racket), phân trang, đếm theo loại.
 
-    SĐT đã che, không lộ id. ``counts`` áp mọi bộ lọc trừ ``kind``.
+    SĐT đầy đủ, không lộ id. ``counts`` áp mọi bộ lọc trừ ``kind``.
     """
     return await listing.list_members(
         session,
@@ -114,7 +114,7 @@ async def create_temp(data: TempCreateIn, principal: MemberManager, session: Ses
 
 @router.get("/{ref}", response_model=MemberDetail)
 async def get_member(ref: str, principal: MemberManager, session: SessionDep):
-    """Chi tiết: SĐT đầy đủ (ghi nhật ký), số lượt, tổng phút, 5 lượt gần nhất. 404 E-NOT-FOUND."""
+    """Chi tiết, số lượt, tổng phút, 5 lượt gần nhất (ghi nhật ký). 404 E-NOT-FOUND."""
     return await listing.get_detail(session, _actor(principal), ref, _can(principal))
 
 

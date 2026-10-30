@@ -21,7 +21,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 | `Idempotency-Key` | Bắt buộc cho mọi `POST/PUT/PATCH/DELETE` của booking engine và `/front-desk/**`, **trừ `POST /booking/quote`** |
 | Rate limit | Toàn API `RATE_LIMIT_PER_MINUTE` (mặc định 120) lượt/phút/IP. Riêng 60 lượt/phút/người cho `POST /booking/quote`, `GET /booking/search`, `GET /members/search`. Vượt → 429 `E-SEC-5` + header `Retry-After` (giây) |
 | Nhật ký | Mọi lệnh ghi thành công ghi đúng 1 dòng `audit_log` (chỉ thêm, không sửa; xóa chỉ dòng quá 12 tháng). Ngoại lệ: đặt quầy kèm hồ sơ tạm **mới** ghi 2 dòng (`member.temp.create` và `booking.counter.create`). Thao tác bị chặn không ghi |
-| Dữ liệu cá nhân | Không response nào trả SĐT đầy đủ, `id` nội bộ hay `customer_ref`. SĐT luôn che dạng `0987 xxx 321` (`phone_masked`) |
+| Dữ liệu cá nhân | Không response nào trả `id` nội bộ hay `customer_ref`. API quản trị/nhân viên (lịch, chi tiết đơn, vé, giao dịch, hội viên) trả SĐT **đầy đủ** (`phone`) cho cả Admin lẫn nhân viên. Trang khách (`/web/booking/**`) vẫn che dạng `0987 xxx 321` (`phone_masked`); log và Zalo luôn che |
 
 ### Idempotency-Key
 
@@ -174,7 +174,7 @@ Quyền theo bảng mục 3. "Hôm nay" tính theo `Asia/Ho_Chi_Minh`.
 |---|---|---|
 | GET | `/api/v1/booking/calendar?date=YYYY-MM-DD` | Lịch một ngày: `{date, now, is_past, columns[], resources[], blocks[], unpaid_count, can}` |
 | GET | `/api/v1/booking/search?code=` | Tìm **chính xác** theo mã (bỏ khoảng trắng, không phân biệt hoa thường) → `{kind: booking\|ticket\|session, code, play_date}`; không thấy → 404 `E-021` |
-| GET | `/api/v1/members/search?q=` | Tối đa 20 hội viên `{ref, member_code, name, phone_masked, tier, is_active}`; tìm theo mã, tên hoặc SĐT (≥ 3 chữ số), gồm cả hội viên Ngừng |
+| GET | `/api/v1/members/search?q=` | Tối đa 20 hội viên `{ref, member_code, name, phone, tier, is_active}`; tìm theo mã, tên hoặc SĐT (≥ 3 chữ số), gồm cả hội viên Ngừng |
 | POST | `/api/v1/front-desk/bookings` → 201 | Đặt sân tại quầy. Body `{resource_code, date, start_hour, end_hour, customer}` → `ItemOut` |
 | GET | `/api/v1/booking/items/{code}` | Thông tin booking hoặc vé → `ItemOut` |
 | POST | `/api/v1/booking/sessions` → 201 | Tạo sự kiện (Admin). Body `{resource_codes[], date, start_hour, end_hour, name, capacity, ticket_price}` → `SessionOut` |
@@ -198,7 +198,7 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 - `columns[]`: các giờ bắt đầu (số nguyên) từ giờ mở sớm nhất đến đóng muộn nhất của các sân; tự nới khi có khối ngoài giờ.
 - `resources[]`: `{code, name, type, is_active, off_hours[]}`; `off_hours` là các giờ ô Xám (ngoài giờ mở hoặc sân Ngừng). Sân ngừng chỉ hiện khi còn chỗ chiếm trong ngày.
 - `blocks[]`: `{type: booking|session|hold, code, resource_codes[], start_time, end_time, start_hour, end_hour}`, thêm:
-  booking → `payment_status, customer_name, phone_masked, source`; sự kiện → `name, taken, capacity, is_full, unpaid_tickets`; giữ chỗ → `expires_at` (`code` là `null`).
+  booking → `payment_status, customer_name, phone, source`; sự kiện → `name, taken, capacity, is_full, unpaid_tickets`; giữ chỗ → `expires_at` (`code` là `null`).
 - `unpaid_count`: số booking + vé Chưa thanh toán của **ngày đang xem**.
 - `can`: `{counter_book, create_session}` – theo quyền của người đang đăng nhập.
 - Xem được ngày đã qua (chỉ xem) và **mọi ngày tương lai** (từ T-008: booking online đặt xa vẫn phải hiện). Từ T-008, Admin tạo sự kiện cho **mọi ngày tương lai** (`can.create_session` = Admin và ngày ≥ hôm nay; ngày đã qua → 422 `E-004`). `can.counter_book` chỉ `true` cho hôm nay.
@@ -207,7 +207,7 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 
 `{kind: booking|ticket, code, version, source, customer, schedule, payment, note?, created_by, created_at, actions[], price_breakdown[]}`:
 
-- `customer`: `{name, phone_masked, profile_label, kind, member_code, tier}`.
+- `customer`: `{name, phone, profile_label, kind, member_code, tier}`.
 - `schedule`: `{resource_codes[], resource_names[], play_date, start_time, end_time, session?}`.
 - `payment`: `{amount, payment_status, payment_method?, paid_at?, collected_by?, uncollectible_reason?, marked_by?, marked_at?}`.
 - `payment_status`: `unpaid` → `paid` hoặc `unpaid` → `uncollectible`. Hai trạng thái cuối **không đổi** (không hủy, không hoàn tiền).
@@ -219,7 +219,7 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 
 `{code, name, play_date, start_time, end_time, resources[], ticket_price, capacity, taken, is_full, status, created_by, created_at, version, tickets[], active_holds[], can}`:
 
-- `tickets[]` (mới nhất trước): `{code, customer_name, phone_masked, source, payment_status, amount, created_at}`. Mã vé `{mã sự kiện}-Vnn`.
+- `tickets[]` (mới nhất trước): `{code, customer_name, phone, source, payment_status, amount, created_at}`. Mã vé `{mã sự kiện}-Vnn`.
 - `taken` = số vé (mọi trạng thái) + chỗ giữ online còn hạn. Đăng ký vé khóa dòng sự kiện nên 20 request tranh chỗ cuối chỉ 1 thành công, còn lại `E-024`.
 - `active_holds[]`: `{seats, expires_at}`. `can`: `{register, delete}`.
 - Xóa sự kiện chỉ khi chưa có vé và chưa có chỗ giữ (xóa mềm, nhả khung); ngược lại 409 `E-023`.
@@ -309,7 +309,7 @@ Module `bookings`, `courts`, `payments` đã xóa khỏi code. Còn giữ: `auth
 
 - Bảng cũ `courts`, `price_rules`, `bookings`, `booking_slots`, `payments` được **đổi tên** thành `legacy_*` bằng migration (**không xóa dữ liệu**, downgrade đổi lại). `alembic check` bỏ qua các bảng `legacy_*`. Xóa hẳn ở một task sau khi người dùng xác nhận.
 - Trước khi lên production cần đếm đơn cũ còn hiệu lực (RELEASE báo người dùng).
-- `GET /admin/users` trả `phone_masked` (ví dụ `0911 xxx 333`) **thay cho** `phone`.
+- `GET /admin/users` đã đổi thành `GET /admin/staff` (mục 11); danh sách nhân viên không có trường SĐT.
 - Trang chủ lấy bảng giá từ `GET /booking/prices/public`; khu đặt online tạm thay bằng thông tin đặt tại quầy cho tới khi có Web khách hàng (T-008).
 
 ## 9. Chạy thử cục bộ

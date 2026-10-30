@@ -8,12 +8,12 @@ from app.core.schemas import StrictIn
 
 
 class MemberSearchItem(BaseModel):
-    """Một dòng kết quả tìm hội viên – SĐT đã che (BR-021), không lộ id nội bộ."""
+    """Một dòng kết quả tìm hội viên – SĐT đầy đủ (màn quản trị), không lộ id nội bộ."""
 
     ref: str = Field(description="Mã tham chiếu để chọn hội viên (= mã hội viên)")
     member_code: str
     name: str
-    phone_masked: str
+    phone: str
     tier: str | None
     is_active: bool
 
@@ -70,13 +70,13 @@ Gender = Literal["male", "female"]
 
 
 class MemberRow(BaseModel):
-    """Một dòng danh sách – SĐT đã che (BR-021); ``ref`` = mã HV hoặc mã tham chiếu hồ sơ tạm."""
+    """Một dòng danh sách – SĐT đầy đủ; ``ref`` = mã HV hoặc mã tham chiếu hồ sơ tạm."""
 
     ref: str
     kind: Kind
     member_code: str | None
     full_name: str
-    phone_masked: str
+    phone: str
     gender: Gender | None
     tier: Tier | None
     racket: str | None
@@ -117,9 +117,8 @@ class MemberBooking(BaseModel):
 
 
 class MemberDetail(MemberRow):
-    """Chi tiết – có SĐT đầy đủ (form Sửa), mỗi lần xem ghi nhật ký ``member.view``."""
+    """Chi tiết hồ sơ (form Sửa), mỗi lần xem ghi nhật ký ``member.view``."""
 
-    phone: str
     note: str | None
     total_minutes: int
     recent_bookings: list[MemberBooking] = Field(description="5 lượt đặt gần nhất")

@@ -75,9 +75,8 @@ async def test_calendar_shows_booking_block_and_unpaid_chip(admin, staff):
     assert block["type"] == "booking" and block["resource_codes"] == [court["code"]]
     assert block["payment_status"] == "unpaid"
     assert block["customer_name"] == "Phạm Thu Trang"
-    assert block["phone_masked"] == "0987 xxx 087"
+    assert block["phone"] == "0987654087"  # màn quản trị: SĐT đầy đủ
     assert (block["start_hour"], block["end_hour"]) == (hour, hour + 1)
-    assert "0987654087" not in str(cal)
 
 
 # ------------------------------------------------------------------ tìm hội viên (BR-007)
@@ -95,11 +94,11 @@ async def test_member_search(staff):
     by_phone = await search("0938 120")  # SĐT có khoảng trắng
     assert [m["member_code"] for m in by_phone] == ["HV0120"]
     assert by_phone[0]["is_active"] is False  # hội viên Ngừng vẫn hiện
-    assert by_phone[0]["phone_masked"] == "0938 xxx 777"
+    assert by_phone[0]["phone"] == "0938120777"
     assert await search("Lê Thị Lan") == []  # hồ sơ tạm không nằm trong danh sách hội viên
     assert await search("%") == []  # ký tự đại diện không lọt vào LIKE
     for row in await search("HV"):
-        assert set(row) == {"ref", "member_code", "name", "phone_masked", "tier", "is_active"}
+        assert set(row) == {"ref", "member_code", "name", "phone", "tier", "is_active"}
     r = await staff.get(f"{API}/members/search", params={"q": ""})
     assert r.status_code == 422
 
@@ -124,7 +123,7 @@ async def test_counter_booking_member(admin, staff):
     assert item["kind"] == "booking" and item["source"] == "counter" and item["version"] == 1
     assert item["customer"] == {
         "name": "Phạm Thu Trang",
-        "phone_masked": "0987 xxx 087",
+        "phone": "0987654087",
         "profile_label": "Hội viên (HV0087 · Hạng Trung bình +)",
         "kind": "member",
         "member_code": "HV0087",

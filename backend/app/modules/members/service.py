@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor, audit
 from app.core.errors import AppError
-from app.core.privacy import mask_phone
 from app.modules.members.models import Customer
 from app.modules.members.schemas import CustomerIn, CustomerProfile, MemberSearchItem
 
@@ -76,7 +75,7 @@ async def search_members(session: AsyncSession, q: str) -> list[MemberSearchItem
             ref=c.member_code,
             member_code=c.member_code,
             name=c.full_name,
-            phone_masked=mask_phone(c.phone),
+            phone=c.phone,
             tier=c.tier,
             is_active=c.is_active,
         )
