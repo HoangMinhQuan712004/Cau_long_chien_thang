@@ -592,6 +592,6 @@ async def test_quote_not_sold(admin):
         assert r.status_code == 422, body
         assert r.json()["detail"]["code"] == "E-CFG-10"
     r = await admin.post(
-        f"{BK}/quote", json={"resource_code": "S77", "date": day, "start_hour": 8, "end_hour": 9}
+        f"{BK}/quote", json={"resource_code": "SX9999", "date": day, "start_hour": 8, "end_hour": 9}
     )
     assert r.status_code == 404
