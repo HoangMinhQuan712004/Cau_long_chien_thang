@@ -225,6 +225,7 @@
     "expand": "Mở rộng menu",
     "logout": "Đăng xuất",
     "auditLog": "Lịch sử thao tác",
+    "forbidden": "Bạn không có quyền vào trang này.",
     "pendingMoney": "{n} giao dịch chưa xử lý",
     "items": {
       "datSan": "Đặt sân",
@@ -243,7 +244,46 @@
   "auditLog": {
     "metaTitle": "Lịch sử thao tác",
     "title": "Lịch sử thao tác",
-    "description": "Thao tác ở trang quản trị trong 12 tháng gần nhất. Không sửa, không xóa được."
+    "description": "Thao tác ở trang quản trị trong 12 tháng gần nhất. Không sửa, không xóa được.",
+    "filters": {
+      "from": "Từ ngày",
+      "to": "Đến ngày",
+      "actor": "Người làm",
+      "action": "Loại thao tác",
+      "filterBar": {
+        "activeCount": "{n} bộ lọc đang bật",
+        "all": "Tất cả",
+        "clear": "Xóa lọc",
+        "remove": "Bỏ lọc {label}"
+      }
+    },
+    "columns": {
+      "at": "Thời điểm",
+      "actor": "Người làm",
+      "action": "Thao tác",
+      "target": "Đối tượng",
+      "changes": "Giá trị trước → sau"
+    },
+    "empty": "(trống)",
+    "noValue": "—",
+    "more": "Xem thêm ({n})",
+    "less": "Thu gọn",
+    "becomes": "thành",
+    "viewStaff": "Xem nhân viên {code}",
+    "showing": "Hiển thị {from}–{to} / {total} thao tác",
+    "pageSizeLabel": "Số dòng mỗi trang",
+    "pageSizeOption": "Hiển thị {n} dòng",
+    "noMatch": {
+      "title": "Không có thao tác nào khớp bộ lọc.",
+      "text": "Đổi khoảng thời gian, người làm hoặc loại thao tác."
+    },
+    "loadError": "Không tải được lịch sử thao tác. Tải lại trang hoặc đổi bộ lọc để thử lại.",
+    "pagination": {
+      "label": "Phân trang",
+      "prev": "Trang trước",
+      "next": "Trang sau",
+      "page": "Trang {n}"
+    }
   },
   "members": {
     "metaTitle": "Hội viên",

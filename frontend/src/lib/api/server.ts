@@ -20,6 +20,10 @@ export type MemberList = components["schemas"]["MemberListOut"];
 export type MemberRow = components["schemas"]["MemberRow"];
 export type MemberDetail = components["schemas"]["MemberDetail"];
 export type Racket = components["schemas"]["RacketOut"];
+export type AuditLogPage = components["schemas"]["AuditLogPageOut"];
+export type AuditEntry = components["schemas"]["AuditEntryOut"];
+export type AuditCatalog = components["schemas"]["AuditCatalogOut"];
+export type AuditActorKind = AuditEntry["actor"];
 export type MemberTier = NonNullable<components["schemas"]["MemberRow"]["tier"]>;
 /** Giá trị `tier` khi lọc danh sách (8 hạng + "chưa xếp hạng"). */
 export type MemberTierFilter = NonNullable<NonNullable<paths["/api/v1/members"]["get"]["parameters"]["query"]>["tier"]>;
