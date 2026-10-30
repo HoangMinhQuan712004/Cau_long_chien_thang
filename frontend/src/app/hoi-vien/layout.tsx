@@ -29,11 +29,9 @@ async function Gate({ children }: { children: React.ReactNode }) {
   if ((await cookies()).has("admin_session")) redirect("/admin");
 
   // Tài khoản do sân tạo còn mật khẩu ban đầu (= SĐT) ⇒ đổi mật khẩu trước khi vào khu hội viên
-  if (process.env.NEXT_PUBLIC_MEMBER_AREA_MOCK !== "1") {
-    const { user, expired } = await readCurrentUser();
-    if (expired) redirect("/quen-mat-khau");
-    if (user?.must_change_password) redirect("/doi-mat-khau");
-  }
+  const { user, expired } = await readCurrentUser();
+  if (expired) redirect("/quen-mat-khau");
+  if (user?.must_change_password) redirect("/doi-mat-khau");
 
   const res = await getMemberMe();
   if (!res.ok) {
@@ -41,6 +39,7 @@ async function Gate({ children }: { children: React.ReactNode }) {
     const path = safeNext((await headers()).get("x-pathname"), "/hoi-vien/ho-so");
     if (res.status === 401) redirect(`/dang-nhap?next=${encodeURIComponent(path)}&ly-do=het-han`);
     if (res.code === "E-AUTH-25") redirect("/doi-mat-khau");
+    if (res.code === "E-AUTH-30") redirect("/quen-mat-khau");
     if (res.status === 403) redirect("/tai-khoan");
     return (
       <div className="mx-auto max-w-md p-8 text-center" role="alert">

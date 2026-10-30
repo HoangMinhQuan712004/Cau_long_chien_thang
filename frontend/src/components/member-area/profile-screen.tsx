@@ -209,7 +209,7 @@ function CourtLines() {
 
 // `tier` / `racket` rỗng = chưa chọn; `racket` = RACKET_OTHER ⇒ tên gõ ở `racketOther` (BE tự thêm vào danh mục)
 type Values = { full_name: string; nickname: string; email: string; tier: string; racket: string; racketOther: string; show_on_records: boolean };
-type Errors = { full_name?: string; nickname?: string; email?: string; tier?: string };
+type Errors = { full_name?: string; nickname?: string; email?: string; tier?: string; racket?: string };
 
 const toValues = (m: MemberMe): Values => ({
   full_name: m.full_name,
@@ -272,8 +272,9 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
   }
 
   function focusFirst(e: Errors) {
-    const first = (["full_name", "nickname", "email", "tier"] as const).find((k) => e[k]);
+    const first = (["full_name", "nickname", "email", "tier", "racket"] as const).find((k) => e[k]);
     if (first === "tier") document.getElementById(ids.tier)?.focus();
+    else if (first === "racket") document.getElementById(v.racket === RACKET_OTHER ? `${ids.racket}-other` : ids.racket)?.focus();
     else if (first === "full_name") nameRef.current?.focus();
     else if (first === "nickname") nickRef.current?.focus();
     else if (first === "email") emailRef.current?.focus();
@@ -316,6 +317,12 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
         window.location.replace("/doi-mat-khau");
         return;
       }
+      if (code === "E-AUTH-30") {
+        // Mật khẩu ban đầu hết hạn ⇒ dùng Quên mật khẩu
+        setDirty(false);
+        window.location.replace("/quen-mat-khau");
+        return;
+      }
       if (code === "E-HV-8" || status === 403) {
         setDirty(false);
         window.location.replace("/tai-khoan");
@@ -324,7 +331,7 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
       const list = (res.error.extra.fields as { field?: string; message?: string }[] | undefined) ?? [];
       const next: Errors = {};
       for (const f of list) {
-        const k = f.field === "full_name" || f.field === "nickname" || f.field === "email" || f.field === "tier" ? f.field : null;
+        const k = f.field === "full_name" || f.field === "nickname" || f.field === "email" || f.field === "tier" || f.field === "racket" ? f.field : null;
         if (k && f.message && !next[k]) next[k] = f.message;
       }
       if (!list.length && code === "E-HV-11") next.email = res.error.message;
@@ -451,10 +458,12 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
                 placeholder="Chọn vợt"
                 options={[...racketOptions, { value: RACKET_OTHER, label: "Khác…" }]}
               />
+              {v.racket === RACKET_OTHER ? null : showErr("racket")}
             </Row>
             {v.racket === RACKET_OTHER ? (
               <Row label="Tên vợt khác" htmlFor={`${ids.racket}-other`}>
-                <Input id={`${ids.racket}-other`} value={v.racketOther} maxLength={100} autoComplete="off" onChange={(e) => set("racketOther", e.target.value)} />
+                <Input id={`${ids.racket}-other`} value={v.racketOther} maxLength={100} autoComplete="off" onChange={(e) => set("racketOther", e.target.value)} {...err("racket")} />
+                {showErr("racket")}
               </Row>
             ) : null}
             <div className="flex items-start justify-between gap-4 border-t border-border pt-4">

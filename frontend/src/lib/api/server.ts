@@ -4,7 +4,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import createClient from "openapi-fetch";
-import { MOCK_ME } from "@/components/member-area/mock";
 import type { MemberMe } from "@/components/member-area/types";
 import type { components, paths } from "./schema";
 
@@ -136,7 +135,6 @@ export async function authedGetJson<T>(
  * E-AUTH-25 chưa đổi mật khẩu ban đầu. Một lần mỗi request.
  */
 export const getMemberMe = cache(async (): Promise<{ ok: true; data: MemberMe } | { ok: false; status: number; code?: string }> => {
-  if (process.env.NEXT_PUBLIC_MEMBER_AREA_MOCK === "1") return { ok: true, data: MOCK_ME };
   const cookieHeader = (await cookies()).toString();
   try {
     const res = await fetch(`${BACKEND_URL}/api/v1/member-area/me`, { headers: { cookie: cookieHeader }, cache: "no-store" });
