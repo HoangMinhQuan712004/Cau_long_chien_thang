@@ -224,6 +224,7 @@
     "collapse": "Thu gọn menu",
     "expand": "Mở rộng menu",
     "logout": "Đăng xuất",
+    "auditLog": "Lịch sử thao tác",
     "pendingMoney": "{n} giao dịch chưa xử lý",
     "items": {
       "datSan": "Đặt sân",
@@ -238,6 +239,11 @@
       "QUẢN LÝ SÂN",
       "CẦU LÔNG"
     ]
+  },
+  "auditLog": {
+    "metaTitle": "Lịch sử thao tác",
+    "title": "Lịch sử thao tác",
+    "description": "Thao tác ở trang quản trị trong 12 tháng gần nhất. Không sửa, không xóa được."
   },
   "members": {
     "metaTitle": "Hội viên",

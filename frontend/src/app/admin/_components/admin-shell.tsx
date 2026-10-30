@@ -49,7 +49,7 @@ export function AdminShell({ children, initialCollapsed, ...sidebar }: Props) {
           <span className="truncate text-sm font-bold">{t.brand}</span>
         </Link>
         <div className="ml-auto shrink-0">
-          <AccountMenu name={sidebar.name} roleLabel={sidebar.roleLabel} t={t} />
+          <AccountMenu role={sidebar.role} name={sidebar.name} roleLabel={sidebar.roleLabel} t={t} />
         </div>
       </header>
 
