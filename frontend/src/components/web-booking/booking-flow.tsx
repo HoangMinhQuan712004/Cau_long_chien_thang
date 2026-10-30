@@ -9,6 +9,7 @@ import { api } from "@/lib/api/client";
 import { errorText, write } from "@/lib/api/write";
 import { formatLongDate, formatVnd } from "@/lib/format";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
+import { MemberHint } from "./member-hint";
 import { BookingPhoneOtp } from "./phone-otp";
 import { getWebCalendar, requestBookingPhone, sendCheckout } from "./requests";
 import { MAX_CELLS, RESTORE_KEY, type Cell, type WebCalendar } from "./types";
@@ -125,6 +126,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
   // Bước nhập OTP (đang mở khi != null); khách đăng nhập đã xác minh SĐT thì bỏ qua (AC26)
   const [otp, setOtp] = useState<{ phone: string; resendAt: number | null; testOtp: string | null } | null>(null);
   const [me, setMe] = useState<Me | null>(null);
+  const [isGuest, setIsGuest] = useState(false); // /auth/me trả 401 ⇒ chưa đăng nhập (hiện gợi ý hội viên)
   // SĐT đã có phone_token (chỉ để đổi nhãn nút / hiện "đã xác minh"); hạn thật được kiểm lại lúc bấm nút
   const rawToken = useSyncExternalStore(subscribeToken, readTokenRaw, () => null);
   const verifiedPhone = useMemo(() => {
@@ -288,7 +290,8 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
     api
       .GET("/api/v1/auth/me")
       .then(({ data }) => {
-        if (!data) return;
+        if (!data) return setIsGuest(true);
+        setIsGuest(false); // trang có thể được giữ lại (Activity) từ lúc chưa đăng nhập: bỏ cờ cũ
         setMe({ full_name: data.full_name, phone: data.phone ?? null, phone_verified: data.phone_verified });
         setForm((f) => ({ ...f, name: f.name || data.full_name, phone: f.phone || data.phone || "" }));
       })
@@ -425,6 +428,8 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
           </div>
         </section>
 
+        {isGuest ? <MemberHint next={`/dat-san?ngay=${date}`} /> : null}
+
         <section className="rounded-2xl border border-border bg-surface p-5">
           <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">Phiếu nhập thông tin</h3>
           <div className="mt-3 space-y-4">
@@ -506,9 +511,11 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
               initialResendAt={otp.resendAt}
               initialTestOtp={otp.testOtp}
               onChangePhone={() => setOtp(null)}
-              onVerified={(token, expiresAt) => {
+              onVerified={(token, expiresAt, accountVerified) => {
                 writeJson(PHONE_TOKEN_KEY, { phone: otp.phone, token, expiresAt } satisfies PhoneToken);
                 notifyToken();
+                // BE đã đánh dấu SĐT của tài khoản là đã xác minh ⇒ lần đặt sau bỏ OTP (AC40)
+                if (accountVerified && me?.phone && normalizePhone(me.phone) === otp.phone) setMe({ ...me, phone_verified: true });
                 setOtp(null);
                 void submit(token); // đã xác minh: giữ chỗ + tạo thanh toán luôn
               }}

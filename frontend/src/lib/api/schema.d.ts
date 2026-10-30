@@ -1107,6 +1107,7 @@ export interface paths {
          * Phone Verify
          * @description Mã đúng -> ``phone_token`` (30 phút, dùng cho nhiều lượt đặt của SĐT này trong hạn).
          *
+         *     Khách đang đăng nhập có SĐT tài khoản trùng -> ``account_verified`` (T-013 AC40).
          *     Lỗi: E-WEB-1 (SĐT sai), E-AUTH-14 (sai mã, ``attempts_left``), E-AUTH-15 (mã hết hiệu lực).
          */
         post: operations["phone_verify_api_v1_web_booking_phone_verify_post"];
@@ -2165,6 +2166,12 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+            /**
+             * Account Verified
+             * @description Khách đang đăng nhập có SĐT trùng SĐT vừa xác minh -> tài khoản đã xác minh, lần đặt sau không cần OTP (cả khi đã xác minh từ trước)
+             * @default false
+             */
+            account_verified: boolean;
         };
         /** PhoneVerifyIn */
         PhoneVerifyIn: {

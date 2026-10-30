@@ -1,15 +1,19 @@
-"""T-013 mốc 2: xác minh SĐT trước khi đặt online – ``phone_token`` (AC24–AC27, SEC8)."""
+"""T-013: xác minh SĐT trước khi đặt online – ``phone_token`` (AC24–AC27, AC40, SEC8)."""
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import update
+from sqlalchemy import func, select, update
 
+from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.modules.auth import google
 from app.modules.auth.models import OtpCode, OtpPurpose, User
-from tests.conftest import new_customer
+from tests.conftest import API, new_customer
 from tests.helpers_booking import new_court, random_phone
 from tests.helpers_web import WEB, checkout, phone_token, web_calendar
+from tests.test_customer_accounts import _KEY, CLIENT_ID, google_customer
 
 
 async def request_code(client, phone: str):
@@ -148,3 +152,90 @@ async def test_no_otp_channel_disables_online(anon, admin, monkeypatch):
     for name in ("ZALO_APP_ID", "ZALO_SECRET_KEY", "ZALO_REFRESH_TOKEN", "ZALO_TEMPLATE_OTP"):
         monkeypatch.setattr(settings, name, "x")
     assert (await web_calendar(anon)).json()["online_enabled"] is True
+
+
+# ------------------------------------------------------------------ AC40: xác minh tài khoản
+
+
+async def verify_booking_phone(client, phone: str):
+    r = await request_code(client, phone)
+    assert r.status_code == 202, r.text
+    r = await client.post(f"{WEB}/phone/verify", json={"phone": phone, "otp": r.json()["test_otp"]})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def account(phone: str | None = None, user_id: int | None = None) -> User:
+    async with SessionLocal() as s:
+        q = (
+            select(User).where(User.phone == phone)
+            if phone
+            else select(User).where(User.id == user_id)
+        )
+        return await s.scalar(q)
+
+
+async def phone_verified_audits(user_id: int) -> int:
+    async with SessionLocal() as s:
+        return await s.scalar(
+            select(func.count()).where(
+                AuditLog.action == "auth.phone_verified", AuditLog.entity_code == str(user_id)
+            )
+        )
+
+
+async def test_signed_in_customer_verifies_own_phone_while_booking(admin, monkeypatch):
+    court = await new_court(admin)
+    phone = random_phone()
+    async with new_customer(phone) as c:
+        user = await account(phone)
+        assert user.phone_verified_at is None
+        # Nhập SĐT kiểu khác vẫn trùng sau chuẩn hóa
+        body = await verify_booking_phone(c, f"+84 {phone[1:]}")
+        assert body["account_verified"] is True
+        user = await account(phone)
+        assert user.phone_verified_at is not None
+        assert await phone_verified_audits(user.id) == 1
+        assert (await c.get(f"{API}/auth/me")).json()["phone_verified"] is True
+        # Lần đặt sau không cần phone_token
+        r = await checkout(c, [(court["code"], 9)], phone=phone, phone_token=None)
+        assert r.status_code == 201, r.text
+
+        # Đã xác minh từ trước -> vẫn true, không ghi nhật ký lần nữa
+        monkeypatch.setattr(settings, "OTP_RESEND_SECONDS", 0)
+        body = await verify_booking_phone(c, phone)
+        assert body["account_verified"] is True
+        assert await phone_verified_audits(user.id) == 1
+
+
+async def test_other_phone_or_anonymous_does_not_verify_account(anon):
+    phone = random_phone()
+    async with new_customer(phone) as c:
+        body = await verify_booking_phone(c, random_phone())
+        assert body["account_verified"] is False
+        # Không đăng nhập xác minh đúng SĐT của tài khoản -> tài khoản không đổi
+        body = await verify_booking_phone(anon, phone)
+        assert body["account_verified"] is False
+        user = await account(phone)
+        assert user.phone_verified_at is None
+        assert await phone_verified_audits(user.id) == 0
+        assert (await c.get(f"{API}/auth/me")).json()["phone_verified"] is False
+
+
+async def test_account_without_phone_is_not_attached(monkeypatch):
+    sub = str(uuid.uuid4().int)[:21]
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", CLIENT_ID)
+    monkeypatch.setattr(google, "_signing_key", lambda _credential: _KEY.public_key())
+    async with google_customer(sub) as c:
+        user_id = (await c.get(f"{API}/auth/me")).json()["id"]
+        phone = random_phone()
+        body = await verify_booking_phone(c, phone)
+        assert body["account_verified"] is False
+        user = await account(user_id=user_id)
+        assert user.phone is None and user.phone_verified_at is None
+        assert await account(phone) is None
+
+
+async def test_admin_session_does_not_verify(admin):
+    body = await verify_booking_phone(admin, random_phone())
+    assert body["account_verified"] is False
