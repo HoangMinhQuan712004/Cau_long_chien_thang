@@ -554,7 +554,8 @@ async def test_ac6_every_booking_belongs_to_an_order_with_unique_child_numbers()
     assert dup == []
     wrong = await db(
         "SELECT b.code FROM booking.booking b JOIN booking.booking_order o ON o.id=b.order_id "
-        "WHERE b.code <> o.code || '-' || lpad(b.seq::text, 2, '0') LIMIT 5"
+        "WHERE o.code ~ '^BK-[0-9]{8}-[0-9]{3}$' "  # bỏ dòng test khác nạp thẳng bằng mã giả (BK-TEST-001…)
+        "AND b.code <> o.code || '-' || lpad(b.seq::text, 2, '0') LIMIT 5"
     )
     assert wrong == [], "child code = order code + '-' + 2-digit seq"
 
