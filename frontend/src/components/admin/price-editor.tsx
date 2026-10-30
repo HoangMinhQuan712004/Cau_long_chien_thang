@@ -171,7 +171,7 @@ export function PriceEditor({ table, resources }: { table: PriceTable; resources
         </div>
       </div>
 
-      <div className="sticky bottom-0 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3">
+      <div data-bottom-bar className="sticky bottom-0 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3">
         <p className="text-xs text-muted">
           Giá mới áp cho khung chưa đặt; khung đã đặt giữ giá cũ. Nút Lưu bật khi có ô thay đổi.
         </p>
