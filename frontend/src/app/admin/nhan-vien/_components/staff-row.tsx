@@ -14,6 +14,8 @@ type OpenPanel = "name" | "password" | "sessions";
 type Props = {
   t: StaffTexts;
   staff: Staff;
+  /** Dòng được mở từ link `?ma=`: tô nổi + aria-current. */
+  isFocused?: boolean;
   onChanged: () => void;
   onNotice: (text: string) => void;
 };
@@ -24,7 +26,7 @@ const LOCK_CONFIRM_MS = 5000;
 export const STAFF_COLUMNS =
   "md:grid-cols-[minmax(0,0.6fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]";
 
-export function StaffRow({ t, staff, onChanged, onNotice }: Props) {
+export function StaffRow({ t, staff, isFocused = false, onChanged, onNotice }: Props) {
   const [panel, setPanel] = useState<OpenPanel | null>(null);
   const [isLockArmed, setIsLockArmed] = useState(false);
   const { isPending, error, setError, submit } = useStaffSubmit(t);
@@ -63,7 +65,16 @@ export function StaffRow({ t, staff, onChanged, onNotice }: Props) {
   };
 
   return (
-    <li className="flex flex-col gap-3 p-4">
+    <li
+      id={`nhan-vien-${staff.staff_code}`}
+      tabIndex={isFocused ? -1 : undefined}
+      aria-current={isFocused ? "true" : undefined}
+      className={cn(
+        "flex flex-col gap-3 p-4 outline-none",
+        // Viền trái primary + nền nhạt: chỉ dòng được mở từ link
+        isFocused && "border-l-4 border-l-primary bg-primary-softer",
+      )}
+    >
       <div className={cn("grid grid-cols-2 gap-3 md:items-center md:gap-4", STAFF_COLUMNS)}>
         <Cell label={t.colCode}>
           <span className="font-semibold tabular-nums">{staff.staff_code}</span>
