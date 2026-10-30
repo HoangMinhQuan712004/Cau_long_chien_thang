@@ -17,6 +17,8 @@ export type FilterDef = {
   onChange: (value: string) => void;
   /** Giá trị "Tất cả" (không lọc); mặc định "all". */
   allValue?: string;
+  /** "tree": nhóm thu gọn / mở như cây thư mục (xem Dropdown). */
+  variant?: "default" | "tree";
   /** Bề rộng ô (vd `lg:w-52`): từ lg nên cố định để đổi lọc không làm hàng nhảy. */
   className?: string;
 };
@@ -28,27 +30,36 @@ type FilterBarTexts = {
   activeCount: string;
   /** "Bỏ lọc {label}" */
   remove: string;
-  clearSearch: string;
 };
 
-type FilterBarProps = {
-  /** `value` là giá trị đang áp (trên URL); ô tự giữ chữ đang gõ và gọi `onChange` sau khi ngừng gõ. */
-  search: { value: string; onChange: (value: string) => void; label: string; placeholder: string; maxLength?: number };
+type SearchDef = { value: string; onChange: (value: string) => void; label: string; placeholder: string; maxLength?: number };
+
+// Có ô tìm ⇒ bắt buộc có tên nút ✕ của ô (`t.clearSearch`); không có ô tìm thì không cần
+type SearchProps =
+  | {
+      /** `value` là giá trị đang áp (trên URL); ô tự giữ chữ đang gõ và gọi `onChange` sau khi ngừng gõ. */
+      search: SearchDef;
+      t: FilterBarTexts & { clearSearch: string };
+    }
+  | { search?: undefined; t: FilterBarTexts };
+
+type FilterBarProps = SearchProps & {
   filters: readonly FilterDef[];
   /** Bỏ mọi bộ lọc trong `filters` (nút "Xóa lọc"); ô tìm thanh lọc tự xóa. */
   onClear: () => void;
-  t: FilterBarTexts;
+  /** Số bộ lọc nằm ngoài thanh (vd khoảng ngày) đang khác mặc định, cộng vào số trên nút Xóa lọc. */
+  extraCount?: number;
 };
 
 /** Thanh lọc: ô tìm, rồi các ô chọn "Hạng: Khá" (đang lọc tô màu + ✕) và nút Xóa lọc có số; từ xl tất cả một hàng. */
-export function FilterBar({ search, filters, onClear, t }: FilterBarProps) {
-  const [draft, setDraft] = useSearchDraft(search.value, search.onChange);
+export function FilterBar({ search, filters, onClear, extraCount = 0, t }: FilterBarProps) {
+  const [draft, setDraft] = useSearchDraft(search?.value ?? "", (q) => search?.onChange(q));
   const allOf = (f: FilterDef) => f.allValue ?? "all";
   const isOn = (f: FilterDef) => f.value !== allOf(f);
   const optionsOf = (f: FilterDef) => [{ value: allOf(f), label: t.all }, ...f.options];
   const labelOf = (f: FilterDef) => optionsOf(f).find((o) => o.value === f.value)?.label ?? f.value;
   // Ô tìm có chữ tính là 1 lọc
-  const count = filters.filter(isOn).length + (search.value !== "" || draft !== "" ? 1 : 0);
+  const count = filters.filter(isOn).length + (search && (search.value !== "" || draft !== "") ? 1 : 0) + extraCount;
   const clearAll = () => {
     setDraft("");
     onClear();
@@ -56,7 +67,7 @@ export function FilterBar({ search, filters, onClear, t }: FilterBarProps) {
 
   return (
     <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-      <Input
+      {search && "clearSearch" in t ? <Input
         compact
         type="search"
         aria-label={search.label}
@@ -72,7 +83,7 @@ export function FilterBar({ search, filters, onClear, t }: FilterBarProps) {
         }}
         clearLabel={t.clearSearch}
         className="xl:min-w-40 xl:flex-1"
-      />
+      /> : null}
       {/*
         Điện thoại: một hàng vuốt ngang (pan-x lẫn pan-y để vẫn cuộn trang dọc được), mép phải mờ dần báo còn nội dung,
         -my-1 py-1 chừa chỗ cho vòng focus trên/dưới (không lùi trái ⇒ mép ô thẳng với ô tìm). Từ sm: xếp hàng tự xuống dòng, bề rộng cố định.
@@ -89,6 +100,7 @@ export function FilterBar({ search, filters, onClear, t }: FilterBarProps) {
             value={f.value}
             onChange={f.onChange}
             options={optionsOf(f)}
+            variant={f.variant}
             renderValue={() => (
               <span className="flex min-w-0 gap-1">
                 <span className={cn("shrink-0 font-normal", isOn(f) ? "text-primary/70" : `
