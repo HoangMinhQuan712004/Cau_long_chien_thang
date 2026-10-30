@@ -3,6 +3,8 @@ import { cacheLife, cacheTag } from "next/cache";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import createClient from "openapi-fetch";
+import { MOCK_ME } from "@/components/member-area/mock";
+import type { MemberMe } from "@/components/member-area/types";
 import type { components, paths } from "./schema";
 
 // OpenAPI sinh `bands` dạng tuple [string, string][] nhưng response thật được kiểu hóa là string[][] – khai báo lại cho khớp.
@@ -103,3 +105,11 @@ export async function authedGetJson<T>(
     return { ok: false, status: 0 };
   }
 }
+
+// ---------- Khu hội viên (T-016) ----------
+
+/** Hồ sơ hội viên của phiên hiện tại. 401 → chưa đăng nhập / hết phiên; 403 (E-HV-8) → chưa là hội viên. Một lần mỗi request. */
+export const getMemberMe = cache(async (): Promise<{ ok: true; data: MemberMe } | { ok: false; status: number }> => {
+  if (process.env.NEXT_PUBLIC_MEMBER_AREA_MOCK === "1") return { ok: true, data: MOCK_ME };
+  return authedGetJson<MemberMe>("/api/v1/member-area/me");
+});

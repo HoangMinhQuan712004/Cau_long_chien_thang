@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useResetOnHide } from "@/hooks/use-reset-on-hide";
 import type { Dictionary } from "@/i18n/dictionaries";
-import { googleSignIn, signIn } from "@/lib/api/auth";
+import { customerDestination, googleSignIn, signIn } from "@/lib/api/auth";
 import { destination, safeNext } from "@/lib/safe-next";
 import { AuthTextLink } from "../../_components/auth-card";
 import { GoogleSignIn } from "./google-sign-in";
@@ -57,7 +57,7 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
       // Trình duyệt chặn bộ nhớ ⇒ vẫn thử một lần
     }
     fetch("/api/v1/auth/refresh", { method: "POST", credentials: "include" })
-      .then((r) => r.ok && router.replace(destination("customer", next)))
+      .then(async (r) => r.ok && router.replace(await customerDestination(next)))
       .catch(() => {});
   }, [canRestore, next, router]);
 
@@ -72,8 +72,12 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
 
   function handleResult(result: Awaited<ReturnType<typeof signIn>>) {
     if (result.ok) {
-      router.replace(destination(result.kind, next));
-      router.refresh();
+      const go = (to: string) => {
+        router.replace(to);
+        router.refresh();
+      };
+      if (result.kind === "customer") void customerDestination(next).then(go);
+      else go(destination(result.kind, next));
       return;
     }
     setIsPending(false);

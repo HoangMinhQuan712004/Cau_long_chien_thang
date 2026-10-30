@@ -50,6 +50,9 @@ async function RedirectIfSignedIn({ searchParams }: Pick<PageProps<"/dang-nhap">
   const admin = await getAdminSession().catch(() => null);
   if (admin?.ok) redirect(destination("admin", next));
   const user = await getCurrentUser().catch(() => null);
-  if (user) redirect(destination("customer", next));
+  if (user) {
+    const isMember = (user as { is_member?: boolean }).is_member === true;
+    redirect(next ? destination("customer", next) : isMember ? "/hoi-vien/ho-so" : "/");
+  }
   return null;
 }

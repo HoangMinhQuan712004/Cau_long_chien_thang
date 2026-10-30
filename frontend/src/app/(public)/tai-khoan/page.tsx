@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { LogoutButton } from "@/components/logout-button";
+import { Alert } from "@/components/ui/alert";
 import { getDictionary } from "@/i18n/dictionaries";
 import { getCurrentUser } from "@/lib/api/server";
 import { phoneHref, site } from "@/lib/site";
@@ -26,6 +27,8 @@ async function Account() {
   if (!user) redirect("/dang-nhap?next=/tai-khoan");
   const dictionary = await getDictionary();
   const t = dictionary.account;
+  // `is_member`: tài khoản đã liên kết hồ sơ hội viên (T-016); bản API cũ chưa có trường này ⇒ không hiện gì
+  const isMember = (user as { is_member?: boolean }).is_member;
 
   return (
     <div className="space-y-6">
@@ -67,6 +70,17 @@ async function Account() {
       </div>
 
       <AccountPhone t={dictionary.phoneVerify} hasPhone={Boolean(user.phone)} />
+
+      {isMember === true ? (
+        <Alert variant="info">
+          Bạn là hội viên.{" "}
+          <Link href="/hoi-vien/ho-so" className="font-semibold underline">
+            Vào khu hội viên
+          </Link>
+        </Alert>
+      ) : isMember === false ? (
+        <Alert variant="info">Bạn chưa là hội viên. Đăng ký hội viên tại quầy để dùng khu hội viên.</Alert>
+      ) : null}
 
       <section className="rounded-card bg-surface p-4 shadow-card sm:p-6">
         <h2 className="text-lg font-semibold">Đặt sân</h2>

@@ -16,6 +16,7 @@ export function Input({ endSlot, className = "", ...props }: InputProps) {
           placeholder:text-subtle
           read-only:bg-background read-only:text-muted
           disabled:cursor-not-allowed disabled:bg-background disabled:text-muted
+          aria-invalid:border-danger
           sm:h-9.5 sm:text-sm
         `,
         endSlot ? "pr-10" : undefined,
