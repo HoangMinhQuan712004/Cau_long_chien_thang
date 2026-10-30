@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import AuditActor, audit
 from app.core.config import settings
 from app.core.errors import AppError
-from app.modules.auth import member_accounts, otp, service
-from app.modules.auth.deps import AuthStateDep, CurrentCustomer
+from app.modules.auth import member_accounts, membership, otp, service
+from app.modules.auth.deps import AuthStateDep, CurrentCustomer, SessionDep
 from app.modules.auth.models import OtpPurpose, Role, User
 
 
@@ -164,3 +164,55 @@ async def _signed_in_customer_id(state: AuthStateDep) -> int | None:
 
 # Dependency: id khách đang đăng nhập bằng JWT (không đăng nhập / phiên Admin, NV -> None)
 SignedInCustomerId = Annotated[int | None, Depends(_signed_in_customer_id)]
+
+
+# ------------------------------------------------------------------ khu hội viên (T-016, ADR-009)
+
+
+@dataclass(frozen=True)
+class LinkedMember:
+    """Khách đang đăng nhập (JWT) có hồ sơ hội viên cùng SĐT."""
+
+    user_id: int
+    customer_id: int
+
+
+async def _current_member(user: CurrentCustomer, session: SessionDep) -> LinkedMember:
+    """401 E-AUTH-1 (chưa đăng nhập / phiên Admin, NV) · 403 E-AUTH-25 / E-AUTH-30 (mật khẩu ban
+    đầu) · 403 E-HV-8 (chưa là hội viên hoặc SĐT chưa xác minh)."""
+    customer_id = await membership.member_profile_id(session, user)
+    if customer_id is None:
+        raise AppError("E-HV-8", "Bạn chưa là hội viên.", 403)
+    return LinkedMember(user.id, customer_id)
+
+
+# Dependency: hồ sơ lấy **theo phiên**, không theo tham số URL (T-016 AC2, SEC1)
+CurrentMember = Annotated[LinkedMember, Depends(_current_member)]
+
+
+async def _optional_member(state: AuthStateDep, session: SessionDep) -> LinkedMember | None:
+    user = state.user
+    if (
+        user is None
+        or state.admin_session is not None
+        or user.must_change_password
+        or member_accounts.initial_password_expired(user)
+    ):
+        return None
+    customer_id = await membership.member_profile_id(session, user)
+    return LinkedMember(user.id, customer_id) if customer_id is not None else None
+
+
+# Dependency: hội viên đang đăng nhập hoặc None (vd. đọc danh mục vợt)
+OptionalMember = Annotated[LinkedMember | None, Depends(_optional_member)]
+
+
+async def is_member(session: AsyncSession, user: User) -> bool:
+    return await membership.member_profile_id(session, user) is not None
+
+
+async def set_full_name(session: AsyncSession, user_id: int, full_name: str) -> None:
+    """Đồng bộ ``users.full_name`` khi hội viên đổi Họ tên (ADR-009 §2). Không commit."""
+    user = await session.get(User, user_id)
+    if user is not None:
+        user.full_name = full_name

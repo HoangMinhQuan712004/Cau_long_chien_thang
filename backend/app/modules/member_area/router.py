@@ -1,0 +1,178 @@
+"""Khu hội viên trên web (T-016 đợt 1, ADR-009) – "Hồ sơ của tôi" + ảnh đại diện.
+
+BFF ghép Xác thực (liên kết tài khoản, đồng bộ Họ tên) + Hội viên (hồ sơ, ảnh). Mọi API lấy hồ sơ
+**theo phiên** (``CurrentMember``), không theo tham số trên URL (SEC1). Ghi cần Origin.
+"""
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, Form, Header, Path, Response, UploadFile, status
+from fastapi.responses import Response as RawResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.audit import AuditActor
+from app.core.config import settings
+from app.core.db import SessionDep
+from app.core.middleware import require_origin
+from app.core.ratelimit import rate_limit
+from app.modules.auth import api as auth
+from app.modules.member_area.schemas import AvatarOut, MemberMeIn, MemberMeOut
+from app.modules.members import api as members
+
+router = APIRouter(prefix="/member-area", tags=["member-area"])
+
+AVATAR_CACHE = "public, max-age=31536000, immutable"
+
+
+def no_store(response: Response) -> None:
+    response.headers["Cache-Control"] = "no-store"
+
+
+def avatar_url(customer_id: int, etag: str | None) -> str | None:
+    if etag is None:
+        return None
+    return f"{settings.API_PREFIX}/member-area/avatars/{customer_id}?v={etag}"
+
+
+def short_name(full_name: str) -> str:
+    words = full_name.split()
+    return words[-1] if words else full_name
+
+
+def to_out(p: members.SelfProfile) -> MemberMeOut:
+    return MemberMeOut(
+        member_code=p.member_code,
+        full_name=p.full_name,
+        short_name=short_name(p.full_name),
+        nickname=p.nickname,
+        email=p.email,
+        phone=p.phone,
+        joined_at=p.joined_at.astimezone(settings.tz).date(),
+        tier=p.tier,
+        racket=p.racket,
+        show_on_records=p.show_on_records,
+        avatar_url=avatar_url(p.customer_id, p.avatar_etag),
+        version=p.version,
+    )
+
+
+async def _profile(session: AsyncSession, member: auth.LinkedMember) -> members.SelfProfile:
+    profile = await members.get_self_profile(session, member.customer_id)
+    if profile is None:  # liên kết trỏ tới hồ sơ không còn là hội viên – phòng hờ
+        raise members.not_member()
+    return profile
+
+
+def _actor(member: auth.LinkedMember, member_code: str) -> AuditActor:
+    return AuditActor(
+        type="customer", id=member.user_id, label=f"Hội viên (tự sửa) · {member_code}"
+    )
+
+
+@router.get("/me", response_model=MemberMeOut, dependencies=[Depends(no_store)])
+async def get_me(member: auth.CurrentMember, session: SessionDep):
+    """Hồ sơ của tôi (mỗi lần mở đọc bản mới nhất). 401 E-AUTH-1 · 403 E-HV-8 (chưa là hội viên)."""
+    return to_out(await _profile(session, member))
+
+
+@router.put(
+    "/me",
+    response_model=MemberMeOut,
+    dependencies=[Depends(require_origin), Depends(no_store)],
+)
+async def update_me(data: MemberMeIn, member: auth.CurrentMember, session: SessionDep):
+    """Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier),
+    409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi."""
+    current = await _profile(session, member)
+    profile, changed = await members.update_self_profile(
+        session,
+        member.customer_id,
+        members.SelfUpdate(
+            full_name=data.full_name,
+            nickname=data.nickname,
+            email=data.email,
+            tier=data.tier,
+            racket=data.racket,
+            show_on_records=data.show_on_records,
+            version=data.version,
+        ),
+        _actor(member, current.member_code),
+    )
+    if changed:
+        await auth.set_full_name(session, member.user_id, profile.full_name)
+        await session.commit()
+    return to_out(profile)
+
+
+@router.put(
+    "/me/avatar",
+    response_model=AvatarOut,
+    dependencies=[
+        Depends(require_origin),
+        Depends(no_store),
+        Depends(rate_limit("member.avatar", 20, key="user")),
+    ],
+)
+async def upload_avatar(
+    member: auth.CurrentMember,
+    session: SessionDep,
+    file: Annotated[UploadFile, File(description="JPG / PNG / WebP ≤ 5 MB")],
+    crop_x: Annotated[int, Form(ge=0)],
+    crop_y: Annotated[int, Form(ge=0)],
+    crop_size: Annotated[int, Form(ge=1)],
+):
+    """Cắt vuông theo khung (pixel ảnh gốc, sau khi xoay theo EXIF), lưu ngay – không đổi
+    ``version`` của form. 422 E-HV-13 (định dạng / dung lượng / vùng cắt)."""
+    current = await _profile(session, member)
+    data = await file.read(settings.AVATAR_MAX_BYTES + 1)
+    stored = await members.save_avatar(
+        session,
+        member.customer_id,
+        data,
+        members.Crop(crop_x, crop_y, crop_size),
+        _actor(member, current.member_code),
+    )
+    await session.commit()
+    return AvatarOut(avatar_url=avatar_url(member.customer_id, stored.etag))
+
+
+@router.delete(
+    "/me/avatar",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_origin)],
+)
+async def delete_avatar(member: auth.CurrentMember, session: SessionDep):
+    """Xóa ảnh -> về chữ cái. Chưa có ảnh -> vẫn 204."""
+    current = await _profile(session, member)
+    if await members.delete_avatar(
+        session, member.customer_id, _actor(member, current.member_code)
+    ):
+        await session.commit()
+
+
+@router.get(
+    "/avatars/{customer_id}",
+    response_class=RawResponse,
+    responses={200: {"content": {"image/webp": {}}}, 304: {}, 404: {}},
+)
+async def get_avatar(
+    customer_id: Annotated[int, Path(ge=1)],
+    session: SessionDep,
+    if_none_match: Annotated[str | None, Header()] = None,
+    v: str | None = None,
+):
+    """Ảnh đại diện (công khai). ``v`` = etag để phá cache; trả cache 1 năm, ``nosniff``."""
+    stored = await members.load_avatar(session, customer_id)
+    if stored is None:
+        return RawResponse(status_code=404, headers={"Cache-Control": "no-store"})
+    etag = f'"{stored.etag}"'
+    headers = {
+        "ETag": etag,
+        "Cache-Control": AVATAR_CACHE,
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Disposition": "inline",
+    }
+    if if_none_match and etag in [t.strip() for t in if_none_match.split(",")]:
+        return RawResponse(status_code=304, headers=headers)
+    return RawResponse(content=stored.data, media_type=stored.content_type, headers=headers)

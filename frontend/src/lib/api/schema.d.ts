@@ -893,6 +893,76 @@ export interface paths {
         patch: operations["update_member_api_v1_members__ref__patch"];
         trace?: never;
     };
+    "/api/v1/member-area/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Me
+         * @description Hồ sơ của tôi (mỗi lần mở đọc bản mới nhất). 401 E-AUTH-1 · 403 E-HV-8 (chưa là hội viên).
+         */
+        get: operations["get_me_api_v1_member_area_me_get"];
+        /**
+         * Update Me
+         * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier),
+         *     409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
+         */
+        put: operations["update_me_api_v1_member_area_me_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload Avatar
+         * @description Cắt vuông theo khung (pixel ảnh gốc, sau khi xoay theo EXIF), lưu ngay – không đổi
+         *     ``version`` của form. 422 E-HV-13 (định dạng / dung lượng / vùng cắt).
+         */
+        put: operations["upload_avatar_api_v1_member_area_me_avatar_put"];
+        post?: never;
+        /**
+         * Delete Avatar
+         * @description Xóa ảnh -> về chữ cái. Chưa có ảnh -> vẫn 204.
+         */
+        delete: operations["delete_avatar_api_v1_member_area_me_avatar_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/avatars/{customer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Avatar
+         * @description Ảnh đại diện (công khai). ``v`` = etag để phá cache; trả cache 1 năm, ``nosniff``.
+         */
+        get: operations["get_avatar_api_v1_member_area_avatars__customer_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rackets": {
         parameters: {
             query?: never;
@@ -903,6 +973,8 @@ export interface paths {
         /**
          * List Rackets
          * @description Vợt đang dùng, theo thứ tự rồi tên. ``all=1`` (chỉ Admin) -> gồm cả vợt ẩn.
+         *
+         *     Hội viên (khu hội viên) đọc được danh mục đang dùng.
          */
         get: operations["list_rackets_api_v1_rackets_get"];
         put?: never;
@@ -1328,6 +1400,11 @@ export interface components {
              */
             kind: "admin";
         };
+        /** AvatarOut */
+        AvatarOut: {
+            /** Avatar Url */
+            avatar_url: string;
+        };
         /**
          * BankInfo
          * @description Thông tin chuyển khoản hiển thị cho khách (QR SePay).
@@ -1390,6 +1467,20 @@ export interface components {
             resolved_by_label: string | null;
             /** Note */
             note: string | null;
+        };
+        /** Body_upload_avatar_api_v1_member_area_me_avatar_put */
+        Body_upload_avatar_api_v1_member_area_me_avatar_put: {
+            /**
+             * File
+             * @description JPG / PNG / WebP ≤ 5 MB
+             */
+            file: string;
+            /** Crop X */
+            crop_x: number;
+            /** Crop Y */
+            crop_y: number;
+            /** Crop Size */
+            crop_size: number;
         };
         /** CalendarBlock */
         CalendarBlock: {
@@ -1921,6 +2012,86 @@ export interface components {
             /** @description Đếm theo loại (theo q/status/tier, bỏ qua kind) */
             counts: components["schemas"]["MemberCounts"];
             can: components["schemas"]["MemberCan"];
+        };
+        /**
+         * MemberMeIn
+         * @description Độ dài / định dạng kiểm ở server để trả ``fields`` (E-HV-1/10/11) – chuỗi rỗng = null.
+         */
+        MemberMeIn: {
+            /** Full Name */
+            full_name: string;
+            /** Nickname */
+            nickname?: string | null;
+            /** Email */
+            email?: string | null;
+            /**
+             * Tier
+             * @description 1 trong 8 bậc; null chỉ khi hồ sơ đang chưa xếp hạng
+             */
+            tier: string | null;
+            /**
+             * Racket
+             * @description Tên vợt; chưa có trong danh mục -> tự thêm (như màn Hội viên)
+             */
+            racket?: string | null;
+            /** Show On Records */
+            show_on_records: boolean;
+            /** Version */
+            version: number;
+        };
+        /**
+         * MemberMeOut
+         * @description Hồ sơ của chính hội viên đang đăng nhập (SĐT, email đầy đủ – chỉ chính chủ thấy).
+         */
+        MemberMeOut: {
+            /** Member Code */
+            member_code: string;
+            /** Full Name */
+            full_name: string;
+            /**
+             * Short Name
+             * @description Từ cuối của Họ tên (nút tài khoản, chữ cái avatar)
+             */
+            short_name: string;
+            /** Nickname */
+            nickname: string | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Phone
+             * @description Đầy đủ 0xxxxxxxxx – FE nhóm 4-3-3
+             */
+            phone: string;
+            /**
+             * Joined At
+             * Format: date
+             * @description Ngày tạo hồ sơ hội viên (giờ VN)
+             */
+            joined_at: string;
+            /**
+             * Tier
+             * @description Trình độ = Hạng (8 bậc); null = chưa xếp hạng
+             */
+            tier: string | null;
+            /**
+             * Racket
+             * @description Tên vợt đang dùng (danh mục GET /rackets)
+             */
+            racket: string | null;
+            /** Show On Records */
+            show_on_records: boolean;
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
+            /**
+             * Record Kmh
+             * @description Đợt 1 chưa có dữ liệu kỷ lục
+             */
+            record_kmh?: number | null;
+            /** Version */
+            version: number;
         };
         /**
          * MemberRow
@@ -3030,6 +3201,12 @@ export interface components {
              * @description Tài khoản hội viên chưa đổi mật khẩu ban đầu -> chuyển trang đổi mật khẩu
              */
             must_change_password: boolean;
+            /**
+             * Is Member
+             * @description Có hồ sơ hội viên cùng SĐT (đã xác minh) -> vào được khu hội viên (T-016)
+             * @default false
+             */
+            is_member: boolean;
         };
         /** ValidationError */
         ValidationError: {
@@ -4654,6 +4831,159 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MemberRow"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_me_api_v1_member_area_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberMeOut"];
+                };
+            };
+        };
+    };
+    update_me_api_v1_member_area_me_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberMeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberMeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_avatar_api_v1_member_area_me_avatar_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_avatar_api_v1_member_area_me_avatar_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvatarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_avatar_api_v1_member_area_me_avatar_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_avatar_api_v1_member_area_avatars__customer_id__get: {
+        parameters: {
+            query?: {
+                v?: string | null;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Not Modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -364,3 +364,12 @@ async def publish_outbox(session_factory: async_sessionmaker[AsyncSession]) -> i
 async def expire_holds(session: AsyncSession) -> int:
     """Worker gọi mỗi 30 giây (không commit): giữ chỗ quá hạn -> ``expired``, trả khung."""
     return await holds.expire_holds(session)
+
+
+async def rename_customer(
+    session: AsyncSession, refs: list[str], name: str, *, tenant_id: int | None = None
+) -> int:
+    """Tên khách trên booking / vé của hồ sơ (các ``customer_ref``) đổi theo Họ tên mới.
+
+    Không commit; trả số booking + vé đã đổi (ghi vào nhật ký ``member.self_update``)."""
+    return await customer_history.rename_customer(session, _tid(tenant_id), refs, name)
