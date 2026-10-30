@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { normalizePhone } from "@/lib/phone";
+import { formatPhone, normalizePhone } from "@/lib/phone";
 import { searchMembers } from "./requests";
 import type { CustomerPayload, MemberHit } from "./types";
 import { inputCls } from "./ui";
@@ -153,7 +153,7 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
                         <td className="px-3 py-2">
                           {m.name}
                           {m.is_active ? null : <span className="ml-1.5 rounded bg-blk-bad px-1.5 text-xs text-blk-bad-fg">Ngừng</span>}
-                          <span className="block text-xs text-muted">{m.phone_masked}</span>
+                          <span className="block text-xs text-muted tabular-nums">{formatPhone(m.phone)}</span>
                         </td>
                         <td className="px-3 py-2">{m.tier ?? "—"}</td>
                         <td className="px-3 py-2 text-center">

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorText } from "@/lib/api/write";
 import { addDaysIso, formatDayMonthYear, formatVnd, hhmm } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
 import { ItemFlow } from "./item-flow";
 import { getTransactions, type TransactionFilters } from "./requests";
 import { SessionFlow } from "./session-flow";
@@ -208,7 +209,7 @@ export function TransactionsScreen({
                   <td className="px-3 py-2.5">{r.resource_codes.join(", ")}</td>
                   <td className="px-3 py-2.5">
                     {r.customer_name}
-                    <span className="block text-xs text-muted">{r.phone_masked ?? "—"}</span>
+                    <span className="block text-xs text-muted tabular-nums">{r.phone ? formatPhone(r.phone) : "—"}</span>
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{formatVnd(r.amount)}</td>
                   <td className="px-3 py-2.5">{r.payment_method ? METHOD_LABEL[r.payment_method] : "—"}</td>
