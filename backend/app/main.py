@@ -11,6 +11,7 @@ from app.core.context import RequestContextMiddleware, setup_logging
 from app.core.db import engine
 from app.core.middleware import BodyLimitMiddleware, OriginCheckMiddleware
 from app.core.ratelimit import RateLimitMiddleware
+from app.modules.audit_log import router as audit_log
 from app.modules.auth import account_router
 from app.modules.auth import router as auth
 from app.modules.booking_engine import router as booking_engine
@@ -60,6 +61,7 @@ for r in (
     front_desk.router,
     web_booking.router,
     payments.router,
+    audit_log.router,
 ):
     app.include_router(r, prefix=settings.API_PREFIX)
 

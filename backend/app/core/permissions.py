@@ -38,6 +38,7 @@ class Perm(enum.StrEnum):
     STAFF_MANAGE = "staff.manage"  # tài khoản nhân viên (chỉ Admin, T-013)
     CONTENT_MANAGE = "content.manage"  # tin tức / trang nội dung (chỉ Admin)
     PAYMENTS_SETTINGS = "payments.settings"  # tài khoản nhận tiền, khóa SePay (chỉ Admin, T-012)
+    AUDIT_LOG_VIEW = "audit_log.view"  # Lịch sử thao tác (chỉ Admin, SRS Lịch sử thao tác BR-001)
 
 
 # Vai hiện có: admin = Admin (chủ sân), staff = nhân viên (NV001…), customer = khách
