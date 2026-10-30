@@ -234,7 +234,7 @@ async def admin_logout(response: Response, state: AuthStateDep, session: Session
         "auth.logout",
         "user",
         str(user.id),
-        {"session_id": admin_session.id},
+        sessions.account_detail(user, session_id=admin_session.id),
     )
     await session.commit()
 

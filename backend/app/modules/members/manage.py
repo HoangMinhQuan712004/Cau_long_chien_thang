@@ -10,6 +10,7 @@ from app.core.audit import AuditActor, audit
 from app.core.errors import AppError
 from app.modules.auth import api as auth
 from app.modules.members import rackets
+from app.modules.members.audit_fields import member_detail, snapshot, temp_detail
 from app.modules.members.models import Customer
 from app.modules.members.profiles import (
     bookings_of,
@@ -70,7 +71,7 @@ async def create_member(
     # SELECT bên trong autoflush hồ sơ -> trùng SĐT nổ ngoài ``commit_or_conflict`` (500)
     await auth.ensure_customer_account(session, phone, full_name)
     session.add(c)
-    audit(session, actor, "member.create", "customer", code, {"tier": data.tier})
+    audit(session, actor, "member.create", "customer", code, member_detail(c))
     await commit_or_conflict(session, phone)
     await session.refresh(c)
     return to_row(c, (await bookings_of(session, [c]))[c.id])
@@ -81,6 +82,7 @@ async def _upgrade_temp(
 ) -> MemberRow:
     """Hồ sơ tạm (đã khóa) -> hội viên trên **cùng dòng**: id + SĐT giữ nguyên nên lịch sử còn."""
     bookings = (await bookings_of(session, [c]))[c.id]
+    before = snapshot(c)
     code = await _new_code(session)
     c.kind, c.member_code, c.tier = "member", code, data.tier
     c.full_name, c.gender = full_name, data.gender
@@ -93,7 +95,7 @@ async def _upgrade_temp(
         "member.promote",
         "customer",
         code,
-        {"tier": data.tier, "bookings": bookings, "ref": str(c.public_id)},
+        member_detail(c, before, bookings=bookings, ref=str(c.public_id)),
     )
     await session.commit()  # mã HV cấp dưới khóa advisory, SĐT không đổi -> không có xung đột
     await session.refresh(c)
@@ -120,16 +122,15 @@ async def update_profile(
         changes["full_name"] = clean_name(changes["full_name"] or "")
     if "racket" in changes:
         changes["racket"] = await rackets.ensure(session, changes["racket"])
+    before = snapshot(c)
     changed = sorted(k for k, v in changes.items() if getattr(c, k) != v)
     for field in changed:
         setattr(c, field, changes[field])
     if "is_active" in changed:  # Ngừng -> khóa tài khoản khách cùng SĐT; Hoạt động -> mở (T-015)
         await auth.set_customer_account_active(session, c.phone, c.is_active)
     if changed:
-        detail = {"fields": changed}
-        detail.update({k: changes[k] for k in ("tier", "is_active") if k in changed})
         action = "member.update" if c.kind == "member" else "member.temp.update"
-        audit(session, actor, action, "customer", ref_of(c), detail)
+        audit(session, actor, action, "customer", ref_of(c), member_detail(c, before))
     await session.commit()  # SĐT không đổi -> không có xung đột UNIQUE
     await session.refresh(c)
     return to_row(c, (await bookings_of(session, [c]))[c.id])
@@ -142,9 +143,8 @@ async def create_temp(session: AsyncSession, actor: AuditActor, data: TempCreate
     session.add(c)
     # flush trước để có public_id (server default) ghi vào nhật ký; trùng SĐT bắt ngay ở đây
     await commit_or_conflict(session, phone, flush_only=True)
-    audit(
-        session, actor, "member.temp.create", "customer", str(c.public_id), {"full_name": full_name}
-    )
+    detail = temp_detail(full_name, phone, data.gender)
+    audit(session, actor, "member.temp.create", "customer", str(c.public_id), detail)
     await session.commit()
     await session.refresh(c)
     return to_row(c, (await bookings_of(session, [c]))[c.id])

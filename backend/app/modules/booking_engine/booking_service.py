@@ -13,9 +13,10 @@ from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import audit
+from app.core.audit import audit, audit_detail
 from app.core.errors import AppError
 from app.modules.booking_engine import outbox
+from app.modules.booking_engine.audit_fields import customer_text, new_values, time_text
 from app.modules.booking_engine.codes import next_code
 from app.modules.booking_engine.common import (
     EXCLUSION_VIOLATION,
@@ -535,15 +536,21 @@ async def create_counter_booking(
         "booking.counter.create",
         "booking",
         code,
-        {
-            "resource": r.code,
-            "date": data.date.isoformat(),
-            "start_time": to_hhmm(data.start_hour * 60),
-            "end_time": to_hhmm(data.end_hour * 60),
-            "amount": amount,
-            "customer_kind": customer.kind,
-            "member_code": customer.member_code,
-        },
+        audit_detail(
+            code,
+            customer.display_name,
+            new_values(
+                **{
+                    "Sân": r.name,
+                    "Khung giờ": time_text(start_at, end_at),
+                    "Khách": customer_text(customer),
+                }
+            ),
+            resource=r.code,
+            amount=amount,
+            customer_kind=customer.kind,
+            member_code=customer.member_code,
+        ),
     )
     outbox.add_event(
         session,

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor, audit
 from app.core.errors import AppError
+from app.modules.members.audit_fields import temp_detail
 from app.modules.members.models import Customer
 from app.modules.members.schemas import CustomerIn, CustomerProfile, MemberSearchItem
 
@@ -164,14 +165,8 @@ async def resolve_customer(
         raise member_phone_taken(existing)
     created = created_id is not None
     if created:
-        audit(
-            session,
-            actor,
-            "member.temp.create",
-            "customer",
-            None,
-            {"full_name": full_name},
-        )
+        detail = temp_detail(full_name, phone)
+        audit(session, actor, "member.temp.create", "customer", None, detail)
     return _profile(existing, created=created)
 
 

@@ -155,7 +155,8 @@ async def test_counter_booking_member(admin, staff):
             )
         )
     assert row is not None and is_staff_label(row.actor_label)
-    assert "0987654087" not in str(row.detail)
+    # Lịch sử thao tác chỉ Admin xem -> SĐT ghi đầy đủ (SRS Lịch sử thao tác BR-007)
+    assert "0987654087" in str(row.detail)
 
 
 async def test_counter_booking_temp_profile_create_reuse_and_member_clash(admin, staff):

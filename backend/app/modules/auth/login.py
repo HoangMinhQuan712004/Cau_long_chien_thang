@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import ratelimit
-from app.core.audit import AuditActor, audit
+from app.core.audit import AuditActor, audit, audit_change
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
@@ -116,7 +116,11 @@ async def check_credentials(
                 "auth.login_locked",
                 "user",
                 str(user.id),
-                {"locked_until": f"{local_until:%H:%M %d/%m/%Y}"},
+                sessions.account_detail(
+                    user,
+                    [audit_change("Đăng nhập", None, f"Khóa đến {local_until:%H:%M}")],
+                    locked_until=f"{local_until:%H:%M %d/%m/%Y}",
+                ),
             )
             error = locked_error(_seconds_until(user.locked_until, now))
         await session.commit()
@@ -147,7 +151,7 @@ async def sign_in(
         "auth.login_success",
         "user",
         str(user.id),
-        {"session_id": admin_session.id},
+        sessions.account_detail(user, session_id=admin_session.id),
     )
     await session.commit()
     return user, (admin_session, token)
