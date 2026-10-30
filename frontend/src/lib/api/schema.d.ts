@@ -733,6 +733,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking/orders/{order_code}/collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Collect Order
+         * @description Thu cả đơn (T-019): mọi khối **Chưa thanh toán** của đơn -> tiền mặt, người thu = người
+         *     thao tác. Khối đã thu / Không thu được giữ nguyên. 404 ``E-BOOK-3`` · 409 ``E-BOOK-4``
+         *     (không còn khối chưa thu) · 422 ``E-PAY-0`` (``transfer``).
+         */
+        post: operations["collect_order_api_v1_booking_orders__order_code__collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/booking/items/{code}/uncollectible": {
         parameters: {
             query?: never;
@@ -1064,11 +1086,13 @@ export interface paths {
         put?: never;
         /**
          * Create Booking
-         * @description Đặt sân tại quầy: 1 sân, hôm nay, khung liền nhau -> booking Chưa thanh toán.
+         * @description Đặt sân tại quầy: 1 lần bấm = **1 đơn** (mã chung), 1–20 khối hôm nay -> mỗi khối một
+         *     booking Chưa thanh toán mã ``{mã đơn}-NN``. Cùng sân, giờ liền nhau -> gộp một khối.
          *
-         *     Lỗi: E-001/E-002 (hồ sơ tạm), E-014 (không có hội viên), E-018 (SĐT là của hội viên),
-         *     E-004 (khung đã qua), E-CFG-10 (khung không bán), E-019 (thiếu giá), E-003 (vừa có người đặt),
-         *     403 E-AUTH-2 (ngày khác hôm nay – cả Admin; ngày sau chỉ Đặt sự kiện).
+         *     All-or-nothing. Lỗi: E-001/E-002 (hồ sơ tạm, khối trùng giờ nhau), E-014 (không có hội
+         *     viên), E-018 (SĐT là của hội viên), E-004 (khung đã qua), E-CFG-10 (khung không bán),
+         *     E-019 (thiếu giá), 409 E-003 kèm ``conflicts`` (vừa có người đặt), 403 E-AUTH-2 (ngày khác
+         *     hôm nay – cả Admin; ngày sau chỉ Đặt sự kiện).
          */
         post: operations["create_booking_api_v1_front_desk_bookings_post"];
         delete?: never;
@@ -1220,7 +1244,8 @@ export interface paths {
         put?: never;
         /**
          * Lookup
-         * @description Tra cứu theo mã booking + SĐT. Sai mã hay sai SĐT -> cùng 404 ``E-WEB-7``.
+         * @description Tra cứu theo mã đơn hoặc mã con + SĐT -> cả đơn. Sai mã hay sai SĐT -> cùng 404
+         *     ``E-WEB-7``.
          */
         post: operations["lookup_api_v1_web_booking_lookup_post"];
         delete?: never;
@@ -1489,8 +1514,16 @@ export interface components {
              * @enum {string}
              */
             type: "booking" | "session" | "hold";
-            /** Code */
+            /**
+             * Code
+             * @description Booking: mã con (mở chi tiết); sự kiện: mã sự kiện
+             */
             code: string | null;
+            /**
+             * Order Code
+             * @description Booking: mã đơn (hiện trên khối)
+             */
+            order_code?: string | null;
             /** Resource Codes */
             resource_codes: string[];
             /** Start Time */
@@ -1598,7 +1631,15 @@ export interface components {
             paid_amount: number;
             /** Paid At */
             paid_at: string | null;
-            /** Pay Ref */
+            /**
+             * Order Code
+             * @description Mã đơn – khách chỉ thấy mã này
+             */
+            order_code: string;
+            /**
+             * Pay Ref
+             * @description Nội dung chuyển khoản = mã đơn bỏ dấu gạch
+             */
             pay_ref: string;
             /** @description Chỉ có khi đang chờ thanh toán */
             bank: components["schemas"]["BankInfo"] | null;
@@ -1658,7 +1699,15 @@ export interface components {
             paid_amount: number;
             /** Paid At */
             paid_at: string | null;
-            /** Pay Ref */
+            /**
+             * Order Code
+             * @description Mã đơn – khách chỉ thấy mã này
+             */
+            order_code: string;
+            /**
+             * Pay Ref
+             * @description Nội dung chuyển khoản = mã đơn bỏ dấu gạch
+             */
             pay_ref: string;
             /** @description Chỉ có khi đang chờ thanh toán */
             bank: components["schemas"]["BankInfo"] | null;
@@ -1675,6 +1724,22 @@ export interface components {
             method: "cash" | "transfer";
             /** Version */
             version: number;
+        };
+        /** CounterBlockIn */
+        CounterBlockIn: {
+            /** Resource Code */
+            resource_code: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+        };
+        /** CounterOrderOut */
+        CounterOrderOut: {
+            /** Order Code */
+            order_code: string;
+            /** Bookings */
+            bookings: components["schemas"]["ItemOut"][];
         };
         /**
          * CustomerIn
@@ -1694,19 +1759,27 @@ export interface components {
             kind: "member";
             account: components["schemas"]["UserOut"];
         };
-        /** FrontDeskBookingIn */
+        /**
+         * FrontDeskBookingIn
+         * @description Một lần bấm Đặt sân = một đơn (T-019 phương án A).
+         *
+         *     ``blocks``: 1–20 khối cùng ``date``. Vẫn nhận dạng cũ một khối
+         *     (``resource_code``, ``start_hour``, ``end_hour``) – không gửi cả hai dạng.
+         */
         FrontDeskBookingIn: {
-            /** Resource Code */
-            resource_code: string;
             /**
              * Date
              * Format: date
              */
             date: string;
+            /** Blocks */
+            blocks?: components["schemas"]["CounterBlockIn"][] | null;
+            /** Resource Code */
+            resource_code?: string | null;
             /** Start Hour */
-            start_hour: number;
+            start_hour?: number | null;
             /** End Hour */
-            end_hour: number;
+            end_hour?: number | null;
             customer: components["schemas"]["CustomerIn"];
         };
         /** GoogleSignInIn */
@@ -1753,8 +1826,16 @@ export interface components {
              * @enum {string}
              */
             kind: "booking" | "ticket";
-            /** Code */
+            /**
+             * Code
+             * @description Booking: mã con {mã đơn}-NN · vé: mã vé
+             */
             code: string;
+            /**
+             * Order Code
+             * @description Booking: mã đơn
+             */
+            order_code?: string | null;
             /** Version */
             version: number;
             /**
@@ -1838,38 +1919,66 @@ export interface components {
              */
             phone: string;
         };
-        /** LookupOut */
-        LookupOut: {
-            /** Code */
-            code: string;
+        /** LookupItemOut */
+        LookupItemOut: {
             /**
-             * Status
-             * @enum {string}
+             * Code
+             * @description Mã con – FE không hiện cho khách
              */
-            status: "paid" | "unpaid" | "uncollectible" | "pending" | "expired";
+            code: string;
             /** Resource Name */
             resource_name: string;
-            /**
-             * Play Date
-             * Format: date
-             */
-            play_date: string;
             /** Start Time */
             start_time: string;
             /** End Time */
             end_time: string;
             /** Hours */
             hours: number;
+            /** Amount */
+            amount: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "paid" | "unpaid" | "uncollectible" | "pending" | "expired";
+        };
+        /**
+         * LookupOut
+         * @description Tra cứu bằng mã đơn **hoặc** mã con + SĐT -> cả đơn (T-019 AC3).
+         */
+        LookupOut: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "paid" | "unpaid" | "uncollectible" | "pending" | "expired";
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Hours
+             * @description Tổng giờ của đơn
+             */
+            hours: number;
             /** Customer Name */
             customer_name: string;
             /** Phone Masked */
             phone_masked: string | null;
-            /** Amount */
+            /**
+             * Amount
+             * @description Tổng tiền của đơn
+             */
             amount: number;
             /** Payment Method Label */
             payment_method_label: string | null;
             /** Paid At */
             paid_at: string | null;
+            /** Items */
+            items: components["schemas"]["LookupItemOut"][];
             pending?: components["schemas"]["LookupPendingOut"] | null;
         };
         /** LookupPendingOut */
@@ -1892,8 +2001,16 @@ export interface components {
         };
         /** MemberBooking */
         MemberBooking: {
-            /** Code */
+            /**
+             * Code
+             * @description Mã con của khối (quản trị)
+             */
             code: string;
+            /**
+             * Order Code
+             * @description Mã đơn – khách / khu hội viên chỉ hiện mã này
+             */
+            order_code: string;
             /**
              * Play Date
              * Format: date
@@ -2218,6 +2335,34 @@ export interface components {
             resource_code: string;
             /** Start Hour */
             start_hour: number;
+        };
+        /** OrderCollectIn */
+        OrderCollectIn: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "cash" | "transfer";
+        };
+        /** OrderCollectOut */
+        OrderCollectOut: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Collected
+             * @description Mã con vừa thu
+             */
+            collected: string[];
+            /**
+             * Amount
+             * @description Tổng tiền vừa thu
+             */
+            amount: number;
+            /**
+             * Bookings
+             * @description Mọi khối của đơn sau khi thu
+             */
+            bookings: components["schemas"]["ItemOut"][];
         };
         /** OtpSentOut */
         OtpSentOut: {
@@ -2816,14 +2961,27 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "booking" | "ticket" | "session";
-            /** Code */
+            kind: "order" | "booking" | "ticket" | "session";
+            /**
+             * Code
+             * @description order: mã đơn · booking: mã con · ticket / session: mã
+             */
             code: string;
             /**
              * Play Date
              * Format: date
              */
             play_date: string;
+            /**
+             * Order Code
+             * @description order / booking: mã đơn
+             */
+            order_code?: string | null;
+            /**
+             * Codes
+             * @description order: mã con các khối (theo thứ tự -01, -02…)
+             */
+            codes?: string[];
         };
         /** SessionCan */
         SessionCan: {
@@ -3112,8 +3270,16 @@ export interface components {
              * @enum {string}
              */
             kind: "booking" | "ticket";
-            /** Code */
+            /**
+             * Code
+             * @description Booking: mã con · vé: mã vé
+             */
             code: string;
+            /**
+             * Order Code
+             * @description Booking: mã đơn
+             */
+            order_code?: string | null;
             /**
              * Play Date
              * Format: date
@@ -3244,7 +3410,10 @@ export interface components {
         };
         /** WebCheckoutItem */
         WebCheckoutItem: {
-            /** Code */
+            /**
+             * Code
+             * @description Mã con {mã đơn}-NN – FE không hiện cho khách (ADR-010)
+             */
             code: string;
             /** Resource Code */
             resource_code: string;
@@ -4544,6 +4713,44 @@ export interface operations {
             };
         };
     };
+    collect_order_api_v1_booking_orders__order_code__collect_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCollectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderCollectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     mark_uncollectible_api_v1_booking_items__code__uncollectible_post: {
         parameters: {
             query?: never;
@@ -5197,7 +5404,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ItemOut"];
+                    "application/json": components["schemas"]["CounterOrderOut"];
                 };
             };
             /** @description Validation Error */

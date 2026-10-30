@@ -9,7 +9,7 @@ Mọi lệnh ghi bắt buộc header ``Idempotency-Key`` (UUID v4) và chạy tr
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Path, Query, Response, status
 
 from app.core.db import SessionDep
 from app.core.idempotency import IdempotencyDep
@@ -21,6 +21,8 @@ from app.modules.booking_engine.dto import (
     CalendarOut,
     CollectIn,
     ItemOut,
+    OrderCollectIn,
+    OrderCollectOut,
     PriceTable,
     PriceTableUpdate,
     PublicPrices,
@@ -295,6 +297,26 @@ async def collect(
 
     async def run() -> ItemOut:
         return for_viewer(await api.collect(session, _actor(principal), code, data), principal)
+
+    return await idem.run(session, principal.key, run)
+
+
+@router.post("/orders/{order_code}/collect", response_model=OrderCollectOut)
+async def collect_order(
+    order_code: Annotated[str, Path(max_length=40)],
+    data: OrderCollectIn,
+    principal: Collector,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Thu cả đơn (T-019): mọi khối **Chưa thanh toán** của đơn -> tiền mặt, người thu = người
+    thao tác. Khối đã thu / Không thu được giữ nguyên. 404 ``E-BOOK-3`` · 409 ``E-BOOK-4``
+    (không còn khối chưa thu) · 422 ``E-PAY-0`` (``transfer``)."""
+
+    async def run() -> OrderCollectOut:
+        out = await api.collect_order(session, _actor(principal), order_code, data)
+        out.bookings = [for_viewer(b, principal) for b in out.bookings]
+        return out
 
     return await idem.run(session, principal.key, run)
 

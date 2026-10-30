@@ -108,7 +108,8 @@ class MemberListOut(BaseModel):
 
 
 class MemberBooking(BaseModel):
-    code: str
+    code: str = Field(description="Mã con của khối (quản trị)")
+    order_code: str = Field(description="Mã đơn – khách / khu hội viên chỉ hiện mã này")
     play_date: dt.date
     start_time: str
     end_time: str

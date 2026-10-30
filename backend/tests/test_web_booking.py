@@ -104,8 +104,10 @@ async def test_create_checkout_groups_ranges_and_prices(anon, admin, staff):
         (b["code"], "08:00", "09:00", 1),
     ]
     codes = [i["code"] for i in items]
-    assert all(re.fullmatch(rf"BK-{day:%Y%m%d}-\d{{3}}", c) for c in codes)
-    assert co["pay_ref"] == codes[0].replace("-", "")
+    # Một mã đơn cho cả lượt, khối mang mã con -01, -02 theo sân rồi giờ (T-019)
+    assert re.fullmatch(rf"BK-{day:%Y%m%d}-\d{{3}}", co["order_code"])
+    assert codes == [f"{co['order_code']}-01", f"{co['order_code']}-02"]
+    assert co["pay_ref"] == co["order_code"].replace("-", "")
     assert co["amount"] == sum(i["amount"] for i in items)
     quote = await staff.post(
         f"{BK}/quote",

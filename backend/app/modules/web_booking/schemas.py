@@ -59,7 +59,7 @@ class WebCustomer(BaseModel):
 
 
 class WebCheckoutItem(BaseModel):
-    code: str
+    code: str = Field(description="Mã con {mã đơn}-NN – FE không hiện cho khách (ADR-010)")
     resource_code: str
     resource_name: str
     play_date: dt.date
@@ -77,7 +77,8 @@ class CheckoutOut(BaseModel):
     amount: int
     paid_amount: int
     paid_at: dt.datetime | None
-    pay_ref: str
+    order_code: str = Field(description="Mã đơn – khách chỉ thấy mã này")
+    pay_ref: str = Field(description="Nội dung chuyển khoản = mã đơn bỏ dấu gạch")
     bank: BankInfo | None = Field(description="Chỉ có khi đang chờ thanh toán")
     customer: WebCustomer
     items: list[WebCheckoutItem]
@@ -100,17 +101,27 @@ class LookupPendingOut(BaseModel):
     bank: BankInfo | None
 
 
-class LookupOut(BaseModel):
-    code: str
-    status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
+class LookupItemOut(BaseModel):
+    code: str = Field(description="Mã con – FE không hiện cho khách")
     resource_name: str
-    play_date: dt.date
     start_time: str
     end_time: str
     hours: int
+    amount: int
+    status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
+
+
+class LookupOut(BaseModel):
+    """Tra cứu bằng mã đơn **hoặc** mã con + SĐT -> cả đơn (T-019 AC3)."""
+
+    order_code: str
+    status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
+    play_date: dt.date
+    hours: int = Field(description="Tổng giờ của đơn")
     customer_name: str
     phone_masked: str | None
-    amount: int
+    amount: int = Field(description="Tổng tiền của đơn")
     payment_method_label: str | None
     paid_at: dt.datetime | None
+    items: list[LookupItemOut]
     pending: LookupPendingOut | None = None

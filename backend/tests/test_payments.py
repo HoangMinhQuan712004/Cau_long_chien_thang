@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.modules.booking_engine.models import Booking, Resource
+from app.modules.booking_engine.models import Booking, BookingOrder, Resource
 from tests.conftest import API, idem, is_staff_label
 from tests.helpers_booking import (
     BK,
@@ -164,10 +164,28 @@ async def test_uncollectible_before_start_or_online(admin, staff):
     code = f"BK-ONL-{uuid.uuid4().hex[:6].upper()}"
     async with SessionLocal() as s:
         resource_id = await s.scalar(select(Resource.id).where(Resource.code == "S01"))
+        customer = {
+            "customer_ref": "x",
+            "customer_kind": "temp",
+            "customer_name": "Khách web",
+            "customer_phone": "0900000001",
+        }
+        order = BookingOrder(
+            tenant_id=settings.TENANT_ID,
+            code=code,
+            play_date=today(),
+            channel="online",
+            created_by_label="Khách đặt online",
+            **customer,
+        )
+        s.add(order)
+        await s.flush()
         s.add(
             Booking(
                 tenant_id=settings.TENANT_ID,
-                code=code,
+                order_id=order.id,
+                seq=1,
+                code=f"{code}-01",
                 source="online",
                 resource_id=resource_id,
                 play_date=today(),
@@ -175,15 +193,13 @@ async def test_uncollectible_before_start_or_online(admin, staff):
                 end_at=at(today(), 1),
                 amount=100_000,
                 payment_status="unpaid",
-                customer_ref="x",
-                customer_kind="temp",
-                customer_name="Khách web",
-                customer_phone="0900000001",
                 created_by_type="web",
                 created_by_label="Khách đặt online",
+                **customer,
             )
         )
         await s.commit()
+    code = f"{code}-01"  # mã con của khối
     item = (await staff.get(f"{BK}/items/{code}")).json()
     assert item["actions"] == ["collect"]
     r = await uncollectible(staff, code)
@@ -266,7 +282,7 @@ async def test_transactions_filters_cards_and_paging(admin, staff):
     assert sorted(seen) == sorted(codes)
     row = data["rows"][0]
     assert set(row) == {
-        "kind", "code", "play_date", "start_time", "end_time", "resource_codes",
+        "kind", "code", "order_code", "play_date", "start_time", "end_time", "resource_codes",
         "customer_name", "phone", "amount", "payment_status", "payment_method", "source",
     }  # fmt: skip
     assert {row["phone"] for row in data["rows"] + page2["rows"]} == set(phones)  # SĐT đầy đủ
