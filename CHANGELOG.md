@@ -4,8 +4,9 @@ Ghi các thay đổi người dùng hoặc người vận hành nhìn thấy đ�
 
 ## Chưa phát hành
 
-Các mục T-005, T-006, T-008, T-012 đã có ở link dev; T-013 và T-015 (PR #21) cũng đã lên dev; T-016 mới làm cục bộ. Tất cả chưa lên production (cần người dùng duyệt).
+Các mục T-005, T-006, T-008, T-012 đã có ở link dev; T-013 và T-015 (PR #21) cũng đã lên dev; T-016 và T-019 mới làm cục bộ. Tất cả chưa lên production (cần người dùng duyệt).
 
+- **Một lượt đặt một mã (T-019, chưa lên dev):** mỗi lần đặt (online hoặc quầy) có **một mã đơn** `BK-YYYYMMDD-NNN`; từng khối sân × giờ trong đơn mang mã con `{mã đơn}-01`…. Khách chỉ thấy mã đơn; quầy thấy mã đơn trên lịch, mã con trong chi tiết. Đặt quầy chọn được nhiều khối một lần (trùng một khối thì không khối nào được tạo). Thu tiền theo từng khối, thêm **Thu cả đơn**. Tìm mã và tra cứu nhận cả hai loại mã; tra cứu hiện cả đơn. **Đổi contract API** (BE và FE lên cùng đợt). Nội dung chuyển khoản (`BK` + 11 số) không đổi. Migration `5b98d354dd77`: booking cũ thành đơn một khối (`-01`), lượt thanh toán đang chờ bị cho hết hạn.
 - **Khu hội viên trên web, đợt 1 "Hồ sơ của tôi" (T-016, chưa lên dev):**
   - Khu `/hoi-vien` cho khách là hội viên (tài khoản có SĐT trùng hội viên, do sân tạo hoặc đã xác minh OTP). Hội viên tự sửa Họ tên, Biệt danh, Email (không bắt buộc), Trình độ (= Hạng), Vợt, công tắc "Hiện trên Video & kỷ lục", đổi và xóa ảnh đại diện. Các mục khác của khu hiện là "Sắp ra mắt".
   - Đổi Họ tên thì tên trên booking, vé, lượt thanh toán đổi theo. Hai tab sửa cùng lúc: tab lưu sau nhận lỗi, không ghi đè.

@@ -1,7 +1,7 @@
-# API booking engine, đặt online, đăng nhập, hội viên (T-005, T-006, T-008, T-012, T-013, T-015, T-016)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
-Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, và quản trị hội viên của PR #21 `c288d08`); mục 12.6 (khu hội viên, T-016) đối chiếu với `be/T-016-khu-hoi-vien` @ `fd8db2f` (**chưa vào `dev`**); spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009.
+Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, và quản trị hội viên của PR #21 `c288d08`); mục 12.6 (khu hội viên, T-016) đối chiếu với `be/T-016-khu-hoi-vien` @ `fd8db2f` và mục đánh dấu **(T-019)** với `be/T-019-ma-chung` @ `f0a1471` (cả hai **chưa vào `dev`**; giao diện chưa đối chiếu); spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009.
 Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa. OpenAPI sống: `/docs` của API (tắt ở link dev và production).
 
 > Phạm vi: cấu hình sân và bảng giá (T-005); lịch, đặt sân tại quầy, sự kiện và vé, thu tiền mặt, Không thu được, Lịch sử giao dịch (T-006);
@@ -9,6 +9,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
 > **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21) và khu hội viên trên web (T-016) – mục 12.**
 > **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007), bán vé sự kiện online, báo cáo, các màn khu hội viên ngoài "Hồ sơ của tôi".
+> **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (chưa vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
 > Mục 10 (T-008, T-012), mục 11 (T-013) và mục 12.1–12.5 (PR #21) đã có trong `dev`; mục 12.6 (T-016) chưa. Chưa có trong `main`/production.
 
@@ -16,7 +17,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 
 | Quy tắc | Chi tiết |
 |---|---|
-| Xác thực | Cookie. Hiện trên `dev`: đăng nhập qua `POST /api/v1/auth/login`. **(T-013)** `/auth/login` bị gỡ: Admin/nhân viên dùng cookie `admin_session` (phiên phía server, 12 giờ), khách dùng JWT; cả hai đăng nhập qua `POST /api/v1/auth/sign-in` – mục 11 |
+| Xác thực | Cookie. **(T-013)** `/auth/login` đã bị gỡ: Admin/nhân viên dùng cookie `admin_session` (phiên phía server, 12 giờ), khách dùng JWT; cả hai đăng nhập qua `POST /api/v1/auth/sign-in` – mục 11 |
 | `Origin` | Request `POST/PUT/PATCH/DELETE` mang cookie phải có `Origin` (hoặc `Referer`) thuộc `ALLOWED_ORIGINS`, nếu không → 403 `E-SEC-1`. Thiếu cả hai cũng bị chặn. Trình duyệt tự gửi; code phía server Next gọi API phải tự thêm header `Origin` |
 | Body | JSON, tối đa 64 KB (`MAX_BODY_BYTES`) → quá thì 413 `E-SEC-6`. Trường lạ bị từ chối (422): server tự tính giá, tiền, mã, trạng thái thanh toán, tên khách, người thao tác, nên **đừng gửi** `amount`, `price`, `code`, `payment_status`, `customer_name`, `created_by` |
 | `Idempotency-Key` | Bắt buộc cho mọi `POST/PUT/PATCH/DELETE` của booking engine và `/front-desk/**`, **trừ `POST /booking/quote`** |
@@ -77,7 +78,7 @@ vẫn là 422 mặc định của FastAPI, khi đó `detail` là **mảng**.
 |---|---|---|
 | E-001 | 422 | Thiếu ô bắt buộc (tên ô nằm trong `message`) |
 | E-002 | 422 | SĐT sai định dạng (cần `0` + 9 chữ số) |
-| E-003 | 409 | Khung vừa có người khác đặt (chống trùng lịch ở DB) |
+| E-003 | 409 | Khung vừa có người khác đặt (chống trùng lịch ở DB). **(T-019)** Đặt quầy nhiều khối kèm `detail.conflicts: [{resource_code, start_hour}]`, không tạo khối nào |
 | E-004 | 422 | Khung hoặc buổi đã qua (khung đã qua = giờ kết thúc ≤ bây giờ; khung đang diễn ra vẫn đặt được) |
 | E-009 | 422 | Số chỗ ngoài 1–99 |
 | E-010 | 409 | Sự kiện vướng khung đã có người đặt: "Khung HH:MM–HH:MM ở {Tên sân} đã có người đặt…" |
@@ -92,7 +93,9 @@ vẫn là 422 mặc định của FastAPI, khi đó `detail` là **mảng**.
 | E-024 | 409 | Sự kiện đã đủ chỗ |
 | E-BOOK-1 | 422 | Ngày sau "hết tháng sau" – **T-008 bỏ giới hạn này** (người dùng chốt 28/10): backend không còn trả mã này |
 | E-BOOK-2 | 422 | Sân của sự kiện không liền nhau |
-| E-PAY-0 | 422 | Thu chuyển khoản tại quầy – chưa hỗ trợ (chờ T-007) |
+| E-BOOK-3 | 404 | **(T-019)** "Không tìm thấy mã đặt." (thu cả đơn với mã đơn không có) |
+| E-BOOK-4 | 409 | **(T-019)** "Đơn không còn khối nào chưa thanh toán." (thu cả đơn) |
+| E-PAY-0 | 422 | Thu chuyển khoản tại quầy – chưa hỗ trợ (chờ T-007); cả với thu cả đơn |
 | E-PAY-1 | 422 | Đánh dấu Không thu được với booking online, hoặc chưa tới giờ chơi |
 
 Thông báo thành công (E-005, E-006, E-008, E-011, E-022, E-026) không có trong API: giao diện tự dựng từ response.
@@ -177,15 +180,16 @@ Quyền theo bảng mục 3. "Hôm nay" tính theo `Asia/Ho_Chi_Minh`.
 | Method | Path | Ghi chú |
 |---|---|---|
 | GET | `/api/v1/booking/calendar?date=YYYY-MM-DD` | Lịch một ngày: `{date, now, is_past, columns[], resources[], blocks[], unpaid_count, can}` |
-| GET | `/api/v1/booking/search?code=` | Tìm **chính xác** theo mã (bỏ khoảng trắng, không phân biệt hoa thường) → `{kind: booking\|ticket\|session, code, play_date}`; không thấy → 404 `E-021` |
+| GET | `/api/v1/booking/search?code=` | Tìm **chính xác** theo mã (bỏ khoảng trắng, không phân biệt hoa thường) → `{kind, code, order_code, play_date, codes[]}`. **(T-019)** nhận **mã đơn hoặc mã con**: mã con → `kind: "booking"`, `codes: []`; mã đơn → `kind: "order"`, `codes` là các mã con của đơn; vé / sự kiện như cũ (`order_code: null`, `codes: []`). Không thấy → 404 `E-021` |
 | GET | `/api/v1/members/search?q=` | Tối đa 20 hội viên `{ref, member_code, name, phone, tier, is_active}`; tìm theo mã, tên hoặc SĐT (≥ 3 chữ số), gồm cả hội viên Ngừng |
-| POST | `/api/v1/front-desk/bookings` → 201 | Đặt sân tại quầy. Body `{resource_code, date, start_hour, end_hour, customer}` → `ItemOut` |
-| GET | `/api/v1/booking/items/{code}` | Thông tin booking hoặc vé → `ItemOut` |
+| POST | `/api/v1/front-desk/bookings` → 201 | Đặt sân tại quầy. **(T-019)** Body `{date, blocks: [{resource_code, start_hour, end_hour}], customer}` (1–20 khối) → `{order_code, bookings: [ItemOut…]}`. Vẫn nhận dạng một khối cũ `{resource_code, date, start_hour, end_hour, customer}` (cũng trả cấu trúc mới); gửi cả hai dạng → 422 |
+| GET | `/api/v1/booking/items/{code}` | Thông tin booking hoặc vé → `ItemOut`. **(T-019)** `code` là mã con (mã đơn chỉ có một khối cũng được, trả khối đó) |
 | POST | `/api/v1/booking/sessions` → 201 | Tạo sự kiện (Admin). Body `{resource_codes[], date, start_hour, end_hour, name, capacity, ticket_price}` → `SessionOut` |
 | GET | `/api/v1/booking/sessions/{code}` | Chi tiết sự kiện → `SessionOut` |
 | DELETE | `/api/v1/booking/sessions/{code}` | Xóa sự kiện (Admin). Body `{version}` → 200 `SessionOut` với `status: "deleted"` |
 | POST | `/api/v1/front-desk/sessions/{code}/tickets` → 201 | Đăng ký vé tại quầy. Body `{customer}` → `ItemOut` (`kind: "ticket"`) |
 | POST | `/api/v1/booking/items/{code}/collect` | Thu tiền. Body `{method: "cash", version}` → `ItemOut`; `"transfer"` → 422 `E-PAY-0` |
+| POST | `/api/v1/booking/orders/{order_code}/collect` **(T-019)** | Thu cả đơn bằng tiền mặt (xem 5.1) |
 | POST | `/api/v1/booking/items/{code}/uncollectible` | Không thu được. Body `{reason, version}` (lý do 1–200 ký tự) → `ItemOut` |
 | GET | `/api/v1/booking/transactions?from&to&resource&status&method&q&page` | Lịch sử giao dịch (Admin) |
 
@@ -201,7 +205,7 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 
 - `columns[]`: các giờ bắt đầu (số nguyên) từ giờ mở sớm nhất đến đóng muộn nhất của các sân; tự nới khi có khối ngoài giờ.
 - `resources[]`: `{code, name, type, is_active, off_hours[]}`; `off_hours` là các giờ ô Xám (ngoài giờ mở hoặc sân Ngừng). Sân ngừng chỉ hiện khi còn chỗ chiếm trong ngày.
-- `blocks[]`: `{type: booking|session|hold, code, resource_codes[], start_time, end_time, start_hour, end_hour}`, thêm:
+- `blocks[]`: `{type: booking|session|hold, code, resource_codes[], start_time, end_time, start_hour, end_hour}` (**T-019:** booking thêm `order_code`; `code` vẫn là mã con, dùng để mở chi tiết), thêm:
   booking → `payment_status, customer_name, phone, source`; sự kiện → `name, taken, capacity, is_full, unpaid_tickets`; giữ chỗ → `expires_at` (`code` là `null`).
 - `unpaid_count`: số booking + vé Chưa thanh toán của **ngày đang xem**.
 - `can`: `{counter_book, create_session}` – theo quyền của người đang đăng nhập.
@@ -209,7 +213,7 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 
 ### Booking và vé (`ItemOut`)
 
-`{kind: booking|ticket, code, version, source, customer, schedule, payment, note?, created_by, created_at, actions[], price_breakdown[]}`:
+`{kind: booking|ticket, code, order_code, version, source, customer, schedule, payment, note?, created_by, created_at, actions[], price_breakdown[]}`:
 
 - `customer`: `{name, phone, profile_label, kind, member_code, tier}`.
 - `schedule`: `{resource_codes[], resource_names[], play_date, start_time, end_time, session?}`.
@@ -230,19 +234,44 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 
 ### Quy tắc cần nhớ
 
-- Đặt tại quầy: **một sân, hôm nay, cho cả Admin và Tài khoản tại máy**; ngày khác hoặc nhiều sân → 403/422 ngay cả khi giao diện bị sửa. Ngày sau và nhiều sân chỉ qua "Tạo sự kiện" (Admin), và từ T-008 sự kiện không còn giới hạn "hết tháng sau".
+- Đặt tại quầy: **hôm nay, cho cả Admin và nhân viên**; ngày khác → 403 ngay cả khi giao diện bị sửa (**T-019:** một lần đặt được nhiều khối, nhiều sân, cùng ngày hôm nay). Ngày sau chỉ qua "Tạo sự kiện" (Admin), và từ T-008 sự kiện không còn giới hạn "hết tháng sau".
 - Server tự tính tiền từ bảng giá lúc lưu; thiếu giá → `E-019`. Đổi bảng giá sau đó không đổi `amount` đã lưu.
 - Không thu được: chỉ booking/vé `source=counter`, đang Chưa thanh toán và **đã tới giờ chơi** (`E-PAY-1` nếu không). Khung **không** bán lại.
 - Vé tại quầy chỉ cho buổi **hôm nay, chưa kết thúc** (ngược lại `E-004`).
 - Chống trùng lịch bằng exclusion constraint Postgres, không bằng code: hai máy cùng đặt một khung → đúng một thành công, máy kia nhận `E-003` (hoặc `E-010` với sự kiện).
-- Mã booking/sự kiện `BK-YYYYMMDD-NNN` theo **ngày chơi**, tuần tự; mã đã lưu không cấp lại.
+- Mã đơn và mã sự kiện `BK-YYYYMMDD-NNN` theo **ngày chơi**, tuần tự, chung một dãy số; mã đã lưu không cấp lại. **(T-019)** Booking mang mã con `{mã đơn}-NN` (mục 5.1); trước T-019 mỗi booking có một mã `BK-…` riêng.
+
+### 5.1 Mã chung cho một lượt đặt (T-019, ADR-010)
+
+> Theo `be/T-019-ma-chung` @ `f0a1471` (cục bộ, **chưa vào `dev`**). **Đổi contract**: BE và FE phải lên cùng đợt. Giao diện chưa đối chiếu.
+
+Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sân ở quầy) tạo **một đơn**:
+
+| | |
+|---|---|
+| Mã đơn | `BK-YYYYMMDD-NNN`, theo ngày chơi, **chung dãy số với sự kiện**, không dùng lại. Một đơn chỉ thuộc một ngày chơi |
+| Khối | Một sân × khoảng giờ liền nhau = một booking, mã con `{mã đơn}-NN` (`BK-20261030-003-01`, NN từ 01 đến 99). Đánh số theo sân (thứ tự sân, mã sân) rồi theo giờ bắt đầu. Đơn một khối vẫn có `-01` |
+| Giữ nguyên theo khối | Chống trùng lịch (exclusion constraint **không đổi**), giá, trạng thái thanh toán, thu tiền, Không thu được |
+| Sự kiện, vé | Không đổi: sự kiện `BK-YYYYMMDD-NNN`, vé `{mã sự kiện}-Vnn` |
+| Khách thấy | Chỉ **mã đơn** (trang thanh toán, thành công, tra cứu, khu hội viên). Quầy thấy mã đơn trên khối và mã con trong chi tiết |
+| Online | `pay_ref` = mã đơn bỏ dấu gạch (`BK` + 11 số): định dạng không đổi nên cấu hình SePay giữ nguyên. Mã đơn cấp lúc giữ chỗ; lượt hết hạn thì mã **bỏ luôn**. Đơn chỉ tạo khi tiền về đủ; thiếu / trễ / thừa xử lý như mục 10 |
+
+**Đặt quầy nhiều khối** `POST /front-desk/bookings`: 1–20 khối cùng `date`. Hai khối cùng sân, giờ liền nhau → **gộp** làm một; hai khối chồng giờ → 422 `E-001`. All-or-nothing: có khối trùng lịch → 409 `E-003` kèm `conflicts: [{resource_code, start_hour}]`, không tạo khối nào. Response `{order_code, bookings: [ItemOut…]}`.
+
+**Thu cả đơn** `POST /booking/orders/{order_code}/collect`: quyền `booking.collect` (Admin và nhân viên), cần `Idempotency-Key`, body `{method: "cash"}`. Thu mọi khối **Chưa thanh toán** của đơn; khối đã thu hoặc Không thu được giữ nguyên. Trả `{order_code, collected: [mã con], amount, bookings: [ItemOut…]}`. Lỗi: 404 `E-BOOK-3`, 409 `E-BOOK-4` (không còn khối chưa thanh toán), 422 `E-PAY-0` (`transfer`). Ghi `payment.collect_order`. Thu / Không thu được từng khối vẫn dùng `/booking/items/{mã con}/…`.
+
+**Nhật ký và sự kiện:** `booking.counter.create` (mỗi khối) ghi thêm `order_code`; `checkout.created` và `booking.online_paid` mang `order_code` và danh sách mã con; `booking.created` phát **cho từng khối** (online và quầy): `{code, order_code, source, play_date}`, không mang tham chiếu khách hay SĐT.
+
+**Field `order_code` thêm vào:** `ItemOut`, khối booking của lịch, dòng Lịch sử giao dịch, `CheckoutOut` / `CheckoutCreatedOut`, và `MemberBooking` (lịch sử đặt sân của hội viên).
+
+**Dữ liệu cũ (migration `5b98d354dd77`, nối sau `a3d81f5c2b6e`):** mỗi booking cũ thành một đơn, mã đơn = mã cũ, booking nhận `-01`; hold và allocation mang mã đó đổi theo; `checkout.order_code` = mã đã dùng làm `pay_ref`; checkout còn `pending` bị cho hết hạn và nhả khung. Downgrade trả mã cũ, **dừng kèm thông báo nếu đã có đơn từ 2 khối trở lên**. T-016 (`dad220bfc992`) cũng nối sau `a3d81f5c2b6e`: gộp cả hai thì Alembic có **2 head**, phải sửa `down_revision` hoặc thêm migration merge trước khi deploy.
 
 ### Lịch sử giao dịch (`/booking/transactions`, chỉ Admin)
 
 - Bộ lọc: `from`, `to` (ngày chơi; mặc định hôm nay trừ 6 ngày đến hôm nay, tối đa 92 ngày → `E-020`, từ > đến → `E-016`), `resource`, `status`, `method`
   (chọn phương thức ⇒ chỉ lấy `paid`; "Chuyển khoản" gồm cả online), `q` (mã booking/vé, tên, SĐT), `page` (8 dòng/trang).
 - Trả `{date_from, date_to, rows[], page, page_size: 8, total, cards:{paid, unpaid, uncollectible}}`, mỗi thẻ có `{amount, count}`, tính đúng theo bộ lọc.
-- Sắp xếp: giờ chơi mới nhất → mã sân → mã.
+- Sắp xếp: giờ chơi mới nhất → mã sân → mã. **(T-019)** Mỗi dòng thêm `order_code` (mã đơn + mã con).
 
 ## 6. Biến môi trường
 
@@ -336,12 +365,12 @@ Migration quay lui được (`alembic downgrade`), không xóa dữ liệu bản
 ### 10.1 Luồng
 
 1. Khách xem lịch: `GET /web/booking/calendar` (không cần đăng nhập).
-2. Chọn ô, nhập họ tên + SĐT. **(T-013)** Khách bấm "Gửi mã" (`POST /web/booking/phone/request`), nhập OTP (`POST /web/booking/phone/verify` → `phone_token`); khách đã đăng nhập với SĐT đã xác minh thì bỏ qua bước này. Rồi `POST /web/booking/checkouts` → server giữ chỗ **5 phút**, cấp mã `BK-YYYYMMDD-NNN` cho từng dải giờ liền nhau của từng sân, trả `token` (chỉ trả **một lần**) và thông tin chuyển khoản.
+2. Chọn ô, nhập họ tên + SĐT. **(T-013)** Khách bấm "Gửi mã" (`POST /web/booking/phone/request`), nhập OTP (`POST /web/booking/phone/verify` → `phone_token`); khách đã đăng nhập với SĐT đã xác minh thì bỏ qua bước này. Rồi `POST /web/booking/checkouts` → server giữ chỗ **5 phút**, cấp **một mã đơn** `BK-YYYYMMDD-NNN` (T-019; trước đó mỗi dải giờ liền nhau của từng sân một mã) và mã con `{mã đơn}-NN` cho từng dải giờ liền nhau của từng sân, trả `token` (chỉ trả **một lần**) và thông tin chuyển khoản.
 3. Khách quét QR, chuyển khoản với **nội dung = `pay_ref`**. Trang hỏi `GET /web/booking/checkouts/{token}` (mỗi 3 giây).
-4. SePay báo tiền về qua webhook → server đủ tiền thì **trong cùng transaction** tạo booking (`source=online`, cùng mã đã cấp, `payment_status=paid`, `payment_method=online_transfer`) và đóng lượt thanh toán `paid`.
+4. SePay báo tiền về qua webhook → server đủ tiền thì **trong cùng transaction** tạo booking (`source=online`, cùng mã đã cấp, gắn vào đơn, `payment_status=paid`, `payment_method=online_transfer`) và đóng lượt thanh toán `paid`.
 5. Quá `expires_at` + 60 giây mà chưa đủ tiền → worker đóng lượt `expired`, nhả khung. Tiền về sau đó **không** tạo booking: ghi thành "cần hoàn" cho Admin xử lý.
 
-`pay_ref` = mã booking đầu tiên bỏ gạch (`BK-20261020-023` → `BK20261020023`). Booking online hiện trên lịch quầy như T-006 (Đỏ, nguồn Online).
+`pay_ref` = **mã đơn** bỏ gạch (`BK-20261020-023` → `BK20261020023`; T-019, trước đó là mã booking đầu tiên). Booking online hiện trên lịch quầy như T-006 (Đỏ, nguồn Online).
 
 ### 10.2 API công khai – tiền tố `/api/v1/web/booking`
 
@@ -388,13 +417,14 @@ Trường không dùng có giá trị `null`. Response **không** chứa tên, S
 
 ```json
 { "token": "…43 ký tự…", "status": "pending", "expires_at": "…+07:00", "server_now": "…+07:00",
-  "amount": 288000, "paid_amount": 0, "paid_at": null, "pay_ref": "BK20261020023",
+  "amount": 288000, "paid_amount": 0, "paid_at": null, "order_code": "BK-20261020-023", "pay_ref": "BK20261020023",
   "bank": { "bank_name": "…", "account_number": "…", "account_name": "…", "qr_url": "https://qr.sepay.vn/img?…" },
   "customer": { "full_name": "Phạm Quang Minh", "phone_masked": "0935 xxx 123" },
-  "items": [{ "code": "BK-20261020-023", "resource_code": "S01", "resource_name": "Sân 1", "play_date": "2026-10-20",
+  "items": [{ "code": "BK-20261020-023-01", "resource_code": "S01", "resource_name": "Sân 1", "play_date": "2026-10-20",
               "start_hour": 19, "start_time": "19:00", "end_time": "21:00", "hours": 2, "amount": 288000 }] }
 ```
 
+- **(T-019)** `order_code` là mã khách thấy; `items[].code` là mã con, giao diện **không hiện** cho khách.
 - `token` chỉ có ở lần tạo; server chỉ lưu hash (SHA-256) và không đưa token vào log. Client giữ token để mở `/thanh-toan/{token}`, **không** đặt vào query string.
 - `status`: `pending` → `paid` hoặc `expired`. `bank` chỉ có khi `pending` (các trạng thái khác là `null`).
 - Đếm ngược theo `expires_at` và `server_now` (bù lệch giờ máy khách), không theo đồng hồ máy.
@@ -403,7 +433,7 @@ Trường không dùng có giá trị `null`. Response **không** chứa tên, S
 
 **`POST /lookup`** – body `{"code": "bk20261020023", "phone": "0935240123"}`. Mã nhận có/không gạch, hoa/thường, khoảng trắng thừa.
 
-→ 200 `{code, status, resource_name, play_date, start_time, end_time, hours, customer_name, phone_masked, amount, payment_method_label, paid_at, pending}`:
+→ 200 `{order_code, status, play_date, hours, customer_name, phone_masked, amount, payment_method_label, paid_at, items[], pending}`. **(T-019)** Nhận mã đơn **hoặc** mã con (kể cả viết liền `bk2026103000302`) kèm SĐT và trả **cả đơn**: `amount`, `hours` là tổng của đơn; `items[]` = `{code, resource_name, start_time, end_time, hours, amount, status}` (mã con, không hiện cho khách). Đã **bỏ** các trường cấp trên cùng `code`, `resource_name`, `start_time`, `end_time`. `status` của đơn: còn khối chưa thu → `unpaid`; mọi khối đã thu → `paid`; còn lại → `uncollectible`; lượt chưa thành đơn → `pending` / `expired`.
 
 | `status` | Ý nghĩa |
 |---|---|
@@ -413,7 +443,7 @@ Trường không dùng có giá trị `null`. Response **không** chứa tên, S
 | `pending` | Giữ chỗ còn hạn; có `pending: {expires_at, server_now, pay_ref, amount, bank}` (`amount` là tổng cả lượt) |
 | `expired` | Giữ chỗ hết hạn |
 
-Sai mã **hay** sai SĐT đều trả cùng 404 `E-WEB-7`, kể cả khi mã là vé/sự kiện (chưa hỗ trợ). SĐT luôn che.
+Sai mã, mã con không thuộc SĐT, **hay** sai SĐT đều trả cùng 404 `E-WEB-7`, kể cả khi mã là vé/sự kiện (chưa hỗ trợ). SĐT luôn che.
 
 ### 10.3 Mã lỗi
 

@@ -189,7 +189,7 @@ Admin vào **`/admin/cai-dat/thanh-toan`** (menu "Cài đặt thanh toán", ch�
    ```
 
 2. Chạy migration một lần để có schema `payments`: `cd backend; .venv\Scripts\alembic upgrade head`.
-3. Mở `http://localhost:3000/dat-san`, chọn ô, nhập họ tên + SĐT, bấm xác nhận (từ T-013: nhập tên + SĐT, bấm **Gửi mã**, nhập mã thử rồi bấm **Xác nhận** trước, xem mục "Đăng nhập, nhân viên và OTP"). Trang thanh toán hiện **Nội dung CK** dạng `BK20261020023` (chính là `pay_ref`) và số tiền.
+3. Mở `http://localhost:3000/dat-san`, chọn ô, nhập họ tên + SĐT, bấm xác nhận (từ T-013: nhập tên + SĐT, bấm **Gửi mã**, nhập mã thử rồi bấm **Xác nhận** trước, xem mục "Đăng nhập, nhân viên và OTP"). Trang thanh toán hiện **Nội dung CK** dạng `BK20261020023` (chính là `pay_ref`, tức **mã đơn** bỏ dấu gạch từ T-019) và số tiền.
 4. Giả lập tiền về bằng tài khoản Admin. Lệnh ghi cần cookie phiên, header `Origin` thuộc `ALLOWED_ORIGINS` (mặc định `http://localhost:3000`) và `Idempotency-Key` mới mỗi lần. Ví dụ PowerShell, đổi `pay_ref` và `amount` theo trang thanh toán:
 
    ```powershell
@@ -208,7 +208,7 @@ Admin vào **`/admin/cai-dat/thanh-toan`** (menu "Cài đặt thanh toán", ch�
 5. Trang thanh toán tự chuyển sang "Đặt sân thành công". Thử `amount` nhỏ hơn → `partial` (vẫn chờ); lớn hơn → `applied` kèm `refund_amount`.
 6. Admin xem tiền cần hoàn / không khớp mã ở trang `/admin/tien-ve` (menu "Tiền về", kèm số giao dịch chưa xử lý); bấm **Đã xử lý** phải ghi chú. Cùng dữ liệu ở `GET /api/v1/payments/bank-transactions`.
 
-Các trang khách của T-008: `/dat-san` (lưới chọn giờ, `?ngay=YYYY-MM-DD`), `/thanh-toan/{token}` (QR + đếm ngược, tự chuyển khi tiền về; `noindex`, `no-store`, chặn trong `robots.txt`, không vào sitemap), `/tra-cuu` (mã booking + SĐT). Header: Đặt sân · Tra cứu booking · Hotline (Đăng nhập/Đăng ký đang ẩn; T-013 hiện lại). Số hotline vẫn là số mẫu trong `frontend/src/lib/site.ts` cho tới khi chủ dự án cung cấp số thật.
+Các trang khách của T-008: `/dat-san` (lưới chọn giờ, `?ngay=YYYY-MM-DD`), `/thanh-toan/{token}` (QR + đếm ngược, tự chuyển khi tiền về; `noindex`, `no-store`, chặn trong `robots.txt`, không vào sitemap), `/tra-cuu` (mã đặt + SĐT; từ T-019 nhận mã đơn hoặc mã con và hiện cả đơn). Header: Đặt sân · Tra cứu booking · Hotline (Đăng nhập/Đăng ký đang ẩn; T-013 hiện lại). Số hotline vẫn là số mẫu trong `frontend/src/lib/site.ts` cho tới khi chủ dự án cung cấp số thật.
 
 ### Hướng dẫn chủ sân cài SePay (một lần, trước khi bật production)
 
@@ -307,6 +307,20 @@ Lệnh hỏi mật khẩu mới hai lần (gõ không hiện trên màn hình; *
 | Sau deploy dev: kiểm `0912345678` + mật khẩu cũ và `nv001` + mật khẩu cũ của "Tài khoản tại máy" | "Tài khoản tại máy" hiện tại được đổi thành nhân viên `NV001` / `nv001` |
 
 Sau khi lên T-013, route cũ `/auth/login` và `/admin/users` bị gỡ (trả 404); `UserOut` không còn `email`.
+
+## Mã đặt sân: một lượt đặt một mã (T-019, chưa vào dev)
+
+> Theo `be/T-019-ma-chung` @ `f0a1471` (cục bộ). Phần giao diện chưa bàn giao nên chưa đối chiếu tên nút. Thay đổi này **đổi contract API**: backend và frontend lên `dev` cùng đợt.
+
+- Mỗi lần khách đặt online, hoặc nhân viên bấm **Đặt sân** ở quầy, tạo **một đơn** có mã `BK-YYYYMMDD-NNN`. Dãy số NNN chung với mã sự kiện, không dùng lại.
+- Mỗi **khối** (một sân × khoảng giờ liền nhau) trong đơn có mã con `{mã đơn}-01`, `-02`… Ví dụ khách đặt Sân 2 và Sân 3, mỗi sân hai khoảng giờ: **một** mã đơn, bốn khối `-01` đến `-04`.
+- **Khách chỉ thấy mã đơn.** Nội dung chuyển khoản vẫn là `BK` + 11 số (mã đơn bỏ dấu gạch) nên cấu hình SePay không đổi.
+- **Quầy:** lịch hiện mã đơn trên khối, chi tiết khối hiện thêm mã con. Thu tiền và "Không thu được" vẫn theo từng khối. Đơn còn từ 2 khối chưa thanh toán thì có thể **thu cả đơn** bằng tiền mặt. Ô tìm mã và `/tra-cuu` nhận cả mã đơn lẫn mã con.
+- Một lần đặt ở quầy chọn được nhiều khối trong ngày hôm nay (nhiều sân, nhiều khoảng giờ); chỉ cần một khối trùng lịch là **không khối nào được tạo**.
+- **Dữ liệu trên dev:** mỗi booking cũ thành một đơn, mã đơn giữ mã cũ, booking nhận `-01`. Lượt thanh toán đang chờ tại lúc migrate bị cho hết hạn. Hạ cấp (downgrade) chỉ chạy được khi chưa có đơn nào từ 2 khối trở lên.
+- **RELEASE:** T-016 (`dad220bfc992`) và T-019 (`5b98d354dd77`) cùng nối sau `a3d81f5c2b6e`. Gộp cả hai thì Alembic có 2 head; xử lý trước khi deploy.
+
+API: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 5.1.
 
 ## Hội viên và khu hội viên (T-015, T-016)
 
