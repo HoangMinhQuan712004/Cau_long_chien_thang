@@ -4,13 +4,24 @@ Ghi các thay đổi người dùng hoặc người vận hành nhìn thấy đ�
 
 ## Chưa phát hành
 
-Các mục T-005, T-006, T-008, T-012 đã có ở link dev; T-013 mới làm cục bộ, chưa lên dev. Tất cả chưa lên production (cần người dùng duyệt).
+Các mục T-005, T-006, T-008, T-012 đã có ở link dev; T-013 và T-015 (PR #21) cũng đã lên dev; T-016 mới làm cục bộ. Tất cả chưa lên production (cần người dùng duyệt).
 
-- **Đăng nhập mới, nhiều nhân viên, OTP (T-013, chưa lên dev):**
+- **Khu hội viên trên web, đợt 1 "Hồ sơ của tôi" (T-016, chưa lên dev):**
+  - Khu `/hoi-vien` cho khách là hội viên (tài khoản có SĐT trùng hội viên, do sân tạo hoặc đã xác minh OTP). Hội viên tự sửa Họ tên, Biệt danh, Email (không bắt buộc), Trình độ (= Hạng), Vợt, công tắc "Hiện trên Video & kỷ lục", đổi và xóa ảnh đại diện. Các mục khác của khu hiện là "Sắp ra mắt".
+  - Đổi Họ tên thì tên trên booking, vé, lượt thanh toán đổi theo. Hai tab sửa cùng lúc: tab lưu sau nhận lỗi, không ghi đè.
+  - **Vận hành:** biến `AVATAR_MAX_BYTES` (mặc định 5 MB), gói mới `pillow`, `python-multipart` (**build lại image backend**); proxy phải cho thân request tới khoảng 5,06 MB. Migration `dad220bfc992`.
+- **Quản lý hội viên và tài khoản hội viên (T-015, PR #21):**
+  - Màn `/admin/hoi-vien` (Admin và nhân viên): danh sách hội viên và hồ sơ tạm, tìm, lọc theo Loại / Trạng thái / Hạng / Vợt, sắp theo Số lần đặt, xem chi tiết (tổng giờ, 5 lần đặt gần nhất), thêm / sửa hội viên, tạo hồ sơ tạm, **nâng hồ sơ tạm thành hội viên** (giữ lịch sử), danh mục vợt (chỉ Admin).
+  - **Hạng đổi sang 8 bậc** (Yếu … Chuyên nghiệp), có thể "Chưa xếp hạng"; hạng ưu đãi cũ Vàng/Bạc/Đồng của dữ liệu thử thành "Chưa xếp hạng". Chỉ Admin đổi Trạng thái; hội viên Ngừng không chọn được khi đặt quầy và bị khóa tài khoản web.
+  - **Thêm hội viên tạo luôn tài khoản web:** đăng nhập bằng SĐT, mật khẩu ban đầu là chính SĐT, phải đổi ở `/doi-mat-khau` trong 3 ngày. Vai `customer` đổi tên thành `member`. Khách xem thẻ hội viên và lịch sử đặt sân ở `/tai-khoan`.
+  - Màn quản trị và API quản trị hiện SĐT **đầy đủ** (trước đây che). Số lần đặt chưa tính vé sự kiện. Quầy không đổi được SĐT hồ sơ.
+  - **Vận hành:** migration `a3d81f5c2b6e`. Hội viên đã có từ trước chưa có tài khoản web cho tới khi chạy `python -m app.scripts.backfill_member_accounts` (không tự chạy khi deploy). Biến `MEMBER_INITIAL_PASSWORD_DAYS` (mặc định 3).
+- **Đăng nhập mới, nhiều nhân viên, OTP (T-013):**
   - Một trang `/dang-nhap`: Admin đăng nhập bằng **số điện thoại**, nhân viên bằng **tên đăng nhập**, khách bằng SĐT/tên đăng nhập hoặc **Google**. Sai mật khẩu 5 lần khóa 15 phút.
   - **Mỗi nhân viên một tài khoản** thay cho "Tài khoản tại máy" dùng chung. Chủ sân thêm, khóa, đặt lại mật khẩu và đăng xuất từ xa tại `/admin/nhan-vien`. "Tài khoản tại máy" hiện tại thành `NV001` / `nv001`, giữ mật khẩu. Phiên Admin/nhân viên là phiên phía server, 12 giờ.
   - Quên mật khẩu bằng OTP (`/quen-mat-khau`). Khách tự đăng ký (`/dang-ky`), có trang `/tai-khoan` và xác minh SĐT; header hiện lại Đăng nhập/Đăng ký.
   - **Đặt online phải xác minh SĐT bằng OTP** trước khi giữ chỗ (đặt tại quầy và tra cứu không đổi). Gửi mã qua Zalo chưa làm: link dev dùng `OTP_TEST_MODE` (mã hiện trên màn hình); **production tạm chưa đặt online và chưa quên mật khẩu được** cho tới khi có Zalo.
+  - Khách đăng xuất về trang chủ (Admin/nhân viên về `/dang-nhap`). Ở `/dat-san` bước 2, khách chưa đăng nhập thấy khối "Bạn là hội viên?" (Đăng nhập / Đăng ký hội viên) và quay lại đúng bước sau khi đăng nhập. Khách đã xác minh SĐT một lần thì các lần đặt sau không phải nhập OTP.
   - Lệnh cứu Admin trên server: `python -m app.scripts.reset_admin_password`.
   - Giao diện toàn site chuyển sang bộ thiết kế mới (màu `#1a7354`, bỏ chế độ tối).
   - **Phá vỡ tương thích:** `/auth/login` → `/auth/sign-in`, `/admin/users` → `/admin/staff`, Admin/nhân viên không còn JWT.
