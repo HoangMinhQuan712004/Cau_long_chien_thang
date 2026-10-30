@@ -6,6 +6,7 @@ import { toast } from "@/lib/feedback";
 import { addDaysIso, formatLongDate, vnDate } from "@/lib/format";
 import { BookingDialog, SessionFormDialog } from "./booking-dialogs";
 import { ItemFlow } from "./item-flow";
+import { OrderFlow } from "./order-flow";
 import { getCalendar, searchCode } from "./requests";
 import { ResourceTimeline, type RejectReason } from "./resource-timeline";
 import { SessionFlow } from "./session-flow";
@@ -17,6 +18,7 @@ import { inputCls } from "./ui";
 
 type Dialog =
   | { kind: "booking"; selection: Selection }
+  | { kind: "order"; orderCode: string }
   | { kind: "sessionForm"; selection: Selection }
   | { kind: "item"; code: string }
   | { kind: "session"; code: string };
@@ -123,6 +125,12 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
     setSearchError("");
     const { kind, play_date } = res.data;
     if (play_date !== dateRef.current) await goto(play_date);
+    // Mã đơn → danh sách các khối của đơn; mã khối (mã con) → chi tiết khối
+    if (kind === "order") {
+      setHighlight(res.data.order_code ?? res.data.code);
+      setDialog({ kind: "order", orderCode: res.data.order_code ?? res.data.code });
+      return;
+    }
     setHighlight(kind === "ticket" ? null : res.data.code);
     setDialog(kind === "session" ? { kind: "session", code: res.data.code } : { kind: "item", code: res.data.code });
   }
@@ -198,7 +206,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
       <form onSubmit={onSearch} className="flex flex-wrap items-start gap-2" role="search">
         <div>
           <label htmlFor="code-search" className="sr-only">
-            Tìm theo mã booking, sự kiện hoặc vé
+            Tìm theo mã đơn, mã khối, sự kiện hoặc vé
           </label>
           <input
             id="code-search"
@@ -285,6 +293,16 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
           onClose={() => setDialog(null)}
           onChanged={refresh}
           onOpenSession={(code) => setDialog({ kind: "session", code })}
+          onOpenOrder={(orderCode) => setDialog({ kind: "order", orderCode })}
+        />
+      ) : null}
+      {dialog?.kind === "order" ? (
+        <OrderFlow
+          key={dialog.orderCode}
+          orderCode={dialog.orderCode}
+          onClose={() => setDialog(null)}
+          onChanged={refresh}
+          onOpenItem={(code) => setDialog({ kind: "item", code })}
         />
       ) : null}
       {dialog?.kind === "session" ? (

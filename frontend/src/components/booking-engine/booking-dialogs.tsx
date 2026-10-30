@@ -14,7 +14,7 @@ import {
   type CustomerState,
 } from "./customer-picker";
 import { getQuote, sendCounterBooking, sendCreateSession } from "./requests";
-import type { Item, Quote, Selection } from "./types";
+import type { CounterOrder, Item, Quote, Selection } from "./types";
 import { btnCls, btnPrimaryCls, ErrorBanner, Hint, inputCls, SummaryBox } from "./ui";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -83,10 +83,8 @@ export function BookingDialog({ selection, canSession, onClose, onSwitchToSessio
     try {
       const res = await write((key) =>
         sendCounterBooking(key, {
-          resource_code: code,
           date: selection.date,
-          start_hour: selection.startHour,
-          end_hour: selection.endHour,
+          blocks: [{ resource_code: code, start_hour: selection.startHour, end_hour: selection.endHour }],
           customer: payload,
         }),
       );
@@ -103,9 +101,10 @@ export function BookingDialog({ selection, canSession, onClose, onSwitchToSessio
         else setBanner(errorText(e));
         return;
       }
-      const item = res.data as Item;
+      const order = res.data as CounterOrder;
+      const item = order.bookings[0];
       toast(
-        `Đã đặt ${code} · ${quote?.resource_name ?? ""} · ${range(selection)} cho ${item.customer.name}`,
+        `Đã đặt ${order.order_code} · ${quote?.resource_name ?? ""} · ${range(selection)} cho ${item.customer.name}`,
         "Trạng thái: Chưa thanh toán · thu tiền tại quầy sau khi chơi",
       );
       onBooked(item);

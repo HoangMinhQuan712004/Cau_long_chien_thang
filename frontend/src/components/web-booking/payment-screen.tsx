@@ -138,9 +138,11 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
       ) : null}
 
       <div className="mt-5 space-y-1.5 border-t border-border pt-4 text-sm">
+        {/* Khách chỉ thấy MÃ ĐƠN (trùng nội dung chuyển khoản); mã khối không hiện (T-019 AC2) */}
+        <p className="font-semibold">Mã booking {checkout.order_code}</p>
         {checkout.items.map((it) => (
           <p key={it.code} className="font-medium">
-            Mã booking {it.code} · {it.resource_name} · {formatLongDate(it.play_date)} · {hhmm(it.start_time)} – {hhmm(it.end_time)}
+            {it.resource_name} · {formatLongDate(it.play_date)} · {hhmm(it.start_time)} – {hhmm(it.end_time)}
           </p>
         ))}
         {view === "pending" ? (
@@ -161,15 +163,11 @@ function PaidView({ checkout }: { checkout: Checkout }) {
           ✓
         </span>
         <h1 className="mt-4 text-2xl font-bold">Đặt sân thành công</h1>
-        <ul className="mt-4 space-y-2">
-          {checkout.items.map((it) => (
-            <li key={it.code} className="flex flex-wrap items-center justify-center gap-2">
-              <span className="text-sm text-muted">Mã booking</span>
-              <b className="text-lg text-primary">{it.code}</b>
-              <CopyButton text={it.code} label={`mã booking ${it.code}`} />
-            </li>
-          ))}
-        </ul>
+        <p className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <span className="text-sm text-muted">Mã booking</span>
+          <b className="text-lg text-primary">{checkout.order_code}</b>
+          <CopyButton text={checkout.order_code} label={`mã booking ${checkout.order_code}`} />
+        </p>
       </div>
 
       <dl className="mt-5 space-y-2.5 rounded-xl bg-background p-4 text-sm">

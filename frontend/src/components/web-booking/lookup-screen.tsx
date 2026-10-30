@@ -153,9 +153,9 @@ function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string })
         : `${formatVnd(r.amount)} · Chưa thanh toán`;
 
   return (
-    <section className="rounded-2xl border border-border bg-surface p-5 sm:p-6" aria-label={`Kết quả ${r.code}`}>
+    <section className="rounded-2xl border border-border bg-surface p-5 sm:p-6" aria-label={`Kết quả ${r.order_code}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-bold text-primary">{r.code}</h2>
+        <h2 className="text-lg font-bold text-primary">{r.order_code}</h2>
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${timedOut ? BADGE.expired.cls : badge.cls}`}>{timedOut ? "Hết thời gian giữ chỗ" : badge.label}</span>
       </div>
 
@@ -172,13 +172,26 @@ function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string })
       ) : null}
 
       <dl className="mt-4 space-y-2.5 text-sm">
-        <Row label="Sân" value={r.resource_name} />
         <Row label="Ngày" value={formatLongDate(r.play_date)} />
-        <Row label="Khung giờ" value={`${hhmm(r.start_time)} – ${hhmm(r.end_time)} (${r.hours} giờ)`} />
         <Row label="Người đặt" value={`${r.customer_name} · ${r.phone_masked ?? "—"}`} />
+        <Row label="Tổng giờ" value={`${r.hours} giờ`} />
         <Row label="Số tiền" value={money} />
         {r.status === "paid" && r.paid_at ? <Row label="Thời gian TT" value={formatDateTime(r.paid_at)} /> : null}
       </dl>
+
+      {/* Danh sách sân / giờ của đơn; khách chỉ thấy MÃ ĐƠN, không thấy mã khối (T-019 AC2, AC7) */}
+      <h3 className="mt-4 text-xs font-semibold tracking-wide text-muted uppercase">Sân và khung giờ</h3>
+      <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+        {r.items.map((it) => (
+          <li key={it.code} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-3 py-2.5 text-sm">
+            <span className="font-medium">{it.resource_name}</span>
+            <span>
+              {hhmm(it.start_time)} – {hhmm(it.end_time)} ({it.hours} giờ)
+            </span>
+            <span className="tabular-nums text-muted">{formatVnd(it.amount)}</span>
+          </li>
+        ))}
+      </ul>
 
       <p className="mt-4 border-t border-border pt-3 text-sm text-muted">
         {r.status === "expired"

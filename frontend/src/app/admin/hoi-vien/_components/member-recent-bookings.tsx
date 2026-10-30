@@ -8,7 +8,7 @@ type Booking = MemberDetail["recent_bookings"][number];
 /** Lượt đặt gần nhất trong ngăn chi tiết: chọn bảng hay thẻ theo bề rộng ngăn (kéo dãn được), không theo màn hình. */
 export function MemberRecentBookings({ bookings, t }: { bookings: readonly Booking[]; t: Dictionary["members"]["drawer"] }) {
   const columns: Column<Booking>[] = [
-    { key: "code", header: t.cols.code, className: "whitespace-nowrap", card: "subtitle", cell: (b) => b.code },
+    { key: "code", header: t.cols.code, className: "whitespace-nowrap", card: "subtitle", cell: (b) => b.order_code ?? b.code },
     // Ngày và giờ tách cột; thẻ điện thoại ghép lại ở dòng đầu "30/10/2026 13:00–14:00"
     { key: "date", header: t.cols.date, className: "whitespace-nowrap tabular-nums", card: "title", cell: (b) => formatDayMonthYear(b.play_date) },
     {

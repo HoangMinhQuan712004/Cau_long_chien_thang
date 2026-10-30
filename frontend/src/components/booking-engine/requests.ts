@@ -64,10 +64,15 @@ export const getTransactions = (f: TransactionFilters) => {
 // ---- Lệnh ghi: truyền vào `write((key) => send...(key, ...))` ----
 const idem = (key: string) => ({ "Idempotency-Key": key });
 
+/** Một lần bấm Đặt sân = một đơn gồm 1–20 khối cùng ngày (T-019). Trả `{order_code, bookings[]}`; khối trùng lịch → 409 E-003 + `conflicts`. */
 export const sendCounterBooking = (
   key: string,
-  v: { resource_code: string; date: string; start_hour: number; end_hour: number; customer: CustomerPayload },
+  v: { date: string; blocks: { resource_code: string; start_hour: number; end_hour: number }[]; customer: CustomerPayload },
 ) => looseApi.POST(`${P}/front-desk/bookings`, { body: v, headers: idem(key) });
+
+/** Thu tiền mặt mọi khối Chưa thanh toán của đơn. */
+export const sendCollectOrder = (key: string, orderCode: string) =>
+  looseApi.POST(`${P}/booking/orders/{order_code}/collect`, { params: { path: { order_code: orderCode } }, body: { method: "cash" }, headers: idem(key) });
 
 export const sendCreateSession = (
   key: string,

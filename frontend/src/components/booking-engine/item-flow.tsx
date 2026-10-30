@@ -33,11 +33,13 @@ type Props = {
   onChanged: () => void;
   /** Mở popup Sự kiện từ dòng "Sự kiện" của vé (tùy chọn). */
   onOpenSession?: (code: string) => void;
+  /** Mở cả đơn (danh sách khối + Thu cả đơn) từ dòng "Mã đơn" (T-019). */
+  onOpenOrder?: (orderCode: string) => void;
 };
 
 type Step = "info" | "collect" | "bad";
 
-export function ItemFlow({ code, onClose, onChanged, onOpenSession }: Props) {
+export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder }: Props) {
   const [item, setItem] = useState<Item | null>(null);
   const [error, setError] = useState("");
   const [step, setStep] = useState<Step>("info");
@@ -78,7 +80,7 @@ export function ItemFlow({ code, onClose, onChanged, onOpenSession }: Props) {
   if (step === "bad") {
     return <UncollectibleDialog item={item} onBack={() => setStep("info")} onClose={onClose} onDone={onChanged} onStale={onStale} />;
   }
-  return <InfoDialog item={item} onClose={onClose} onCollect={() => setStep("collect")} onBad={() => setStep("bad")} onOpenSession={onOpenSession} />;
+  return <InfoDialog item={item} onClose={onClose} onCollect={() => setStep("collect")} onBad={() => setStep("bad")} onOpenSession={onOpenSession} onOpenOrder={onOpenOrder} />;
 }
 
 const when = (item: Item) =>
@@ -90,12 +92,14 @@ function InfoDialog({
   onCollect,
   onBad,
   onOpenSession,
+  onOpenOrder,
 }: {
   item: Item;
   onClose: () => void;
   onCollect: () => void;
   onBad: () => void;
   onOpenSession?: (code: string) => void;
+  onOpenOrder?: (orderCode: string) => void;
 }) {
   const isTicket = item.kind === "ticket";
   const p = item.payment;
@@ -159,7 +163,25 @@ function InfoDialog({
         </>
       }
     >
-      <Kv rows={[[isTicket ? "Mã vé" : "Mã booking", <span key="c" className="font-mono">{item.code}</span>]]} />
+      <Kv
+        rows={
+          isTicket || !item.order_code
+            ? [[isTicket ? "Mã vé" : "Mã booking", <span key="c" className="font-mono">{item.code}</span>]]
+            : [
+                [
+                  "Mã đơn",
+                  onOpenOrder ? (
+                    <button key="o" type="button" onClick={() => onOpenOrder(item.order_code as string)} className="font-mono text-primary hover:underline" title="Xem cả đơn">
+                      {item.order_code}
+                    </button>
+                  ) : (
+                    <span key="o" className="font-mono">{item.order_code}</span>
+                  ),
+                ],
+                ["Mã khối", <span key="c" className="font-mono">{item.code}</span>],
+              ]
+        }
+      />
       <Group title="Khách đặt">
         <Kv
           rows={[
