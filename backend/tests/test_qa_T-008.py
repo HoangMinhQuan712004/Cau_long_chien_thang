@@ -380,9 +380,12 @@ async def test_ac10_checkout_shape_codes_amount_and_expiry(anon, admin, sepay):
     assert re.fullmatch(r"BK\d{11}", co["pay_ref"])
     assert len(co["items"]) == 1, "two adjacent hours of one court form ONE booking"
     it = co["items"][0]
-    assert re.fullmatch(r"BK-\d{8}-\d{3}", it["code"]) and it["hours"] == 2
+    assert re.fullmatch(r"BK-\d{8}-\d{3}", co["order_code"]), (
+        "T-019 AC1: one order code per checkout"
+    )
+    assert it["code"] == f"{co['order_code']}-01" and it["hours"] == 2, "child code = order-01"
     assert it["start_time"] == "19:00" and it["end_time"] == "21:00" and it["amount"] == price
-    assert co["pay_ref"] == it["code"].replace("-", "")
+    assert co["pay_ref"] == co["order_code"].replace("-", ""), "T-019 AC2: pay_ref = order code"
     exp = datetime.fromisoformat(co["expires_at"])
     now = datetime.fromisoformat(co["server_now"])
     assert 4.5 * 60 <= (exp - now).total_seconds() <= 5 * 60 + 5, "hold = 5 minutes"
@@ -418,8 +421,9 @@ async def test_ac10_non_adjacent_hours_and_multi_court(anon, admin, sepay):
     assert len(co["items"]) == 3, "one booking per run of adjacent hours per court"
     codes = [i["code"] for i in co["items"]]
     assert len(set(codes)) == 3 and codes == sorted(codes)
+    assert codes == [f"{co['order_code']}-{n:02d}" for n in (1, 2, 3)], "children numbered -01..-03"
     assert co["amount"] == sum(i["amount"] for i in co["items"])
-    assert co["pay_ref"] == codes[0].replace("-", "")
+    assert co["pay_ref"] == co["order_code"].replace("-", "")
 
 
 async def test_ac3_slot_limits(anon, admin, sepay):
@@ -992,22 +996,28 @@ async def test_ac25_ac26_lookup_paid_with_code_variants(anon, admin, sepay):
     co = await make_checkout(anon, slots(c["code"], 10, 11), ph=ph, name="QA Tra Cứu")
     assert (await pay(anon, co)).status_code == 200
     code = co["items"][0]["code"]
+    order = co["order_code"]
     for variant in (
-        code,
+        order,
+        order.lower(),
+        order.replace("-", ""),
+        f"  {order.lower()} ",
+        co["pay_ref"].lower(),
+        code,  # a child code also finds the whole order (T-019 AC3)
         code.lower(),
         code.replace("-", ""),
-        f"  {code.lower()} ",
-        co["pay_ref"].lower(),
     ):
         r = await lookup(anon, variant, ph)
         assert r.status_code == 200, (variant, r.text)
         d = r.json()
-        assert d["code"] == code and d["status"] == "paid" and d["hours"] == 2
+        assert d["order_code"] == order and d["status"] == "paid" and d["hours"] == 2
+        assert [i["code"] for i in d["items"]] == [code] and d["items"][0]["status"] == "paid"
+        assert not {"code", "resource_name", "start_time", "end_time"} & set(d), "order-level only"
         assert d["amount"] == co["amount"] and d["paid_at"]
         assert d["customer_name"] == "QA Tra Cứu"
         assert d["phone_masked"].count("x") >= 3 and ph not in json.dumps(d)
     spaced = f"{ph[:4]} {ph[4:7]}.{ph[7:]}"
-    assert (await lookup(anon, code, spaced)).status_code == 200
+    assert (await lookup(anon, order, spaced)).status_code == 200
 
 
 async def test_ac26_lookup_pending_expired_and_counter_states(anon, admin, sepay):
@@ -1044,16 +1054,22 @@ async def test_ac26_lookup_counter_booking_unpaid_and_uncollectible(anon, admin)
     )
     if r.status_code != 201:
         pytest.skip("cannot book the current hour at the counter right now")
-    bk = r.json()
-    d = (await lookup(anon, bk["code"], ph)).json()
+    order = r.json()
+    assert len(order["bookings"]) == 1
+    bk = order["bookings"][0]
+    d = (await lookup(anon, order["order_code"], ph)).json()
     assert d["status"] == "unpaid" and d["amount"] == bk["payment"]["amount"]
+    assert d["order_code"] == order["order_code"] and [i["code"] for i in d["items"]] == [
+        bk["code"]
+    ]
     mark = await admin.post(
         f"{BK}/items/{bk['code']}/uncollectible",
         json={"reason": "QA", "version": bk["version"]},
         headers=idem(),
     )
     assert mark.status_code == 200, mark.text
-    assert (await lookup(anon, bk["code"], ph)).json()["status"] == "uncollectible"
+    assert (await lookup(anon, order["order_code"], ph)).json()["status"] == "uncollectible"
+    assert (await lookup(anon, bk["code"], ph)).json()["order_code"] == order["order_code"]
 
 
 async def test_ac27_sec2_wrong_code_and_wrong_phone_look_identical(anon, admin, sepay):

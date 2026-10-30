@@ -638,9 +638,11 @@ async def test_sec3_safe_methods_and_allowed_origin_pass(adm):
     assert ok.status_code != 403, "allowed Origin must not be blocked by CSRF check"
 
 
-# Routes added by T-006 (own permission matrix in test_qa_T-006.py) or public by design.
+# Routes added by T-006 / T-019 (own permission matrix in test_qa_T-006.py and test_qa_T-019.py:
+# `orders/{code}/collect` is a collect-money route, staff may call it) or public by design.
 NOT_CONFIG_PREFIXES = tuple(
-    f"{B}/{p}" for p in ("calendar", "search", "sessions", "items", "transactions", "prices/public")
+    f"{B}/{p}"
+    for p in ("calendar", "search", "sessions", "items", "orders", "transactions", "prices/public")
 )
 
 
