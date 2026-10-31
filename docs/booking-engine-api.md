@@ -1,17 +1,17 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
-Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, và quản trị hội viên của PR #21 `c288d08`); mục 12.6 (khu hội viên, T-016) đối chiếu với `be/T-016-khu-hoi-vien` @ `fd8db2f` và mục đánh dấu **(T-019)** với `be/T-019-ma-chung` @ `f0a1471` (cả hai **chưa vào `dev`**; giao diện chưa đối chiếu); spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009.
+Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, và PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020); mục đánh dấu **(T-021)** đối chiếu với `be/T-021-dang-ky-hoi-vien` @ `6ab2ad3` (cục bộ, **chưa vào `dev`**; giao diện chưa bàn giao); spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
 Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa. OpenAPI sống: `/docs` của API (tắt ở link dev và production).
 
 > Phạm vi: cấu hình sân và bảng giá (T-005); lịch, đặt sân tại quầy, sự kiện và vé, thu tiền mặt, Không thu được, Lịch sử giao dịch (T-006);
 > **khách đặt online, thanh toán QR SePay, tra cứu booking, Tiền về cần xử lý (T-008), Admin tự cài tài khoản nhận tiền và khóa SePay (T-012) – mục 10**.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
-> **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21) và khu hội viên trên web (T-016) – mục 12.**
+> **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, chưa vào `dev`) – mục 11.2 và 12.11.**
 > **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007), bán vé sự kiện online, báo cáo, các màn khu hội viên ngoài "Hồ sơ của tôi".
-> **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (chưa vào `dev`).**
+> **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (đã vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
-> Mục 10 (T-008, T-012), mục 11 (T-013) và mục 12.1–12.5 (PR #21) đã có trong `dev`; mục 12.6 (T-016) chưa. Chưa có trong `main`/production.
+> Mục 5.1, 10, 11 và 12.1–12.10 đã có trong `dev`. Phần đánh dấu **(T-021)** (đăng ký 2 bước, 410 cho `/auth/register`, `became_member`, `source`, mục 12.11) chưa vào `dev`. Chưa có gì trong `main`/production.
 
 ## 1. Quy tắc chung cho mọi request ghi
 
@@ -131,7 +131,7 @@ Quyền khai báo tập trung ở `backend/app/core/permissions.py`. Router dùn
 | `staff.manage` (T-013) | ✔ | | `/admin/staff*`: danh sách, tạo, khóa, đặt lại mật khẩu, phiên của nhân viên (mục 11.3) |
 | `content.manage` (T-013) | ✔ | | Quản lý tin tức / trang nội dung |
 
-API **công khai** của T-008 (`/web/booking/**`, webhook `POST /payments/sepay/webhook`) không dùng quyền: khách không đăng nhập (mục 10). **(T-013)** Các route `/auth/sign-in`, `/auth/google`, `/auth/register`, `/auth/password-reset/*` cũng công khai (mục 11).
+API **công khai** của T-008 (`/web/booking/**`, webhook `POST /payments/sepay/webhook`) không dùng quyền: khách không đăng nhập (mục 10). **(T-013)** Các route `/auth/sign-in`, `/auth/google`, `/auth/register/*` (T-021; `/auth/register` cũ trả 410), `/auth/password-reset/*` cũng công khai (mục 11).
 
 Chưa đăng nhập → 401 `E-AUTH-1`; thiếu quyền → 403 `E-AUTH-2`. Thêm route mới phải khai báo quyền; `tests/test_permissions.py` quét mọi route quản trị.
 
@@ -243,7 +243,7 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 
 ### 5.1 Mã chung cho một lượt đặt (T-019, ADR-010)
 
-> Theo `be/T-019-ma-chung` @ `f0a1471` (cục bộ, **chưa vào `dev`**). **Đổi contract**: BE và FE phải lên cùng đợt. Giao diện chưa đối chiếu.
+> Đã vào `dev` (PR #23), đối chiếu với `be/T-019-ma-chung` @ `f0a1471`. **Đổi contract**: BE và FE lên cùng đợt. Giao diện chưa đối chiếu.
 
 Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sân ở quầy) tạo **một đơn**:
 
@@ -379,7 +379,7 @@ Migration quay lui được (`alembic downgrade`), không xóa dữ liệu bản
 | GET | `/calendar?date=YYYY-MM-DD` | 60/phút/IP | `Cache-Control: no-store`. Ngày đã qua → 422 `E-WEB-2` |
 | POST | `/checkouts` → 201 | 6 lần/10 phút/IP (tính cả lần lỗi) | Cần `Origin` hợp lệ và `Idempotency-Key`. Thiếu cấu hình SePay → 503 `E-WEB-5` |
 | POST | `/phone/request` → 202 **(T-013)** | theo mục 11.4 | Body `{phone}` → `{resend_after}`; chế độ thử thêm `test_otp`. Cần `Origin`, không cần đăng nhập |
-| POST | `/phone/verify` **(T-013)** | theo mục 11.4 | Body `{phone, otp}` → `{phone_token, expires_at, account_verified}`. Khách đang đăng nhập có SĐT tài khoản trùng SĐT vừa xác minh → `account_verified: true` và tài khoản được đánh dấu đã xác minh, lần đặt sau bỏ qua OTP. Không gắn SĐT cho tài khoản chưa có SĐT, không gộp (việc đó qua `/auth/phone/*`) |
+| POST | `/phone/verify` **(T-013)** | theo mục 11.4 | Body `{phone, otp}` → `{phone_token, expires_at, account_verified}`. Khách đang đăng nhập có SĐT tài khoản trùng SĐT vừa xác minh → `account_verified: true` và tài khoản được đánh dấu đã xác minh, lần đặt sau bỏ qua OTP. Không gắn SĐT cho tài khoản chưa có SĐT, không gộp (việc đó qua `/auth/phone/*`). **(T-021)** Có đổi: xem mục 12.11 (khách đăng nhập xác minh xong là hội viên; thêm `became_member`, `member_code`, `account_merged` vào phản hồi; tài khoản Google chưa có SĐT được gắn SĐT) |
 | GET | `/checkouts/{token}` | 120/phút/IP | `no-store`. Token sai → 404 `E-WEB-6` |
 | POST | `/lookup` | 10/phút/IP | Cần `Origin`; **không** cần `Idempotency-Key` |
 
@@ -579,16 +579,18 @@ Lỗi dạng `{detail:{code,message,…}}`. Mọi POST cần `Origin` hợp lệ
 |---|---|---|---|
 | POST | `/auth/sign-in` `{login 1–50, password 1–128}` | công khai | Khách → `{kind:"member", account:UserOut}`. Admin/nhân viên → `{kind:"admin", account:{kind:"admin"\|"staff", display_name, role_label, staff_code?}, expires_at}` |
 | POST | `/auth/google` `{credential}` | công khai | ID token Google (≤ 4096 ký tự). Kết quả như khách |
-| POST | `/auth/register` `{full_name, phone, password}` → 201 | công khai | Khách tự đăng ký, **không** có email. SĐT chưa được coi là đã xác minh |
+| POST | `/auth/register/request` `{full_name 1–100, phone, password}` → 202 **(T-021)** | công khai | Bước 1 của đăng ký: gửi mã OTP, **chưa** tạo tài khoản. Trả `{resend_after, test_otp?}` (`test_otp` chỉ khi `OTP_TEST_MODE`). Họ tên và mật khẩu (đã băm) giữ ở bảng `registration_requests`, gắn với mã. Không tra SĐT đã có tài khoản hay chưa: mọi SĐT nhận cùng trả lời. Lỗi: 422 mật khẩu yếu hoặc trùng SĐT (`E-AUTH-26`) · 429 `E-SEC-5` (quá 10 lần/giờ/IP) hoặc `E-AUTH-13` · 503 `E-AUTH-23` (không có kênh OTP) |
+| POST | `/auth/register/verify` `{phone, otp}` → 201 **(T-021)** | công khai | Bước 2: mã đúng thì trong **một transaction** tạo tài khoản (SĐT đã xác minh) và hồ sơ hội viên, rồi đăng nhập luôn (cookie JWT). Trả `{account: UserOut, member_code, upgraded_from_temp}`. Lỗi: 400 `E-AUTH-14` / `E-AUTH-15` · 409 `E-AUTH-22` (kèm `phone`; chỉ báo sau khi nhập đúng mã) · 403 `E-AUTH-31` (hội viên cùng SĐT đang Ngừng) |
+| POST | `/auth/register` → **410** `E-AUTH-32` **(T-021)** | công khai | Đăng ký không OTP đã đóng. Trước T-021 route này nhận `{full_name, phone, password}` và tạo tài khoản luôn |
 | POST | `/auth/refresh` · `/auth/logout` · GET `/auth/me` | khách | Như cũ; JWT mang thêm claim `ver` |
 | GET | `/admin/auth/me` | Admin/nhân viên | `{account, expires_at}` |
 | POST | `/admin/auth/logout` | Admin/nhân viên | Thu hồi phiên hiện tại |
 | POST | `/auth/password-reset/request` `{phone}` → 202 | công khai | `{resend_after}`; chế độ thử thêm `test_otp` (mục 11.5) |
 | POST | `/auth/password-reset/verify` `{phone, otp}` | công khai | `otp` đúng 6 chữ số → `{reset_token}` (hạn 10 phút) |
 | POST | `/auth/password-reset/confirm` `{reset_token, password}` → 204 | công khai | Đổi mật khẩu, thu hồi mọi phiên Admin/nhân viên, xóa khóa; SĐT coi là đã xác minh. `reset_token` dùng một lần |
-| POST | `/auth/phone/request` `{phone}` → 202 · `/auth/phone/verify` `{phone, otp}` | khách đã đăng nhập | Gắn và xác minh SĐT. Mã gắn với tài khoản yêu cầu: khách B không dùng được mã gửi cho khách A. Verify → `{merged, password_cleared, account}` và đặt lại cookie JWT (gộp: JWT của chủ SĐT). Không có kênh OTP → 503 `E-AUTH-24` |
+| POST | `/auth/phone/request` `{phone}` → 202 · `/auth/phone/verify` `{phone, otp}` | khách đã đăng nhập | Gắn và xác minh SĐT. Mã gắn với tài khoản yêu cầu: khách B không dùng được mã gửi cho khách A. Verify → `{merged, password_cleared, account}` và đặt lại cookie JWT (gộp: JWT của chủ SĐT). Không có kênh OTP → 503 `E-AUTH-24`. **(T-021)** Verify thêm `became_member` và `member_code` (SĐT đã xác minh là hội viên, mục 12.11); hội viên Ngừng → 403 `E-AUTH-31` |
 
-`UserOut` = `{id, phone, phone_verified, username, full_name, google_email, role, is_active, must_change_password}` (**không còn `email`**; `role` là `member` với khách; T-016 thêm `is_member`, mục 12.6). `phone` là SĐT đầy đủ vì API chỉ trả cho chính chủ. `/auth/register` đăng nhập luôn (cookie JWT). `/auth/me` chỉ dành cho khách: phiên Admin/nhân viên gọi vào → 401.
+`UserOut` = `{id, phone, phone_verified, username, full_name, google_email, role, is_active, must_change_password}` (**không còn `email`**; `role` là `member` với khách; T-016 thêm `is_member`, mục 12.6). `phone` là SĐT đầy đủ vì API chỉ trả cho chính chủ. `/auth/register/verify` (T-021; trước đó `/auth/register`) đăng nhập luôn (cookie JWT). `/auth/me` chỉ dành cho khách: phiên Admin/nhân viên gọi vào → 401.
 
 **Origin.** Mọi `POST` auth thiếu hoặc sai `Origin` → 403 `E-SEC-1`, kể cả khi chưa có cookie. `GET` (như `/auth/me`, `/admin/auth/me`) không cần `Origin`.
 
@@ -627,17 +629,18 @@ Giao diện: nút **Tạo mật khẩu ngẫu nhiên**; sau khi tạo hiện mã
 ### 11.4 OTP và quên mật khẩu
 
 - Luồng giao diện: `/quen-mat-khau` (nhập SĐT, nút **Gửi mã**) → `/quen-mat-khau/xac-minh` (6 ô, dán được; **Xác nhận**, **Gửi lại mã** sau 60 giây, **Đổi số**) → `/quen-mat-khau/dat-lai` (mật khẩu mới + nhập lại, **Đổi mật khẩu**; lỗi phiên hết hạn có nút **Làm lại từ đầu**) → `/dang-nhap`. Dùng cho mọi vai.
+- **(T-021)** Mã OTP có thêm mục đích `register` (đăng ký tài khoản). Bước `/auth/register/request` dùng chung giới hạn mã theo SĐT và IP bên dưới, cộng thêm giới hạn 10 lần/giờ/IP của riêng nó (`REGISTER_IP_MAX_PER_HOUR`).
 - Mã OTP: 6 số, server chỉ lưu `HMAC-SHA256` với `SECRET_KEY`, hạn **5 phút**, sai **5 lần** thì mã chết (`E-AUTH-15`), gửi mã mới thì mã cũ hết hiệu lực. Gửi lại sau **60 giây**; tối đa **5 mã/giờ/SĐT** và **20 mã/giờ/IP** (`E-AUTH-13`, 429, `retry_after` = thời gian chờ dài nhất).
 - **Chống dò tài khoản:** SĐT chưa có tài khoản vẫn nhận 202 y hệt; xác minh với SĐT đó trả lỗi y hệt "mã sai/hết hạn".
 - Đặt lại thành công: đổi mật khẩu, `token_version += 1` (JWT khách cũ hết hiệu lực), thu hồi mọi phiên Admin/nhân viên, xóa khóa, ghi `auth.password_reset_done`. `reset_token` sai hoặc hết hạn → `E-AUTH-16`.
 - Mỗi lần yêu cầu mã ghi một dòng `otp_codes` (kể cả SĐT không có tài khoản, để trả y hệt); có khóa theo SĐT nên yêu cầu đồng thời chỉ phát một mã. Mã quá 24 giờ bị worker xóa.
-- Gửi mã qua Zalo ZNS (job ARQ `send_zalo_otp`): **chưa làm**, client để `TODO(zalo-zns)`. Production thiếu cấu hình Zalo → quên mật khẩu trả `E-AUTH-23` (503) và đặt online tạm ngưng (như thiếu SePay).
+- Gửi mã qua Zalo ZNS (job ARQ `send_zalo_otp`): **chưa làm**, client để `TODO(zalo-zns)`. Production thiếu cấu hình Zalo → quên mật khẩu trả `E-AUTH-23` (503), **(T-021)** đăng ký (`/auth/register/request`) cũng trả `E-AUTH-23` với câu "Đăng ký tài khoản đang tạm ngưng. Vui lòng liên hệ quầy.", và đặt online tạm ngưng (như thiếu SePay).
 
 ### 11.5 Chế độ thử OTP (`OTP_TEST_MODE`)
 
 Chỉ cho máy dev và link dev, khi chưa có Zalo.
 
-| `OTP_TEST_MODE` | Mã OTP của **khách** (`booking_phone`, `phone_verify`, `password_reset`) | Mã `password_reset` của **Admin/nhân viên** |
+| `OTP_TEST_MODE` | Mã OTP của **khách** (`booking_phone`, `phone_verify`, `password_reset`, và `register` từ T-021) | Mã `password_reset` của **Admin/nhân viên** |
 |---|---|---|
 | `true` | Có trong response (`test_otp`); giao diện hiện hộp vàng "Mã thử (chỉ link dev): 123456". SĐT không có tài khoản: `test_otp: null` | **Không** có trong response; chỉ ghi log server mức cảnh báo (SĐT đã che; xem bằng `docker logs`), để người lạ trên link dev công khai không chiếm được Admin |
 | `false` (mặc định) | Không bao giờ có trong response hay log | Như khách |
@@ -660,18 +663,20 @@ Chỉ cho máy dev và link dev, khi chưa có Zalo.
 | E-AUTH-19 | 404 | "Chưa bật đăng nhập bằng Google." |
 | E-AUTH-20 | 401 | "Không đăng nhập được bằng Google. Vui lòng thử lại." (token sai, hoặc tài khoản Google của Admin/nhân viên) |
 | E-AUTH-21 | 503 | "Chưa kết nối được Google. Vui lòng thử lại sau." |
-| E-AUTH-22 | 409 | "Số điện thoại đã được sử dụng." (đăng ký) |
-| E-AUTH-23 | 503 | "Chức năng quên mật khẩu đang tạm ngưng. Vui lòng liên hệ chủ sân." |
+| E-AUTH-22 | 409 | "Số điện thoại đã có tài khoản. Vui lòng đăng nhập hoặc dùng Quên mật khẩu." + `phone` (đăng ký; **T-021:** chỉ báo sau khi nhập đúng mã OTP) |
+| E-AUTH-23 | 503 | Không có kênh gửi OTP. Quên mật khẩu: "Chức năng quên mật khẩu đang tạm ngưng. Vui lòng liên hệ chủ sân." **(T-021)** Đăng ký: "Đăng ký tài khoản đang tạm ngưng. Vui lòng liên hệ quầy." |
 | E-AUTH-24 | 503 | "Chức năng xác minh số điện thoại đang tạm ngưng. Vui lòng liên hệ chủ sân." (`/auth/phone/request` khi không có kênh OTP; quên mật khẩu dùng `E-AUTH-23`) |
+| E-AUTH-31 | 403 | **(T-021)** "Tài khoản hội viên đang tạm ngừng. Vui lòng liên hệ quầy." Hồ sơ hội viên cùng SĐT đang Ngừng: tài khoản bị khóa. Gặp ở `/auth/register/verify`, `/auth/phone/verify`, và cuối Quên mật khẩu (mật khẩu đã được đổi nhưng tài khoản bị khóa) |
+| E-AUTH-32 | 410 | **(T-021)** "Đăng ký cần xác minh số điện thoại. Vui lòng tải lại trang và đăng ký lại." (`POST /auth/register` cũ) |
 | E-STAFF-1 | 404 | "Không tìm thấy nhân viên." (id không phải nhân viên cũng báo vậy) |
 | E-STAFF-2 | 404 | "Không tìm thấy phiên đăng nhập." |
 | E-WEB-8 | 403 | "Vui lòng xác minh số điện thoại trước khi đặt sân." (mục 10.2) |
 
-Mật khẩu yếu → 422 `weak_password` với đúng câu "Mật khẩu cần … ." (không có tiền tố "Value error"; dạng `detail` mảng mặc định của FastAPI). Đăng ký hàng loạt: quá 10 lần/giờ/IP → `E-SEC-5`. `E-AUTH-3…6` để dành cho T-010; `E-AUTH-7` dùng ở T-012 (mục 10.7).
+Mật khẩu yếu → 422 `weak_password` với đúng câu "Mật khẩu cần … ." (không có tiền tố "Value error"; dạng `detail` mảng mặc định của FastAPI). Gửi mã đăng ký hàng loạt (T-021; trước đó là đăng ký): quá 10 lần/giờ/IP → `E-SEC-5`. `E-AUTH-3…6` để dành cho T-010; `E-AUTH-7` dùng ở T-012 (mục 10.7).
 
 ### 11.7 Nhật ký (T-013)
 
-Dùng `audit_log` sẵn có. Action mới: `auth.login_success`, `auth.login_locked`, `auth.logout`, `auth.session_revoked`, `auth.password_reset_requested`, `auth.password_reset_done`, `auth.password_reset_cli`, `auth.phone_verified`, `auth.account_merged`, `staff.create`, `staff.update`, `staff.disable`, `staff.enable`, `staff.password_reset`. Mã OTP, token đặt lại, token phiên không bao giờ ở dạng rõ trong DB, log, nhật ký hay response (ngoại lệ duy nhất: mục 11.5).
+Dùng `audit_log` sẵn có. Action mới: `auth.login_success`, `auth.login_locked`, `auth.logout`, `auth.session_revoked`, `auth.password_reset_requested`, `auth.password_reset_done`, `auth.password_reset_cli`, `auth.phone_verified`, `auth.account_merged`, `staff.create`, `staff.update`, `staff.disable`, `staff.enable`, `staff.password_reset`. **(T-021)** thêm `auth.register`, `member.self_register`, `member.auto_upgrade_temp`, `auth.phone_released` (mục 12.8). Mã OTP, token đặt lại, token phiên không bao giờ ở dạng rõ trong DB, log, nhật ký hay response (ngoại lệ duy nhất: mục 11.5).
 
 ### 11.8 Lệnh cứu Admin trên server
 
@@ -697,9 +702,9 @@ Một migration (`3c30569e12af`) nối sau `cc9af0a8c694`. Các bước, theo th
 
 Mật khẩu và SĐT đã có của Admin **không bao giờ bị ghi đè** bởi migration hay seed. Downgrade xóa bảng/cột mới và trả `email` NOT NULL (dòng thiếu email → `user{id}@khong-co-email.invalid`).
 
-## 12. Hội viên, tài khoản hội viên, khu hội viên (T-015, T-016)
+## 12. Hội viên, tài khoản hội viên, khu hội viên (T-015, T-016, T-020, T-021)
 
-> **Nguồn:** phần quản trị và tài khoản hội viên lấy từ code `dev` (PR #21, merge `c288d08`). Người dùng chốt 30/10: "cứ bám theo PR mới" – ARCHITECT ADR-009 mục "Sửa đổi 30/10". Mục 12.6 (khu hội viên, T-016) đối chiếu với `be/T-016-khu-hoi-vien` @ `fd8db2f` (cục bộ, **chưa vào `dev`**; giao diện chưa đối chiếu). Nếu code lệch tài liệu này, code đúng.
+> **Nguồn:** code `dev` sau PR #23 (`993b27c`): quản trị và tài khoản hội viên (PR #21, chỉnh theo quyết định 31/10 ở T-020), khu hội viên (T-016). Người dùng chốt 30/10: "cứ bám theo PR mới" (ADR-009 mục "Sửa đổi 30/10"). Mục 12.11 (T-021) đối chiếu với `be/T-021-dang-ky-hoi-vien` @ `6ab2ad3` (cục bộ, **chưa vào `dev`**). Giao diện khu hội viên và đăng ký chưa đối chiếu. Nếu code lệch tài liệu này, code đúng.
 > Chỗ PR #21 khác SRS Hội viên v0.2 được liệt kê ở `board/ref/lech-SRS-hoi-vien.md` (để BA sửa SRS), không sửa code.
 
 ### 12.1 Khái niệm
@@ -708,10 +713,12 @@ Mật khẩu và SĐT đã có của Admin **không bao giờ bị ghi đè** b�
 |---|---|
 | Hồ sơ khách (`customer`) | Một bảng, hai loại (`kind`): `member` (hội viên, có Mã HV) và `temp` (hồ sơ tạm). SĐT duy nhất trong cả bảng |
 | Mã HV | `HV` + 4 số (`HV0031`), tuần tự, không dùng lại. Quá `HV9999` → 409 `E-MEM-4` |
-| Hồ sơ tạm | Họ tên, giới tính, SĐT. Sửa được **họ tên và giới tính**; SĐT và các ô khác không |
+| Hồ sơ tạm | Họ tên, giới tính, SĐT. Sửa được **họ tên và giới tính**; SĐT và các ô khác không. SĐT đã có hồ sơ tạm thì quầy **không thêm hội viên được** (409 `E-MEM-1`, T-020); hồ sơ tạm chỉ thành hội viên khi chính chủ SĐT xác minh OTP (T-021, mục 12.11) |
 | Hạng (= Trình độ) | 8 bậc, thấp → cao: `Yếu · Trung bình yếu · Trung bình - · Trung bình · Trung bình + · Khá · Bán chuyên · Chuyên nghiệp`. Có thể **chưa xếp hạng** (`null`) |
-| Trạng thái | `Hoạt động` / `Ngừng`. Ngừng **khóa tài khoản web** cùng SĐT (xem 12.5) và hội viên Ngừng **không chọn được khi đặt sân tại quầy** (409 `E-MEM-2`) |
+| Trạng thái | `Hoạt động` / `Ngừng`. Ngừng **khóa tài khoản web** cùng SĐT (xem 12.5). Hội viên Ngừng **vẫn đặt được** tại quầy, đăng ký vé và đặt online, chỉ có nhãn Ngừng ở popup Chọn hội viên (T-020) |
+| Nguồn (`source`, T-021) | `counter` = quầy / Admin tạo; `self_register` = hội viên tự thành nhờ xác minh OTP (giao diện ghi "Tự đăng ký online"). Hồ sơ tạm luôn `counter`. Hồ sơ tạm được nâng lên hội viên thì nguồn đổi thành `self_register` |
 | Vợt đang dùng | **Chuỗi** (tên vợt), không phải khóa ngoại. Lấy từ danh mục vợt (12.4); tên chưa có thì tự thêm vào danh mục |
+| `version` | Số phiên bản của hồ sơ (T-016, T-020). Tăng mỗi lần hồ sơ đổi; dùng chung giữa màn quản trị và khu hội viên làm khóa lạc quan |
 | `ref` | Mã định danh hồ sơ trong URL: Mã HV với hội viên, mã UUID (`public_id`) với hồ sơ tạm. Không lộ `id` nội bộ |
 | Số lần đặt | Số **booking** (quầy + online, mọi trạng thái thanh toán, kể cả Không thu được) của hồ sơ. **Chưa tính vé sự kiện.** Booking online đặt trước khi có hồ sơ lưu theo `phone:<SĐT>` và vẫn được tính |
 
@@ -720,23 +727,23 @@ Mật khẩu và SĐT đã có của Admin **không bao giờ bị ghi đè** b�
 | Quyền | Admin | Nhân viên | Dùng cho |
 |---|:-:|:-:|---|
 | `member.search` (`Perm.MEMBER_SEARCH`) | ✔ | ✔ | `GET /members/search` (ô Chọn hội viên khi đặt quầy) |
-| `member.manage` (`Perm.MEMBER_MANAGE`) | ✔ | ✔ | Màn Hội viên: xem danh sách, chi tiết, thêm, sửa, tạo hồ sơ tạm, nâng hồ sơ tạm; đọc danh mục vợt |
+| `member.manage` (`Perm.MEMBER_MANAGE`) | ✔ | ✔ | Màn Hội viên: xem danh sách, chi tiết, thêm, sửa, tạo hồ sơ tạm; đọc danh mục vợt |
 | `member.status` (`Perm.MEMBER_STATUS`) | ✔ | | Đổi **Trạng thái** Hoạt động / Ngừng |
 | `racket.manage` (`Perm.RACKET_MANAGE`) | ✔ | | Thêm, sửa tên, ẩn / hiện, xóa vợt trong danh mục |
 
-- Nhân viên đổi Trạng thái → 403 `E-AUTH-2`. (Trong code **chỉ Trạng thái bị khóa với nhân viên; Hạng thì nhân viên vẫn sửa được** – lệch spec T-015, xem `board/ref/lech-SRS-hoi-vien.md`.)
+- Nhân viên đổi Trạng thái → 403 `E-AUTH-2`. **Chỉ Trạng thái bị khóa với nhân viên; nhân viên vẫn đổi được Hạng** (người dùng chốt 31/10, T-020; lệch spec T-015, xem `board/ref/lech-SRS-hoi-vien.md`).
 - Khách hoặc chưa đăng nhập → 401 `E-AUTH-1` / 403 `E-AUTH-2`.
 
 ### 12.3 API quản trị – tiền tố `/api/v1/members`
 
-Lệnh ghi cần `Origin` đúng và `Idempotency-Key` (mục 1). Lỗi dạng `{detail:{code, message, ...}}`. **SĐT trả đầy đủ** (`phone`), không che.
+Lệnh ghi cần `Origin` đúng. **(T-020)** `POST /members` và `POST /members/temp` **bắt buộc** `Idempotency-Key` (thiếu → 400 `E-SEC-2`); gửi lại cùng key → 201 với **đúng kết quả cũ** và header `Idempotent-Replayed: true`. `PATCH /members/{ref}` **bắt buộc** `version` (không dùng `Idempotency-Key`). Lỗi dạng `{detail:{code, message, ...}}`. **SĐT trả đầy đủ** (`phone`), không che.
 
 | Method | Đường dẫn | Quyền | Ghi chú |
 |---|---|---|---|
 | GET | `/members/search?q=` | `member.search` | Tối đa 20 hội viên `{ref, member_code, name, phone, tier, is_active}`; `q` 1–50 ký tự, tìm theo mã / tên / SĐT (≥ 3 chữ số), gồm cả Ngừng. Rate limit 60/phút/người |
 | GET | `/members?q=&kind=&status=&tier=&racket=&sort=&page=1&size=20` | `member.manage` | Danh sách |
 | GET | `/members/next-code` | `member.manage` | `{member_code}` Mã HV dự kiến (chỉ để hiển thị; mã thật cấp lúc lưu) |
-| POST | `/members` → 201 | `member.manage` | Thêm hội viên (hoặc nâng hồ sơ tạm) |
+| POST | `/members` → 201 | `member.manage` | Thêm hội viên |
 | POST | `/members/temp` → 201 | `member.manage` | Tạo hồ sơ tạm |
 | GET | `/members/{ref}` | `member.manage` | Chi tiết; **ghi nhật ký `member.view`** mỗi lần xem |
 | PATCH | `/members/{ref}` | `member.manage` | Sửa hội viên hoặc hồ sơ tạm |
@@ -744,24 +751,24 @@ Lệnh ghi cần `Origin` đúng và `Idempotency-Key` (mục 1). Lỗi dạng `
 **Danh sách** `GET /members`:
 
 - `kind`: `member` \| `temp` (bỏ trống = cả hai). `status`: `active` \| `inactive`. `tier`: một trong 8 bậc, hoặc `none` (= chưa xếp hạng). `racket`: tên vợt (không phân biệt hoa thường). `q` tối đa 50 ký tự.
-- `sort`: bỏ trống = **hồ sơ thêm mới nhất trước** (hội viên và hồ sơ tạm xếp chung; hồ sơ tạm được nâng giữ ngày tạo gốc). `bookings` hoặc `bookings_desc` = Số lần đặt giảm dần; `bookings_asc` = tăng dần; bằng nhau thì theo thứ tự mặc định.
+- `sort`: bỏ trống = **hồ sơ thêm mới nhất trước** (hội viên và hồ sơ tạm xếp chung; hồ sơ tạm được nâng lên hội viên (T-021) tính theo ngày nâng). `bookings` hoặc `bookings_desc` = Số lần đặt giảm dần; `bookings_asc` = tăng dần; bằng nhau thì theo thứ tự mặc định.
 - `size` 1–100 (mặc định 20).
 - Trả `{items[], total, page, size, counts:{all, member, temp}, can:{edit_status, manage_rackets}}`. `counts` áp **mọi bộ lọc trừ `kind`**; `total` theo `kind`. `can` cho giao diện khóa ô theo quyền.
-- Mỗi `items[]`: `{ref, kind, member_code, full_name, phone, gender: "male"|"female"|null, tier, racket, is_active, bookings, created_at}`. Hồ sơ tạm: `member_code`, `tier`, `racket` là `null`.
+- Mỗi `items[]`: `{ref, kind, member_code, full_name, phone, gender: "male"|"female"|null, tier, racket, is_active, bookings, created_at, version}` (**T-021** thêm `source`: `counter` \| `self_register`). Hồ sơ tạm: `member_code`, `tier`, `racket` là `null`.
 
 **Chi tiết** `GET /members/{ref}`: như một dòng, thêm `note`, `total_minutes` (tổng **phút** đã đặt), `recent_bookings[]` (5 booking gần nhất theo giờ chơi: `{code, play_date, start_time, end_time, resource_name, amount}`) và `can`. Không tìm thấy → 404 `E-NOT-FOUND`.
 
-**Thêm** `POST /members` body `{full_name, phone, gender?, tier?, racket?, upgrade_temp?}`:
+**Thêm** `POST /members` body `{full_name, phone, gender?, tier?, racket?}` (trường lạ → 422; T-020 gỡ `upgrade_temp`):
 
 - `tier` bỏ trống = chưa xếp hạng. `racket` là tên vợt.
 - Hội viên mới ở trạng thái Hoạt động; **tạo luôn tài khoản web** cho SĐT đó nếu chưa có (12.5).
 - SĐT đã thuộc hội viên → 409 `E-018`.
-- SĐT đang là hồ sơ tạm: không có `upgrade_temp` → 409 `E-MEM-1` (kèm `ref`, `full_name`, `bookings`, `next_code` để giao diện hỏi "Nâng hồ sơ tạm thành hội viên?"); gửi `upgrade_temp: true` → **nâng chính hồ sơ đó** thành hội viên (cùng dòng, giữ lịch sử, ghi `member.promote`). Nếu hồ sơ vừa thành hội viên ở máy khác → 409 `E-MEM-3`.
+- SĐT đang là hồ sơ tạm → 409 `E-MEM-1` "Số điện thoại đã có hồ sơ tạm: {Họ tên} (tạo dd/mm/yyyy)" (kèm `ref`, `full_name`). **Không** nâng hồ sơ tạm, không tạo hội viên (người dùng chốt 31/10; T-020 gỡ `upgrade_temp` và nhật ký `member.promote`).
 
-**Sửa** `PATCH /members/{ref}`: chỉ gửi ô muốn đổi, trong `full_name, gender, tier, racket, is_active`. **Không đổi được SĐT.** `tier: null` = bỏ xếp hạng. Hồ sơ tạm chỉ nhận `full_name`, `gender` (ô khác → 422 `E-MEM-6`). Đổi `is_active` khi không có `member.status` → 403 `E-AUTH-2`. Hội viên Ngừng → khóa tài khoản web; Hoạt động lại → mở.
-Không có khóa lạc quan (`version`) ở lệnh sửa của quầy: hai máy cùng sửa thì máy lưu sau thắng.
+**Sửa** `PATCH /members/{ref}`: **bắt buộc `version`** (lấy từ danh sách hoặc chi tiết); chỉ gửi thêm ô muốn đổi, trong `full_name, gender, tier, racket, is_active`. **Không đổi được SĐT.** `tier: null` = bỏ xếp hạng. Hồ sơ tạm chỉ nhận `full_name`, `gender` (ô khác → 422 `E-MEM-6`). Đổi `is_active` khi không có `member.status` → 403 `E-AUTH-2`. Hội viên Ngừng → khóa tài khoản web; Hoạt động lại → mở.
+Khóa lạc quan (T-020): `version` lệch → 409 `E-MEM-9` "Hội viên này vừa được cập nhật ở máy khác. Tải lại để xem bản mới nhất.", không ghi đè. Có ô đổi thì `version + 1`; không đổi gì thì giữ nguyên. Hội viên tự sửa ở khu hội viên (12.6) cũng dùng chính `version` này, nên hai bên chặn lẫn nhau.
 
-**Hồ sơ tạm** `POST /members/temp` body `{full_name, phone, gender?}`. SĐT trùng hội viên → 409 `E-018`; trùng hồ sơ tạm → 409 `E-MEM-1`.
+**Hồ sơ tạm** `POST /members/temp` body `{full_name, phone, gender?}`. SĐT trùng hội viên → 409 `E-018`; trùng hồ sơ tạm → 409 `E-MEM-1`. Cần `Idempotency-Key`.
 
 Kiểm đầu vào: Họ tên 1–100 ký tự (gộp khoảng trắng), thiếu → 422 `E-001`; SĐT sai → 422 `E-002`. Hai máy lưu cùng lúc đụng ràng buộc → 409 `E-012`.
 
@@ -778,7 +785,7 @@ Lưu hội viên với một tên vợt chưa có trong danh mục thì tên đ�
 
 ### 12.5 Tài khoản hội viên do sân tạo
 
-Thêm hội viên (hoặc nâng hồ sơ tạm) thì hệ thống tạo luôn **tài khoản web** vai `member` cho SĐT đó, nếu SĐT chưa có tài khoản (đã có thì **không đụng**, không đổi mật khẩu).
+Quầy / Admin thêm hội viên thì hệ thống tạo luôn **tài khoản web** vai `member` cho SĐT đó, nếu SĐT chưa có tài khoản (đã có thì **không đụng**, không đổi mật khẩu).
 
 | | |
 |---|---|
@@ -790,13 +797,13 @@ Thêm hội viên (hoặc nâng hồ sơ tạm) thì hệ thống tạo luôn **
 
 `POST /auth/password/change` (khách đăng nhập, cần Origin): body `{new_password, current_password?}`. Đang bị bắt đổi lần đầu thì **không cần** `current_password`. Xong: bỏ cờ, JWT cũ hết hiệu lực, cấp cookie mới. Lỗi: 400 `E-AUTH-28` (mật khẩu hiện tại sai), 422 `weak_password`, 422 `E-AUTH-26` (mật khẩu trùng SĐT; chỉ mật khẩu ban đầu mới được trùng SĐT).
 
-Khác với T-013: `POST /auth/register` và `E-AUTH-22` giờ dùng chung một lỗi cho **mọi** SĐT đã có tài khoản (kể cả tài khoản hội viên sân tạo), kèm `phone` để điền link Quên mật khẩu.
+Khác với T-013: `E-AUTH-22` dùng chung một lỗi cho **mọi** SĐT đã có tài khoản (kể cả tài khoản hội viên sân tạo), kèm `phone` để điền link Quên mật khẩu. Khách tự đăng ký đi qua 2 bước OTP (mục 11.2 và 12.11).
 `UserOut` thêm `must_change_password`; `kind` của kết quả đăng nhập khách là `"member"` (không còn `"customer"`).
 
 **Thẻ hội viên của chính khách:** `GET /me/member` (SĐT lấy từ tài khoản, không nhận tham số) → `{member_code, full_name, tier, is_active, gender, racket, created_at, bookings, total_minutes}`; `GET /me/member/bookings?page=` → `{items[], total, page, size:10}`, mới nhất trước. Lỗi: 401, 403 `E-AUTH-25`, 403 `E-AUTH-29` (SĐT chưa xác minh OTP), 404 (không có hồ sơ **hội viên** cùng SĐT; hồ sơ tạm không tính).
-Điều kiện xem (`can_view_member_card`): tài khoản do sân tạo, **hoặc** SĐT đã xác minh bằng OTP. Tài khoản tự đăng ký (`/auth/register`, không OTP) bằng SĐT của hội viên phải xác minh SĐT trước. Gọi `POST /auth/phone/verify` đúng SĐT đang gắn vào tài khoản (chưa xác minh) thì xác minh tại chỗ.
+Điều kiện xem (`can_view_member_card`): tài khoản do sân tạo, **hoặc** SĐT đã xác minh bằng OTP. Tài khoản đời cũ tự đăng ký không OTP bằng SĐT của hội viên phải xác minh SĐT trước. Gọi `POST /auth/phone/verify` đúng SĐT đang gắn vào tài khoản (chưa xác minh) thì xác minh tại chỗ. **(T-021)** Từ nay mọi tài khoản đã xác minh SĐT đều tự có hồ sơ hội viên (12.11), nên `E-AUTH-29` và `E-HV-8` chỉ còn gặp với tài khoản chưa xác minh SĐT.
 
-### 12.6 Khu hội viên trên web – `/api/v1/member-area` (T-016, chưa vào `dev`)
+### 12.6 Khu hội viên trên web – `/api/v1/member-area` (T-016)
 
 Dành cho khách đã đăng nhập **và là hội viên**: hồ sơ của tài khoản là hồ sơ `kind=member` **cùng SĐT**, với điều kiện `can_view_member_card` (12.5). Không có cột liên kết riêng. Mọi API lấy hồ sơ **theo phiên**, không nhận id trên URL (trừ ảnh). Phiên Admin / nhân viên → 401 `E-AUTH-1`. `GET /auth/me` và các kết quả đăng nhập thêm `is_member: bool`.
 
@@ -826,11 +833,11 @@ Dành cho khách đã đăng nhập **và là hội viên**: hồ sơ của tài
 | `version` | Lấy từ GET, gửi lại. Hồ sơ đã được sửa nơi khác → 409 `E-HV-12`, không ghi đè |
 
 Lỗi nhiều ô cùng lúc → 422 với `detail.fields[{field, code, message}]` (`field` ∈ `full_name | nickname | email | tier | racket`); có lỗi thì **không lưu ô nào**. Không đổi gì → trả hồ sơ, không ghi, không tăng `version`.
-Chỉ hội viên **tự sửa** mới tăng `version`; lệnh sửa của quầy (12.3) thì không, nên quầy sửa xong hội viên không nhận `E-HV-12`.
+`version` tăng cả khi hội viên tự sửa lẫn khi quầy sửa (12.3, từ T-020): quầy sửa xong thì hội viên đang mở bản cũ nhận `E-HV-12`, và ngược lại quầy nhận `E-MEM-9`.
 
 Đổi **Họ tên** còn: cập nhật `users.full_name`, và đổi tên khách trên booking, vé, lượt thanh toán của hồ sơ (kể cả booking cũ); snapshot hạng lúc đặt giữ nguyên.
 
-Lỗi chung: 401 `E-AUTH-1` · 403 `E-AUTH-25` (chưa đổi mật khẩu ban đầu) · 403 `E-AUTH-30` (mật khẩu ban đầu hết hạn) · 403 `E-HV-8` "Bạn chưa là hội viên." (không có hồ sơ hội viên cùng SĐT, hoặc SĐT chưa xác minh) · 413 `E-SEC-6` (thân gửi lên vượt khoảng 5 MB + 64 KB).
+Lỗi chung: 401 `E-AUTH-1` · 403 `E-AUTH-25` (chưa đổi mật khẩu ban đầu) · 403 `E-AUTH-30` (mật khẩu ban đầu hết hạn) · 403 `E-HV-8` "Bạn chưa là hội viên." (không có hồ sơ hội viên cùng SĐT, hoặc SĐT chưa xác minh) · 413 `E-SEC-6` (thân gửi lên vượt khoảng 5 MB + 64 KB). **(T-021)** Riêng đường ảnh đại diện, thân quá lớn trả 413 `E-HV-13` ("Ảnh phải là JPG, PNG hoặc WebP, tối đa 5 MB.") dạng JSON thay vì ngắt kết nối; server đọc bỏ phần thân còn lại (tối đa 4 lần giới hạn) trước khi trả lỗi.
 
 **Ảnh đại diện (xử lý ở server).** Kiểm magic bytes (chỉ JPEG, PNG, WebP); Pillow giải mã; **xoay theo EXIF trước khi cắt** (`crop_*` tính theo pixel của ảnh đã xoay, đúng như trình duyệt hiển thị); cắt vuông, thu về tối đa 512 px, mã hóa lại WebP chất lượng 85, không còn metadata; ảnh lớn hơn 40 MP bị từ chối. Sai định dạng, quá dung lượng, quá cỡ hoặc vùng cắt vượt ảnh → 422 `E-HV-13`. Ảnh lưu trong Postgres (bảng `customer_avatar`).
 
@@ -841,12 +848,12 @@ Lỗi chung: 401 `E-AUTH-1` · 403 `E-AUTH-25` (chưa đổi mật khẩu ban đ
 | `E-001` | 422 | Thiếu hoặc quá dài (Họ tên, SĐT, tên vợt) |
 | `E-002` | 422 | SĐT sai định dạng |
 | `E-018` | 409 | SĐT đã là của hội viên |
-| `E-MEM-1` | 409 | SĐT đã có hồ sơ tạm (kèm dữ liệu để hỏi nâng) |
-| `E-MEM-2` | 409 | Hội viên Ngừng, không chọn khi đặt quầy |
-| `E-MEM-3` | 409 | Nâng hồ sơ tạm nhưng hồ sơ vừa thành hội viên |
+| `E-MEM-1` | 409 | SĐT đã có hồ sơ tạm: "Số điện thoại đã có hồ sơ tạm: {Họ tên} (tạo dd/mm/yyyy)" (kèm `ref`, `full_name`) |
 | `E-MEM-4` | 409 | Hết Mã HV (`HV9999`) |
 | `E-MEM-5` | 409 | Tên vợt trùng trong danh mục |
 | `E-MEM-6` | 422 | Hồ sơ tạm chỉ sửa họ tên, giới tính |
+| `E-MEM-9` | 409 | (T-020) `version` lệch: hồ sơ vừa được cập nhật ở máy khác |
+| `E-SEC-2` | 400 | (T-020) Thiếu `Idempotency-Key` ở `POST /members`, `/members/temp` |
 | `E-012` | 409 | Dữ liệu vừa được cập nhật ở máy khác (đụng ràng buộc duy nhất) |
 | `E-NOT-FOUND` | 404 | Không có hồ sơ hoặc vợt |
 | `E-AUTH-25` | 403 | Chưa đổi mật khẩu ban đầu |
@@ -861,14 +868,13 @@ Lỗi chung: 401 `E-AUTH-1` · 403 `E-AUTH-25` (chưa đổi mật khẩu ban đ
 | `E-HV-12` | 409 | (T-016) Hồ sơ vừa được sửa ở nơi khác (khóa lạc quan `version`) |
 | `E-HV-13` | 422 | (T-016) Ảnh sai định dạng, quá dung lượng, quá cỡ, vùng cắt sai |
 
-Mã `E-HV-2…7, 9` của spec T-015 **không có trong code** (PR #21 dùng `E-MEM-*`, `E-001`, `E-002`, `E-018`); `E-HV-7` (SĐT gắn tài khoản khác) đã bỏ cùng quy tắc "quầy đổi SĐT".
+Mã `E-HV-2…7, 9` của spec T-015 **không có trong code** (PR #21 dùng `E-MEM-*`, `E-001`, `E-002`, `E-018`); `E-HV-7` (SĐT gắn tài khoản khác) đã bỏ cùng quy tắc "quầy đổi SĐT". `E-MEM-2` và `E-MEM-3` đã gỡ ở T-020 (không còn chặn hội viên Ngừng, không còn nâng hồ sơ tạm). Mã đăng ký `E-AUTH-31`, `E-AUTH-32` ở mục 11.6.
 
 ### 12.8 Nhật ký thao tác
 
 | `action` | Khi nào |
 |---|---|
 | `member.create` | Thêm hội viên (`detail.tier`) |
-| `member.promote` | Nâng hồ sơ tạm thành hội viên (`tier`, `bookings`, `ref`) |
 | `member.update` / `member.temp.update` | Sửa hội viên / hồ sơ tạm (`detail.fields` = các ô đã đổi, kèm `tier`, `is_active` nếu đổi) |
 | `member.temp.create` | Tạo hồ sơ tạm (cả khi đặt quầy kèm hồ sơ tạm mới) |
 | `member.view` | Xem chi tiết (ghi cả khi chỉ xem) |
@@ -876,6 +882,12 @@ Mã `E-HV-2…7, 9` của spec T-015 **không có trong code** (PR #21 dùng `E-
 | `member.self_update` (T-016) | Hội viên tự sửa: `detail.changes = {ô: [trước, sau]}` (email che dạng `m***@domain`), `renamed_items` khi đổi tên. Người làm: "Hội viên (tự sửa) · HV…". Không đổi gì thì không ghi |
 | `member.avatar_update` / `member.avatar_delete` (T-016) | Đổi / xóa ảnh |
 | `auth.password_changed` | Đổi mật khẩu |
+| `auth.register` (T-021) | Khách đăng ký xong bằng OTP. Người làm: chính khách |
+| `member.self_register` (T-021) | Hồ sơ hội viên được tạo vì tài khoản xác minh SĐT (đăng ký, `/auth/phone/verify`, OTP khi đặt online, Quên mật khẩu, hoặc backfill của migration). Chi tiết có Mã HV và SĐT đã che |
+| `member.auto_upgrade_temp` (T-021) | Hồ sơ tạm được nâng lên hội viên vì chủ SĐT xác minh OTP (cùng dòng, giữ lịch sử) |
+| `auth.phone_released` (T-021) | Tài khoản đời cũ chưa xác minh bị gỡ SĐT vì người khác xác minh OTP số đó (người làm: Hệ thống; kèm `disabled` nếu tài khoản bị vô hiệu) |
+
+Các dòng T-021 chưa nằm trong danh mục màn Lịch sử thao tác; ARCHITECT quyết có hiện hay không.
 
 ### 12.9 Biến môi trường và gói mới
 
@@ -884,9 +896,38 @@ Mã `E-HV-2…7, 9` của spec T-015 **không có trong code** (PR #21 dùng `E-
 | `MEMBER_INITIAL_PASSWORD_DAYS` | `3` | Hạn đổi mật khẩu ban đầu của tài khoản hội viên sân tạo |
 | `AVATAR_MAX_BYTES` (T-016) | `5242880` (5 MB) | Dung lượng tối đa tệp ảnh đại diện. Đường tải nhận thân tới khoảng 5,06 MB, nên Caddy / Next rewrite phía trước không được chặn cỡ này |
 
-T-016 thêm gói Python `pillow` và `python-multipart`: phải **build lại image** backend.
+T-016 thêm gói Python `pillow` và `python-multipart`: phải **build lại image** backend (đã làm khi lên `dev`). T-021 không thêm biến hay gói; nó dùng `REGISTER_IP_MAX_PER_HOUR` (10) đã có ở mục 6.
 
 ### 12.10 Chuyển dữ liệu (migration)
 
 - `a3d81f5c2b6e` (PR #21, trên `dev`): đổi vai `customer` → `member` trong `users`; thêm `must_change_password`, `member_account_at`; bảng `racket`; cột `customer.gender`, `racket` (chuỗi), `public_id`; hạng 8 bậc: hạng ưu đãi cũ Vàng / Bạc / Đồng đổi hết thành `NULL` (chưa xếp hạng); cột `member_tier` ở các bảng ảnh chụp của booking engine nới 20 ký tự; index đếm lượt theo `customer_ref`. Script `python -m app.scripts.backfill_member_accounts` tạo tài khoản cho hội viên đã có.
-- `dad220bfc992` (T-016, chưa vào `dev`): `customer.nickname` (≤ 20), `email` (≤ 254, duy nhất theo `lower(email)`), `show_on_records` (mặc định `false`), `version`; bảng `customer_avatar`. Đảo ngược được.
+- `dad220bfc992` (T-016, đã vào `dev`): `customer.nickname` (≤ 20), `email` (≤ 254, duy nhất theo `lower(email)`), `show_on_records` (mặc định `false`), `version`; bảng `customer_avatar`. Đảo ngược được.
+- `5b98d354dd77` (T-019, đã vào `dev`): đơn đặt sân và mã con, mục 5.1. Ba migration `a3d81f5c2b6e` → `dad220bfc992` → `5b98d354dd77` nối thẳng, một head.
+- `9738bbfe2eb7` (T-021, **chưa vào `dev`**, nối sau `5b98d354dd77`): thêm giá trị `register` cho kiểu `otp_purpose`; bảng `registration_requests`; cột `customer.source` (`counter` mặc định); ràng buộc `ck_users_login_id` nay cho phép tài khoản **vô hiệu** không còn cách đăng nhập; **backfill dữ liệu tự chạy khi deploy** (mục 12.11). Đảo ngược được: hội viên đã được backfill tạo hoặc nâng **giữ nguyên**; ràng buộc `login_id` cũ được dựng lại ở dạng `NOT VALID` để không xóa tài khoản đã vô hiệu; mã OTP đăng ký chờ bị xóa.
+
+### 12.11 Tài khoản web đã xác minh SĐT = hội viên (T-021, chưa vào `dev`)
+
+> Đối chiếu với `be/T-021-dang-ky-hoi-vien` @ `6ab2ad3` (cục bộ). Nhánh này nối trên `int/T-022-lich-su-thao-tac` (`85895fc`), nên gộp T-022 trước T-021. Giao diện chưa bàn giao.
+
+**Quy tắc (R1).** Khi SĐT của một tài khoản khách vừa được xác minh bằng OTP, hệ thống bảo đảm có hồ sơ hội viên cùng SĐT (hàm `members.api.ensure_member_for_phone`, phía auth gọi qua `auth/enroll.py`):
+
+| SĐT lúc đó | Kết quả |
+|---|---|
+| Chưa có hồ sơ | **Tạo hội viên** mới: Mã HV, chưa xếp hạng, Hoạt động, Họ tên lấy từ tài khoản, `source = self_register`. Ghi `member.self_register` |
+| Có **hồ sơ tạm** | **Nâng trên cùng dòng** (cùng `ref`, giữ lịch sử đặt sân), giữ Họ tên của hồ sơ, ngày tạo hội viên = lúc nâng, `version + 1`. Ghi `member.auto_upgrade_temp` |
+| Đã là hội viên | Chỉ liên kết, không đổi gì |
+| Hội viên đang **Ngừng** | Vẫn liên kết, nhưng tài khoản bị khóa (`is_active = false`, JWT cũ hết hiệu lực) và API trả 403 `E-AUTH-31` |
+
+R1 chạy ở **4 chỗ**, luôn sau khi chính chủ SĐT nhập đúng OTP: (1) `/auth/register/verify`; (2) `/auth/phone/verify`; (3) OTP khi đặt online lúc đã đăng nhập (`/web/booking/phone/verify`); (4) cuối Quên mật khẩu (`/auth/password-reset/confirm`). Màn quản trị **không** gọi R1: quầy thêm hội viên mà SĐT có hồ sơ tạm vẫn bị `E-MEM-1` (12.3). Không tạo tài khoản thứ hai và không đặt mật khẩu ban đầu.
+
+**Đăng ký 2 bước** (mục 11.2): `POST /auth/register/request` rồi `POST /auth/register/verify`. `verify` tạo tài khoản và hội viên trong **một transaction**; trả `{account, member_code, upgraded_from_temp}` và đăng nhập luôn. Mật khẩu chờ (đã băm) bị xóa ngay khi đăng ký xong; phần còn lại xóa theo job dọn mã 24 giờ.
+
+**Tài khoản đời cũ chưa xác minh.** Nếu SĐT đang thuộc một tài khoản khách đời cũ (đăng ký không OTP, SĐT chưa xác minh, không do sân tạo) thì **người xác minh OTP thắng**: tài khoản cũ bị gỡ SĐT và phiên cũ bị hủy; nếu nó không còn tên đăng nhập hay Google thì bị **vô hiệu**. Ghi `auth.phone_released`. SĐT thuộc tài khoản đã xác minh, do sân tạo, Admin hoặc nhân viên → `E-AUTH-22`.
+
+**Đặt online khi đã đăng nhập** (`POST /web/booking/phone/verify`): SĐT trùng SĐT tài khoản → xác minh tài khoản, rồi R1. Tài khoản Google chưa có SĐT → **gắn SĐT** theo đúng luật `/auth/phone/verify` (SĐT thuộc khách khác thì gộp; cookie đã đổi, phản hồi có `account_merged: true`, giao diện tải lại `/auth/me`). Gặp `E-AUTH-17` / `E-AUTH-18` thì **không gắn nhưng vẫn cấp `phone_token`**: lượt đặt không bị chặn. Phản hồi thêm `became_member`, `member_code`.
+
+**Backfill tự chạy khi deploy** (migration `9738bbfe2eb7`): mọi tài khoản `member` đang hoạt động, có SĐT đã xác minh và chưa có hồ sơ hội viên, theo thứ tự xác minh, được tạo hội viên mới hoặc nâng hồ sơ tạm. Nhật ký ghi người làm Hệ thống, `backfill: true`. Khác với `backfill_member_accounts` (12.10) là script tay tạo **tài khoản** cho hội viên cũ.
+
+**Bảo mật.** Bước `request` không tra SĐT đã có tài khoản hay chưa: mọi SĐT nhận cùng trả lời, cùng lượng việc (băm mật khẩu, phát mã); `E-AUTH-22` chỉ báo sau khi nhập đúng OTP, tức người dò phải giữ được SIM. Khóa theo SĐT và mã dùng một lần: hai lần `verify` đồng thời cho 1×201 và 1×400, chỉ có một tài khoản và một hội viên. Giới hạn OTP dùng chung với T-013 (theo SĐT và IP), cộng 10 lần/giờ/IP cho bước `request`.
+
+**Production chưa có Zalo.** Không có kênh OTP (`OTP_TEST_MODE` tắt, thiếu Zalo) thì `/auth/register/request` trả 503 `E-AUTH-23`: production tạm không cho khách tự đăng ký cho tới khi có Zalo. Đây là hành vi đúng.
