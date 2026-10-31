@@ -1,10 +1,10 @@
 import { vnMinutes } from "@/lib/format";
 
 /**
- * Mốc 2 của T-017 (bốc cặp, bắt đầu, tỉ số, lịch sử, xếp hạng): giao diện đã dựng nhưng API chưa có ⇒ ẩn.
- * Bật `true` khi BE bàn giao mốc 2.
+ * Mốc 2 của T-017 (bốc cặp, bắt đầu, tỉ số, lịch sử, xếp hạng): BE đã bàn giao (f166cf5).
+ * Cờ giữ lại để tắt nhanh nếu cần.
  */
-export const MATCHES_READY = false;
+export const MATCHES_READY = true;
 
 /** "18h" hoặc "18h30" theo giờ Việt Nam. */
 export function hourLabel(iso: string): string {

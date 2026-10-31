@@ -24,18 +24,7 @@ export type NotificationItem = S["NotificationOut"];
 export type NotificationList = S["NotificationList"];
 export type MyRole = RoomDetail["my_role"];
 
-export type MatchRow = {
-  no: number;
-  format: Format;
-  ended_at: string;
-  team_a: Player[];
-  team_b: Player[];
-  score_a: number;
-  score_b: number;
-  winner: "A" | "B";
-};
-
-export type MatchList = { total: number; by_format: { "2v2": number; "1v1": number }; items: MatchRow[] };
-
-export type RankingRow = { rank: number; person: Person & { is_me: boolean }; wins: number; losses: number; played: number; win_rate: number };
-
+export type MatchRow = S["MatchRow"];
+export type MatchList = S["MatchList"];
+export type RankingRow = S["RankingRow"];
+export type Ranking = S["Ranking"];

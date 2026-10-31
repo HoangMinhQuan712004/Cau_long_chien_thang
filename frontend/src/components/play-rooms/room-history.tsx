@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
 import { formatTime } from "@/lib/format";
 import { roomsApi } from "./requests";
-import { type Format, FORMAT_LABEL, type MatchList, type Person, type RankingRow } from "./types";
+import { type Format, FORMAT_LABEL, type MatchList, type RankingRow } from "./types";
 
 type FormatFilter = Format | "all";
 const FILTERS: [FormatFilter, string][] = [
@@ -13,7 +13,7 @@ const FILTERS: [FormatFilter, string][] = [
   ["1v1", "1 vs 1"],
 ];
 
-const names = (ps: Person[]) => ps.map((p) => p.display_name).join(" · ");
+const names = (ps: string[]) => ps.join(" · ");
 
 function FormatFilterBar({ value, onChange }: { value: FormatFilter; onChange: (f: FormatFilter) => void }) {
   return (
@@ -49,7 +49,7 @@ export function RoomHistory({ roomId }: { roomId: number }) {
       if (!alive) return;
       if (m.ok && r.ok) {
         setMatches(m.data);
-        setRanking(r.data);
+        setRanking(r.data.items);
         setError(false);
       } else setError(true);
     }).catch(() => alive && setError(true));
@@ -93,8 +93,8 @@ export function RoomHistory({ roomId }: { roomId: number }) {
           <div className="grid grid-cols-3 gap-3">
             {[
               ["Tổng số trận", matches.total],
-              ["2 vs 2", matches.by_format["2v2"]],
-              ["1 vs 1", matches.by_format["1v1"]],
+              ["2 vs 2", matches.count_2v2],
+              ["1 vs 1", matches.count_1v1],
             ].map(([label, n]) => (
               <div key={label} className="rounded-card bg-surface p-3 shadow-card sm:p-4">
                 <p className="text-xs text-muted sm:text-sm">{label}</p>
@@ -127,16 +127,16 @@ export function RoomHistory({ roomId }: { roomId: number }) {
                   matches.items.map((m) => (
                     <tr key={m.no} className="border-b border-border last:border-0">
                       <td className="px-4 py-3 font-semibold">#{m.no}</td>
-                      <td className="px-3 py-3 tabular-nums">{formatTime(m.ended_at)}</td>
+                      <td className="px-3 py-3 tabular-nums">{m.ended_at ? formatTime(m.ended_at) : "–"}</td>
                       <td className="px-3 py-3">{FORMAT_LABEL[m.format]}</td>
                       <td className="px-3 py-3">{names(m.team_a)}</td>
                       <td className="px-3 py-3 text-center tabular-nums">
-                        <span className={m.winner === "A" ? "font-bold" : "text-muted"}>{m.score_a}</span>
+                        <span className={m.winner === "a" ? "font-bold" : "text-muted"}>{m.score_a}</span>
                         <span className="text-muted"> : </span>
-                        <span className={m.winner === "B" ? "font-bold" : "text-muted"}>{m.score_b}</span>
+                        <span className={m.winner === "b" ? "font-bold" : "text-muted"}>{m.score_b}</span>
                       </td>
                       <td className="px-3 py-3">{names(m.team_b)}</td>
-                      <td className="px-4 py-3 font-medium">Đội {m.winner}</td>
+                      <td className="px-4 py-3 font-medium">Đội {m.winner.toUpperCase()}</td>
                     </tr>
                   ))
                 )}
@@ -169,13 +169,13 @@ export function RoomHistory({ roomId }: { roomId: number }) {
                   </tr>
                 ) : (
                   ranking.map((r) => (
-                    <tr key={`${r.rank}-${r.person.display_name}`} className={cn("border-b border-border last:border-0", r.person.is_me && "bg-primary-softer")}>
+                    <tr key={`${r.rank}-${r.display_name}`} className={cn("border-b border-border last:border-0", r.is_me && "bg-primary-softer")}>
                       <td className="px-4 py-3">
                         <Medal rank={r.rank} />
                       </td>
                       <td className="px-3 py-3 font-medium">
-                        {r.person.display_name}
-                        {r.person.is_me ? <span className="ml-2 rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span> : null}
+                        {r.display_name}
+                        {r.is_me ? <span className="ml-2 rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span> : null}
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums">{r.wins}</td>
                       <td className="px-3 py-3 text-right tabular-nums">{r.losses}</td>
@@ -183,9 +183,9 @@ export function RoomHistory({ roomId }: { roomId: number }) {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="h-1.5 w-24 overflow-hidden rounded-full bg-border" aria-hidden>
-                            <div className="h-full rounded-full bg-primary" style={{ width: `${r.win_rate}%` }} />
+                            <div className="h-full rounded-full bg-primary" style={{ width: `${Math.round(r.win_rate * 100)}%` }} />
                           </div>
-                          <span className="tabular-nums">{r.win_rate}%</span>
+                          <span className="tabular-nums">{Math.round(r.win_rate * 100)}%</span>
                         </div>
                       </td>
                     </tr>

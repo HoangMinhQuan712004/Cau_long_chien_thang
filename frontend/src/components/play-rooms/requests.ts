@@ -2,7 +2,7 @@ import "client-only";
 import { looseApi } from "@/lib/api/client";
 import { toApiError, type WriteResult, write } from "@/lib/api/write";
 import type { Read } from "@/components/member-area/requests";
-import type { Format, MatchList, NotificationList, RankingRow, RoomDetail, RoomList } from "./types";
+import type { Format, MatchList, NotificationList, Ranking, RoomDetail, RoomList } from "./types";
 
 // Lời gọi API phòng chơi (T-017). Đọc → `Read<T>`; ghi → `write()` (Idempotency-Key). Ghi kèm `version` phòng.
 
@@ -25,7 +25,7 @@ export type RoomsApi = {
   listRooms(scope: "all" | "mine"): Promise<Read<RoomList>>;
   getRoom(id: number): Promise<Read<RoomDetail>>;
   listMatches(id: number, format: Format | "all"): Promise<Read<MatchList>>;
-  getRanking(id: number, format: Format | "all"): Promise<Read<RankingRow[]>>;
+  getRanking(id: number, format: Format | "all"): Promise<Read<Ranking>>;
   requestJoin(id: number, version: number): Promise<WriteResult<unknown>>;
   cancelRequest(id: number): Promise<WriteResult<unknown>>;
   decide(id: number, requestId: number, approve: boolean, version: number): Promise<WriteResult<unknown>>;
