@@ -66,6 +66,14 @@ async def add_member(admin, made, **fields) -> dict:
     return r.json()
 
 
+async def admin_patch(admin, code: str, body: dict):
+    """Sửa hội viên ở quản trị (T-020 AC4: bắt buộc `version`) – đọc version hiện tại rồi gửi."""
+    cur = (await admin.get(f"{M}/{code}")).json()
+    return await admin.patch(
+        f"{M}/{code}", json={**body, "version": cur["version"]}, headers=idem()
+    )
+
+
 async def member_login(admin, made, *, change_password: bool = True, **fields):
     """Sân tạo hội viên -> tài khoản (mật khẩu = SĐT) -> đăng nhập, đổi mật khẩu lần đầu."""
     m = await add_member(admin, made, **fields)
@@ -235,7 +243,7 @@ async def test_ac1_is_member_in_sign_in_response(admin, made):
 async def test_oq9_inactive_member_can_still_enter_and_edit(admin, made):
     """OQ-9: hội viên Ngừng vẫn vào và sửa được; PR #21 khóa tài khoản khi Ngừng (T-015)."""
     c, m = await member_login(admin, made)
-    r = await admin.patch(f"{M}/{m['member_code']}", json={"is_active": False}, headers=idem())
+    r = await admin_patch(admin, m["member_code"], {"is_active": False})
     assert r.status_code == 200, r.text
     r = await c.get(f"{MA}/me")
     assert r.status_code == 200, r.text
@@ -462,15 +470,10 @@ async def test_ac14_second_tab_with_stale_version_gets_e_hv_12(admin, made):
     assert (await me(c))["nickname"] == "Một", "không ghi đè"
 
 
-@deviation(
-    "BUG",
-    "T-16-1",
-    "AC14: Admin/quầy sửa hồ sơ sau lúc hội viên mở thì hội viên lưu phải nhận E-HV-12; sửa ở quản trị không tăng `version` nên hội viên ghi đè âm thầm",
-)
 async def test_ac14_admin_edit_after_open_blocks_the_members_save(admin, made):
     c, m = await member_login(admin, made, tier="Khá")
     cur = await me(c)
-    r = await admin.patch(f"{M}/{m['member_code']}", json={"tier": "Chuyên nghiệp"}, headers=idem())
+    r = await admin_patch(admin, m["member_code"], {"tier": "Chuyên nghiệp"})
     assert r.status_code == 200, r.text
     stale = await save(c, cur, nickname="Ghi đè")
     assert stale.status_code == 409 and err(stale)["code"] == "E-HV-12", stale.text
