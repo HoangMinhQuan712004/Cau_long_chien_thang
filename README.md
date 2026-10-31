@@ -11,7 +11,7 @@ project_caulong/
 │   │   ├── booking_engine/  sân, giờ, bảng giá, lịch, booking, sự kiện/vé, thu tiền (schema `booking`)
 │   │   ├── front_desk/      đặt sân tại quầy: ghép hội viên + booking_engine
 │   │   ├── members/         hội viên, hồ sơ tạm, danh mục vợt, thẻ hội viên `/me/member` (PR #21)
-│   │   ├── member_area/     khu hội viên: Hồ sơ của tôi + ảnh đại diện (T-016, chưa vào dev)
+│   │   ├── member_area/     khu hội viên: Hồ sơ của tôi + ảnh đại diện (T-016)
 │   │   ├── web_booking/     API public cho khách: lịch, lượt thanh toán (checkout), tra cứu (T-008)
 │   │   ├── payments/        webhook SePay, bảng `payments.bank_transaction`, Tiền về cần xử lý (T-008)
 │   │   ├── notifications/   lắng nghe event (email/Zalo: TODO)
@@ -238,12 +238,12 @@ Mục này dùng để biết ai đăng nhập bằng gì, cấu hình biến m�
 |---|---|---|
 | Admin (chủ sân) | Số điện thoại + mật khẩu | `/dang-nhap` → `/admin` |
 | Nhân viên | Tên đăng nhập + mật khẩu. **Mỗi nhân viên một tài khoản** (mã `NV001`…), đăng nhập ở máy nào cũng được | `/dang-nhap` → `/admin` |
-| Khách | SĐT hoặc tên đăng nhập + mật khẩu, hoặc Google. Tự đăng ký tại `/dang-ky` | `/dang-nhap` → `/tai-khoan` |
+| Khách | SĐT hoặc tên đăng nhập + mật khẩu, hoặc Google. Tự đăng ký tại `/dang-ky` (từ T-021, chưa vào dev: phải xác minh SĐT bằng OTP và đăng ký xong là hội viên) | `/dang-nhap` → `/tai-khoan` (hội viên: `/hoi-vien`) |
 
 - Chỉ có **một** trang `/dang-nhap` với một ô "Số điện thoại hoặc tên đăng nhập".
 - Sai mật khẩu 5 lần liên tiếp → khóa 15 phút. Phiên Admin/nhân viên tồn tại tối đa 12 giờ, rồi phải đăng nhập lại.
 - Nhân viên có quyền như "Tài khoản tại máy" trước đây (đặt sân tại quầy, thu tiền, xem lịch). Không tạo/xóa sự kiện, không xem Lịch sử giao dịch, không vào Nhân viên và Cài đặt thanh toán.
-- Đặt tại quầy **không** cần OTP. OTP chỉ dùng khi khách **đặt online**, khi **quên mật khẩu** và khi **xác minh SĐT** trong `/tai-khoan`.
+- Đặt tại quầy **không** cần OTP. OTP chỉ dùng khi khách **đặt online**, khi **quên mật khẩu**, khi **xác minh SĐT** trong `/tai-khoan` và (từ T-021) khi **đăng ký tài khoản**.
 
 ### Chủ sân quản lý nhân viên
 
@@ -275,7 +275,7 @@ Các hạn mức (số lần sai, thời gian khóa, hạn OTP…) có mặc đ�
 
 Đặt `OTP_TEST_MODE=true` trong `backend/.env` rồi chạy lại API.
 
-- **Khách** (đặt online, xác minh SĐT, quên mật khẩu): sau khi bấm **Gửi mã**, màn hình hiện hộp vàng **"Mã thử (chỉ link dev): 123456"**. Nhập mã đó vào 6 ô rồi bấm **Xác nhận**.
+- **Khách** (đặt online, xác minh SĐT, quên mật khẩu, và đăng ký từ T-021): sau khi bấm **Gửi mã**, màn hình hiện hộp vàng **"Mã thử (chỉ link dev): 123456"**. Nhập mã đó vào 6 ô rồi bấm **Xác nhận**.
 - **Admin/nhân viên quên mật khẩu:** mã **không** hiện trên màn hình (người lạ vào link dev công khai không được chiếm Admin). Đọc mã trong log API:
   - Máy dev: terminal đang chạy `uvicorn` / `npm run dev`.
   - Link dev: `docker compose -p caulong-dev logs api --tail 50` trên VPS.
@@ -283,7 +283,7 @@ Các hạn mức (số lần sai, thời gian khóa, hạn OTP…) có mặc đ�
 
 Thử đặt online trên máy dev (thay bước 3 của mục "Thử trên máy dev" phía trên): chọn ô, nhập họ tên + SĐT, bấm **Gửi mã**, nhập mã thử, rồi mới xác nhận đặt. Đã đăng nhập khách có SĐT xác minh thì bỏ qua bước OTP.
 
-> Khi chưa có Zalo, **production không bật được đặt online** (thiếu kênh OTP) và quên mật khẩu hiện "Chức năng quên mật khẩu đang tạm ngưng. Vui lòng liên hệ chủ sân." Production chỉ đặt tại quầy cho tới khi Zalo xong.
+> Khi chưa có Zalo, **production không bật được đặt online** (thiếu kênh OTP) và quên mật khẩu hiện "Chức năng quên mật khẩu đang tạm ngưng. Vui lòng liên hệ chủ sân." Từ T-021, đăng ký tài khoản cũng hiện "Đăng ký tài khoản đang tạm ngưng. Vui lòng liên hệ quầy." Production chỉ đặt tại quầy cho tới khi Zalo xong.
 
 ### Cứu Admin khi quên mật khẩu
 
@@ -308,9 +308,9 @@ Lệnh hỏi mật khẩu mới hai lần (gõ không hiện trên màn hình; *
 
 Sau khi lên T-013, route cũ `/auth/login` và `/admin/users` bị gỡ (trả 404); `UserOut` không còn `email`.
 
-## Mã đặt sân: một lượt đặt một mã (T-019, chưa vào dev)
+## Mã đặt sân: một lượt đặt một mã (T-019)
 
-> Theo `be/T-019-ma-chung` @ `f0a1471` (cục bộ). Phần giao diện chưa bàn giao nên chưa đối chiếu tên nút. Thay đổi này **đổi contract API**: backend và frontend lên `dev` cùng đợt.
+> Đã có trong `dev` (PR #23, `993b27c`); đối chiếu với code backend `be/T-019-ma-chung` @ `f0a1471`. Tên nút chưa kiểm trên giao diện. Thay đổi này **đổi contract API**: backend và frontend lên cùng đợt.
 
 - Mỗi lần khách đặt online, hoặc nhân viên bấm **Đặt sân** ở quầy, tạo **một đơn** có mã `BK-YYYYMMDD-NNN`. Dãy số NNN chung với mã sự kiện, không dùng lại.
 - Mỗi **khối** (một sân × khoảng giờ liền nhau) trong đơn có mã con `{mã đơn}-01`, `-02`… Ví dụ khách đặt Sân 2 và Sân 3, mỗi sân hai khoảng giờ: **một** mã đơn, bốn khối `-01` đến `-04`.
@@ -318,13 +318,13 @@ Sau khi lên T-013, route cũ `/auth/login` và `/admin/users` bị gỡ (trả 
 - **Quầy:** lịch hiện mã đơn trên khối, chi tiết khối hiện thêm mã con. Thu tiền và "Không thu được" vẫn theo từng khối. Đơn còn từ 2 khối chưa thanh toán thì có thể **thu cả đơn** bằng tiền mặt. Ô tìm mã và `/tra-cuu` nhận cả mã đơn lẫn mã con.
 - Một lần đặt ở quầy chọn được nhiều khối trong ngày hôm nay (nhiều sân, nhiều khoảng giờ); chỉ cần một khối trùng lịch là **không khối nào được tạo**.
 - **Dữ liệu trên dev:** mỗi booking cũ thành một đơn, mã đơn giữ mã cũ, booking nhận `-01`. Lượt thanh toán đang chờ tại lúc migrate bị cho hết hạn. Hạ cấp (downgrade) chỉ chạy được khi chưa có đơn nào từ 2 khối trở lên.
-- **RELEASE:** T-016 (`dad220bfc992`) và T-019 (`5b98d354dd77`) cùng nối sau `a3d81f5c2b6e`. Gộp cả hai thì Alembic có 2 head; xử lý trước khi deploy.
+- **Migration:** `5b98d354dd77`, nối sau `dad220bfc992` (T-016); chuỗi `a3d81f5c2b6e` → `dad220bfc992` → `5b98d354dd77` chỉ có một head.
 
 API: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 5.1.
 
-## Hội viên và khu hội viên (T-015, T-016)
+## Hội viên và khu hội viên (T-015, T-016, T-020)
 
-> Phần "Màn Hội viên" và "Tài khoản hội viên" đã có trong `dev` (PR #21, `c288d08`), đối chiếu với code. Phần "Khu hội viên trên web" (T-016) **chưa vào `dev`**: đối chiếu với code backend `be/T-016-khu-hoi-vien` @ `fd8db2f`, tên trang và nút chưa kiểm vì giao diện chưa bàn giao. Chưa có gì trong `main`/production.
+> Tất cả phần dưới đã có trong `dev` (PR #21 `c288d08`, rồi PR #23 `993b27c` gồm khu hội viên T-016 và chỉnh T-020), đối chiếu với code. Tên trang và nút của khu hội viên chưa kiểm trên giao diện. Phần "Đăng ký tài khoản = hội viên" (T-021) **chưa vào `dev`**. Chưa có gì trong `main`/production.
 
 ### Màn Hội viên (quản trị)
 
@@ -340,21 +340,25 @@ Vào `/admin/hoi-vien` (menu "Hội viên", Admin và nhân viên) để tra, th
 - **Hội viên** có Mã HV (`HV0031`, tự cấp khi lưu, không dùng lại), Hạng và Trạng thái. **Hồ sơ tạm** chỉ có họ tên, giới tính, SĐT; sửa được họ tên và giới tính.
 - **Hạng** là trình độ chơi, 8 bậc: Yếu · Trung bình yếu · Trung bình - · Trung bình · Trung bình + · Khá · Bán chuyên · Chuyên nghiệp. Có thể để **Chưa xếp hạng**.
 - **Không đổi được SĐT** của hồ sơ. Nhập sai SĐT thì phải tạo hồ sơ mới.
-- **SĐT đang là hồ sơ tạm** mà bấm Thêm hội viên: màn hiện câu hỏi "SĐT này đang là hồ sơ tạm … Lưu sẽ nâng hồ sơ này thành hội viên …, lịch sử đặt sân được giữ lại", bấm **Nâng thành hội viên** để giữ lịch sử.
-- **Ngừng:** hội viên Ngừng không chọn được khi đặt sân tại quầy, và tài khoản web của họ bị khóa. Bấm lại Hoạt động thì mở.
+- **SĐT đang là hồ sơ tạm** mà bấm Thêm hội viên: màn báo "Số điện thoại đã có hồ sơ tạm: {Họ tên} (tạo dd/mm/yyyy)" dưới ô SĐT và **không** thêm hội viên (người dùng chốt 31/10; bản đầu có nút "Nâng thành hội viên", T-020 đã gỡ). Hồ sơ tạm chỉ thành hội viên khi chính chủ SĐT xác minh OTP (T-021, bên dưới).
+- **Ngừng:** hội viên Ngừng **vẫn đặt được** sân tại quầy (popup Chọn hội viên hiện nhãn "Ngừng"), nhưng **tài khoản web bị khóa**: không đăng nhập, không vào khu hội viên. Bấm lại Hoạt động thì mở.
 - **Tìm** theo Mã HV / tên / SĐT. Lọc theo Loại (Tất cả / Hội viên / Hồ sơ tạm), Trạng thái, Hạng, Vợt. Cột **Số lần đặt** sắp xếp được; mặc định hồ sơ mới nhất trước. Có chọn số dòng mỗi trang.
 - **Số lần đặt** là số booking (quầy và online) của hồ sơ; **chưa tính vé sự kiện**.
 - **Xem chi tiết** mở ngăn bên phải: giới tính, SĐT đầy đủ, vợt, ngày tạo, số lần đặt, tổng giờ, 5 lần đặt gần nhất. Mỗi lần xem được ghi vào nhật ký.
 - Màn hiện SĐT **đầy đủ** (không che) cho cả Admin lẫn nhân viên.
+- **Hai máy cùng sửa một hội viên:** máy lưu sau nhận "Hội viên này vừa được cập nhật ở máy khác. Tải lại để xem bản mới nhất." kèm nút **Tải lại**, không ghi đè. Hội viên tự sửa ở khu hội viên cũng tính (dùng chung số phiên bản).
+- Bấm **Lưu** hai lần liên tiếp (hoặc tự thử lại khi mạng chậm) không tạo hội viên thứ hai: giao diện gửi `Idempotency-Key` cho mỗi lần Thêm hội viên / Tạo hồ sơ tạm.
 
 ### Tài khoản hội viên do sân tạo
 
-Thêm hội viên (hoặc nâng hồ sơ tạm) thì hệ thống tạo luôn tài khoản web cho SĐT đó, nếu chưa có:
+Quầy thêm hội viên thì hệ thống tạo luôn tài khoản web cho SĐT đó, nếu chưa có:
 
 1. Hội viên đăng nhập ở `/dang-nhap` bằng **SĐT** và mật khẩu ban đầu **là chính SĐT**.
 2. Hệ thống đưa sang `/doi-mat-khau`, bắt đặt mật khẩu mới (không được trùng SĐT) trước khi dùng tiếp.
 3. **Trong 3 ngày** (`MEMBER_INITIAL_PASSWORD_DAYS`) phải đổi. Quá hạn thì không đăng nhập được bằng mật khẩu ban đầu nữa; hội viên bấm **Quên mật khẩu** và nhập mã OTP.
 4. SĐT đã có tài khoản (khách tự đăng ký, Admin, nhân viên) thì **không đụng**, mật khẩu giữ nguyên.
+
+Khách tự đăng ký ở `/dang-ky` là đường khác: xem "Đăng ký tài khoản = hội viên (T-021)" bên dưới.
 
 **Dữ liệu có sẵn trước PR #21:** hội viên cũ chưa có tài khoản. Chạy một lần, chạy lại không sinh trùng:
 
@@ -368,21 +372,43 @@ docker compose -p caulong-dev exec api python -m app.scripts.backfill_member_acc
 
 > Không có bước nào chạy script này tự động khi deploy. RELEASE quyết định chạy khi lên dev / production.
 
-### Khu hội viên trên web (T-016, chưa vào dev)
+### Khu hội viên trên web (T-016)
 
 Khu `/hoi-vien` dành cho khách đã đăng nhập **và là hội viên**. Đợt 1 chỉ có "Hồ sơ của tôi"; các mục còn lại (Tổng quan, Đặt sân, Video & kỷ lục, Danh sách sân, Lịch sử thanh toán) mở trang "Sắp ra mắt".
 
 - **Ai vào được:** tài khoản khách có SĐT trùng SĐT của một **hội viên** (hồ sơ tạm không tính), và SĐT đó là tài khoản do sân tạo **hoặc** đã xác minh bằng OTP. Hệ thống không lưu liên kết riêng mà so SĐT; vì SĐT hồ sơ không đổi được nên liên kết ổn định.
-- Khách tự đăng ký bằng SĐT của hội viên mà chưa xác minh OTP → chưa vào được (báo "Bạn chưa là hội viên."). Xác minh SĐT trong `/tai-khoan` rồi vào lại.
+- Khách đăng ký không OTP (tài khoản đời cũ) bằng SĐT của hội viên mà chưa xác minh OTP → chưa vào được (báo "Bạn chưa là hội viên."). Xác minh SĐT trong `/tai-khoan` rồi vào lại. Từ T-021, ai xác minh SĐT cũng tự là hội viên (bên dưới).
 - Khách thường (không phải hội viên) giữ `/tai-khoan`. Admin / nhân viên không vào khu này.
 - **Hồ sơ của tôi:** hội viên tự sửa Họ tên, Biệt danh (≤ 20 ký tự), Email (không bắt buộc, không trùng người khác, chỉ để liên hệ), Trình độ (= Hạng), Vợt, công tắc "Hiện trên Video & kỷ lục" (mặc định Tắt), và đổi / xóa **ảnh đại diện** (JPG, PNG, WebP, tối đa 5 MB, cắt vuông).
 - SĐT hiển thị đầy đủ và **khóa**: muốn đổi SĐT, liên hệ quầy. (Hiện quầy cũng chưa đổi được SĐT hồ sơ.)
-- Hai nơi sửa cùng lúc: nếu hội viên mở hồ sơ ở hai tab, tab lưu sau nhận lỗi "vừa được cập nhật ở nơi khác". Quầy sửa hồ sơ **không** chặn được lần lưu của hội viên (không có khóa phiên bản ở lệnh sửa của quầy).
+- Hai nơi sửa cùng lúc (hai tab, hoặc hội viên và quầy): nơi lưu sau nhận lỗi "vừa được cập nhật ở nơi khác" và không ghi đè. Quầy và hội viên dùng chung số phiên bản (từ T-020).
 - Đổi Họ tên thì tên khách trên booking, vé và lượt thanh toán của hồ sơ đổi theo.
 
 Biến mới: `AVATAR_MAX_BYTES` (mặc định 5242880 = 5 MB, đã có trong `backend/.env.example`). T-016 thêm gói `pillow` và `python-multipart`: **phải build lại image backend**. Ảnh lưu trong Postgres (khoảng vài chục KB mỗi hội viên), nên sao lưu DB lớn hơn một chút. Reverse proxy phía trước (Caddy, Next rewrite) phải cho thân request tới khoảng 5,06 MB trên đường tải ảnh.
 
-API, mã lỗi `E-MEM-*`, `E-HV-*`, `E-AUTH-25…30`: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 12.
+### Đăng ký tài khoản = hội viên (T-021, chưa vào dev)
+
+> Đối chiếu với code backend `be/T-021-dang-ky-hoi-vien` @ `6ab2ad3` (cục bộ, nối trên T-022). Giao diện `/dang-ky` mới chưa bàn giao nên chưa kiểm tên nút.
+
+**Quy tắc:** tài khoản web có SĐT **đã xác minh bằng OTP** là hội viên. Quầy vẫn tạo hội viên (kèm tài khoản) như trên; hai đường cùng tồn tại.
+
+| Khách làm gì | Kết quả |
+|---|---|
+| Đăng ký ở `/dang-ky` | Hai bước: nhập họ tên, SĐT, mật khẩu → nhận mã OTP → nhập mã. Mã đúng thì tạo tài khoản **và** hồ sơ hội viên cùng lúc, đăng nhập luôn, vào `/hoi-vien` |
+| SĐT đã có hồ sơ tạm (khách từng đặt ở quầy) | Hồ sơ tạm được **nâng lên hội viên**, giữ lịch sử đặt sân và Họ tên cũ |
+| Đã là hội viên của quầy tạo (có tài khoản) | Không tạo thêm, chỉ liên kết. Phải dùng Đăng nhập / Quên mật khẩu |
+| Xác minh SĐT ở `/tai-khoan`, hoặc nhập OTP khi đặt online lúc đã đăng nhập, hoặc Quên mật khẩu | Cùng quy tắc: xác minh xong là hội viên |
+| Hội viên đang **Ngừng** | Tài khoản bị khóa, báo "Tài khoản hội viên đang tạm ngừng. Vui lòng liên hệ quầy." |
+
+- Hội viên tự đăng ký có Mã HV, **chưa xếp hạng**, Hoạt động. Màn Hội viên (quản trị) ghi nguồn **"Tự đăng ký online"**.
+- Quầy thêm hội viên mà SĐT đang là hồ sơ tạm vẫn báo trùng (như trên); chỉ chính chủ SĐT xác minh OTP mới nâng được hồ sơ tạm.
+- Tài khoản đời cũ tự đăng ký không OTP: người xác minh OTP số đó **thắng**; tài khoản cũ bị gỡ SĐT (và vô hiệu nếu không còn cách đăng nhập khác).
+- `POST /auth/register` cũ (không OTP) trả 410: đã đóng.
+- Khi deploy, migration `9738bbfe2eb7` **tự chạy backfill**: mọi tài khoản khách đang hoạt động đã xác minh SĐT mà chưa là hội viên sẽ thành hội viên. Đây khác với script `backfill_member_accounts` ở trên. Sau khi deploy, kiểm ở màn Hội viên: hội viên mới do backfill mang nguồn "Tự đăng ký online" (hiện là nhãn, chưa có bộ lọc theo nguồn).
+- **Production chưa có Zalo:** `OTP_TEST_MODE` tắt, nên `/dang-ky` hiện "Đăng ký tài khoản đang tạm ngưng. Vui lòng liên hệ quầy." cho tới khi có kênh OTP. Link dev dùng `OTP_TEST_MODE=true`: mã hiện trên màn hình.
+- Không có biến môi trường hay gói mới.
+
+API, mã lỗi `E-MEM-*`, `E-HV-*`, `E-AUTH-25…32`: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 12 và 11.2.
 
 ## Lệnh thường dùng
 
