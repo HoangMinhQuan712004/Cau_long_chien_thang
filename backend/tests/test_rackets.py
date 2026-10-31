@@ -9,8 +9,8 @@ from sqlalchemy import delete, select
 from app.core.db import SessionLocal
 from app.modules.members import rackets
 from app.modules.members.models import Customer, Racket
-from tests.conftest import API
-from tests.helpers_booking import random_phone
+from tests.conftest import API, idem
+from tests.helpers_booking import patch_member, random_phone
 
 R = f"{API}/rackets"
 M = f"{API}/members"
@@ -74,7 +74,7 @@ async def test_can_flag_and_anonymous(admin, staff, anon):
 
 async def test_member_racket_added_and_reused(admin, staff, cleanup):
     body = {"full_name": f"HV {cleanup}", "phone": random_phone(), "racket": f"Victor  {cleanup}"}
-    first = await staff.post(M, json=body)
+    first = await staff.post(M, json=body, headers=idem())
     assert first.status_code == 201 and first.json()["racket"] == f"Victor {cleanup}"
     [row] = await racket_rows(f"victor {cleanup}")
     assert row.is_active
@@ -82,11 +82,13 @@ async def test_member_racket_added_and_reused(admin, staff, cleanup):
     # Gõ khác hoa thường / khoảng trắng -> dùng lại tên chuẩn trong danh mục (kể cả vợt đã ẩn)
     await admin.patch(f"{R}/{row.id}", json={"is_active": False})
     second = await staff.post(
-        M, json={**body, "phone": random_phone(), "racket": f" VICTOR {cleanup.upper()} "}
+        M,
+        json={**body, "phone": random_phone(), "racket": f" VICTOR {cleanup.upper()} "},
+        headers=idem(),
     )
     assert second.status_code == 201 and second.json()["racket"] == f"Victor {cleanup}"
     code = second.json()["member_code"]
-    r = await staff.patch(f"{M}/{code}", json={"racket": f"Apacs {cleanup}"})
+    r = await patch_member(staff, code, {"racket": f"Apacs {cleanup}"})
     assert r.status_code == 200 and r.json()["racket"] == f"Apacs {cleanup}"
     assert len(await racket_rows(f"apacs {cleanup}")) == 1
     # Đổi tên vợt trong danh mục không đổi hồ sơ cũ (lưu dạng chữ)
@@ -94,7 +96,7 @@ async def test_member_racket_added_and_reused(admin, staff, cleanup):
     assert (await admin.get(f"{M}/{first.json()['member_code']}")).json()["racket"] == (
         f"Victor {cleanup}"
     )
-    r = await staff.patch(f"{M}/{code}", json={"racket": ""})
+    r = await patch_member(staff, code, {"racket": ""})
     assert r.status_code == 200 and r.json()["racket"] is None
 
 
