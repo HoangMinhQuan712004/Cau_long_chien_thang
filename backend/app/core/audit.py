@@ -6,6 +6,7 @@ UPDATE / TRUNCATE -> lỗi; DELETE chỉ cho dòng cũ hơn 12 tháng (job dọn
 """
 
 import ipaddress
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -74,7 +75,8 @@ def audit(
 ) -> None:
     """Thêm một dòng nhật ký vào transaction hiện tại.
 
-    ``detail`` KHÔNG chứa SĐT, mật khẩu, token.
+    ``detail`` dựng bằng ``audit_detail``; KHÔNG chứa mật khẩu, token. SĐT ghi đầy đủ
+    (chỉ Admin xem, SRS Lịch sử thao tác BR-007).
     """
     session.add(
         AuditLog(
@@ -89,6 +91,41 @@ def audit(
             request_id=request_id(),
         )
     )
+
+
+# ---------------------------------- nội dung dòng (SRS Lịch sử thao tác BR-004, 006, 008)
+
+Value = str | int | bool | None
+
+
+def audit_change(field: str, before: Value, after: Value) -> dict[str, Value]:
+    """Một ô đã đổi: "Tên ô: trước → sau"; ``before`` None = tạo mới ("(trống)")."""
+    return {"field": field, "before": before, "after": after}
+
+
+def audit_changes(
+    labels: Mapping[str, str], before: Mapping[str, Value], after: Mapping[str, Value]
+) -> list[dict[str, Value]]:
+    """Các ô đổi giá trị theo thứ tự ``labels`` (tên trường -> tên ô); ô không đổi thì bỏ."""
+    return [
+        audit_change(label, before.get(key), after.get(key))
+        for key, label in labels.items()
+        if before.get(key) != after.get(key)
+    ]
+
+
+def audit_detail(
+    target_code: str | None,
+    target_name: str | None = None,
+    changes: list[dict[str, Value]] | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    """``detail`` chuẩn: đối tượng chụp tên lúc làm (không tra lại theo mã) + danh sách ô đổi."""
+    return {
+        "target": {"code": target_code, "name": target_name},
+        "changes": changes or [],
+        **extra,
+    }
 
 
 async def purge_expired(session: AsyncSession) -> int:

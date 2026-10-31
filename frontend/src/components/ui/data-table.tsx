@@ -5,7 +5,7 @@ import { DataTableDesktop, LAYOUT } from "./data-table-desktop";
 export type SortDir = "asc" | "desc";
 
 /** Vị trí của cột trong thẻ điện thoại; không cột nào khai báo ⇒ thẻ kiểu cũ "nhãn – giá trị" từng dòng. */
-export type CardSlot = "title" | "subtitle" | "badge" | "meta" | "actions";
+export type CardSlot = "title" | "subtitle" | "badge" | "meta" | "body" | "actions";
 
 export type Column<Row> = {
   key: string;

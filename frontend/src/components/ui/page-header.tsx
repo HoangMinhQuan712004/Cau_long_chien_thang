@@ -6,6 +6,8 @@ type PageHeaderProps = {
   title: React.ReactNode;
   /** Dòng phụ dưới tiêu đề (vd tóm tắt số liệu); có thể là Skeleton khi đang tải. */
   description?: React.ReactNode;
+  /** Dòng phụ luôn nằm dưới tiêu đề (câu giải thích dài), thay vì cùng dòng. */
+  descriptionBelow?: boolean;
   /** Nút chính: luôn có icon + chữ. */
   primaryAction?: MenuAction;
   /** Nút phụ: từ sm là nút viền; điện thoại gom vào menu ⋯ cho đầu trang gọn. */
@@ -19,13 +21,15 @@ type PageHeaderProps = {
 };
 
 /** Đầu trang quản trị: tiêu đề + dòng phụ bên trái, nút bên phải (mọi khổ cùng một hàng). */
-export function PageHeader({ title, description, primaryAction, actions = [], moreLabel = "", aside, actionsOnMobileOnly = false }: PageHeaderProps) {
+export function PageHeader({ title, description, descriptionBelow = false, primaryAction, actions = [], moreLabel = "", aside, actionsOnMobileOnly = false }: PageHeaderProps) {
   return (
     <header className="flex animate-fade-in items-center justify-between gap-3">
       {/* Gọn: tiêu đề và dòng phụ cùng một dòng (hết chỗ thì dòng phụ xuống dưới); nút luôn cùng hàng tiêu đề */}
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
         <h1 className="text-lg font-bold sm:text-xl">{title}</h1>
-        {description ? <div className="text-xs text-muted sm:text-ui">{description}</div> : null}
+        {description ? (
+          <div className={cn("text-xs text-muted sm:text-ui", descriptionBelow && "basis-full")}>{description}</div>
+        ) : null}
       </div>
       {aside ?? (
         <PageActions

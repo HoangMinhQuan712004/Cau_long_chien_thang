@@ -47,9 +47,9 @@ function joined(cells: Cell[]) {
   ));
 }
 
-// Thẻ gọn: dòng 1 tên + nhãn (nút ở góc phải), dòng 2 phụ, dòng 3 các mục "Nhãn: giá trị"
+// Thẻ gọn: dòng 1 tên + nhãn (nút ở góc phải), dòng 2 phụ, dòng 3 các mục "Nhãn: giá trị", rồi khối nội dung dài
 function SlottedCard<Row>({ columns, row }: { columns: readonly Column<Row>[]; row: Row }) {
-  const [titles, subtitles, badges, metas, actions] = (["title", "subtitle", "badge", "meta", "actions"] as const).map((slot) =>
+  const [titles, subtitles, badges, metas, bodies, actions] = (["title", "subtitle", "badge", "meta", "body", "actions"] as const).map((slot) =>
     cellsOf(columns, row, slot),
   );
   return (
@@ -82,6 +82,12 @@ function SlottedCard<Row>({ columns, row }: { columns: readonly Column<Row>[]; r
             ))}
           </dl>
         ) : null}
+        {/* Nội dung dài (vd danh sách thay đổi): khối riêng, không nhãn, xuống dòng bình thường */}
+        {bodies.map((x) => (
+          <div key={x.key} className="text-xs sm:text-ui">
+            {x.node}
+          </div>
+        ))}
       </div>
       {actions.length > 0 ? (
         <div className="-mt-1 -mr-1 flex shrink-0 items-center gap-1">

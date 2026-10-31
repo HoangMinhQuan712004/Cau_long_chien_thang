@@ -7,6 +7,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { MenuIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/cn";
 import { AccountMenu } from "./account-menu";
+import { ForbiddenToast } from "./forbidden-toast";
 import { AdminSidebar, type SidebarProps } from "./admin-sidebar";
 import { useSidebarCollapsed } from "./use-sidebar-collapsed";
 
@@ -28,6 +29,7 @@ export function AdminShell({ children, initialCollapsed, ...sidebar }: Props) {
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
+      <ForbiddenToast message={t.forbidden} />
       {/* Header xanh đậm rộng hết màn, dính trên cùng: nút menu, logo + tên, tài khoản */}
       <header className={cn(`
         sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 bg-sidebar px-3
@@ -49,7 +51,7 @@ export function AdminShell({ children, initialCollapsed, ...sidebar }: Props) {
           <span className="truncate text-sm font-bold">{t.brand}</span>
         </Link>
         <div className="ml-auto shrink-0">
-          <AccountMenu name={sidebar.name} roleLabel={sidebar.roleLabel} t={t} />
+          <AccountMenu role={sidebar.role} name={sidebar.name} roleLabel={sidebar.roleLabel} t={t} />
         </div>
       </header>
 

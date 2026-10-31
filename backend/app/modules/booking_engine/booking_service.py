@@ -13,8 +13,9 @@ from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import audit
+from app.core.audit import audit, audit_detail
 from app.core.errors import AppError
+from app.modules.booking_engine.audit_fields import customer_text, new_values, time_text
 from app.modules.booking_engine.codes import next_code
 from app.modules.booking_engine.common import (
     EXCLUSION_VIOLATION,
@@ -596,16 +597,22 @@ async def create_counter_order(
             "booking.counter.create",
             "booking",
             booking.code,
-            {
-                "order_code": order_code,
-                "resource": r.code,
-                "date": data.date.isoformat(),
-                "start_time": ctx.hhmm(data.date, booking.start_at),
-                "end_time": ctx.hhmm(data.date, booking.end_at),
-                "amount": booking.amount,
-                "customer_kind": customer.kind,
-                "member_code": customer.member_code,
-            },
+            audit_detail(
+                booking.code,
+                customer.display_name,
+                new_values(
+                    **{
+                        "Sân": r.name,
+                        "Khung giờ": time_text(booking.start_at, booking.end_at),
+                        "Khách": customer_text(customer),
+                    }
+                ),
+                order_code=order_code,
+                resource=r.code,
+                amount=booking.amount,
+                customer_kind=customer.kind,
+                member_code=customer.member_code,
+            ),
         )
         emit_created(session, tenant_id, order, booking)
     await session.flush()

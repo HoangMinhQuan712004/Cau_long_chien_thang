@@ -9,16 +9,16 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getDictionary()).staff.metaTitle };
 }
 
-export default function StaffPage() {
+export default function StaffPage({ searchParams }: PageProps<"/admin/nhan-vien">) {
   return (
     <Suspense fallback={<p className="text-muted">Đang tải…</p>}>
-      <Staff />
+      <Staff searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function Staff() {
-  const dictionary = await getDictionary();
+async function Staff({ searchParams }: Pick<PageProps<"/admin/nhan-vien">, "searchParams">) {
+  const [dictionary, sp] = await Promise.all([getDictionary(), searchParams]);
   const t = { ...dictionary.staff, passwordRules: dictionary.passwordRules };
   // Hết phiên đã được StaffGate (layout) chuyển về màn đăng nhập
   const result = await getAdminSession().catch(() => null);
@@ -33,5 +33,7 @@ async function Staff() {
   const { data, error } = await api.GET("/api/v1/admin/staff");
   if (error || !data) return <Alert variant="error">{t.loadError}</Alert>;
 
-  return <StaffManager staff={data} t={t} />;
+  // ?ma=NV002 (link từ Lịch sử thao tác) ⇒ làm nổi bật dòng đó; mã lạ thì thôi
+  const focusCode = typeof sp.ma === "string" ? sp.ma : null;
+  return <StaffManager staff={data} focusCode={focusCode} t={t} />;
 }

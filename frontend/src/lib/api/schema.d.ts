@@ -1366,6 +1366,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/audit-log/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Catalog
+         * @description Danh mục cho bộ lọc: loại thao tác theo nhóm, người làm, khoảng ngày chọn được.
+         */
+        get: operations["get_catalog_api_v1_admin_audit_log_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Audit Log
+         * @description Lịch sử thao tác: mặc định 7 ngày gần nhất, 50 dòng / trang, mới nhất trước.
+         *
+         *     Lỗi: E-AUDIT-1 (khoảng ngày sai / ngoài 12 tháng), E-AUDIT-2 (loại thao tác không có).
+         */
+        get: operations["list_audit_log_api_v1_admin_audit_log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1426,6 +1468,108 @@ export interface components {
              * @enum {string}
              */
             kind: "admin";
+        };
+        /** AuditCatalogOut */
+        AuditCatalogOut: {
+            /** Groups */
+            groups: components["schemas"]["AuditGroupOut"][];
+            /** Actors */
+            actors: components["schemas"]["AuditOptionOut"][];
+            /**
+             * Min Date
+             * Format: date
+             */
+            min_date: string;
+            /**
+             * Max Date
+             * Format: date
+             */
+            max_date: string;
+        };
+        /** AuditChangeOut */
+        AuditChangeOut: {
+            /** Field */
+            field: string;
+            /** Before */
+            before: string | number | boolean | null;
+            /** After */
+            after: string | number | boolean | null;
+        };
+        /** AuditEntryOut */
+        AuditEntryOut: {
+            /** Id */
+            id: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Actor
+             * @enum {string}
+             */
+            actor: "admin" | "staff" | "system";
+            /** Actor Label */
+            actor_label: string;
+            /** Actor Name */
+            actor_name: string | null;
+            /** Actor Code */
+            actor_code: string | null;
+            /** Action */
+            action: string;
+            /** Action Label */
+            action_label: string;
+            target: components["schemas"]["AuditTargetOut"];
+            /** Changes */
+            changes: components["schemas"]["AuditChangeOut"][];
+        };
+        /** AuditGroupOut */
+        AuditGroupOut: {
+            /** Label */
+            label: string;
+            /** Types */
+            types: components["schemas"]["AuditOptionOut"][];
+        };
+        /** AuditLogPageOut */
+        AuditLogPageOut: {
+            /** Items */
+            items: components["schemas"]["AuditEntryOut"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+        };
+        /** AuditOptionOut */
+        AuditOptionOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * AuditPageSize
+         * @description Số dòng / trang: 20 | 50 | 100.
+         * @enum {integer}
+         */
+        AuditPageSize: 20 | 50 | 100;
+        /** AuditTargetOut */
+        AuditTargetOut: {
+            /** Code */
+            code: string | null;
+            /** Name */
+            name: string | null;
         };
         /** AvatarOut */
         AvatarOut: {
@@ -5848,6 +5992,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BankOut"][];
+                };
+            };
+        };
+    };
+    get_catalog_api_v1_admin_audit_log_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditCatalogOut"];
+                };
+            };
+        };
+    };
+    list_audit_log_api_v1_admin_audit_log_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                actor?: ("admin" | "staff" | "system") | null;
+                action?: string | null;
+                /** @description Thời điểm: at_desc (mặc định, mới trước) | at_asc (cũ trước) */
+                sort?: ("at_desc" | "at_asc") | null;
+                page?: number;
+                /** @description Số dòng / trang: 20 | 50 (mặc định) | 100 */
+                size?: components["schemas"]["AuditPageSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
