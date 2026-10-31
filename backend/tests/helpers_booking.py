@@ -128,3 +128,15 @@ async def calendar(client, day: date | None = None) -> dict:
     r = await client.get(f"{BK}/calendar", params={"date": (day or today()).isoformat()})
     assert r.status_code == 200, r.text
     return r.json()
+
+
+MEMBERS = f"{API}/members"
+
+
+async def patch_member(client, ref: str, body: dict):
+    """PATCH hội viên kèm ``version`` hiện tại (T-020 AC4 – khóa lạc quan) nếu body chưa có."""
+    if "version" not in body:
+        cur = await client.get(f"{MEMBERS}/{ref}")
+        version = cur.json().get("version", 1) if cur.status_code == 200 else 1
+        body = {**body, "version": version}
+    return await client.patch(f"{MEMBERS}/{ref}", json=body)

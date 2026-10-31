@@ -182,7 +182,7 @@ async def update_profile(
         raise stale()
     full_name, nickname, email = await _validate(session, c, data)
     # Vợt: tên chuẩn trong danh mục; chưa có -> thêm (như màn Hội viên quản trị)
-    racket = await rackets.ensure(session, data.racket)
+    racket = await rackets.ensure(session, data.racket, actor)
 
     after = {
         "full_name": full_name,

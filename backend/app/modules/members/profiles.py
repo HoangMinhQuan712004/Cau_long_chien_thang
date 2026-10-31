@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
 from app.modules.members.models import Customer
@@ -54,6 +55,7 @@ def to_row(c: Customer, bookings: int) -> MemberRow:
         is_active=c.is_active,
         bookings=bookings,
         created_at=c.created_at,
+        version=c.version,
     )
 
 
@@ -84,15 +86,23 @@ async def ensure_phone_free(session: AsyncSession, phone: str, own_id: int | Non
 
 
 async def temp_phone_taken(session: AsyncSession, temp: Customer) -> AppError:
-    """E-MEM-1 kèm dữ liệu cho câu xác nhận "Nâng hồ sơ tạm thành hội viên?" của FE."""
+    """SRS E-004 (T-020 AC1 – không còn nâng hồ sơ tạm thành hội viên)."""
+    created = temp.created_at.astimezone(settings.tz).strftime("%d/%m/%Y")
     return AppError(
         "E-MEM-1",
-        f"Số điện thoại này đã có hồ sơ tạm – {temp.full_name}.",
+        f"Số điện thoại đã có hồ sơ tạm: {temp.full_name} (tạo {created})",
         409,
         ref=str(temp.public_id),
         full_name=temp.full_name,
-        bookings=(await bookings_of(session, [temp]))[temp.id],
-        next_code=await next_code(session),
+    )
+
+
+def stale() -> AppError:
+    """SRS E-009 (T-020 AC4): hai máy cùng sửa – máy lưu sau không ghi đè."""
+    return AppError(
+        "E-MEM-9",
+        "Hội viên này vừa được cập nhật ở máy khác. Tải lại để xem bản mới nhất.",
+        409,
     )
 
 

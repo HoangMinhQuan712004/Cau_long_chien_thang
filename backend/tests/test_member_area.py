@@ -13,7 +13,7 @@ from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.members.models import Customer
-from tests.conftest import API, CUSTOMER_PASSWORD, _client, new_customer, sign_in
+from tests.conftest import API, CUSTOMER_PASSWORD, _client, idem, new_customer, sign_in
 from tests.helpers_booking import BK, book, new_court, random_phone, safe_hour
 from tests.helpers_web import WEB
 
@@ -24,7 +24,9 @@ RACKETS = f"{API}/rackets"
 
 async def create_member(admin, phone: str, name: str = "Nguyễn Văn Minh", tier=None) -> str:
     """Hội viên qua màn quản trị (dev, PR #21). SĐT chưa có tài khoản -> sân tạo tài khoản."""
-    r = await admin.post(f"{API}/members", json={"full_name": name, "phone": phone, "tier": tier})
+    r = await admin.post(
+        f"{API}/members", json={"full_name": name, "phone": phone, "tier": tier}, headers=idem()
+    )
     assert r.status_code == 201, r.text
     return r.json()["member_code"]
 
@@ -183,6 +185,13 @@ async def test_update_profile_syncs_name_and_writes_audit(staff, admin):
         assert out["tier"] == "Khá" and out["racket"] == racket
         names = [r["name"] for r in (await c.get(RACKETS)).json()]
         assert racket in names  # danh mục vợt chung (dev) – hội viên đọc được
+        async with SessionLocal() as s:
+            added = await s.scalar(
+                select(AuditLog).where(
+                    AuditLog.action == "racket.create", AuditLog.detail["name"].astext == racket
+                )
+            )
+        assert added is not None and added.actor_label == f"Hội viên (tự sửa) · {code}"
         assert out["show_on_records"] is True and out["version"] == me["version"] + 1
         assert out == (await c.get(ME)).json()
 

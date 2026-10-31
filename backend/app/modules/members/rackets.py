@@ -38,19 +38,24 @@ def _taken(name: str) -> AppError:
     return AppError("E-MEM-5", f"Vợt “{name}” đã có trong danh mục.", 409)
 
 
-async def ensure(session: AsyncSession, raw: str | None) -> str | None:
-    """Tên vợt chuẩn cho hồ sơ: đã có (kể cả đang ẩn) -> tên trong danh mục; chưa có -> thêm.
+async def ensure(session: AsyncSession, raw: str | None, actor: AuditActor) -> str | None:
+    """Tên vợt chuẩn cho hồ sơ: đã có (kể cả đang ẩn) -> tên trong danh mục; chưa có -> thêm và
+    ghi ``racket.create`` cùng lần lưu (SRS BR-018 / T-016 AC17).
 
-    ``ON CONFLICT DO NOTHING``: hai máy cùng thêm một vợt mới -> dùng chung một dòng, không lỗi.
+    ``ON CONFLICT DO NOTHING``: hai máy cùng thêm một vợt mới -> dùng chung một dòng, không lỗi,
+    chỉ máy thêm thật ghi nhật ký.
     """
     if not collapse_spaces(raw):
         return None
     name = _valid_name(raw)
-    await session.execute(
+    created_id = await session.scalar(
         insert(Racket)
         .values(name=name, name_key=key_of(name))
         .on_conflict_do_nothing(index_elements=[Racket.name_key])
+        .returning(Racket.id)
     )
+    if created_id is not None:
+        audit(session, actor, "racket.create", "racket", None, {"name": name})
     return await session.scalar(select(Racket.name).where(Racket.name_key == key_of(name)))
 
 

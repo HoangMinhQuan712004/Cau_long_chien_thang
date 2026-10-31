@@ -164,7 +164,8 @@ async def create_checkout(
 
     async def run() -> CheckoutCreatedOut:
         profile = await members.find_by_phone(session, phone)
-        if profile is not None and profile.kind == "member" and profile.is_active:
+        # Hội viên Ngừng vẫn gắn vào hội viên khi đặt online (T-020 AC2 – Ngừng chỉ là nhãn)
+        if profile is not None and profile.kind == "member":
             snapshot = CustomerSnapshot(
                 ref_id=profile.ref,
                 kind="member",
