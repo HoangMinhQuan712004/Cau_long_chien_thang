@@ -13,12 +13,11 @@ import {
   type CustomerErrors,
   type CustomerState,
 } from "./customer-picker";
+import { BlockAdder, blockKey, hourText, MAX_BLOCKS, type Block } from "./block-adder";
 import { getQuote, sendCounterBooking, sendCreateSession } from "./requests";
-import type { Item, Quote, Selection } from "./types";
+import type { Calendar, CounterOrder, Quote, Selection } from "./types";
 import { btnCls, btnPrimaryCls, ErrorBanner, Hint, inputCls, SummaryBox } from "./ui";
 
-const pad2 = (n: number) => String(n).padStart(2, "0");
-const range = (s: Selection) => `${pad2(s.startHour)}:00–${pad2(s.endHour)}:00`;
 
 /** Lỗi cho biết dữ liệu đã đổi ở máy khác: đóng hộp thoại và tải lại lịch (T-006 §9). */
 export const STALE_CODES = ["E-003", "E-010", "E-012", "E-023", "E-024"];
@@ -33,66 +32,81 @@ export function authFailure(error: ApiError): boolean {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Đặt sân tại quầy (1 sân, hôm nay, các khung liền nhau)
+// Đặt sân tại quầy: một đơn gồm 1–20 khối cùng ngày (kéo chọn vùng đầu, rồi "+ Thêm khối" – T-019)
 // ---------------------------------------------------------------------------------------------
 
 type BookingProps = {
   selection: Selection;
+  /** Lịch đang xem: nguồn giờ trống cho "+ Thêm khối" và tên sân. */
+  calendar: Calendar;
   /** Admin: có tab "Đặt sự kiện" trong popup. */
   canSession: boolean;
   onClose: () => void;
   onSwitchToSession: () => void;
-  /** Đã ghi thành công (cha tải lại lịch, tô sáng khối mới). */
-  onBooked: (item: Item) => void;
-  /** Dữ liệu đổi ở máy khác (E-003…): cha tải lại lịch. */
+  /** Đã ghi thành công (cha tải lại lịch, tô sáng đơn mới). */
+  onBooked: (order: CounterOrder) => void;
+  /** Dữ liệu đổi ở máy khác (E-010…): cha đóng popup và tải lại lịch. */
   onStale: () => void;
+  /** Chỉ tải lại lịch, giữ popup (sau 409 E-003: khối trùng được đánh dấu để bỏ đi). */
+  onRefresh: () => void;
 };
 
-export function BookingDialog({ selection, canSession, onClose, onSwitchToSession, onBooked, onStale }: BookingProps) {
-  const [quote, setQuote] = useState<Quote | null>(null);
-  const [quoteError, setQuoteError] = useState("");
+export function BookingDialog({ selection, calendar, canSession, onClose, onSwitchToSession, onBooked, onStale, onRefresh }: BookingProps) {
+  const [blocks, setBlocks] = useState<Block[]>(() => [{ resource_code: selection.resourceCodes[0], start_hour: selection.startHour, end_hour: selection.endHour }]);
+  const [quotes, setQuotes] = useState<Record<string, Quote | string>>({});
+  const [adding, setAdding] = useState(false);
+  const [conflicts, setConflicts] = useState<string[]>([]);
   const [customer, setCustomer] = useState<CustomerState>(emptyCustomer);
   const [serverErrors, setServerErrors] = useState<CustomerErrors>({});
   const [submitted, setSubmitted] = useState(false);
   const [banner, setBanner] = useState("");
   const [busy, setBusy] = useState(false);
-  const code = selection.resourceCodes[0];
+  const names = Object.fromEntries(calendar.resources.map((r) => [r.code, r.name]));
 
+  // Giá từng khối (khối mới thêm thì tính tiếp, khối đã có giữ nguyên)
   useEffect(() => {
     let live = true;
-    getQuote(code, selection.date, selection.startHour, selection.endHour).then((res) => {
-      if (!live) return;
-      if (res.ok) setQuote(res.data);
-      else setQuoteError(errorText(res.error));
-    });
+    for (const bl of blocks) {
+      const k = blockKey(bl);
+      getQuote(bl.resource_code, selection.date, bl.start_hour, bl.end_hour).then((res) => {
+        if (live) setQuotes((q) => ({ ...q, [k + "|" + bl.end_hour]: res.ok ? res.data : errorText(res.error) }));
+      });
+    }
     return () => {
       live = false;
     };
-  }, [code, selection.date, selection.startHour, selection.endHour]);
+  }, [blocks, selection.date]);
 
-  const canSubmit = customer.mode === "temp" || customer.picked !== null;
+  const quoteOf = (bl: Block) => quotes[blockKey(bl) + "|" + bl.end_hour];
+  const allQuoted = blocks.every((bl) => typeof quoteOf(bl) === "object");
+  const total = blocks.reduce((n, bl) => {
+    const q = quoteOf(bl);
+    return typeof q === "object" ? n + q.total_amount : n;
+  }, 0);
+  const canSubmit = (customer.mode === "temp" || customer.picked !== null) && allQuoted && blocks.length > 0;
 
   async function submit() {
     setSubmitted(true);
     setBanner("");
     setServerErrors({});
+    setConflicts([]);
     const errors = customerErrors(customer);
     const payload = customerPayload(customer);
     if (Object.keys(errors).length || !payload) return;
     setBusy(true);
     try {
-      const res = await write((key) =>
-        sendCounterBooking(key, {
-          resource_code: code,
-          date: selection.date,
-          start_hour: selection.startHour,
-          end_hour: selection.endHour,
-          customer: payload,
-        }),
-      );
+      const res = await write((key) => sendCounterBooking(key, { date: selection.date, blocks, customer: payload }));
       if (!res.ok) {
         const e = res.error;
         if (authFailure(e)) return;
+        // E-003: có khối trùng lịch (không khối nào được tạo) → đánh dấu khối trùng, người dùng bỏ khối đó rồi đặt lại
+        if (e.code === "E-003" && Array.isArray(e.extra.conflicts)) {
+          const hit = e.extra.conflicts as { resource_code: string; start_hour: number }[];
+          setConflicts(blocks.filter((bl) => hit.some((c) => c.resource_code === bl.resource_code && c.start_hour >= bl.start_hour && c.start_hour < bl.end_hour)).map(blockKey));
+          setBanner("Có khối đã có người đặt. Bỏ các khối đánh dấu đỏ rồi đặt lại; chưa có khối nào được tạo.");
+          onRefresh();
+          return;
+        }
         if (e.code && STALE_CODES.includes(e.code)) {
           toast(errorText(e), undefined, "error");
           onStale();
@@ -103,12 +117,11 @@ export function BookingDialog({ selection, canSession, onClose, onSwitchToSessio
         else setBanner(errorText(e));
         return;
       }
-      const item = res.data as Item;
-      toast(
-        `Đã đặt ${code} · ${quote?.resource_name ?? ""} · ${range(selection)} cho ${item.customer.name}`,
-        "Trạng thái: Chưa thanh toán · thu tiền tại quầy sau khi chơi",
-      );
-      onBooked(item);
+      const order = res.data as CounterOrder;
+      const first = order.bookings[0];
+      const where = order.bookings.length === 1 ? ` · ${names[blocks[0].resource_code] ?? ""} · ${hourText(blocks[0].start_hour)}–${hourText(blocks[0].end_hour)}` : ` · ${order.bookings.length} khối`;
+      toast(`Đã đặt ${order.order_code}${where} cho ${first.customer.name}`, "Trạng thái: Chưa thanh toán · thu tiền tại quầy sau khi chơi");
+      onBooked(order);
     } finally {
       setBusy(false);
     }
@@ -124,43 +137,78 @@ export function BookingDialog({ selection, canSession, onClose, onSwitchToSessio
           <button type="button" onClick={onClose} disabled={busy} className={btnCls}>
             Hủy
           </button>
-          <button type="button" onClick={submit} disabled={busy || !canSubmit || !quote} className={btnPrimaryCls}>
-            {busy ? "Đang đặt…" : "Đặt sân"}
+          <button type="button" onClick={submit} disabled={busy || !canSubmit} className={btnPrimaryCls}>
+            {busy ? "Đang đặt…" : blocks.length > 1 ? `Đặt ${blocks.length} khối` : "Đặt sân"}
           </button>
         </>
       }
     >
       {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
       <SummaryBox>
-        {quote ? (
-          <>
-            <p className="font-semibold">
-              {quote.resource_code} · {quote.resource_name}
-            </p>
-            <p className="text-muted">{formatLongDate(quote.date)}</p>
-            {quote.items.map((it) => (
-              <div key={it.start_time} className="flex gap-3">
-                <span>
-                  {it.start_time.slice(0, 5)}–{it.end_time.slice(0, 5)} · {it.label}
+        <p className="text-muted">{formatLongDate(selection.date)}</p>
+        <ul className="divide-y divide-border">
+          {blocks.map((bl) => {
+            const q = quoteOf(bl);
+            const bad = conflicts.includes(blockKey(bl));
+            return (
+              <li key={blockKey(bl)} className={`flex items-center gap-3 py-2 ${bad ? "text-danger" : ""}`}>
+                <span className="min-w-0 flex-1">
+                  <span className="font-semibold">
+                    {bl.resource_code} · {names[bl.resource_code] ?? ""}
+                  </span>
+                  <span className="block text-sm">
+                    {hourText(bl.start_hour)}–{hourText(bl.end_hour)}
+                    {bad ? " · đã có người đặt" : typeof q === "object" ? ` · ${q.items.map((it) => it.label).filter((v, i, arr) => arr.indexOf(v) === i).join(", ")}` : ""}
+                  </span>
                 </span>
-                <span className="ml-auto tabular-nums">{formatVnd(it.price)}</span>
-              </div>
-            ))}
-            <div className="flex gap-3 border-t border-border pt-1.5 font-semibold">
-              <span>Tiền sân</span>
-              <span className="ml-auto tabular-nums">{formatVnd(quote.total_amount)}</span>
-            </div>
-          </>
-        ) : quoteError ? (
+                <span className="tabular-nums">
+                  {typeof q === "object" ? formatVnd(q.total_amount) : typeof q === "string" ? <span className="text-danger">Lỗi giá</span> : "…"}
+                </span>
+                {blocks.length > 1 ? (
+                  <button
+                    type="button"
+                    aria-label={`Bỏ khối ${bl.resource_code} ${hourText(bl.start_hour)}–${hourText(bl.end_hour)}`}
+                    onClick={() => {
+                      setBlocks((all) => all.filter((x) => blockKey(x) !== blockKey(bl)));
+                      setConflicts((c) => c.filter((k) => k !== blockKey(bl)));
+                    }}
+                    className="grid size-11 shrink-0 place-items-center rounded-md text-muted hover:text-danger sm:size-8"
+                  >
+                    ✕
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+        {blocks.some((bl) => typeof quoteOf(bl) === "string") ? (
           <p role="alert" className="text-danger">
-            {quoteError}
+            {String(blocks.map(quoteOf).find((q) => typeof q === "string"))}
           </p>
-        ) : (
-          <p className="text-muted">
-            {code} · {formatLongDate(selection.date)} · {range(selection)} — đang tính giá…
-          </p>
-        )}
+        ) : null}
+        <div className="flex gap-3 border-t border-border pt-1.5 font-semibold">
+          <span>Tiền sân</span>
+          <span className="ml-auto tabular-nums">{allQuoted ? formatVnd(total) : "đang tính giá…"}</span>
+        </div>
       </SummaryBox>
+
+      {adding ? (
+        <BlockAdder
+          calendar={calendar}
+          chosen={blocks}
+          onCancel={() => setAdding(false)}
+          onAdd={(b) => {
+            setBlocks((all) => [...all, b]);
+            setAdding(false);
+          }}
+        />
+      ) : blocks.length < MAX_BLOCKS ? (
+        <button type="button" onClick={() => setAdding(true)} className={`${btnCls} h-11 w-full border-dashed sm:h-auto`}>
+          + Thêm khối
+        </button>
+      ) : (
+        <Hint>Tối đa {MAX_BLOCKS} khối một đơn.</Hint>
+      )}
 
       <CustomerPicker
         state={customer}
@@ -273,7 +321,7 @@ export function SessionFormDialog({ selection, resourceNames, onClose, onCreated
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <ReadOnly label="Ngày" value={formatLongDate(selection.date)} />
-        <ReadOnly label="Từ – Đến" value={`${pad2(selection.startHour)}:00 – ${pad2(selection.endHour)}:00`} />
+        <ReadOnly label="Từ – Đến" value={`${hourText(selection.startHour)} – ${hourText(selection.endHour)}`} />
         <ReadOnly label="Số sân" value={`${selection.resourceCodes.length} sân`} />
       </div>
       <ReadOnly label="Sân" value={names} />
