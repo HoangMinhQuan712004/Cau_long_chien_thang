@@ -5,10 +5,15 @@ trên trạng thái phòng gửi kèm ``version`` (cũ -> 409 E-ROOM-6, FE tải
 phát sự kiện ``member.notification_created`` sau commit.
 """
 
+import hashlib
+import json
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Path, Query, Response, status
+from fastapi import APIRouter, Depends, Header, Path, Query, Response, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import SessionDep
@@ -16,10 +21,20 @@ from app.core.idempotency import IdempotencyDep
 from app.core.middleware import require_origin
 from app.modules.auth import api as auth
 from app.modules.member_inbox import api as inbox
-from app.modules.play_rooms import actions, views
+from app.modules.play_rooms import actions, matches, views
 from app.modules.play_rooms.common import Me
 from app.modules.play_rooms.models import PlayRoom
-from app.modules.play_rooms.schemas import InviteIn, RoomDetail, RoomList, VersionIn
+from app.modules.play_rooms.schemas import (
+    Format,
+    FormatIn,
+    InviteIn,
+    MatchList,
+    Ranking,
+    ResultIn,
+    RoomDetail,
+    RoomList,
+    VersionIn,
+)
 
 router = APIRouter(prefix="/member-area", tags=["member-area"])
 
@@ -27,8 +42,19 @@ RoomId = Annotated[int, Path(ge=1)]
 WRITE = [Depends(require_origin)]
 
 
-def no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "no-store"
+IfNoneMatch = Annotated[str | None, Header(description="ETag lần trước -> 304 nếu không đổi")]
+NOT_MODIFIED = {304: {"description": "Không đổi so với ETag gửi lên (polling 5 giây, AC21)"}}
+
+
+def _etag_response(body: BaseModel, if_none_match: str | None) -> Response:
+    """ETag theo nội dung (theo người xem): trùng -> 304 không thân, tiết kiệm polling."""
+    payload = jsonable_encoder(body)
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    etag = f'W/"{hashlib.sha256(raw).hexdigest()[:32]}"'
+    headers = {"ETag": etag, "Cache-Control": "no-cache, private"}
+    if if_none_match is not None and etag in {t.strip() for t in if_none_match.split(",")}:
+        return Response(status_code=304, headers=headers)
+    return JSONResponse(payload, headers=headers)
 
 
 def _me(member: auth.LinkedMember) -> Me:
@@ -57,20 +83,26 @@ async def _run(
 # ------------------------------------------------------------------ đọc
 
 
-@router.get("/rooms", response_model=RoomList, dependencies=[Depends(no_store)])
+@router.get("/rooms", response_model=RoomList, responses=NOT_MODIFIED)
 async def list_rooms(
     member: auth.CurrentMember,
     session: SessionDep,
+    if_none_match: IfNoneMatch = None,
     scope: Annotated[Literal["all", "mine"], Query(description="mine: phòng có mình")] = "all",
 ):
     """Danh sách sân hôm nay còn mở + số liệu banner (AC4–AC6). 403 E-HV-8 (chưa là hội viên)."""
-    return await views.list_rooms(session, _me(member), scope)
+    return _etag_response(await views.list_rooms(session, _me(member), scope), if_none_match)
 
 
-@router.get("/rooms/{room_id}", response_model=RoomDetail, dependencies=[Depends(no_store)])
-async def get_room(room_id: RoomId, member: auth.CurrentMember, session: SessionDep):
+@router.get("/rooms/{room_id}", response_model=RoomDetail, responses=NOT_MODIFIED)
+async def get_room(
+    room_id: RoomId,
+    member: auth.CurrentMember,
+    session: SessionDep,
+    if_none_match: IfNoneMatch = None,
+):
     """Chi tiết phòng (cả phòng đã đóng – chỉ xem). 404 nếu không có / Host chưa đủ điều kiện."""
-    return await views.room_detail(session, _me(member), room_id)
+    return _etag_response(await views.room_detail(session, _me(member), room_id), if_none_match)
 
 
 # ------------------------------------------------------------------ xin vào / duyệt
@@ -253,3 +285,97 @@ async def transfer_host(
         me,
         lambda: actions.transfer_host(session, me, room_id, member_id, data.version),
     )
+
+
+# ------------------------------------------------------------------ mốc 2: thể thức, bốc, trận
+
+
+@router.put("/rooms/{room_id}/format", response_model=RoomDetail, dependencies=WRITE)
+async def set_format(
+    room_id: RoomId,
+    data: FormatIn,
+    member: auth.CurrentMember,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Đổi thể thức 2 vs 2 / 1 vs 1 (Host). Đã bốc -> xóa kết quả bốc. 409 E-ROOM-11 (đang chơi)."""
+    me = _me(member)
+    return await _run(
+        session,
+        idem,
+        me,
+        lambda: matches.set_format(session, me, room_id, data.format, data.version),
+    )
+
+
+@router.post("/rooms/{room_id}/draw", response_model=RoomDetail, dependencies=WRITE)
+async def draw(
+    room_id: RoomId,
+    data: VersionIn,
+    member: auth.CurrentMember,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Bốc ngẫu nhiên / Bốc lại từ Hàng chờ (Host, AC15). 409 E-ROOM-8 (chưa đủ) / E-ROOM-11."""
+    me = _me(member)
+    return await _run(session, idem, me, lambda: matches.draw(session, me, room_id, data.version))
+
+
+@router.post("/rooms/{room_id}/start", response_model=RoomDetail, dependencies=WRITE)
+async def start(
+    room_id: RoomId,
+    data: VersionIn,
+    member: auth.CurrentMember,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Bắt đầu trận vừa bốc (Host, AC16). 409 E-ROOM-10 (sớm hơn 15 phút) / E-ROOM-8 (chưa bốc)."""
+    me = _me(member)
+    return await _run(session, idem, me, lambda: matches.start(session, me, room_id, data.version))
+
+
+@router.post("/rooms/{room_id}/matches/{no}/result", response_model=RoomDetail, dependencies=WRITE)
+async def save_result(
+    room_id: RoomId,
+    no: Annotated[int, Path(ge=1)],
+    data: ResultIn,
+    member: auth.CurrentMember,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Lưu tỉ số (Host, một lần, không sửa – AC17). 422 E-ROOM-9 · 409 E-ROOM-6 (đã lưu / cũ)."""
+    me = _me(member)
+    return await _run(
+        session,
+        idem,
+        me,
+        lambda: matches.save_result(
+            session, me, room_id, no, data.score_a, data.score_b, data.version
+        ),
+    )
+
+
+@router.get("/rooms/{room_id}/matches", response_model=MatchList, responses=NOT_MODIFIED)
+async def match_list(
+    room_id: RoomId,
+    member: auth.CurrentMember,
+    session: SessionDep,
+    format: Format | None = None,
+    if_none_match: IfNoneMatch = None,
+):
+    """Lịch sử trận đấu (AC19): đã lưu, mới nhất trên cùng; số đếm tính mọi thể thức."""
+    body = await matches.match_list(session, _me(member), room_id, format)
+    return _etag_response(body, if_none_match)
+
+
+@router.get("/rooms/{room_id}/ranking", response_model=Ranking, responses=NOT_MODIFIED)
+async def ranking(
+    room_id: RoomId,
+    member: auth.CurrentMember,
+    session: SessionDep,
+    format: Format | None = None,
+    if_none_match: IfNoneMatch = None,
+):
+    """Xếp hạng trong phòng (AC20)."""
+    body = await matches.ranking(session, _me(member), room_id, format)
+    return _etag_response(body, if_none_match)
