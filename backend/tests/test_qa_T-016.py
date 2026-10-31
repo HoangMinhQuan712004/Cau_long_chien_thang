@@ -509,11 +509,6 @@ async def test_ac17_audit_before_after_masked_email_and_actor(admin, made):
     assert m["phone"] not in row["d"]
 
 
-@deviation(
-    "BUG",
-    "T-16-3",
-    "AC17: thêm vợt '+ Khác' khi lưu hồ sơ phải ghi audit racket.create; `rackets.ensure` chèn vợt mới mà không ghi nhật ký",
-)
 async def test_ac17_new_racket_writes_racket_create_audit(admin, made):
     c, _ = await member_login(admin, made, tier="Khá")
     base = (await q("SELECT coalesce(max(id), 0) AS i FROM audit_log"))[0]["i"]
