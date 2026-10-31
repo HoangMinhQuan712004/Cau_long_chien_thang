@@ -19,6 +19,7 @@ from app.modules.auth import router as auth
 from app.modules.booking_engine import router as booking_engine
 from app.modules.content import router as content
 from app.modules.front_desk import router as front_desk
+from app.modules.member_area import home_router as member_home
 from app.modules.member_area import router as member_area
 from app.modules.member_inbox import router as member_inbox
 from app.modules.members import me_router as member_me
@@ -62,6 +63,7 @@ for r in (
     booking_engine.router,
     members.router,
     member_area.router,
+    member_home.router,
     play_rooms.router,
     member_inbox.router,
     racket_router.router,

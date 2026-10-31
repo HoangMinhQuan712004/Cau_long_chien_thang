@@ -27,6 +27,11 @@ class CheckoutIn(StrictIn):
     # Token từ /web/booking/phone/verify (T-013 AC26); khách đăng nhập có SĐT đã xác minh trùng
     # ``phone`` thì không cần
     phone_token: str | None = Field(default=None, max_length=128)
+    as_member: bool = Field(
+        default=False,
+        description="Đặt trong khu hội viên (/hoi-vien/dat-san): Họ tên + SĐT lấy từ hồ sơ, "
+        "bỏ qua full_name/phone gửi lên, không cần phone_token (T-018 AC4)",
+    )
 
 
 class PhoneCodeIn(StrictIn):

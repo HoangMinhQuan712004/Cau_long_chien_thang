@@ -170,3 +170,7 @@ class RankingRow(BaseModel):
 
 class Ranking(BaseModel):
     items: list[RankingRow] = Field(description="Xếp theo số trận thắng, bằng nhau thì tỉ lệ thắng")
+
+
+class RoomRef(BaseModel):
+    room_id: int
