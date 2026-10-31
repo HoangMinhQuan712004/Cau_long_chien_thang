@@ -363,7 +363,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
     try {
       // Giới hạn 6 lượt tạo / 10 phút / IP: báo ngay khi bị chặn, không tự gửi lại (mỗi lần gửi lại cũng bị tính)
       const res = await write(
-        (key) => sendCheckout(key, { date, slots, full_name: cleanName, phone, ...(note ? { note } : {}), ...(phoneToken ? { phone_token: phoneToken } : {}) }),
+        (key) => sendCheckout(key, { date, slots, full_name: cleanName, phone, as_member: false, ...(note ? { note } : {}), ...(phoneToken ? { phone_token: phoneToken } : {}) }),
         { retryRateLimit: false },
       );
       if (res.ok) {
