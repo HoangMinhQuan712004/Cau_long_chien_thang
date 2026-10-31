@@ -733,6 +733,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking/orders/{order_code}/collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Collect Order
+         * @description Thu cả đơn (T-019): mọi khối **Chưa thanh toán** của đơn -> tiền mặt, người thu = người
+         *     thao tác. Khối đã thu / Không thu được giữ nguyên. 404 ``E-BOOK-3`` · 409 ``E-BOOK-4``
+         *     (không còn khối chưa thu) · 422 ``E-PAY-0`` (``transfer``).
+         */
+        post: operations["collect_order_api_v1_booking_orders__order_code__collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/booking/items/{code}/uncollectible": {
         parameters: {
             query?: never;
@@ -813,12 +835,11 @@ export interface paths {
         put?: never;
         /**
          * Create Member
-         * @description Thêm hội viên.
+         * @description Thêm hội viên. Cần ``Idempotency-Key``: gửi lại cùng key -> trả đúng kết quả cũ (201 cùng
+         *     mã HV, không báo trùng SĐT với chính hồ sơ vừa tạo – T-020 AC3).
          *
-         *     SĐT đang là hồ sơ tạm: không có ``upgrade_temp`` -> 409 E-MEM-1 (``detail``: ``ref``,
-         *     ``full_name``, ``bookings``, ``next_code``); ``upgrade_temp: true`` -> nâng chính hồ sơ đó
-         *     (cùng dòng, giữ lịch sử). Lỗi khác: E-001/E-002 · 409 E-018 (SĐT của hội viên) · 409 E-MEM-3
-         *     (``upgrade_temp`` nhưng hồ sơ vừa thành hội viên – vd. máy khác nâng trước).
+         *     Lỗi: E-001/E-002 · 409 E-018 (SĐT của hội viên) · 409 E-MEM-1 "Số điện thoại đã có hồ sơ
+         *     tạm: {Họ tên} (tạo dd/mm/yyyy)" (SRS E-004 – không nâng hồ sơ tạm, T-020 AC1).
          */
         post: operations["create_member_api_v1_members_post"];
         delete?: never;
@@ -858,7 +879,9 @@ export interface paths {
         put?: never;
         /**
          * Create Temp
-         * @description Tạo hồ sơ tạm. Lỗi: E-001/E-002 · 409 E-018 / E-MEM-1 (đã có hồ sơ tạm).
+         * @description Tạo hồ sơ tạm. Cần ``Idempotency-Key`` (gửi lại -> kết quả cũ, T-020 AC3).
+         *
+         *     Lỗi: E-001/E-002 · 409 E-018 / E-MEM-1 (đã có hồ sơ tạm).
          */
         post: operations["create_temp_api_v1_members_temp_post"];
         delete?: never;
@@ -888,9 +911,80 @@ export interface paths {
          * Update Member
          * @description Sửa hội viên (mã HV) hoặc hồ sơ tạm (``ref``; chỉ họ tên, giới tính – khác ⇒ 422 E-MEM-6).
          *
-         *     403 E-AUTH-2: NV đổi trạng thái. 404 E-NOT-FOUND.
+         *     Gửi kèm ``version`` (từ danh sách / chi tiết): lệch -> 409 E-MEM-9 (máy khác hoặc hội viên tự
+         *     sửa ở khu hội viên vừa lưu – T-020 AC4). 403 E-AUTH-2: NV đổi trạng thái. 404 E-NOT-FOUND.
          */
         patch: operations["update_member_api_v1_members__ref__patch"];
+        trace?: never;
+    };
+    "/api/v1/member-area/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Me
+         * @description Hồ sơ của tôi (mỗi lần mở đọc bản mới nhất). 401 E-AUTH-1 · 403 E-HV-8 (chưa là hội viên).
+         */
+        get: operations["get_me_api_v1_member_area_me_get"];
+        /**
+         * Update Me
+         * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier),
+         *     409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
+         */
+        put: operations["update_me_api_v1_member_area_me_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload Avatar
+         * @description Cắt vuông theo khung (pixel ảnh gốc, sau khi xoay theo EXIF), lưu ngay – không đổi
+         *     ``version`` của form. 422 E-HV-13 (định dạng / dung lượng / vùng cắt).
+         */
+        put: operations["upload_avatar_api_v1_member_area_me_avatar_put"];
+        post?: never;
+        /**
+         * Delete Avatar
+         * @description Xóa ảnh -> về chữ cái. Chưa có ảnh -> vẫn 204.
+         */
+        delete: operations["delete_avatar_api_v1_member_area_me_avatar_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/avatars/{customer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Avatar
+         * @description Ảnh đại diện (công khai). ``v`` = etag để phá cache; trả cache 1 năm, ``nosniff``.
+         */
+        get: operations["get_avatar_api_v1_member_area_avatars__customer_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/rackets": {
@@ -903,6 +997,8 @@ export interface paths {
         /**
          * List Rackets
          * @description Vợt đang dùng, theo thứ tự rồi tên. ``all=1`` (chỉ Admin) -> gồm cả vợt ẩn.
+         *
+         *     Hội viên (khu hội viên) đọc được danh mục đang dùng.
          */
         get: operations["list_rackets_api_v1_rackets_get"];
         put?: never;
@@ -992,11 +1088,13 @@ export interface paths {
         put?: never;
         /**
          * Create Booking
-         * @description Đặt sân tại quầy: 1 sân, hôm nay, khung liền nhau -> booking Chưa thanh toán.
+         * @description Đặt sân tại quầy: 1 lần bấm = **1 đơn** (mã chung), 1–20 khối hôm nay -> mỗi khối một
+         *     booking Chưa thanh toán mã ``{mã đơn}-NN``. Cùng sân, giờ liền nhau -> gộp một khối.
          *
-         *     Lỗi: E-001/E-002 (hồ sơ tạm), E-014 (không có hội viên), E-018 (SĐT là của hội viên),
-         *     E-004 (khung đã qua), E-CFG-10 (khung không bán), E-019 (thiếu giá), E-003 (vừa có người đặt),
-         *     403 E-AUTH-2 (ngày khác hôm nay – cả Admin; ngày sau chỉ Đặt sự kiện).
+         *     All-or-nothing. Lỗi: E-001/E-002 (hồ sơ tạm, khối trùng giờ nhau), E-014 (không có hội
+         *     viên), E-018 (SĐT là của hội viên), E-004 (khung đã qua), E-CFG-10 (khung không bán),
+         *     E-019 (thiếu giá), 409 E-003 kèm ``conflicts`` (vừa có người đặt), 403 E-AUTH-2 (ngày khác
+         *     hôm nay – cả Admin; ngày sau chỉ Đặt sự kiện).
          */
         post: operations["create_booking_api_v1_front_desk_bookings_post"];
         delete?: never;
@@ -1148,7 +1246,8 @@ export interface paths {
         put?: never;
         /**
          * Lookup
-         * @description Tra cứu theo mã booking + SĐT. Sai mã hay sai SĐT -> cùng 404 ``E-WEB-7``.
+         * @description Tra cứu theo mã đơn hoặc mã con + SĐT -> cả đơn. Sai mã hay sai SĐT -> cùng 404
+         *     ``E-WEB-7``.
          */
         post: operations["lookup_api_v1_web_booking_lookup_post"];
         delete?: never;
@@ -1328,6 +1427,11 @@ export interface components {
              */
             kind: "admin";
         };
+        /** AvatarOut */
+        AvatarOut: {
+            /** Avatar Url */
+            avatar_url: string;
+        };
         /**
          * BankInfo
          * @description Thông tin chuyển khoản hiển thị cho khách (QR SePay).
@@ -1391,6 +1495,20 @@ export interface components {
             /** Note */
             note: string | null;
         };
+        /** Body_upload_avatar_api_v1_member_area_me_avatar_put */
+        Body_upload_avatar_api_v1_member_area_me_avatar_put: {
+            /**
+             * File
+             * @description JPG / PNG / WebP ≤ 5 MB
+             */
+            file: string;
+            /** Crop X */
+            crop_x: number;
+            /** Crop Y */
+            crop_y: number;
+            /** Crop Size */
+            crop_size: number;
+        };
         /** CalendarBlock */
         CalendarBlock: {
             /**
@@ -1398,8 +1516,16 @@ export interface components {
              * @enum {string}
              */
             type: "booking" | "session" | "hold";
-            /** Code */
+            /**
+             * Code
+             * @description Booking: mã con (mở chi tiết); sự kiện: mã sự kiện
+             */
             code: string | null;
+            /**
+             * Order Code
+             * @description Booking: mã đơn (hiện trên khối)
+             */
+            order_code?: string | null;
             /** Resource Codes */
             resource_codes: string[];
             /** Start Time */
@@ -1507,7 +1633,15 @@ export interface components {
             paid_amount: number;
             /** Paid At */
             paid_at: string | null;
-            /** Pay Ref */
+            /**
+             * Order Code
+             * @description Mã đơn – khách chỉ thấy mã này
+             */
+            order_code: string;
+            /**
+             * Pay Ref
+             * @description Nội dung chuyển khoản = mã đơn bỏ dấu gạch
+             */
             pay_ref: string;
             /** @description Chỉ có khi đang chờ thanh toán */
             bank: components["schemas"]["BankInfo"] | null;
@@ -1567,7 +1701,15 @@ export interface components {
             paid_amount: number;
             /** Paid At */
             paid_at: string | null;
-            /** Pay Ref */
+            /**
+             * Order Code
+             * @description Mã đơn – khách chỉ thấy mã này
+             */
+            order_code: string;
+            /**
+             * Pay Ref
+             * @description Nội dung chuyển khoản = mã đơn bỏ dấu gạch
+             */
             pay_ref: string;
             /** @description Chỉ có khi đang chờ thanh toán */
             bank: components["schemas"]["BankInfo"] | null;
@@ -1584,6 +1726,22 @@ export interface components {
             method: "cash" | "transfer";
             /** Version */
             version: number;
+        };
+        /** CounterBlockIn */
+        CounterBlockIn: {
+            /** Resource Code */
+            resource_code: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+        };
+        /** CounterOrderOut */
+        CounterOrderOut: {
+            /** Order Code */
+            order_code: string;
+            /** Bookings */
+            bookings: components["schemas"]["ItemOut"][];
         };
         /**
          * CustomerIn
@@ -1603,19 +1761,27 @@ export interface components {
             kind: "member";
             account: components["schemas"]["UserOut"];
         };
-        /** FrontDeskBookingIn */
+        /**
+         * FrontDeskBookingIn
+         * @description Một lần bấm Đặt sân = một đơn (T-019 phương án A).
+         *
+         *     ``blocks``: 1–20 khối cùng ``date``. Vẫn nhận dạng cũ một khối
+         *     (``resource_code``, ``start_hour``, ``end_hour``) – không gửi cả hai dạng.
+         */
         FrontDeskBookingIn: {
-            /** Resource Code */
-            resource_code: string;
             /**
              * Date
              * Format: date
              */
             date: string;
+            /** Blocks */
+            blocks?: components["schemas"]["CounterBlockIn"][] | null;
+            /** Resource Code */
+            resource_code?: string | null;
             /** Start Hour */
-            start_hour: number;
+            start_hour?: number | null;
             /** End Hour */
-            end_hour: number;
+            end_hour?: number | null;
             customer: components["schemas"]["CustomerIn"];
         };
         /** GoogleSignInIn */
@@ -1662,8 +1828,16 @@ export interface components {
              * @enum {string}
              */
             kind: "booking" | "ticket";
-            /** Code */
+            /**
+             * Code
+             * @description Booking: mã con {mã đơn}-NN · vé: mã vé
+             */
             code: string;
+            /**
+             * Order Code
+             * @description Booking: mã đơn
+             */
+            order_code?: string | null;
             /** Version */
             version: number;
             /**
@@ -1747,38 +1921,66 @@ export interface components {
              */
             phone: string;
         };
-        /** LookupOut */
-        LookupOut: {
-            /** Code */
-            code: string;
+        /** LookupItemOut */
+        LookupItemOut: {
             /**
-             * Status
-             * @enum {string}
+             * Code
+             * @description Mã con – FE không hiện cho khách
              */
-            status: "paid" | "unpaid" | "uncollectible" | "pending" | "expired";
+            code: string;
             /** Resource Name */
             resource_name: string;
-            /**
-             * Play Date
-             * Format: date
-             */
-            play_date: string;
             /** Start Time */
             start_time: string;
             /** End Time */
             end_time: string;
             /** Hours */
             hours: number;
+            /** Amount */
+            amount: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "paid" | "unpaid" | "uncollectible" | "pending" | "expired";
+        };
+        /**
+         * LookupOut
+         * @description Tra cứu bằng mã đơn **hoặc** mã con + SĐT -> cả đơn (T-019 AC3).
+         */
+        LookupOut: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "paid" | "unpaid" | "uncollectible" | "pending" | "expired";
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Hours
+             * @description Tổng giờ của đơn
+             */
+            hours: number;
             /** Customer Name */
             customer_name: string;
             /** Phone Masked */
             phone_masked: string | null;
-            /** Amount */
+            /**
+             * Amount
+             * @description Tổng tiền của đơn
+             */
             amount: number;
             /** Payment Method Label */
             payment_method_label: string | null;
             /** Paid At */
             paid_at: string | null;
+            /** Items */
+            items: components["schemas"]["LookupItemOut"][];
             pending?: components["schemas"]["LookupPendingOut"] | null;
         };
         /** LookupPendingOut */
@@ -1801,8 +2003,16 @@ export interface components {
         };
         /** MemberBooking */
         MemberBooking: {
-            /** Code */
+            /**
+             * Code
+             * @description Mã con của khối (quản trị)
+             */
             code: string;
+            /**
+             * Order Code
+             * @description Mã đơn – khách / khu hội viên chỉ hiện mã này
+             */
+            order_code: string;
             /**
              * Play Date
              * Format: date
@@ -1857,12 +2067,6 @@ export interface components {
             tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
             /** Racket */
             racket?: string | null;
-            /**
-             * Upgrade Temp
-             * @description SĐT đang là hồ sơ tạm (E-MEM-1) -> true: nâng chính hồ sơ đó (giữ lịch sử)
-             * @default false
-             */
-            upgrade_temp: boolean;
         };
         /**
          * MemberDetail
@@ -1897,6 +2101,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Version
+             * @description Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4
+             */
+            version: number;
             /** Note */
             note: string | null;
             /** Total Minutes */
@@ -1921,6 +2130,86 @@ export interface components {
             /** @description Đếm theo loại (theo q/status/tier, bỏ qua kind) */
             counts: components["schemas"]["MemberCounts"];
             can: components["schemas"]["MemberCan"];
+        };
+        /**
+         * MemberMeIn
+         * @description Độ dài / định dạng kiểm ở server để trả ``fields`` (E-HV-1/10/11) – chuỗi rỗng = null.
+         */
+        MemberMeIn: {
+            /** Full Name */
+            full_name: string;
+            /** Nickname */
+            nickname?: string | null;
+            /** Email */
+            email?: string | null;
+            /**
+             * Tier
+             * @description 1 trong 8 bậc; null chỉ khi hồ sơ đang chưa xếp hạng
+             */
+            tier: string | null;
+            /**
+             * Racket
+             * @description Tên vợt; chưa có trong danh mục -> tự thêm (như màn Hội viên)
+             */
+            racket?: string | null;
+            /** Show On Records */
+            show_on_records: boolean;
+            /** Version */
+            version: number;
+        };
+        /**
+         * MemberMeOut
+         * @description Hồ sơ của chính hội viên đang đăng nhập (SĐT, email đầy đủ – chỉ chính chủ thấy).
+         */
+        MemberMeOut: {
+            /** Member Code */
+            member_code: string;
+            /** Full Name */
+            full_name: string;
+            /**
+             * Short Name
+             * @description Từ cuối của Họ tên (nút tài khoản, chữ cái avatar)
+             */
+            short_name: string;
+            /** Nickname */
+            nickname: string | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Phone
+             * @description Đầy đủ 0xxxxxxxxx – FE nhóm 4-3-3
+             */
+            phone: string;
+            /**
+             * Joined At
+             * Format: date
+             * @description Ngày tạo hồ sơ hội viên (giờ VN)
+             */
+            joined_at: string;
+            /**
+             * Tier
+             * @description Trình độ = Hạng (8 bậc); null = chưa xếp hạng
+             */
+            tier: string | null;
+            /**
+             * Racket
+             * @description Tên vợt đang dùng (danh mục GET /rackets)
+             */
+            racket: string | null;
+            /** Show On Records */
+            show_on_records: boolean;
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
+            /**
+             * Record Kmh
+             * @description Đợt 1 chưa có dữ liệu kỷ lục
+             */
+            record_kmh?: number | null;
+            /** Version */
+            version: number;
         };
         /**
          * MemberRow
@@ -1955,6 +2244,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Version
+             * @description Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4
+             */
+            version: number;
         };
         /**
          * MemberSearchItem
@@ -1994,6 +2288,11 @@ export interface components {
             racket?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /**
+             * Version
+             * @description ``version`` lúc mở hộp Sửa; lệch -> 409 E-MEM-9
+             */
+            version: number;
         };
         /** MyBookingsOut */
         MyBookingsOut: {
@@ -2047,6 +2346,34 @@ export interface components {
             resource_code: string;
             /** Start Hour */
             start_hour: number;
+        };
+        /** OrderCollectIn */
+        OrderCollectIn: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "cash" | "transfer";
+        };
+        /** OrderCollectOut */
+        OrderCollectOut: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Collected
+             * @description Mã con vừa thu
+             */
+            collected: string[];
+            /**
+             * Amount
+             * @description Tổng tiền vừa thu
+             */
+            amount: number;
+            /**
+             * Bookings
+             * @description Mọi khối của đơn sau khi thu
+             */
+            bookings: components["schemas"]["ItemOut"][];
         };
         /** OtpSentOut */
         OtpSentOut: {
@@ -2645,14 +2972,27 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "booking" | "ticket" | "session";
-            /** Code */
+            kind: "order" | "booking" | "ticket" | "session";
+            /**
+             * Code
+             * @description order: mã đơn · booking: mã con · ticket / session: mã
+             */
             code: string;
             /**
              * Play Date
              * Format: date
              */
             play_date: string;
+            /**
+             * Order Code
+             * @description order / booking: mã đơn
+             */
+            order_code?: string | null;
+            /**
+             * Codes
+             * @description order: mã con các khối (theo thứ tự -01, -02…)
+             */
+            codes?: string[];
         };
         /** SessionCan */
         SessionCan: {
@@ -2941,8 +3281,16 @@ export interface components {
              * @enum {string}
              */
             kind: "booking" | "ticket";
-            /** Code */
+            /**
+             * Code
+             * @description Booking: mã con · vé: mã vé
+             */
             code: string;
+            /**
+             * Order Code
+             * @description Booking: mã đơn
+             */
+            order_code?: string | null;
             /**
              * Play Date
              * Format: date
@@ -3030,6 +3378,12 @@ export interface components {
              * @description Tài khoản hội viên chưa đổi mật khẩu ban đầu -> chuyển trang đổi mật khẩu
              */
             must_change_password: boolean;
+            /**
+             * Is Member
+             * @description Có hồ sơ hội viên cùng SĐT (đã xác minh) -> vào được khu hội viên (T-016)
+             * @default false
+             */
+            is_member: boolean;
         };
         /** ValidationError */
         ValidationError: {
@@ -3067,7 +3421,10 @@ export interface components {
         };
         /** WebCheckoutItem */
         WebCheckoutItem: {
-            /** Code */
+            /**
+             * Code
+             * @description Mã con {mã đơn}-NN – FE không hiện cho khách (ADR-010)
+             */
             code: string;
             /** Resource Code */
             resource_code: string;
@@ -4367,6 +4724,44 @@ export interface operations {
             };
         };
     };
+    collect_order_api_v1_booking_orders__order_code__collect_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCollectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderCollectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     mark_uncollectible_api_v1_booking_items__code__uncollectible_post: {
         parameters: {
             query?: never;
@@ -4517,7 +4912,10 @@ export interface operations {
     create_member_api_v1_members_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -4570,7 +4968,10 @@ export interface operations {
     create_temp_api_v1_members_temp_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -4654,6 +5055,159 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MemberRow"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_me_api_v1_member_area_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberMeOut"];
+                };
+            };
+        };
+    };
+    update_me_api_v1_member_area_me_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberMeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberMeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_avatar_api_v1_member_area_me_avatar_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_avatar_api_v1_member_area_me_avatar_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvatarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_avatar_api_v1_member_area_me_avatar_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_avatar_api_v1_member_area_avatars__customer_id__get: {
+        parameters: {
+            query?: {
+                v?: string | null;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Not Modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -4867,7 +5421,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ItemOut"];
+                    "application/json": components["schemas"]["CounterOrderOut"];
                 };
             };
             /** @description Validation Error */

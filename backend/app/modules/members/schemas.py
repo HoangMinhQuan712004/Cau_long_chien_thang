@@ -83,6 +83,7 @@ class MemberRow(BaseModel):
     is_active: bool
     bookings: int
     created_at: dt.datetime
+    version: int = Field(description="Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4")
 
 
 class MemberCounts(BaseModel):
@@ -108,7 +109,8 @@ class MemberListOut(BaseModel):
 
 
 class MemberBooking(BaseModel):
-    code: str
+    code: str = Field(description="Mã con của khối (quản trị)")
+    order_code: str = Field(description="Mã đơn – khách / khu hội viên chỉ hiện mã này")
     play_date: dt.date
     start_time: str
     end_time: str
@@ -137,10 +139,6 @@ class MemberCreateIn(StrictIn):
     gender: Gender | None = None
     tier: Tier | None = Field(default=None, description="Trình độ; bỏ trống = chưa xếp hạng")
     racket: str | None = Field(default=None, max_length=100)
-    upgrade_temp: bool = Field(
-        default=False,
-        description="SĐT đang là hồ sơ tạm (E-MEM-1) -> true: nâng chính hồ sơ đó (giữ lịch sử)",
-    )
 
 
 class MemberUpdateIn(StrictIn):
@@ -154,6 +152,7 @@ class MemberUpdateIn(StrictIn):
     tier: Tier | None = None
     racket: str | None = Field(default=None, max_length=100)
     is_active: bool | None = None
+    version: int = Field(description="``version`` lúc mở hộp Sửa; lệch -> 409 E-MEM-9")
 
 
 class TempCreateIn(StrictIn):

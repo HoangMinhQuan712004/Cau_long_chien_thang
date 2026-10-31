@@ -24,6 +24,8 @@ dependencies = [
     "python-slugify>=8.0",
     "tzdata>=2024.1",  # Windows không có sẵn IANA tz database
     "cryptography>=44",  # mã hóa khóa webhook SePay lưu trong DB (T-012, Fernet)
+    "pillow>=11",  # ảnh đại diện hội viên: giải mã + mã hóa lại (T-016, ADR-009 §5)
+    "python-multipart>=0.0.9",  # FastAPI nhận tệp tải lên (multipart/form-data)
 ]
 
 [project.optional-dependencies]

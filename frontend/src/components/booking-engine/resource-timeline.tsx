@@ -361,10 +361,10 @@ export function ResourceTimeline({
                   type="button"
                   style={pos(b.start_hour, b.end_hour)}
                   onClick={() => onBlockClick(b)}
-                  title={b.type === "booking" ? `${b.customer_name ?? ""} · ${b.code}` : (b.name ?? b.code ?? "")}
+                  title={b.type === "booking" ? `${b.customer_name ?? ""} · ${b.order_code ?? b.code}${b.order_code && b.code ? ` (khối ${b.code})` : ""}` : (b.name ?? b.code ?? "")}
                   className={`absolute top-1 bottom-1 z-10 flex min-w-0 flex-col justify-center overflow-hidden rounded-md border px-2 text-left text-xs leading-tight ${blockStyle(b)} ${
                     isDim(b) ? "opacity-35" : ""
-                  } ${highlightCode && b.code === highlightCode ? "ring-2 ring-primary ring-offset-1" : ""}`}
+                  } ${highlightCode && (b.code === highlightCode || b.order_code === highlightCode) ? "ring-2 ring-primary ring-offset-1" : ""}`}
                 >
                   <BlockText block={b} nowMs={nowMs} />
                 </button>
@@ -420,7 +420,8 @@ function BlockText({ block: b, nowMs }: { block: CalendarBlock; nowMs: number })
         ) : null}
       </b>
       <span className="truncate tabular-nums">{bad ? "Không thu được" : b.phone ? formatPhone(b.phone) : null}</span>
-      <span className="truncate font-mono text-[10px] opacity-80">{b.code}</span>
+      {/* Khối mang MÃ ĐƠN; mã khối chỉ hiện trong chi tiết (T-019 AC4) */}
+      <span className="truncate font-mono text-[10px] opacity-80">{b.order_code ?? b.code}</span>
     </>
   );
 }

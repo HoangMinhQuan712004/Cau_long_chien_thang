@@ -1,6 +1,7 @@
 import "client-only";
 import { useSyncExternalStore } from "react";
 import { formatCountdown } from "@/lib/format";
+import { destination } from "@/lib/safe-next";
 import { api, errorDetail, errorMessage } from "./client";
 import type { operations } from "./schema";
 
@@ -193,4 +194,16 @@ export function useResetValue(key: string): string | null | undefined {
     },
     () => undefined,
   );
+}
+
+/** Đích sau đăng nhập của khách: có ?next thì theo next; không thì hội viên (đã liên kết hồ sơ) vào khu hội viên, còn lại về "/" (T-016 AC3). */
+export async function memberDestination(next: string): Promise<string> {
+  if (next) return destination("member", next);
+  try {
+    const { data } = await api.GET("/api/v1/auth/me");
+    if ((data as { is_member?: boolean } | undefined)?.is_member) return "/hoi-vien/ho-so";
+  } catch {
+    /* không đọc được hồ sơ ⇒ về trang chủ */
+  }
+  return "/";
 }

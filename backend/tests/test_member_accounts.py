@@ -10,7 +10,15 @@ from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.auth.models import User
 from app.modules.members.models import Customer
-from tests.conftest import API, CUSTOMER_PASSWORD, _client, new_customer, sign_in, unique_phone
+from tests.conftest import (
+    API,
+    CUSTOMER_PASSWORD,
+    _client,
+    idem,
+    new_customer,
+    sign_in,
+    unique_phone,
+)
 
 M = f"{API}/members"
 
@@ -30,7 +38,9 @@ async def member_account(admin, phones: list[str]) -> str:
     """Admin thêm hội viên -> tài khoản khách mật khẩu = SĐT, bắt đổi lần đầu."""
     phone = unique_phone()
     phones.append(phone)
-    r = await admin.post(M, json={"full_name": f"HV {uuid.uuid4().hex[:6]}", "phone": phone})
+    r = await admin.post(
+        M, json={"full_name": f"HV {uuid.uuid4().hex[:6]}", "phone": phone}, headers=idem()
+    )
     assert r.status_code == 201, r.text
     return phone
 

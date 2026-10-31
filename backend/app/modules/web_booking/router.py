@@ -30,6 +30,7 @@ from app.modules.web_booking.schemas import (
     CheckoutIn,
     CheckoutOut,
     LookupIn,
+    LookupItemOut,
     LookupOut,
     LookupPendingOut,
     PhoneCodeIn,
@@ -45,7 +46,7 @@ router = APIRouter(prefix="/web/booking", tags=["web-booking"])
 
 NAME_MAX = 100
 NOTE_MAX = 200
-CODE_COMPACT = re.compile(r"^BK(\d{8})(\d{3})$")
+CODE_COMPACT = re.compile(r"^BK(\d{8})(\d{3})(\d{2})?$")
 METHOD_LABELS = {
     "cash": "Tiền mặt",
     "transfer": "Chuyển khoản",
@@ -79,6 +80,7 @@ async def _checkout_out(session: AsyncSession, view: CheckoutView) -> dict:
         "amount": view.amount,
         "paid_amount": view.paid_amount,
         "paid_at": view.paid_at,
+        "order_code": view.order_code,
         "pay_ref": view.pay_ref,
         "bank": await payments.bank_info(session, view.amount, view.pay_ref)
         if view.status == "pending"
@@ -162,7 +164,8 @@ async def create_checkout(
 
     async def run() -> CheckoutCreatedOut:
         profile = await members.find_by_phone(session, phone)
-        if profile is not None and profile.kind == "member" and profile.is_active:
+        # Hội viên Ngừng vẫn gắn vào hội viên khi đặt online (T-020 AC2 – Ngừng chỉ là nhãn)
+        if profile is not None and profile.kind == "member":
             snapshot = CustomerSnapshot(
                 ref_id=profile.ref,
                 kind="member",
@@ -243,10 +246,14 @@ async def get_checkout(token: Annotated[str, Path(max_length=100)], session: Ses
 
 
 def normalize_code(raw: str) -> str:
-    """``bk20261020023`` / `` BK-20261020-023 `` -> ``BK-20261020-023``."""
+    """``bk20261020023`` / `` BK-20261020-023 `` -> ``BK-20261020-023``; mã con viết liền
+    ``BK2026102002302`` -> ``BK-20261020-023-02``."""
     code = "".join(raw.split()).upper()
     m = CODE_COMPACT.match(code)
-    return f"BK-{m.group(1)}-{m.group(2)}" if m else code
+    if not m:
+        return code
+    base = f"BK-{m.group(1)}-{m.group(2)}"
+    return f"{base}-{m.group(3)}" if m.group(3) else base
 
 
 @router.post(
@@ -255,7 +262,8 @@ def normalize_code(raw: str) -> str:
     dependencies=[Depends(require_origin), Depends(rate_limit("web.lookup", 10))],
 )
 async def lookup(data: LookupIn, session: SessionDep):
-    """Tra cứu theo mã booking + SĐT. Sai mã hay sai SĐT -> cùng 404 ``E-WEB-7``."""
+    """Tra cứu theo mã đơn hoặc mã con + SĐT -> cả đơn. Sai mã hay sai SĐT -> cùng 404
+    ``E-WEB-7``."""
     result = await engine.lookup(
         session, normalize_code(data.code), members.normalize_phone(data.phone)
     )
@@ -266,17 +274,15 @@ async def lookup(data: LookupIn, session: SessionDep):
             bank=await payments.bank_info(session, result.pending.amount, result.pending.pay_ref),
         )
     return LookupOut(
-        code=result.code,
+        order_code=result.order_code,
         status=result.status,
-        resource_name=result.resource_name,
         play_date=result.play_date,
-        start_time=result.start_time,
-        end_time=result.end_time,
         hours=result.hours,
         customer_name=result.customer_name,
         phone_masked=mask_phone(result.customer_phone),
         amount=result.amount,
         payment_method_label=METHOD_LABELS.get(result.payment_method or ""),
         paid_at=result.paid_at,
+        items=[LookupItemOut(**i.model_dump(exclude={"matched"})) for i in result.items],
         pending=pending,
     )

@@ -92,6 +92,14 @@ def _flatten_payment(resp) -> None:
     if not 200 <= resp.status_code < 300 or "json" not in resp.headers.get("content-type", ""):
         return
     data = resp.json()
+    if isinstance(data, dict) and isinstance(data.get("bookings"), list) and "order_code" in data:
+        # T-019: the counter now answers {order_code, bookings[]}. The T-006 tests were written for
+        # one block per booking, so expose the first block (with order_code); the original order
+        # envelope stays reachable as resp.order for T-019 tests.
+        if data["bookings"]:
+            resp.order = data
+            data = {**data["bookings"][0], "order_code": data["order_code"]}
+            resp._content = json.dumps(data).encode()
     if isinstance(data, dict) and isinstance(data.get("payment"), dict):
         flat = {
             "amount": data["payment"].get("amount"),
@@ -374,7 +382,8 @@ async def test_ac8_member_booking_and_members_search(staff, admin):
     assert r.status_code == 201, r.text
     bk = r.json()
     assert bk["payment_status"] == "unpaid" and bk["code"].startswith("BK-")
-    assert re.fullmatch(r"BK-\d{8}-\d{3}", bk["code"])
+    assert re.fullmatch(r"BK-\d{8}-\d{3}-\d{2}", bk["code"]), "T-019: child code = order-NN"
+    assert bk["code"] == f"{bk['order_code']}-01"
     before = (await calendar(staff))["unpaid_count"]
     assert before >= 1
 

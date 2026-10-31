@@ -4,16 +4,36 @@ import uuid
 from datetime import date, datetime, time, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.modules.booking_engine.models import Allocation, Booking, BookingOrder
 from app.modules.booking_engine.testing import make_allocation, release_allocation
 from tests.conftest import API, idem
 
 BK = f"{API}/booking"
 PEAKS = [["05:00", "07:00"], ["17:00", "21:00"]]
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_fake_bookings():
+    """Dọn booking / đơn / chỗ chiếm giả ``BK-TEST-…`` (``make_allocation``) sau mỗi test, để test
+    khác quét bảng booking không gặp dòng giả (gợi ý của QA, T-019)."""
+    yield
+    async with SessionLocal() as s:
+        await s.execute(
+            delete(Allocation).where(
+                Allocation.booking_id.in_(select(Booking.id).where(Booking.code.like("BK-TEST-%")))
+            )
+        )
+        order_ids = select(Booking.order_id).where(Booking.code.like("BK-TEST-%"))
+        ids = list(await s.scalars(order_ids))
+        await s.execute(delete(Booking).where(Booking.code.like("BK-TEST-%")))
+        if ids:
+            await s.execute(delete(BookingOrder).where(BookingOrder.id.in_(ids)))
+        await s.commit()
 
 
 def today() -> date:
@@ -572,6 +592,6 @@ async def test_quote_not_sold(admin):
         assert r.status_code == 422, body
         assert r.json()["detail"]["code"] == "E-CFG-10"
     r = await admin.post(
-        f"{BK}/quote", json={"resource_code": "S77", "date": day, "start_hour": 8, "end_hour": 9}
+        f"{BK}/quote", json={"resource_code": "SX9999", "date": day, "start_hour": 8, "end_hour": 9}
     )
     assert r.status_code == 404

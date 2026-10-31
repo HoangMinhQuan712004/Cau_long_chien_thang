@@ -65,6 +65,23 @@ def random_phone() -> str:
     return "08" + str(uuid.uuid4().int)[:8]
 
 
+class SingleBlock:
+    """Response đặt quầy một khối (dạng cũ) cho test T-006: ``.json()`` trả **khối đầu tiên**
+    (đã có ``order_code``) khi tạo thành công; lỗi trả nguyên văn. Response gốc: ``.raw``."""
+
+    def __init__(self, raw):
+        self.raw = raw
+        self.status_code = raw.status_code
+        self.headers = raw.headers
+        self.text = raw.text
+
+    def json(self):
+        body = self.raw.json()
+        if self.status_code == 201 and isinstance(body, dict) and "bookings" in body:
+            return body["bookings"][0]
+        return body
+
+
 async def book(
     client,
     resource_code: str,
@@ -73,8 +90,8 @@ async def book(
     customer: dict | None = None,
     day: date | None = None,
     headers: dict | None = None,
-):
-    return await client.post(
+) -> SingleBlock:
+    r = await client.post(
         f"{FD}/bookings",
         json={
             "resource_code": resource_code,
@@ -85,9 +102,41 @@ async def book(
         },
         headers=headers or idem(),
     )
+    return SingleBlock(r)
+
+
+async def book_order(
+    client,
+    blocks: list[tuple[str, int, int]],
+    customer: dict | None = None,
+    day: date | None = None,
+    headers: dict | None = None,
+):
+    """Đặt quầy nhiều khối (T-019): ``blocks`` = [(mã sân, giờ bắt đầu, giờ kết thúc)]."""
+    return await client.post(
+        f"{FD}/bookings",
+        json={
+            "date": (day or today()).isoformat(),
+            "blocks": [{"resource_code": c, "start_hour": a, "end_hour": b} for c, a, b in blocks],
+            "customer": customer if customer is not None else member(),
+        },
+        headers=headers or idem(),
+    )
 
 
 async def calendar(client, day: date | None = None) -> dict:
     r = await client.get(f"{BK}/calendar", params={"date": (day or today()).isoformat()})
     assert r.status_code == 200, r.text
     return r.json()
+
+
+MEMBERS = f"{API}/members"
+
+
+async def patch_member(client, ref: str, body: dict):
+    """PATCH hội viên kèm ``version`` hiện tại (T-020 AC4 – khóa lạc quan) nếu body chưa có."""
+    if "version" not in body:
+        cur = await client.get(f"{MEMBERS}/{ref}")
+        version = cur.json().get("version", 1) if cur.status_code == 200 else 1
+        body = {**body, "version": version}
+    return await client.patch(f"{MEMBERS}/{ref}", json=body)

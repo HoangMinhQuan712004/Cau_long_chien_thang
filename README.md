@@ -7,10 +7,11 @@ project_caulong/
 ├── backend/                 FastAPI, chia module theo domain
 │   ├── app/core/            config, db, security, event bus nội bộ
 │   ├── app/modules/
-│   │   ├── auth/            user, role (admin/staff/customer), JWT cookie cho khách; từ T-013: phiên Admin/nhân viên phía server, OTP, Google, quản lý nhân viên
+│   │   ├── auth/            user, role (admin/staff/member; `member` trước là `customer`), JWT cookie cho khách; từ T-013: phiên Admin/nhân viên phía server, OTP, Google, quản lý nhân viên
 │   │   ├── booking_engine/  sân, giờ, bảng giá, lịch, booking, sự kiện/vé, thu tiền (schema `booking`)
 │   │   ├── front_desk/      đặt sân tại quầy: ghép hội viên + booking_engine
-│   │   ├── members/         hội viên và hồ sơ tạm (tối thiểu)
+│   │   ├── members/         hội viên, hồ sơ tạm, danh mục vợt, thẻ hội viên `/me/member` (PR #21)
+│   │   ├── member_area/     khu hội viên: Hồ sơ của tôi + ảnh đại diện (T-016, chưa vào dev)
 │   │   ├── web_booking/     API public cho khách: lịch, lượt thanh toán (checkout), tra cứu (T-008)
 │   │   ├── payments/        webhook SePay, bảng `payments.bank_transaction`, Tiền về cần xử lý (T-008)
 │   │   ├── notifications/   lắng nghe event (email/Zalo: TODO)
@@ -21,7 +22,7 @@ project_caulong/
 ├── frontend/                Next.js App Router (Cache Components)
 │   └── src/
 │       ├── app/(public)/    trang khách: /, /dat-san, /thanh-toan/[token], /tra-cuu, /bang-gia, /tin-tuc, tài khoản (T-013: /dang-nhap, /dang-ky, /quen-mat-khau → /quen-mat-khau/xac-minh → /quen-mat-khau/dat-lai, /tai-khoan)
-│       ├── app/admin/       chủ sân / nhân viên (noindex): dat-san (lịch quầy), san, san/bang-gia, lich-su-giao-dich, tien-ve, cai-dat/thanh-toan (chỉ Admin; T-013 thêm nhan-vien)
+│       ├── app/admin/       chủ sân / nhân viên (noindex): dat-san (lịch quầy), san, san/bang-gia, lich-su-giao-dich, tien-ve, hoi-vien, cai-dat/thanh-toan (chỉ Admin; T-013 thêm nhan-vien)
 │       ├── app/sitemap.ts, robots.ts
 │       ├── components/      booking-engine/ (màn quản trị), web-booking/ (đặt online, thanh toán, tra cứu), admin/, ui/
 │       ├── lib/api/         client sinh từ OpenAPI (server.ts / client.ts)
@@ -188,7 +189,7 @@ Admin vào **`/admin/cai-dat/thanh-toan`** (menu "Cài đặt thanh toán", ch�
    ```
 
 2. Chạy migration một lần để có schema `payments`: `cd backend; .venv\Scripts\alembic upgrade head`.
-3. Mở `http://localhost:3000/dat-san`, chọn ô, nhập họ tên + SĐT, bấm xác nhận (từ T-013: nhập tên + SĐT, bấm **Gửi mã**, nhập mã thử rồi bấm **Xác nhận** trước, xem mục "Đăng nhập, nhân viên và OTP"). Trang thanh toán hiện **Nội dung CK** dạng `BK20261020023` (chính là `pay_ref`) và số tiền.
+3. Mở `http://localhost:3000/dat-san`, chọn ô, nhập họ tên + SĐT, bấm xác nhận (từ T-013: nhập tên + SĐT, bấm **Gửi mã**, nhập mã thử rồi bấm **Xác nhận** trước, xem mục "Đăng nhập, nhân viên và OTP"). Trang thanh toán hiện **Nội dung CK** dạng `BK20261020023` (chính là `pay_ref`, tức **mã đơn** bỏ dấu gạch từ T-019) và số tiền.
 4. Giả lập tiền về bằng tài khoản Admin. Lệnh ghi cần cookie phiên, header `Origin` thuộc `ALLOWED_ORIGINS` (mặc định `http://localhost:3000`) và `Idempotency-Key` mới mỗi lần. Ví dụ PowerShell, đổi `pay_ref` và `amount` theo trang thanh toán:
 
    ```powershell
@@ -207,7 +208,7 @@ Admin vào **`/admin/cai-dat/thanh-toan`** (menu "Cài đặt thanh toán", ch�
 5. Trang thanh toán tự chuyển sang "Đặt sân thành công". Thử `amount` nhỏ hơn → `partial` (vẫn chờ); lớn hơn → `applied` kèm `refund_amount`.
 6. Admin xem tiền cần hoàn / không khớp mã ở trang `/admin/tien-ve` (menu "Tiền về", kèm số giao dịch chưa xử lý); bấm **Đã xử lý** phải ghi chú. Cùng dữ liệu ở `GET /api/v1/payments/bank-transactions`.
 
-Các trang khách của T-008: `/dat-san` (lưới chọn giờ, `?ngay=YYYY-MM-DD`), `/thanh-toan/{token}` (QR + đếm ngược, tự chuyển khi tiền về; `noindex`, `no-store`, chặn trong `robots.txt`, không vào sitemap), `/tra-cuu` (mã booking + SĐT). Header: Đặt sân · Tra cứu booking · Hotline (Đăng nhập/Đăng ký đang ẩn; T-013 hiện lại). Số hotline vẫn là số mẫu trong `frontend/src/lib/site.ts` cho tới khi chủ dự án cung cấp số thật.
+Các trang khách của T-008: `/dat-san` (lưới chọn giờ, `?ngay=YYYY-MM-DD`), `/thanh-toan/{token}` (QR + đếm ngược, tự chuyển khi tiền về; `noindex`, `no-store`, chặn trong `robots.txt`, không vào sitemap), `/tra-cuu` (mã đặt + SĐT; từ T-019 nhận mã đơn hoặc mã con và hiện cả đơn). Header: Đặt sân · Tra cứu booking · Hotline (Đăng nhập/Đăng ký đang ẩn; T-013 hiện lại). Số hotline vẫn là số mẫu trong `frontend/src/lib/site.ts` cho tới khi chủ dự án cung cấp số thật.
 
 ### Hướng dẫn chủ sân cài SePay (một lần, trước khi bật production)
 
@@ -227,7 +228,7 @@ Giao dịch không tự khớp (sai nội dung, tiền về sau khi hết hạn,
 
 ## Đăng nhập, nhân viên và OTP (T-013)
 
-> T-013 **chưa vào `dev`**. Phần backend (API, biến môi trường, lệnh cứu Admin) đã đối chiếu với nhánh `be/T-013-dang-nhap` @ `8d9ea32`; tên trang, nút và câu chữ giao diện đã đối chiếu với nhánh `fe/T-013-dang-nhap` @ `1f7e119` (cục bộ). Chi tiết API và mã lỗi: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 11.
+> T-013 **đã có trong `dev`** (PR #18, #19), chưa vào `main`/production. Tên trang, nút, câu chữ và API đã đối chiếu với code trước khi gộp; chưa chạy thử lại trên link dev. Chi tiết API và mã lỗi: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 11.
 
 Mục này dùng để biết ai đăng nhập bằng gì, cấu hình biến môi trường mới, cứu Admin khi quên mật khẩu, và thử OTP khi chưa có Zalo.
 
@@ -306,6 +307,82 @@ Lệnh hỏi mật khẩu mới hai lần (gõ không hiện trên màn hình; *
 | Sau deploy dev: kiểm `0912345678` + mật khẩu cũ và `nv001` + mật khẩu cũ của "Tài khoản tại máy" | "Tài khoản tại máy" hiện tại được đổi thành nhân viên `NV001` / `nv001` |
 
 Sau khi lên T-013, route cũ `/auth/login` và `/admin/users` bị gỡ (trả 404); `UserOut` không còn `email`.
+
+## Mã đặt sân: một lượt đặt một mã (T-019, chưa vào dev)
+
+> Theo `be/T-019-ma-chung` @ `f0a1471` (cục bộ). Phần giao diện chưa bàn giao nên chưa đối chiếu tên nút. Thay đổi này **đổi contract API**: backend và frontend lên `dev` cùng đợt.
+
+- Mỗi lần khách đặt online, hoặc nhân viên bấm **Đặt sân** ở quầy, tạo **một đơn** có mã `BK-YYYYMMDD-NNN`. Dãy số NNN chung với mã sự kiện, không dùng lại.
+- Mỗi **khối** (một sân × khoảng giờ liền nhau) trong đơn có mã con `{mã đơn}-01`, `-02`… Ví dụ khách đặt Sân 2 và Sân 3, mỗi sân hai khoảng giờ: **một** mã đơn, bốn khối `-01` đến `-04`.
+- **Khách chỉ thấy mã đơn.** Nội dung chuyển khoản vẫn là `BK` + 11 số (mã đơn bỏ dấu gạch) nên cấu hình SePay không đổi.
+- **Quầy:** lịch hiện mã đơn trên khối, chi tiết khối hiện thêm mã con. Thu tiền và "Không thu được" vẫn theo từng khối. Đơn còn từ 2 khối chưa thanh toán thì có thể **thu cả đơn** bằng tiền mặt. Ô tìm mã và `/tra-cuu` nhận cả mã đơn lẫn mã con.
+- Một lần đặt ở quầy chọn được nhiều khối trong ngày hôm nay (nhiều sân, nhiều khoảng giờ); chỉ cần một khối trùng lịch là **không khối nào được tạo**.
+- **Dữ liệu trên dev:** mỗi booking cũ thành một đơn, mã đơn giữ mã cũ, booking nhận `-01`. Lượt thanh toán đang chờ tại lúc migrate bị cho hết hạn. Hạ cấp (downgrade) chỉ chạy được khi chưa có đơn nào từ 2 khối trở lên.
+- **RELEASE:** T-016 (`dad220bfc992`) và T-019 (`5b98d354dd77`) cùng nối sau `a3d81f5c2b6e`. Gộp cả hai thì Alembic có 2 head; xử lý trước khi deploy.
+
+API: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 5.1.
+
+## Hội viên và khu hội viên (T-015, T-016)
+
+> Phần "Màn Hội viên" và "Tài khoản hội viên" đã có trong `dev` (PR #21, `c288d08`), đối chiếu với code. Phần "Khu hội viên trên web" (T-016) **chưa vào `dev`**: đối chiếu với code backend `be/T-016-khu-hoi-vien` @ `fd8db2f`, tên trang và nút chưa kiểm vì giao diện chưa bàn giao. Chưa có gì trong `main`/production.
+
+### Màn Hội viên (quản trị)
+
+Vào `/admin/hoi-vien` (menu "Hội viên", Admin và nhân viên) để tra, thêm, sửa hội viên và tạo hồ sơ tạm.
+
+| Việc | Admin | Nhân viên |
+|---|:-:|:-:|
+| Xem danh sách, **Xem chi tiết** | ✔ | ✔ |
+| **Thêm hội viên**, **Tạo hồ sơ tạm**, **Sửa** họ tên / giới tính / Hạng / vợt | ✔ | ✔ |
+| Đổi **Trạng thái** Hoạt động / Ngừng | ✔ | ✘ (ô bị khóa, ghi "Chỉ Admin được đổi trạng thái.") |
+| **Danh mục vợt** (thêm, sửa tên, ẩn / hiện, xóa) | ✔ | ✘ |
+
+- **Hội viên** có Mã HV (`HV0031`, tự cấp khi lưu, không dùng lại), Hạng và Trạng thái. **Hồ sơ tạm** chỉ có họ tên, giới tính, SĐT; sửa được họ tên và giới tính.
+- **Hạng** là trình độ chơi, 8 bậc: Yếu · Trung bình yếu · Trung bình - · Trung bình · Trung bình + · Khá · Bán chuyên · Chuyên nghiệp. Có thể để **Chưa xếp hạng**.
+- **Không đổi được SĐT** của hồ sơ. Nhập sai SĐT thì phải tạo hồ sơ mới.
+- **SĐT đang là hồ sơ tạm** mà bấm Thêm hội viên: màn hiện câu hỏi "SĐT này đang là hồ sơ tạm … Lưu sẽ nâng hồ sơ này thành hội viên …, lịch sử đặt sân được giữ lại", bấm **Nâng thành hội viên** để giữ lịch sử.
+- **Ngừng:** hội viên Ngừng không chọn được khi đặt sân tại quầy, và tài khoản web của họ bị khóa. Bấm lại Hoạt động thì mở.
+- **Tìm** theo Mã HV / tên / SĐT. Lọc theo Loại (Tất cả / Hội viên / Hồ sơ tạm), Trạng thái, Hạng, Vợt. Cột **Số lần đặt** sắp xếp được; mặc định hồ sơ mới nhất trước. Có chọn số dòng mỗi trang.
+- **Số lần đặt** là số booking (quầy và online) của hồ sơ; **chưa tính vé sự kiện**.
+- **Xem chi tiết** mở ngăn bên phải: giới tính, SĐT đầy đủ, vợt, ngày tạo, số lần đặt, tổng giờ, 5 lần đặt gần nhất. Mỗi lần xem được ghi vào nhật ký.
+- Màn hiện SĐT **đầy đủ** (không che) cho cả Admin lẫn nhân viên.
+
+### Tài khoản hội viên do sân tạo
+
+Thêm hội viên (hoặc nâng hồ sơ tạm) thì hệ thống tạo luôn tài khoản web cho SĐT đó, nếu chưa có:
+
+1. Hội viên đăng nhập ở `/dang-nhap` bằng **SĐT** và mật khẩu ban đầu **là chính SĐT**.
+2. Hệ thống đưa sang `/doi-mat-khau`, bắt đặt mật khẩu mới (không được trùng SĐT) trước khi dùng tiếp.
+3. **Trong 3 ngày** (`MEMBER_INITIAL_PASSWORD_DAYS`) phải đổi. Quá hạn thì không đăng nhập được bằng mật khẩu ban đầu nữa; hội viên bấm **Quên mật khẩu** và nhập mã OTP.
+4. SĐT đã có tài khoản (khách tự đăng ký, Admin, nhân viên) thì **không đụng**, mật khẩu giữ nguyên.
+
+**Dữ liệu có sẵn trước PR #21:** hội viên cũ chưa có tài khoản. Chạy một lần, chạy lại không sinh trùng:
+
+```powershell
+# máy dev (thư mục backend)
+.venv\Scripts\python -m app.scripts.backfill_member_accounts
+
+# server
+docker compose -p caulong-dev exec api python -m app.scripts.backfill_member_accounts   # production: -p caulong
+```
+
+> Không có bước nào chạy script này tự động khi deploy. RELEASE quyết định chạy khi lên dev / production.
+
+### Khu hội viên trên web (T-016, chưa vào dev)
+
+Khu `/hoi-vien` dành cho khách đã đăng nhập **và là hội viên**. Đợt 1 chỉ có "Hồ sơ của tôi"; các mục còn lại (Tổng quan, Đặt sân, Video & kỷ lục, Danh sách sân, Lịch sử thanh toán) mở trang "Sắp ra mắt".
+
+- **Ai vào được:** tài khoản khách có SĐT trùng SĐT của một **hội viên** (hồ sơ tạm không tính), và SĐT đó là tài khoản do sân tạo **hoặc** đã xác minh bằng OTP. Hệ thống không lưu liên kết riêng mà so SĐT; vì SĐT hồ sơ không đổi được nên liên kết ổn định.
+- Khách tự đăng ký bằng SĐT của hội viên mà chưa xác minh OTP → chưa vào được (báo "Bạn chưa là hội viên."). Xác minh SĐT trong `/tai-khoan` rồi vào lại.
+- Khách thường (không phải hội viên) giữ `/tai-khoan`. Admin / nhân viên không vào khu này.
+- **Hồ sơ của tôi:** hội viên tự sửa Họ tên, Biệt danh (≤ 20 ký tự), Email (không bắt buộc, không trùng người khác, chỉ để liên hệ), Trình độ (= Hạng), Vợt, công tắc "Hiện trên Video & kỷ lục" (mặc định Tắt), và đổi / xóa **ảnh đại diện** (JPG, PNG, WebP, tối đa 5 MB, cắt vuông).
+- SĐT hiển thị đầy đủ và **khóa**: muốn đổi SĐT, liên hệ quầy. (Hiện quầy cũng chưa đổi được SĐT hồ sơ.)
+- Hai nơi sửa cùng lúc: nếu hội viên mở hồ sơ ở hai tab, tab lưu sau nhận lỗi "vừa được cập nhật ở nơi khác". Quầy sửa hồ sơ **không** chặn được lần lưu của hội viên (không có khóa phiên bản ở lệnh sửa của quầy).
+- Đổi Họ tên thì tên khách trên booking, vé và lượt thanh toán của hồ sơ đổi theo.
+
+Biến mới: `AVATAR_MAX_BYTES` (mặc định 5242880 = 5 MB, đã có trong `backend/.env.example`). T-016 thêm gói `pillow` và `python-multipart`: **phải build lại image backend**. Ảnh lưu trong Postgres (khoảng vài chục KB mỗi hội viên), nên sao lưu DB lớn hơn một chút. Reverse proxy phía trước (Caddy, Next rewrite) phải cho thân request tới khoảng 5,06 MB trên đường tải ảnh.
+
+API, mã lỗi `E-MEM-*`, `E-HV-*`, `E-AUTH-25…30`: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 12.
 
 ## Lệnh thường dùng
 
@@ -401,7 +478,7 @@ tính theo `TIMEZONE=Asia/Ho_Chi_Minh`.
 
 Thứ tự và phạm vi do ARCHITECT giữ trong `board/tasks/` (T-007 thu tiền chuyển khoản QR tại quầy, dùng lại module `payments` của T-008).
 
-- Màn Hội viên đầy đủ, Báo cáo.
+- Báo cáo; các màn khu hội viên còn lại (Tổng quan, Đặt sân, Video & kỷ lục, Lịch sử thanh toán).
 - Gọi `revalidateTag("posts")` (qua route handler có secret) khi admin đăng bài để sitemap/tin tức cập nhật ngay.
 - Gửi thông báo email / Zalo ZNS từ `notifications/handlers.py` qua worker.
 - Upload ảnh lên S3/R2, Sentry. Gửi OTP qua Zalo ZNS (T-013 để lại `TODO`).

@@ -50,6 +50,14 @@ const nextConfig: NextConfig = {
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
         ],
       },
+      // Khu hội viên: dữ liệu cá nhân, không cache, không index (T-016 AC6).
+      {
+        source: "/hoi-vien/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
     ];
   },
   // Trình duyệt gọi /api/v1/* cùng domain -> Next chuyển tiếp sang FastAPI.

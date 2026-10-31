@@ -26,7 +26,7 @@ export async function HeaderAccount() {
     const user = await getCurrentUser();
     // Còn mật khẩu ban đầu ⇒ chặn mọi trang khách cho tới khi đổi (T-015)
     if (user?.must_change_password) redirect("/doi-mat-khau");
-    if (user) return <CustomerMenu name={user.full_name} />;
+    if (user) return <CustomerMenu name={user.full_name} isMember={(user as { is_member?: boolean }).is_member === true} />;
   }
   return (
     <div className="flex items-center gap-1">
@@ -40,8 +40,8 @@ export async function HeaderAccount() {
   );
 }
 
-// Menu không cần JS: <details> mở danh sách Tài khoản / Đăng xuất
-function CustomerMenu({ name }: { name: string }) {
+// Menu không cần JS: <details> mở danh sách Khu hội viên (đã liên kết hồ sơ) / Tài khoản / Đăng xuất
+function CustomerMenu({ name, isMember }: { name: string; isMember: boolean }) {
   return (
     <details className="group relative">
       <summary
@@ -51,6 +51,11 @@ function CustomerMenu({ name }: { name: string }) {
         <span aria-hidden className="text-xs">▾</span>
       </summary>
       <div className="absolute right-0 z-40 mt-1 flex min-w-40 flex-col gap-1 rounded-card bg-surface p-2 text-sm shadow-card ring-1 ring-border">
+        {isMember ? (
+          <Link href="/hoi-vien/ho-so" className="rounded-lg px-3 py-2 font-medium text-primary hover:bg-primary-softer">
+            Khu hội viên
+          </Link>
+        ) : null}
         <Link href="/tai-khoan" className="rounded-lg px-3 py-2 hover:bg-primary-softer">
           Tài khoản
         </Link>

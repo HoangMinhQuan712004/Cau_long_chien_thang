@@ -199,6 +199,8 @@ export function TransactionsScreen({
                     <button type="button" onClick={() => setDialog({ kind: "item", code: r.code })} className="text-primary hover:underline">
                       {r.code}
                     </button>
+                    {/* Booking: mã khối (mã con) kèm mã đơn (T-019 AC4) */}
+                    {r.order_code ? <span className="block text-[11px] text-muted">Đơn {r.order_code}</span> : null}
                   </td>
                   <td className="px-3 py-2.5">
                     {formatDayMonthYear(r.play_date)}

@@ -16,7 +16,10 @@ export type CalendarResource = {
 
 export type CalendarBlock = {
   type: "booking" | "session" | "hold";
+  /** Mã khối (mã con) – dùng để mở chi tiết. */
   code: string | null;
+  /** Mã đơn – hiện trên khối (T-019). */
+  order_code?: string | null;
   resource_codes: string[];
   start_time: string;
   end_time: string;
@@ -73,11 +76,19 @@ export type MemberHit = {
   is_active: boolean;
 };
 
+/** Kết quả đặt quầy: một đơn nhiều khối. */
+export type CounterOrder = { order_code: string; bookings: Item[] };
+/** Kết quả thu cả đơn. */
+export type OrderCollect = { order_code: string; collected: string[]; amount: number; bookings: Item[] };
+
 export type ItemAction = "collect" | "uncollectible";
 
 export type Item = {
   kind: "booking" | "ticket";
+  /** Mã khối (mã con) với booking. */
   code: string;
+  /** Mã đơn; vé thì null. */
+  order_code?: string | null;
   version: number;
   source: Source;
   customer: {
@@ -141,11 +152,19 @@ export type SessionDetail = {
   can: { register: boolean; delete: boolean };
 };
 
-export type SearchResult = { kind: "booking" | "ticket" | "session"; code: string; play_date: string };
+/** `kind: "order"` = nhập mã đơn → `codes` là các mã khối của đơn. */
+export type SearchResult = {
+  kind: "order" | "booking" | "ticket" | "session";
+  code: string;
+  play_date: string;
+  order_code?: string | null;
+  codes?: string[];
+};
 
 export type TransactionRow = {
   kind: "booking" | "ticket";
   code: string;
+  order_code?: string | null;
   play_date: string;
   start_time: string;
   end_time: string;

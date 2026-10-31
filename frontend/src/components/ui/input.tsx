@@ -40,6 +40,7 @@ export function Input({ endSlot: slot, startSlot, onClear, clearLabel = "", comp
           placeholder:text-subtle
           read-only:bg-background read-only:text-muted
           disabled:cursor-not-allowed disabled:bg-background disabled:text-muted
+          aria-invalid:border-danger
           sm:h-9.5 sm:text-sm
         `,
         // Gọn (quản trị) trên điện thoại: thấp 32px, chữ 12px (người dùng chốt; đánh đổi: Safari iOS tự phóng to khi chạm ô chữ < 16px)

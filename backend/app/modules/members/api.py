@@ -3,14 +3,30 @@
 Hàm ghi **không commit**; người gọi sở hữu transaction.
 """
 
+import asyncio
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
-from app.modules.members import service
+from app.modules.members import avatar, self_service, service
+from app.modules.members.avatar import Crop, StoredAvatar
+from app.modules.members.models import Customer
 from app.modules.members.schemas import CustomerIn, CustomerProfile, MemberSearchItem
+from app.modules.members.self_service import SelfProfile, SelfUpdate, not_member
 from app.modules.members.service import PHONE_RE, normalize_phone
 
 __all__ = [
+    "Crop",
+    "SelfProfile",
+    "SelfUpdate",
+    "StoredAvatar",
+    "delete_avatar",
+    "get_self_profile",
+    "load_avatar",
+    "member_id_by_phone",
+    "not_member",
+    "save_avatar",
+    "update_self_profile",
     "CustomerIn",
     "CustomerProfile",
     "PHONE_RE",
@@ -51,3 +67,44 @@ async def upsert_temp(session: AsyncSession, full_name: str, phone: str) -> None
 
 async def find_by_phone(session: AsyncSession, phone: str) -> CustomerProfile | None:
     return await service.find_by_phone(session, phone)
+
+
+# ------------------------------------------------------------------ khu hội viên (T-016)
+
+
+async def member_id_by_phone(session: AsyncSession, phone: str) -> int | None:
+    """Id hồ sơ **hội viên** cùng SĐT (hồ sơ tạm / không có -> None) – liên kết tài khoản web."""
+    return await self_service.member_id_by_phone(session, phone)
+
+
+async def get_self_profile(session: AsyncSession, customer_id: int) -> SelfProfile | None:
+    return await self_service.get_profile(session, customer_id)
+
+
+async def update_self_profile(
+    session: AsyncSession, customer_id: int, data: SelfUpdate, actor: AuditActor
+) -> tuple[SelfProfile, bool]:
+    """Không commit. 422 ``fields`` (E-HV-1/10/11), 409 E-HV-12. Trả (hồ sơ, có đổi?)."""
+    return await self_service.update_profile(session, customer_id, data, actor)
+
+
+async def save_avatar(
+    session: AsyncSession, customer_id: int, data: bytes, crop: Crop, actor: AuditActor
+) -> StoredAvatar:
+    """Giải mã + mã hóa lại ảnh (thread riêng), ghi DB (không commit). 422 E-HV-13."""
+    customer = await session.get(Customer, customer_id)
+    if customer is None or customer.kind != "member":
+        raise not_member()
+    clean = await asyncio.to_thread(avatar.process, data, crop)
+    return await avatar.save(session, customer, clean, actor)
+
+
+async def delete_avatar(session: AsyncSession, customer_id: int, actor: AuditActor) -> bool:
+    customer = await session.get(Customer, customer_id)
+    if customer is None or customer.kind != "member":
+        raise not_member()
+    return await avatar.remove(session, customer, actor)
+
+
+async def load_avatar(session: AsyncSession, customer_id: int) -> StoredAvatar | None:
+    return await avatar.load(session, customer_id)
