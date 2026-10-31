@@ -1,19 +1,22 @@
 """Mặt tiền module Xác thực cho module khác (không truy vấn bảng ``users`` / ``otp_codes``)."""
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Annotated
+from datetime import datetime
+from typing import TYPE_CHECKING, Annotated
 
-from fastapi import Depends
-from sqlalchemy import select
+from fastapi import Depends, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import AuditActor, audit
 from app.core.config import settings
 from app.core.errors import AppError
-from app.modules.auth import member_accounts, membership, otp, service
+from app.modules.auth import cookies, enroll, member_accounts, membership, otp, service
+from app.modules.auth import phone as phone_flow
 from app.modules.auth.deps import AuthStateDep, CurrentCustomer, SessionDep
 from app.modules.auth.models import OtpPurpose, Role, User
+
+if TYPE_CHECKING:
+    from app.modules.members.api import MemberEnsured
 
 
 async def check_password(session: AsyncSession, user_id: int, password: str) -> bool:
@@ -41,6 +44,15 @@ class PhoneToken:
     expires_at: datetime
     # Khách đang đăng nhập có SĐT trùng SĐT vừa xác minh -> tài khoản đã xác minh (AC40)
     account_verified: bool = False
+    # T-021 AC5: vừa thành hội viên (tạo mới / nâng hồ sơ tạm) + Mã HV của tài khoản
+    became_member: bool = False
+    member_code: str | None = None
+    # Tài khoản Google vừa được gộp vào chủ SĐT -> lớp gọi phát lại cookie cho ``account``
+    merged: bool = False
+    account: User | None = None
+    # Khách đang đăng nhập nhưng tài khoản không được gắn / thành hội viên: mã lý do
+    # (E-AUTH-17 tài khoản có SĐT khác, E-AUTH-18 SĐT không dùng được, E-AUTH-31 hội viên Ngừng)
+    reason: str | None = None
 
 
 async def send_booking_phone_code(
@@ -59,48 +71,70 @@ async def verify_booking_phone(
     """Mã đúng -> ``phone_token`` (hạn ``BOOKING_PHONE_TOKEN_MINUTES``, dùng nhiều lần trong hạn
     cho đúng SĐT này). 400 ``E-AUTH-14`` / ``E-AUTH-15``.
 
-    ``customer_id`` (khách đang đăng nhập): SĐT tài khoản trùng SĐT vừa xác minh -> tài khoản coi
-    là đã xác minh (``phone_verified_at``, AC40) – lần đặt sau bỏ qua OTP. Không gắn SĐT cho tài
-    khoản chưa có SĐT, không gộp tài khoản (việc đó qua ``/auth/phone/*``).
+    ``customer_id`` (khách đang đăng nhập, T-013 AC40 + T-021 AC5):
+    - SĐT tài khoản trùng SĐT vừa xác minh -> tài khoản đã xác minh; lần đặt sau bỏ qua OTP.
+    - Tài khoản chưa có SĐT (Google) -> gắn SĐT theo đúng luật ``/auth/phone/verify`` (SĐT của
+      khách khác thì gộp). ``E-AUTH-17`` / ``E-AUTH-18`` -> **không gắn**, lượt đặt vẫn tiếp tục.
+    - Sau đó R1: SĐT đã xác minh = hội viên. Hồ sơ đang Ngừng -> tài khoản bị khóa.
+    Phần liên kết chạy trong savepoint: hỏng (hiếm) thì bỏ liên kết, vẫn cấp ``phone_token``.
     """
+    if customer_id is not None:
+        await otp.lock_phone(session, phone)  # gắn / gộp / đăng ký cùng SĐT chạy lần lượt
     row, token = await otp.verify(
         session, OtpPurpose.BOOKING_PHONE, phone, code, settings.BOOKING_PHONE_TOKEN_MINUTES
     )
     expires_at = row.token_expires_at
-    account_verified = (
-        await _mark_customer_phone_verified(session, customer_id, phone)
-        if customer_id is not None
-        else False
-    )
-    await session.commit()
     if token is None or expires_at is None:  # không xảy ra: đã truyền token_minutes
         raise RuntimeError("OTP verify did not issue a token")
-    return PhoneToken(token, expires_at, account_verified)
-
-
-async def _mark_customer_phone_verified(
-    session: AsyncSession, customer_id: int, phone: str
-) -> bool:
-    """Chưa commit. Trả True nếu tài khoản (khách, đang hoạt động, SĐT trùng) đã xác minh."""
-    user = await session.scalar(
-        select(User)
-        .where(User.id == customer_id, User.role == Role.MEMBER, User.is_active)
-        .with_for_update()
-        .execution_options(populate_existing=True)
+    linked, reason = None, None
+    if customer_id is not None:
+        try:
+            async with session.begin_nested():
+                linked = await _link_account(session, customer_id, phone)
+        except AppError as e:
+            reason = e.detail["code"]
+        except IntegrityError:  # quầy vừa tạo tài khoản cùng SĐT (hiếm)
+            reason = phone_flow.phone_unusable().detail["code"]
+    await session.commit()
+    if linked is None:
+        return PhoneToken(token, expires_at, reason=reason)
+    account, merged, ensured = linked
+    active = account.is_active
+    return PhoneToken(
+        token,
+        expires_at,
+        account_verified=active,
+        became_member=active and ensured is not None and ensured.became_member,
+        member_code=ensured.member_code if ensured is not None and active else None,
+        merged=merged and active,
+        account=account if merged and active else None,
+        reason=None if active else enroll.account_locked().detail["code"],
     )
-    if user is None or user.phone != phone:
-        return False
-    if user.phone_verified_at is None:
-        user.phone_verified_at = datetime.now(UTC)
-        audit(
-            session,
-            AuditActor(type="customer", id=user.id, label=user.full_name),
-            "auth.phone_verified",
-            "user",
-            str(user.id),
-            {"source": "web_booking"},
-        )
-    return True
+
+
+async def _link_account(
+    session: AsyncSession, customer_id: int, phone: str
+) -> "tuple[User, bool, MemberEnsured | None] | None":
+    """Chưa commit. (tài khoản, đã gộp?, hội viên) hoặc None nếu tài khoản không liên quan.
+    ``E-AUTH-17`` / ``E-AUTH-18`` ném ra trước khi đổi dữ liệu."""
+    user = await phone_flow.lock_user(session, customer_id)
+    if user is None or user.role != Role.MEMBER or not user.is_active:
+        return None
+    if user.phone is not None and user.phone != phone:
+        raise phone_flow.already_has_phone()  # SĐT khác: chỉ xác minh SĐT cho lượt đặt
+    if user.phone == phone and user.phone_verified_at is not None:
+        result = phone_flow.PhoneVerified(user, merged=False, password_cleared=False)
+    else:
+        result = await phone_flow.attach(session, user, phone, source="web_booking")
+    account = result.account
+    ensured = await enroll.enroll(session, account)
+    await session.flush()
+    return account, result.merged, ensured
+
+
+def set_customer_cookies(response: Response, user: User) -> None:
+    """Phát lại cookie JWT khách (vd. vừa gộp tài khoản Google vào chủ SĐT khi đặt online)."""
+    cookies.set_auth_cookies(response, user)
 
 
 async def booking_phone_token_valid(session: AsyncSession, token: str | None, phone: str) -> bool:
