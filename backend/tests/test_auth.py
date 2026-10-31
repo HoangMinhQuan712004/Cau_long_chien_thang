@@ -12,7 +12,7 @@ from app.core.db import SessionLocal
 from app.core.security import create_token
 from app.modules.auth.models import AdminSession, User
 from app.modules.auth.utils import normalize_phone, staff_username
-from tests.conftest import API, _client, sign_in, unique_phone
+from tests.conftest import API, _client, register, sign_in, unique_phone
 
 STAFF = f"{API}/admin/staff"
 PASSWORD = "Password123"
@@ -67,17 +67,16 @@ async def test_admin_signs_in_by_phone(login):
 
 async def test_customer_register_sign_in_me_logout(anon):
     phone = unique_phone()
-    r = await anon.post(
-        f"{API}/auth/register",
-        json={"full_name": " Lê  Thị Lan ", "phone": f"+84{phone[1:]}", "password": PASSWORD},
-    )
+    # Đăng ký 2 bước bằng OTP (T-021): SĐT nhập dạng +84 được chuẩn hóa
+    r = await register(anon, f"+84{phone[1:]}", " Lê  Thị Lan ", PASSWORD)
     assert r.status_code == 201, r.text
-    assert r.json()["phone"] == phone and r.json()["phone_verified"] is False
-    assert r.json()["full_name"] == "Lê Thị Lan" and "email" not in r.json()
-    dup = await anon.post(
-        f"{API}/auth/register", json={"full_name": "X", "phone": phone, "password": PASSWORD}
-    )
+    account = r.json()["account"]
+    assert account["phone"] == phone and account["phone_verified"] is True
+    assert account["full_name"] == "Lê Thị Lan" and "email" not in account
+    async with _client() as other:
+        dup = await register(other, phone, "X", PASSWORD)
     assert dup.status_code == 409 and dup.json()["detail"]["code"] == "E-AUTH-22"
+    anon.cookies.clear()
 
     async with _client() as c:
         r = await sign_in(c, phone, PASSWORD)
@@ -103,7 +102,7 @@ async def test_customer_register_sign_in_me_logout(anon):
     ],
 )
 async def test_register_validation(anon, body):
-    r = await anon.post(f"{API}/auth/register", json=body)
+    r = await anon.post(f"{API}/auth/register/request", json=body)
     assert r.status_code == 422
 
 
@@ -111,12 +110,12 @@ async def test_register_rate_limited_per_ip(anon, monkeypatch):
     monkeypatch.setattr(settings, "REGISTER_IP_MAX_PER_HOUR", 2)
     for _ in range(2):
         r = await anon.post(
-            f"{API}/auth/register",
+            f"{API}/auth/register/request",
             json={"full_name": "A", "phone": unique_phone(), "password": PASSWORD},
         )
-        assert r.status_code == 201
+        assert r.status_code == 202
     r = await anon.post(
-        f"{API}/auth/register",
+        f"{API}/auth/register/request",
         json={"full_name": "A", "phone": unique_phone(), "password": PASSWORD},
     )
     assert r.status_code == 429 and r.json()["detail"]["code"] == "E-SEC-5"

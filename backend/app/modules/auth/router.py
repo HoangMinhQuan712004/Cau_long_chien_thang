@@ -4,15 +4,10 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import ratelimit
 from app.core.audit import AuditActor, audit
-from app.core.config import settings
 from app.core.context import client_ip
-from app.core.errors import AppError
 from app.core.middleware import require_origin
 from app.core.permissions import Perm, Principal, require
 from app.core.security import decode_token, hash_password
@@ -23,6 +18,7 @@ from app.modules.auth import (
     membership,
     phone,
     recovery,
+    registration,
     service,
     sessions,
     staff,
@@ -35,7 +31,7 @@ from app.modules.auth.deps import (
     SessionDep,
     unauthenticated,
 )
-from app.modules.auth.models import AdminSession, Role, SessionEndReason, User
+from app.modules.auth.models import AdminSession, SessionEndReason, User
 from app.modules.auth.schemas import (
     AdminSessionOut,
     AdminSignInOut,
@@ -45,7 +41,9 @@ from app.modules.auth.schemas import (
     PhoneIn,
     PhoneOtpIn,
     PhoneVerifyOut,
-    RegisterIn,
+    RegisterOut,
+    RegisterRequestIn,
+    RegisterVerifyIn,
     ResetConfirmIn,
     ResetTokenOut,
     SignInIn,
@@ -63,17 +61,6 @@ async def account_out(session: AsyncSession, user: User) -> UserOut:
     out = user_out(user)
     out.is_member = await membership.member_profile_id(session, user) is not None
     return out
-
-
-def phone_taken(phone: str) -> AppError:
-    """Một lỗi cho MỌI trường hợp SĐT đã có tài khoản (kể cả tài khoản hội viên sân tạo) – không
-    dò được loại tài khoản qua mã / câu chữ. ``phone`` = SĐT người gọi gửi (điền link Quên MK)."""
-    return AppError(
-        "E-AUTH-22",
-        "Số điện thoại đã được sử dụng. Vui lòng đăng nhập hoặc bấm Quên mật khẩu.",
-        409,
-        phone=phone,
-    )
 
 
 @router.post("/sign-in", response_model=SignInOut)
@@ -105,36 +92,44 @@ async def google_sign_in(data: GoogleSignInIn, response: Response, session: Sess
     return CustomerSignInOut(account=await account_out(session, user))
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-async def register(data: RegisterIn, response: Response, session: SessionDep):
-    """Đăng ký khách bằng SĐT (chưa xác minh – cần OTP mới coi là đã xác minh).
+@router.post("/register/request", response_model=OtpSentOut, status_code=status.HTTP_202_ACCEPTED)
+async def register_request(data: RegisterRequestIn, session: SessionDep):
+    """Đăng ký bước 1 (T-021): gửi OTP; **chưa** tạo tài khoản. Mọi SĐT nhận cùng một trả lời.
 
-    Lỗi: 409 E-AUTH-22 (SĐT đã có tài khoản – kèm ``phone``) · 429 E-SEC-5 (> 10 lần / giờ / IP).
+    Lỗi: 422 (quy tắc mật khẩu) / E-AUTH-26 (mật khẩu = SĐT) · 429 E-SEC-5 (> 10 lần / giờ / IP)
+    / E-AUTH-13 (gửi mã quá nhiều) · 503 E-AUTH-23 (không có kênh gửi OTP).
     """
-    retry_after = await ratelimit.check(
-        "auth.register", client_ip() or "unknown", settings.REGISTER_IP_MAX_PER_HOUR, 3600
+    sent = await registration.request(
+        session, data.full_name, data.phone, data.password, client_ip()
     )
-    if retry_after is not None:
-        raise ratelimit.too_many(retry_after)
-    hashed = hash_password(data.password)
-    if await session.scalar(select(User.id).where(User.phone == data.phone)):
-        raise phone_taken(data.phone)
-    user = User(
-        phone=data.phone,
-        full_name=" ".join(data.full_name.split()),
-        hashed_password=hashed,
-        role=Role.MEMBER,
-        is_active=True,
+    return OtpSentOut(resend_after=sent.resend_after, test_otp=sent.test_otp)
+
+
+@router.post("/register/verify", response_model=RegisterOut, status_code=status.HTTP_201_CREATED)
+async def register_verify(data: RegisterVerifyIn, response: Response, session: SessionDep):
+    """Đăng ký bước 2: mã đúng -> tạo tài khoản + hội viên (R1), đăng nhập luôn (cookie).
+
+    Lỗi: 400 E-AUTH-14 (``attempts_left``) / E-AUTH-15 · 409 E-AUTH-22 (SĐT đã có tài khoản –
+    chỉ báo sau khi nhập đúng mã, kèm ``phone``) · 403 E-AUTH-31 (hội viên đang Ngừng).
+    """
+    result = await registration.verify(session, data.phone, data.otp)
+    cookies.set_auth_cookies(response, result.account)
+    return RegisterOut(
+        account=await account_out(session, result.account),
+        member_code=result.member_code,
+        upgraded_from_temp=result.upgraded_from_temp,
     )
-    session.add(user)
-    try:
-        await session.commit()
-    except IntegrityError:
-        await session.rollback()
-        raise phone_taken(data.phone) from None
-    await session.refresh(user)
-    cookies.set_auth_cookies(response, user)
-    return await account_out(session, user)
+
+
+@router.post(
+    "/register",
+    status_code=status.HTTP_410_GONE,
+    deprecated=True,
+    responses={410: {"description": "E-AUTH-32"}},
+)
+async def register_closed():
+    """Đăng ký không OTP đã đóng (T-021 SEC1) – dùng ``/auth/register/request`` + ``/verify``."""
+    raise registration.closed()
 
 
 @router.post("/refresh", response_model=UserOut)
@@ -200,8 +195,9 @@ async def phone_verify(
     data: PhoneOtpIn, user: CurrentCustomer, response: Response, session: SessionDep
 ):
     """Mã đúng -> gắn SĐT; SĐT đã có chủ là khách -> gộp tài khoản Google vào đó (JWT mới).
+    Xác minh xong là hội viên (T-021 R1): ``became_member``, ``member_code``.
 
-    Lỗi: 400 E-AUTH-14 / E-AUTH-15 · 409 E-AUTH-17 / E-AUTH-18.
+    Lỗi: 400 E-AUTH-14 / E-AUTH-15 · 409 E-AUTH-17 / E-AUTH-18 · 403 E-AUTH-31 (hội viên Ngừng).
     """
     result = await phone.verify(session, user.id, data.phone, data.otp)
     cookies.set_auth_cookies(response, result.account)
@@ -209,6 +205,8 @@ async def phone_verify(
         merged=result.merged,
         password_cleared=result.password_cleared,
         account=await account_out(session, result.account),
+        became_member=result.became_member,
+        member_code=result.member_code,
     )
 
 

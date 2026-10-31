@@ -42,12 +42,6 @@ class _In(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class RegisterIn(_In):
-    full_name: str = Field(min_length=1, max_length=255)
-    phone: Phone
-    password: NewPassword
-
-
 class SignInIn(_In):
     """Ô "Số điện thoại hoặc tên đăng nhập" – chuẩn hóa ở service."""
 
@@ -167,3 +161,29 @@ class PhoneVerifyOut(BaseModel):
         "hoặc Quên mật khẩu)"
     )
     account: UserOut
+    became_member: bool = Field(
+        default=False, description="Vừa thành hội viên ở lần xác minh này (T-021 R1)"
+    )
+    member_code: str | None = Field(default=None, description="Mã HV của tài khoản (nếu có)")
+
+
+# ---------- Đăng ký 2 bước bằng OTP (T-021) ----------
+
+
+class RegisterRequestIn(_In):
+    full_name: str = Field(min_length=1, max_length=100)
+    phone: Phone
+    password: NewPassword
+
+
+class RegisterVerifyIn(_In):
+    phone: Phone
+    otp: OtpDigits
+
+
+class RegisterOut(BaseModel):
+    account: UserOut
+    member_code: str = Field(description="Mã HV – tài khoản đăng ký xong là hội viên (R1)")
+    upgraded_from_temp: bool = Field(
+        description="SĐT đã có hồ sơ tạm -> nâng lên hội viên, giữ lịch sử đặt sân"
+    )

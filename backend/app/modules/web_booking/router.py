@@ -215,20 +215,30 @@ async def phone_request(data: PhoneCodeIn, session: SessionDep):
     dependencies=[Depends(require_origin), Depends(no_store)],
 )
 async def phone_verify(
-    data: PhoneVerifyIn, session: SessionDep, customer_id: auth.SignedInCustomerId
+    data: PhoneVerifyIn,
+    response: Response,
+    session: SessionDep,
+    customer_id: auth.SignedInCustomerId,
 ):
     """Mã đúng -> ``phone_token`` (30 phút, dùng cho nhiều lượt đặt của SĐT này trong hạn).
 
-    Khách đang đăng nhập có SĐT tài khoản trùng -> ``account_verified`` (T-013 AC40).
+    Khách đang đăng nhập (T-013 AC40, T-021 AC5): SĐT tài khoản trùng -> ``account_verified``;
+    tài khoản Google chưa có SĐT -> gắn SĐT (gộp nếu SĐT thuộc khách khác – cookie mới). Xác minh
+    xong là hội viên: ``became_member``, ``member_code``.
     Lỗi: E-WEB-1 (SĐT sai), E-AUTH-14 (sai mã, ``attempts_left``), E-AUTH-15 (mã hết hiệu lực).
     """
     token = await auth.verify_booking_phone(
         session, _valid_phone(data.phone), data.otp, customer_id
     )
+    if token.merged and token.account is not None:
+        auth.set_customer_cookies(response, token.account)
     return PhoneTokenOut(
         phone_token=token.token,
         expires_at=token.expires_at,
         account_verified=token.account_verified,
+        became_member=token.became_member,
+        member_code=token.member_code,
+        account_merged=token.merged,
     )
 
 

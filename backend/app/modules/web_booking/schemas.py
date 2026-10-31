@@ -51,6 +51,18 @@ class PhoneTokenOut(BaseModel):
         description="Khách đang đăng nhập có SĐT trùng SĐT vừa xác minh -> tài khoản đã xác minh, "
         "lần đặt sau không cần OTP (cả khi đã xác minh từ trước)",
     )
+    became_member: bool = Field(
+        default=False,
+        description="T-021: tài khoản đang đăng nhập vừa thành hội viên nhờ lần xác minh này",
+    )
+    member_code: str | None = Field(
+        default=None, description="Mã HV của tài khoản đang đăng nhập (đã là / vừa thành hội viên)"
+    )
+    account_merged: bool = Field(
+        default=False,
+        description="Tài khoản Google vừa được gộp vào tài khoản chủ SĐT – cookie đã đổi, FE tải "
+        "lại thông tin tài khoản",
+    )
 
 
 class WebCustomer(BaseModel):
