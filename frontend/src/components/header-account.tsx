@@ -52,7 +52,7 @@ function CustomerMenu({ name, isMember }: { name: string; isMember: boolean }) {
       </summary>
       <div className="absolute right-0 z-40 mt-1 flex min-w-40 flex-col gap-1 rounded-card bg-surface p-2 text-sm shadow-card ring-1 ring-border">
         {isMember ? (
-          <Link href="/hoi-vien/ho-so" className="rounded-lg px-3 py-2 font-medium text-primary hover:bg-primary-softer">
+          <Link href="/hoi-vien" className="rounded-lg px-3 py-2 font-medium text-primary hover:bg-primary-softer">
             Khu hội viên
           </Link>
         ) : null}
