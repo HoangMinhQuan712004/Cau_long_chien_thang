@@ -49,6 +49,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/register/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Request
+         * @description Đăng ký bước 1 (T-021): gửi OTP; **chưa** tạo tài khoản. Mọi SĐT nhận cùng một trả lời.
+         *
+         *     Lỗi: 422 (quy tắc mật khẩu) / E-AUTH-26 (mật khẩu = SĐT) · 429 E-SEC-5 (> 10 lần / giờ / IP)
+         *     / E-AUTH-13 (gửi mã quá nhiều) · 503 E-AUTH-23 (không có kênh gửi OTP).
+         */
+        post: operations["register_request_api_v1_auth_register_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/register/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Verify
+         * @description Đăng ký bước 2: mã đúng -> tạo tài khoản + hội viên (R1), đăng nhập luôn (cookie).
+         *
+         *     Lỗi: 400 E-AUTH-14 (``attempts_left``) / E-AUTH-15 · 409 E-AUTH-22 (SĐT đã có tài khoản –
+         *     chỉ báo sau khi nhập đúng mã, kèm ``phone``) · 403 E-AUTH-31 (hội viên đang Ngừng).
+         */
+        post: operations["register_verify_api_v1_auth_register_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -59,12 +105,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Register
-         * @description Đăng ký khách bằng SĐT (chưa xác minh – cần OTP mới coi là đã xác minh).
-         *
-         *     Lỗi: 409 E-AUTH-22 (SĐT đã có tài khoản – kèm ``phone``) · 429 E-SEC-5 (> 10 lần / giờ / IP).
+         * Register Closed
+         * @deprecated
+         * @description Đăng ký không OTP đã đóng (T-021 SEC1) – dùng ``/auth/register/request`` + ``/verify``.
          */
-        post: operations["register_api_v1_auth_register_post"];
+        post: operations["register_closed_api_v1_auth_register_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -217,8 +262,9 @@ export interface paths {
         /**
          * Phone Verify
          * @description Mã đúng -> gắn SĐT; SĐT đã có chủ là khách -> gộp tài khoản Google vào đó (JWT mới).
+         *     Xác minh xong là hội viên (T-021 R1): ``became_member``, ``member_code``.
          *
-         *     Lỗi: 400 E-AUTH-14 / E-AUTH-15 · 409 E-AUTH-17 / E-AUTH-18.
+         *     Lỗi: 400 E-AUTH-14 / E-AUTH-15 · 409 E-AUTH-17 / E-AUTH-18 · 403 E-AUTH-31 (hội viên Ngừng).
          */
         post: operations["phone_verify_api_v1_auth_phone_verify_post"];
         delete?: never;
@@ -1205,7 +1251,9 @@ export interface paths {
          * Phone Verify
          * @description Mã đúng -> ``phone_token`` (30 phút, dùng cho nhiều lượt đặt của SĐT này trong hạn).
          *
-         *     Khách đang đăng nhập có SĐT tài khoản trùng -> ``account_verified`` (T-013 AC40).
+         *     Khách đang đăng nhập (T-013 AC40, T-021 AC5): SĐT tài khoản trùng -> ``account_verified``;
+         *     tài khoản Google chưa có SĐT -> gắn SĐT (gộp nếu SĐT thuộc khách khác – cookie mới). Xác minh
+         *     xong là hội viên: ``became_member``, ``member_code``.
          *     Lỗi: E-WEB-1 (SĐT sai), E-AUTH-14 (sai mã, ``attempts_left``), E-AUTH-15 (mã hết hiệu lực).
          */
         post: operations["phone_verify_api_v1_web_booking_phone_verify_post"];
@@ -2250,6 +2298,12 @@ export interface components {
              * @description Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4
              */
             version: number;
+            /**
+             * Source
+             * @description Người tạo: ``counter`` = quầy / Admin, ``self_register`` = Tự đăng ký online (T-021; hồ sơ tạm luôn ``counter``)
+             * @enum {string}
+             */
+            source: "counter" | "self_register";
             /** Note */
             note: string | null;
             /** Total Minutes */
@@ -2393,6 +2447,12 @@ export interface components {
              * @description Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4
              */
             version: number;
+            /**
+             * Source
+             * @description Người tạo: ``counter`` = quầy / Admin, ``self_register`` = Tự đăng ký online (T-021; hồ sơ tạm luôn ``counter``)
+             * @enum {string}
+             */
+            source: "counter" | "self_register";
         };
         /**
          * MemberSearchItem
@@ -2643,6 +2703,23 @@ export interface components {
              * @default false
              */
             account_verified: boolean;
+            /**
+             * Became Member
+             * @description T-021: tài khoản đang đăng nhập vừa thành hội viên nhờ lần xác minh này
+             * @default false
+             */
+            became_member: boolean;
+            /**
+             * Member Code
+             * @description Mã HV của tài khoản đang đăng nhập (đã là / vừa thành hội viên)
+             */
+            member_code?: string | null;
+            /**
+             * Account Merged
+             * @description Tài khoản Google vừa được gộp vào tài khoản chủ SĐT – cookie đã đổi, FE tải lại thông tin tài khoản
+             * @default false
+             */
+            account_merged: boolean;
         };
         /** PhoneVerifyIn */
         PhoneVerifyIn: {
@@ -2664,6 +2741,17 @@ export interface components {
              */
             password_cleared: boolean;
             account: components["schemas"]["UserOut"];
+            /**
+             * Became Member
+             * @description Vừa thành hội viên ở lần xác minh này (T-021 R1)
+             * @default false
+             */
+            became_member: boolean;
+            /**
+             * Member Code
+             * @description Mã HV của tài khoản (nếu có)
+             */
+            member_code?: string | null;
         };
         /** PostIn */
         PostIn: {
@@ -2972,8 +3060,22 @@ export interface components {
             /** Sort Order */
             sort_order?: number | null;
         };
-        /** RegisterIn */
-        RegisterIn: {
+        /** RegisterOut */
+        RegisterOut: {
+            account: components["schemas"]["UserOut"];
+            /**
+             * Member Code
+             * @description Mã HV – tài khoản đăng ký xong là hội viên (R1)
+             */
+            member_code: string;
+            /**
+             * Upgraded From Temp
+             * @description SĐT đã có hồ sơ tạm -> nâng lên hội viên, giữ lịch sử đặt sân
+             */
+            upgraded_from_temp: boolean;
+        };
+        /** RegisterRequestIn */
+        RegisterRequestIn: {
             /** Full Name */
             full_name: string;
             /** Phone */
@@ -2983,6 +3085,13 @@ export interface components {
              * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
              */
             password: string;
+        };
+        /** RegisterVerifyIn */
+        RegisterVerifyIn: {
+            /** Phone */
+            phone: string;
+            /** Otp */
+            otp: string;
         };
         /** ResetConfirmIn */
         ResetConfirmIn: {
@@ -3672,7 +3781,7 @@ export interface operations {
             };
         };
     };
-    register_api_v1_auth_register_post: {
+    register_request_api_v1_auth_register_request_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3681,17 +3790,17 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RegisterIn"];
+                "application/json": components["schemas"]["RegisterRequestIn"];
             };
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserOut"];
+                    "application/json": components["schemas"]["OtpSentOut"];
                 };
             };
             /** @description Validation Error */
@@ -3701,6 +3810,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_verify_api_v1_auth_register_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterVerifyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_closed_api_v1_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description E-AUTH-32 */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

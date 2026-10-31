@@ -15,7 +15,7 @@ from app.core.audit import AuditActor, audit
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.security import verify_password
-from app.modules.auth import otp, sessions
+from app.modules.auth import enroll, otp, sessions
 from app.modules.auth.member_accounts import same_as_phone
 from app.modules.auth.models import OtpPurpose, Role, User
 
@@ -97,4 +97,7 @@ async def confirm_reset(session: AsyncSession, reset_token: str, hashed_password
         str(user.id),
         {"revoked_sessions": revoked},
     )
+    await enroll.enroll(session, user)  # SĐT đã xác minh = hội viên (T-021 AC6)
     await session.commit()
+    if not user.is_active:  # hồ sơ hội viên cùng SĐT đang Ngừng
+        raise enroll.account_locked()
