@@ -164,7 +164,6 @@ async def test_schema_matches_models_downgrade_keeps_members_and_reupgrade_does_
     legacy_db,
 ):
     await alembic(command.upgrade, TARGET)
-    await alembic(lambda cfg, _rev: command.check(cfg), TARGET)
     first = await rows("SELECT phone, member_code FROM customer ORDER BY phone")
     await alembic(command.downgrade, BEFORE)
     assert await rows("SELECT phone, member_code FROM customer ORDER BY phone") == first, (
@@ -177,3 +176,6 @@ async def test_schema_matches_models_downgrade_keeps_members_and_reupgrade_does_
     assert (await rows("SELECT count(*) FROM audit_log WHERE detail::text LIKE '%backfill%'"))[0][
         0
     ] == 3, "không ghi nhật ký backfill lần hai"
+    # `alembic check` chỉ chạy được khi DB ở head; các nhánh sau T-021 (vd T-017) có head mới nên nâng tới `head`
+    await alembic(command.upgrade, "head")
+    await alembic(lambda cfg, _rev: command.check(cfg), "head")
