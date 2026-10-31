@@ -6,6 +6,7 @@ Test viết từ **spec**, không theo thiết kế của PR. Chỗ PR cố ý k
 và hễ BACKEND sửa theo spec thì test báo XPASS (strict) để gỡ dấu. Không có dấu xfail = đạt.
 """
 
+import importlib
 import re
 import time
 import uuid
@@ -17,6 +18,7 @@ from app.core.db import engine
 from tests.conftest import API, _client, idem, sign_in
 from tests.helpers_booking import book, new_court, random_phone, safe_hour, temp
 
+sepay = importlib.import_module("tests.test_qa_T-008").sepay  # fixture cấu hình SePay thử
 M = f"{API}/members"
 MASKED = re.compile(r"^\d{4} x{3} \d{3}$")
 
@@ -83,6 +85,16 @@ async def add_temp(client, made, *, name=None, phone=None):
     )
 
 
+async def patch_m(client, path: str, body: dict, *, version: int | None = None):
+    """PATCH sửa hội viên (T-020 AC4): gửi kèm `version` hiện tại (đọc từ chi tiết) nếu không truyền."""
+    if version is None and "version" not in body:
+        got = await client.get(path)
+        assert got.status_code == 200, (path, got.text)
+        version = got.json()["version"]
+    payload = body if version is None else {**body, "version": version}
+    return await client.patch(path, json=payload, headers=idem())
+
+
 async def listing(client, **params) -> dict:
     r = await client.get(M, params=params)
     assert r.status_code == 200, r.text
@@ -106,33 +118,28 @@ async def test_ac20_staff_can_view_add_edit_and_make_temp(staff, made):
     m = await add_ok(staff, made)
     assert m["member_code"].startswith("HV")
     assert (await add_temp(staff, made)).status_code == 201
-    r = await staff.patch(
-        f"{M}/{m['member_code']}", json={"full_name": f"{tag()} Sửa"}, headers=idem()
-    )
+    r = await patch_m(staff, f"{M}/{m['member_code']}", {"full_name": f"{tag()} Sửa"})
     assert r.status_code == 200, r.text
     assert (await staff.get(f"{M}/next-code")).status_code == 200
 
 
 async def test_sec1_staff_cannot_change_status(staff, admin, made):
     m = await add_ok(admin, made)
-    r = await staff.patch(f"{M}/{m['member_code']}", json={"is_active": False}, headers=idem())
+    r = await patch_m(staff, f"{M}/{m['member_code']}", {"is_active": False})
     assert r.status_code == 403, r.text
     row = (await admin.get(f"{M}/{m['member_code']}")).json()
     assert row["is_active"] is True
 
 
-@deviation("D1", "NV đổi được Hạng (OQ-1: chỉ Admin đổi Hạng); PR cố ý cho NV chỉnh Hạng")
-async def test_sec1_staff_cannot_change_tier(staff, admin, made):
+async def test_oq1_staff_can_change_tier_but_not_status_user_decision_31_10(staff, admin, made):
+    """Người dùng chốt 31/10: giữ theo PR – NV đổi được Hạng, vẫn không đổi được Trạng thái."""
     m = await add_ok(admin, made, tier="Trung bình")
-    r = await staff.patch(f"{M}/{m['member_code']}", json={"tier": "Khá"}, headers=idem())
-    assert r.status_code == 403, r.text
-    assert (await admin.get(f"{M}/{m['member_code']}")).json()["tier"] == "Trung bình"
-
-
-@deviation("D1", "NV tạo hội viên với Hạng khác Trung bình được (OQ-1: NV khóa ở Trung bình)")
-async def test_sec1_staff_cannot_create_with_other_tier(staff, made):
+    r = await patch_m(staff, f"{M}/{m['member_code']}", {"tier": "Khá"})
+    assert r.status_code == 200 and r.json()["tier"] == "Khá", r.text
     r = await add_member(staff, made, tier="Chuyên nghiệp")
-    assert r.status_code == 403, r.text
+    assert r.status_code == 201 and r.json()["tier"] == "Chuyên nghiệp"
+    r = await patch_m(staff, f"{M}/{m['member_code']}", {"is_active": False})
+    assert r.status_code == 403, "NV vẫn không đổi Trạng thái"
 
 
 @deviation("D2", "Hạng mặc định phải là Trung bình (OQ-2); PR mặc định 'chưa xếp hạng' (null)")
@@ -220,20 +227,25 @@ async def test_ac11_duplicate_phone_of_member_and_of_temp(admin, made):
     assert (await listing(admin, q=t.json()["phone"]))["items"][0]["kind"] == "temp", "stays temp"
 
 
-@deviation(
-    "D4", "OQ-6: không chuyển/gộp hồ sơ tạm ở bản này; PR có upgrade_temp=true nâng hồ sơ tạm"
-)
-async def test_oq6_temp_profile_cannot_be_promoted(admin, made):
+async def test_ac1_t020_temp_phone_blocks_member_with_e_004_and_upgrade_is_gone(admin, made):
     t = await add_temp(admin, made)
-    r = await add_member(admin, made, phone=t.json()["phone"], upgrade_temp=True)
-    assert r.status_code in (409, 422), r.text
-    assert (await listing(admin, q=t.json()["phone"]))["items"][0]["kind"] == "temp"
+    tj = t.json()
+    r = await add_member(admin, made, phone=tj["phone"])
+    assert r.status_code == 409 and err(r)["code"] == "E-MEM-1", r.text
+    msg = err(r)["message"]
+    assert msg.startswith("Số điện thoại đã có hồ sơ tạm: ") and tj["full_name"] in msg, msg
+    assert re.search(r"\(tạo \d{2}/\d{2}/\d{4}\)", msg), msg
+    assert "bookings" not in err(r) and "next_code" not in err(r), (
+        "đã bỏ dữ liệu của luồng nâng hồ sơ"
+    )
+    r = await add_member(admin, made, phone=tj["phone"], upgrade_temp=True)
+    assert r.status_code == 422, "upgrade_temp không còn (trường lạ)"
+    assert (await listing(admin, q=tj["phone"]))["items"][0]["kind"] == "temp", "vẫn là hồ sơ tạm"
+    assert not await q(
+        "SELECT 1 FROM audit_log WHERE action='member.promote' AND entity_code=:c", c=tj["ref"]
+    )
 
 
-@deviation(
-    "F1",
-    "Gửi lại cùng Idempotency-Key phải trả kết quả cũ (AC12/NFR-003); PR trả 409 E-018 như SĐT trùng",
-)
 async def test_ac12_idempotent_create_returns_same_member(admin, made):
     phone = random_phone()
     made.append(phone)
@@ -346,7 +358,7 @@ async def test_sec4_search_limits_and_wildcards_are_literal(admin, made):
 async def test_ac4_kind_and_filters_combine(admin, made):
     token = tag()
     m = await add_ok(admin, made, name=f"{token} A", tier="Khá")
-    await admin.patch(f"{M}/{m['member_code']}", json={"is_active": False}, headers=idem())
+    await patch_m(admin, f"{M}/{m['member_code']}", {"is_active": False})
     t = (await add_temp(admin, made, name=f"{token} B")).json()
     both = await listing(admin, q=token)
     assert {i["kind"] for i in both["items"]} == {"member", "temp"}
@@ -542,9 +554,7 @@ async def test_ac8_temp_detail_and_unknown_refs(admin, made):
 async def test_ac15_edit_updates_fields_and_noop_does_not_audit(admin, made):
     m = await add_ok(admin, made, gender="male")
     new = f"{tag()} Đã sửa"
-    r = await admin.patch(
-        f"{M}/{m['member_code']}", json={"full_name": new, "tier": "Khá"}, headers=idem()
-    )
+    r = await patch_m(admin, f"{M}/{m['member_code']}", {"full_name": new, "tier": "Khá"})
     assert r.status_code == 200 and r.json()["full_name"] == new and r.json()["tier"] == "Khá"
     before = (
         await q(
@@ -552,7 +562,7 @@ async def test_ac15_edit_updates_fields_and_noop_does_not_audit(admin, made):
             c=m["member_code"],
         )
     )[0]["n"]
-    r = await admin.patch(f"{M}/{m['member_code']}", json={"full_name": new}, headers=idem())
+    r = await patch_m(admin, f"{M}/{m['member_code']}", {"full_name": new})
     assert r.status_code == 200
     after = (
         await q(
@@ -570,7 +580,7 @@ async def test_ac15_code_and_created_at_are_immutable(admin, made):
         ("created_at", "2020-01-01T00:00:00Z"),
         ("bookings", 99),
     ):
-        r = await admin.patch(f"{M}/{m['member_code']}", json={field: value}, headers=idem())
+        r = await patch_m(admin, f"{M}/{m['member_code']}", {field: value})
         assert r.status_code == 422, (field, r.text)
 
 
@@ -581,47 +591,44 @@ async def test_ac14_phone_is_editable_and_checked(admin, made):
     m = await add_ok(admin, made)
     new = random_phone()
     made.append(new)
-    r = await admin.patch(f"{M}/{m['member_code']}", json={"phone": new}, headers=idem())
+    r = await patch_m(admin, f"{M}/{m['member_code']}", {"phone": new})
     assert r.status_code == 200 and r.json()["phone"] == new, r.text
     other = await add_ok(admin, made)
-    r = await admin.patch(f"{M}/{m['member_code']}", json={"phone": other["phone"]}, headers=idem())
+    r = await patch_m(admin, f"{M}/{m['member_code']}", {"phone": other["phone"]})
     assert r.status_code == 409
 
 
-@deviation(
-    "D11",
-    "Khóa lạc quan: hai máy sửa một hồ sơ -> máy sau nhận 409 E-HV-9/E-009; PR không có version",
-)
 async def test_ac16_stale_version_is_rejected(admin, made):
     m = await add_ok(admin, made)
     d = (await admin.get(f"{M}/{m['member_code']}")).json()
     assert "version" in d, "detail must expose a version"
-    ok = await admin.patch(
-        f"{M}/{m['member_code']}",
-        json={"full_name": f"{tag()} A", "version": d["version"]},
-        headers=idem(),
+    ok = await patch_m(
+        admin, f"{M}/{m['member_code']}", {"full_name": f"{tag()} A", "version": d["version"]}
     )
     assert ok.status_code == 200
-    stale = await admin.patch(
-        f"{M}/{m['member_code']}",
-        json={"full_name": f"{tag()} B", "version": d["version"]},
-        headers=idem(),
+    stale = await patch_m(
+        admin, f"{M}/{m['member_code']}", {"full_name": f"{tag()} B", "version": d["version"]}
     )
     assert stale.status_code == 409
 
 
-async def test_ac17_inactive_member_is_found_but_blocked_at_the_counter(admin, made):
-    """PR: Ngừng chặn đặt quầy bằng E-MEM-2 (spec AC17: Ngừng chỉ là nhãn) – ghi vào mục chờ hỏi."""
+async def test_ac2_t020_inactive_member_is_selectable_and_bookable(admin, made):
     m = await add_ok(admin, made)
     assert (
-        await admin.patch(f"{M}/{m['member_code']}", json={"is_active": False}, headers=idem())
+        await patch_m(admin, f"{M}/{m['member_code']}", {"is_active": False})
     ).status_code == 200
     found = (await admin.get(f"{M}/search", params={"q": m["member_code"]})).json()
-    assert found and found[0]["is_active"] is False
+    assert found and found[0]["is_active"] is False, "popup hiện nhãn Ngừng"
     h = await safe_hour()
     court = await new_court(admin)
     r = await book(admin, court["code"], h, h + 1, customer={"member_code": m["member_code"]})
-    assert r.status_code == 422 and err(r)["code"] == "E-MEM-2", r.text
+    assert r.status_code == 201, r.text
+    body = r.json()
+    first = body["bookings"][0] if "bookings" in body else body
+    assert (
+        first["customer"]["kind"] == "member"
+        and first["customer"]["member_code"] == m["member_code"]
+    ), first
 
 
 # ============================================================ AC18 hồ sơ tạm
@@ -645,11 +652,10 @@ async def test_ac18_temp_create_validation_and_duplicate(admin, made):
 @deviation("D12", "Hồ sơ tạm không sửa được (OQ-4/FR-008); PR cho sửa họ tên, giới tính")
 async def test_oq4_temp_profile_is_not_editable(admin, made):
     t = (await add_temp(admin, made)).json()
-    r = await admin.patch(f"{M}/{t['ref']}", json={"full_name": f"{tag()} X"}, headers=idem())
+    r = await patch_m(admin, f"{M}/{t['ref']}", {"full_name": f"{tag()} X"})
     assert r.status_code in (403, 404, 405, 422), r.text
 
 
-@deviation("F1", "Hồ sơ tạm gửi lại cùng Idempotency-Key phải trả kết quả cũ; PR trả 409")
 async def test_ac18_temp_create_is_idempotent(admin, made):
     phone = random_phone()
     made.append(phone)
@@ -704,7 +710,7 @@ async def test_ac19_failed_save_writes_nothing(admin, made):
 )
 async def test_ac19_update_audit_has_before_and_after(admin, made):
     m = await add_ok(admin, made, tier="Trung bình")
-    await admin.patch(f"{M}/{m['member_code']}", json={"tier": "Khá"}, headers=idem())
+    await patch_m(admin, f"{M}/{m['member_code']}", {"tier": "Khá"})
     d = (
         await q(
             "SELECT detail::text AS d FROM audit_log WHERE action='member.update' AND entity_code=:c ORDER BY id DESC LIMIT 1",
@@ -814,16 +820,14 @@ async def test_member_account_expires_after_3_days(admin, made):
 async def test_member_account_follows_status_stop_and_resume(admin, made):
     m = await add_ok(admin, made)
     assert (
-        await admin.patch(f"{M}/{m['member_code']}", json={"is_active": False}, headers=idem())
+        await patch_m(admin, f"{M}/{m['member_code']}", {"is_active": False})
     ).status_code == 200
     assert (await q("SELECT is_active FROM users WHERE phone=:p", p=m["phone"]))[0][
         "is_active"
     ] is False
     async with _client() as c:
         assert (await sign_in(c, m["phone"], m["phone"])).status_code in (401, 403)
-    assert (
-        await admin.patch(f"{M}/{m['member_code']}", json={"is_active": True}, headers=idem())
-    ).status_code == 200
+    assert (await patch_m(admin, f"{M}/{m['member_code']}", {"is_active": True})).status_code == 200
     assert (await q("SELECT is_active FROM users WHERE phone=:p", p=m["phone"]))[0][
         "is_active"
     ] is True
@@ -1017,7 +1021,9 @@ async def test_member_card_is_only_the_own_one(admin, made):
             assert got["member_code"] == a["member_code"], "query parameters are ignored"
         assert (await ca.get(f"{M}/{b['member_code']}")).status_code in (401, 403)
         assert (await ca.get(M)).status_code in (401, 403)
-        assert (await ca.get(f"{API}/rackets")).status_code in (401, 403)
+        assert (await ca.get(f"{API}/rackets")).status_code == 200, (
+            "T-016: hội viên đọc được danh mục vợt"
+        )
 
 
 async def test_temp_profile_has_no_member_card(admin, made):
@@ -1072,13 +1078,126 @@ async def test_concurrent_temp_and_member_same_phone_never_two_rows(admin, made)
     assert (await q("SELECT count(*) AS n FROM customer WHERE phone=:p", p=phone))[0]["n"] == 1
 
 
-@deviation("D11", "Hai máy sửa cùng lúc: máy sau ghi đè không báo (không có version)")
 async def test_concurrent_edits_do_not_silently_overwrite(admin, made):
+    """T-020 AC4: hai máy cùng mở một bản; máy lưu sau nhận 409 E-MEM-9 và không ghi đè."""
     m = await add_ok(admin, made, gender="male")
-    a = await admin.patch(
-        f"{M}/{m['member_code']}", json={"full_name": f"{tag()} Máy A"}, headers=idem()
+    path = f"{M}/{m['member_code']}"
+    v = (await admin.get(path)).json()["version"]
+    name_a = f"{tag()} Máy A"
+    a = await patch_m(admin, path, {"full_name": name_a}, version=v)
+    b = await patch_m(admin, path, {"full_name": f"{tag()} Máy B"}, version=v)
+    assert a.status_code == 200 and b.status_code == 409 and err(b)["code"] == "E-MEM-9", b.text
+    assert err(b)["message"].startswith("Hội viên này vừa được cập nhật ở máy khác")
+    assert (await admin.get(path)).json()["full_name"] == name_a, "máy A không bị ghi đè"
+
+
+async def test_ac4_version_rules_missing_stale_noop_bump_and_shared_with_member_area(admin, made):
+    from tests.conftest import _client, sign_in
+
+    m = await add_ok(admin, made, tier="Khá")
+    path = f"{M}/{m['member_code']}"
+    d = (await admin.get(path)).json()
+    assert (
+        isinstance(d["version"], int)
+        and (await listing(admin, q=m["member_code"]))["items"][0]["version"] == d["version"]
     )
-    b = await admin.patch(
-        f"{M}/{m['member_code']}", json={"full_name": f"{tag()} Máy B"}, headers=idem()
+    r = await admin.patch(path, json={"full_name": f"{tag()} X"}, headers=idem())
+    assert r.status_code == 422, "version bắt buộc"
+    same = await patch_m(admin, path, {"full_name": d["full_name"]}, version=d["version"])
+    assert same.status_code == 200 and same.json()["version"] == d["version"], (
+        "không đổi gì thì giữ version"
     )
-    assert a.status_code == 200 and b.status_code == 409
+    up = await patch_m(admin, path, {"tier": "Bán chuyên"}, version=d["version"])
+    assert up.status_code == 200 and up.json()["version"] == d["version"] + 1
+    stale = await patch_m(admin, path, {"tier": "Khá"}, version=d["version"])
+    assert stale.status_code == 409 and err(stale)["code"] == "E-MEM-9"
+    # dùng chung version với khu hội viên: hội viên tự sửa thì quản trị đang mở bản cũ bị 409
+    cur = (await admin.get(path)).json()
+    async with _client() as c:
+        assert (await sign_in(c, m["phone"], m["phone"])).status_code == 200
+        await c.post(
+            f"{API}/auth/password/change", json={"new_password": "Hv-Moi-Pass-1"}, headers=idem()
+        )
+        mine = (await c.get(f"{API}/member-area/me")).json()
+        assert mine["version"] == cur["version"], "cùng một cột version"
+        body = {
+            k: mine[k]
+            for k in (
+                "full_name",
+                "nickname",
+                "email",
+                "tier",
+                "racket",
+                "show_on_records",
+                "version",
+            )
+        }
+        assert (
+            await c.put(
+                f"{API}/member-area/me", json={**body, "nickname": "Tự sửa"}, headers=idem()
+            )
+        ).status_code == 200
+    late = await patch_m(admin, path, {"tier": "Yếu"}, version=cur["version"])
+    assert late.status_code == 409 and err(late)["code"] == "E-MEM-9"
+
+
+async def test_ac3_idempotency_key_required_and_replay_returns_same_result(admin, made):
+    phone = random_phone()
+    made.append(phone)
+    body = {"full_name": f"{tag()} Idem", "phone": phone}
+    r = await admin.post(M, json=body)  # thiếu Idempotency-Key
+    assert r.status_code == 400 and err(r)["code"] == "E-SEC-2", r.text
+    key = {"Idempotency-Key": str(uuid.uuid4())}
+    r1 = await admin.post(M, json=body, headers=key)
+    r2 = await admin.post(M, json=body, headers=key)
+    assert r1.status_code == 201 and r2.status_code == 201 and r2.json() == r1.json()
+    assert r2.headers.get("idempotent-replayed") == "true"
+    assert (await q("SELECT count(*) AS n FROM customer WHERE phone=:p", p=phone))[0]["n"] == 1
+    # hồ sơ tạm
+    tp = random_phone()
+    made.append(tp)
+    tb = {"full_name": f"{tag()} Tạm", "phone": tp}
+    assert (await admin.post(f"{M}/temp", json=tb)).status_code == 400
+    k2 = {"Idempotency-Key": str(uuid.uuid4())}
+    t1 = await admin.post(f"{M}/temp", json=tb, headers=k2)
+    t2 = await admin.post(f"{M}/temp", json=tb, headers=k2)
+    assert t1.status_code == 201 and t2.status_code == 201 and t2.json() == t1.json()
+    # cùng key nhưng nội dung khác không được trả kết quả của lần trước
+    other = await admin.post(
+        M, json={"full_name": f"{tag()} Khác", "phone": random_phone()}, headers=key
+    )
+    assert other.status_code in (409, 422), "key cũ + body khác bị từ chối, không lẫn kết quả"
+
+
+async def test_ac2_t020_inactive_member_can_get_a_ticket_and_online_booking_still_links(
+    admin, made, anon, sepay
+):
+    t6 = importlib.import_module("tests.test_qa_T-006")
+    t8 = importlib.import_module("tests.test_qa_T-008")
+    m = await add_ok(admin, made)
+    assert (
+        await patch_m(admin, f"{M}/{m['member_code']}", {"is_active": False})
+    ).status_code == 200
+    # vé sự kiện tại quầy
+    court = await new_court(admin)
+    ev = await t6.new_session(admin, [court["code"]], capacity=3, hour=t6.usable_hour())
+    if ev.status_code == 201:
+        tk = await admin.post(
+            f"{API}/front-desk/sessions/{ev.json()['code']}/tickets",
+            json={"customer": {"member_code": m["member_code"]}},
+            headers=idem(),
+        )
+        assert tk.status_code == 201, tk.text
+        assert tk.json()["customer"]["kind"] == "member"
+    # đặt online bằng đúng SĐT của hội viên Ngừng vẫn gắn vào hội viên
+    court2 = await t8.court(admin)
+    r = await t8.checkout(anon, t8.slots(court2["code"], 9), ph=m["phone"], name=m["full_name"])
+    assert r.status_code == 201, r.text
+    if True:
+        row = await q(
+            "SELECT customer_kind, member_code FROM booking.checkout WHERE pay_ref=:p",
+            p=r.json()["pay_ref"],
+        )
+        assert row[0]["customer_kind"] == "member" and row[0]["member_code"] == m["member_code"], (
+            row
+        )
