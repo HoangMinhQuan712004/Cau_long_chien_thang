@@ -34,6 +34,7 @@ from app.modules.booking_engine.dto import (
     CheckoutItem,
     CheckoutView,
     CustomerSnapshot,
+    LookupItem,
     LookupPending,
     LookupResult,
     OnlinePaymentIn,
@@ -46,10 +47,21 @@ from app.modules.booking_engine.holds import expire_holds, grace
 from app.modules.booking_engine.models import (
     Allocation,
     Booking,
+    BookingOrder,
     Checkout,
     Hold,
     PriceRule,
     Resource,
+)
+from app.modules.booking_engine.orders import (
+    child_code,
+    conflicts_of,
+    emit_created,
+    find_order,
+    new_order,
+    order_blocks,
+    order_of_child,
+    ranges_of,
 )
 from app.modules.booking_engine.pricing import day_type_of, slot_price, special_day_on
 from app.modules.booking_engine.schedules import Hours, effective_on, schedules_of, to_hhmm
@@ -142,17 +154,6 @@ async def public_calendar(session: AsyncSession, tenant_id: int, day: date) -> P
 # ------------------------------------------------------------------ lượt thanh toán (AC10–AC14)
 
 
-def _ranges(hours: list[int]) -> list[tuple[int, int]]:
-    """[19, 20, 22] -> [(19, 21), (22, 23)]."""
-    result: list[list[int]] = []
-    for h in sorted(set(hours)):
-        if result and result[-1][1] == h:
-            result[-1][1] = h + 1
-        else:
-            result.append([h, h + 1])
-    return [(a, b) for a, b in result]
-
-
 def _slot_error(name: str, hour: int) -> AppError:
     return _web_error(
         "E-WEB-2",
@@ -162,7 +163,7 @@ def _slot_error(name: str, hour: int) -> AppError:
     )
 
 
-async def _validated_ranges(
+async def _validatedranges_of(
     session: AsyncSession, ctx: Ctx, data: CheckoutCreate
 ) -> list[tuple[Resource, int, int]]:
     """Kiểm từng ô rồi gom thành dải giờ liền nhau theo sân (thứ tự: sân, giờ)."""
@@ -196,31 +197,11 @@ async def _validated_ranges(
         by_resource[code].append(hour)
     ordered = sorted(resources.values(), key=lambda r: (r.sort_order, r.code))
     return [
-        (r, a, b) for r in ordered if r.code in by_resource for a, b in _ranges(by_resource[r.code])
+        (r, a, b)
+        for r in ordered
+        if r.code in by_resource
+        for a, b in ranges_of(by_resource[r.code])
     ]
-
-
-async def _conflicts(
-    session: AsyncSession, ctx: Ctx, day: date, ranges: list[tuple[Resource, int, int]]
-) -> list[dict]:
-    result = []
-    for r, a, b in ranges:
-        for h in range(a, b):
-            taken = await session.scalar(
-                select(Allocation.id)
-                .where(
-                    Allocation.tenant_id == ctx.tenant.id,
-                    Allocation.resource_id == r.id,
-                    Allocation.active.is_(True),
-                    Allocation.time_range.overlaps(
-                        Range(ctx.at(day, h * 60), ctx.at(day, h * 60 + 60), bounds="[)")
-                    ),
-                )
-                .limit(1)
-            )
-            if taken is not None:
-                result.append({"resource_code": r.code, "start_hour": h})
-    return result
 
 
 def _pending_exists() -> AppError:
@@ -241,7 +222,7 @@ async def create_checkout(
 ) -> CheckoutCreated:
     """Giữ chỗ ``hold_minutes`` phút: mỗi dải = 1 hold mang mã ``BK-…`` + giá chốt (AC10, AC11)."""
     ctx = await context(session, tenant_id)
-    ranges = await _validated_ranges(session, ctx, data)
+    ranges = await _validatedranges_of(session, ctx, data)
     priced = []
     for r, a, b in ranges:
         _, items = await price_slots(session, ctx.tenant, r, data.date, a, b)
@@ -258,14 +239,17 @@ async def create_checkout(
     if pending is not None:
         raise _pending_exists()
 
-    codes = [await next_code(session, tenant_id, ctx.code_prefix, data.date) for _ in priced]
+    # Một mã đơn cho cả lượt; mỗi dải (sân, giờ liền nhau) mang mã con -NN (ADR-010)
+    order_code = await next_code(session, tenant_id, ctx.code_prefix, data.date)
+    codes = [child_code(order_code, seq) for seq in range(1, len(priced) + 1)]
     token = secrets.token_urlsafe(32)
     expires_at = ctx.now + timedelta(minutes=hold_minutes)
     total = sum(i.price for _, _, _, items in priced for i in items)
     checkout = Checkout(
         tenant_id=tenant_id,
         token_hash=token_hash(token),
-        pay_ref=codes[0].replace("-", ""),
+        order_code=order_code,
+        pay_ref=order_code.replace("-", ""),
         play_date=data.date,
         amount=total,
         paid_amount=0,
@@ -308,7 +292,7 @@ async def create_checkout(
             await session.flush()
     except IntegrityError as e:
         if sqlstate(e) == EXCLUSION_VIOLATION:
-            conflicts = await _conflicts(
+            conflicts = await conflicts_of(
                 session, ctx, data.date, [(r, a, b) for r, a, b, _ in priced]
             )
             raise _web_error(
@@ -327,10 +311,18 @@ async def create_checkout(
         "checkout.create",
         "checkout",
         checkout.pay_ref,
-        {"codes": codes, "amount": total, "date": data.date.isoformat()},
+        {
+            "order_code": order_code,
+            "codes": codes,
+            "amount": total,
+            "date": data.date.isoformat(),
+        },
     )
     outbox.add_event(
-        session, tenant_id, "checkout.created", {"pay_ref": checkout.pay_ref, "codes": codes}
+        session,
+        tenant_id,
+        "checkout.created",
+        {"pay_ref": checkout.pay_ref, "order_code": order_code, "codes": codes},
     )
     await session.flush()
     view = await checkout_view(session, ctx, checkout)
@@ -389,6 +381,7 @@ async def checkout_view(session: AsyncSession, ctx: Ctx, checkout: Checkout) -> 
         amount=checkout.amount,
         paid_amount=checkout.paid_amount,
         paid_at=checkout.paid_at,
+        order_code=checkout.order_code,
         pay_ref=checkout.pay_ref,
         customer_name=checkout.customer_name,
         customer_phone=checkout.customer_phone,
@@ -435,63 +428,87 @@ def _not_found_booking() -> AppError:
     return _web_error("E-WEB-7", "Không tìm thấy booking. Kiểm tra lại mã và số điện thoại.", 404)
 
 
-async def lookup(session: AsyncSession, tenant_id: int, code: str, phone: str) -> LookupResult:
-    """Mã + SĐT (đã chuẩn hóa ở lớp gọi). Sai mã hay sai SĐT -> cùng một lỗi E-WEB-7."""
-    ctx = await context(session, tenant_id)
-    row = (
-        await session.execute(
-            select(Booking, Resource)
-            .join(Resource, Resource.id == Booking.resource_id)
-            .where(Booking.tenant_id == tenant_id, Booking.code == code)
+def _order_status(statuses: list[str]) -> str:
+    """Trạng thái chung của đơn: còn khối chưa thu -> unpaid; tất cả đã thu -> paid;
+    còn lại (có khối Không thu được) -> uncollectible. Từng khối có trạng thái riêng."""
+    if "unpaid" in statuses:
+        return "unpaid"
+    if all(s == "paid" for s in statuses):
+        return "paid"
+    return "uncollectible"
+
+
+async def _lookup_order(
+    session: AsyncSession, ctx: Ctx, order: BookingOrder, code: str
+) -> LookupResult:
+    blocks = await order_blocks(session, order.id)
+    names = {
+        r.id: r.name
+        for r in await session.scalars(
+            select(Resource).where(Resource.id.in_({b.resource_id for b in blocks}))
         )
-    ).first()
-    if row is not None:
-        b, r = row
-        if not _same_phone(b.customer_phone, phone):
-            raise _not_found_booking()
-        s_min, e_min = ctx.minute_of(b.play_date, b.start_at), ctx.minute_of(b.play_date, b.end_at)
-        return LookupResult(
-            code=b.code,
-            status=b.payment_status,
-            resource_name=r.name,
-            play_date=b.play_date,
-            start_time=to_hhmm(s_min),
-            end_time=to_hhmm(e_min),
-            hours=(e_min - s_min) // 60,
-            customer_name=b.customer_name,
-            customer_phone=b.customer_phone,
-            amount=b.amount,
-            payment_method=b.payment_method,
-            paid_at=b.paid_at,
+    }
+    items = []
+    for b in blocks:
+        s_min = ctx.minute_of(b.play_date, b.start_at)
+        e_min = ctx.minute_of(b.play_date, b.end_at)
+        items.append(
+            LookupItem(
+                code=b.code,
+                resource_name=names[b.resource_id],
+                start_time=to_hhmm(s_min),
+                end_time=to_hhmm(e_min),
+                hours=(e_min - s_min) // 60,
+                amount=b.amount,
+                status=b.payment_status,
+                matched=b.code == code,
+            )
         )
-    row = (
-        await session.execute(
-            select(Hold, Checkout)
-            .join(Checkout, Checkout.id == Hold.checkout_id)
-            .where(Hold.tenant_id == tenant_id, Hold.code == code)
-        )
-    ).first()
-    if row is None:
-        raise _not_found_booking()
-    hold, checkout = row
-    if not _same_phone(checkout.customer_phone, phone):
-        raise _not_found_booking()
-    view = await checkout_view(session, ctx, checkout)
-    item = next(i for i in view.items if i.code == code)
-    pending = checkout.status == "pending" and hold.status == "active"
+    paid = [b for b in blocks if b.payment_status == "paid"]
+    methods = {b.payment_method for b in paid}
     return LookupResult(
-        code=code,
-        status="pending" if pending else "expired",
-        resource_name=item.resource_name,
-        play_date=item.play_date,
-        start_time=item.start_time,
-        end_time=item.end_time,
-        hours=item.hours,
+        order_code=order.code,
+        status=_order_status([b.payment_status for b in blocks]),
+        play_date=order.play_date,
+        hours=sum(i.hours for i in items),
+        customer_name=order.customer_name,
+        customer_phone=order.customer_phone,
+        amount=sum(b.amount for b in blocks),
+        payment_method=methods.pop() if len(methods) == 1 else None,
+        paid_at=max((b.paid_at for b in paid if b.paid_at), default=None),
+        items=items,
+    )
+
+
+async def _lookup_checkout(
+    session: AsyncSession, ctx: Ctx, checkout: Checkout, code: str
+) -> LookupResult:
+    view = await checkout_view(session, ctx, checkout)
+    pending = checkout.status == "pending"
+    status = "pending" if pending else "expired"
+    return LookupResult(
+        order_code=checkout.order_code,
+        status=status,
+        play_date=checkout.play_date,
+        hours=sum(i.hours for i in view.items),
         customer_name=checkout.customer_name,
         customer_phone=checkout.customer_phone,
-        amount=item.amount,
+        amount=checkout.amount,
         payment_method=None,
         paid_at=None,
+        items=[
+            LookupItem(
+                code=i.code,
+                resource_name=i.resource_name,
+                start_time=i.start_time,
+                end_time=i.end_time,
+                hours=i.hours,
+                amount=i.amount,
+                status=status,
+                matched=i.code == code,
+            )
+            for i in view.items
+        ],
         pending=LookupPending(
             expires_at=checkout.expires_at,
             server_now=ctx.now,
@@ -501,6 +518,34 @@ async def lookup(session: AsyncSession, tenant_id: int, code: str, phone: str) -
         if pending
         else None,
     )
+
+
+async def lookup(session: AsyncSession, tenant_id: int, code: str, phone: str) -> LookupResult:
+    """Mã đơn **hoặc** mã con + SĐT (đã chuẩn hóa ở lớp gọi) -> cả đơn (T-019 AC3).
+
+    Sai mã hay sai SĐT -> cùng một lỗi E-WEB-7. Lượt chờ thanh toán / hết hạn (chưa thành đơn)
+    tra theo mã đơn của checkout hoặc mã con của giữ chỗ.
+    """
+    ctx = await context(session, tenant_id)
+    order = await find_order(session, tenant_id, code)
+    if order is not None:
+        if not _same_phone(order.customer_phone, phone):
+            raise _not_found_booking()
+        return await _lookup_order(session, ctx, order, code)
+    # Chưa thành đơn: lượt chờ thanh toán / hết hạn, theo mã đơn của lượt hoặc mã con của giữ chỗ
+    order_code = order_of_child(code) or code
+    checkout = await session.scalar(
+        select(Checkout).where(Checkout.tenant_id == tenant_id, Checkout.order_code == order_code)
+    )
+    if checkout is None or not _same_phone(checkout.customer_phone, phone):
+        raise _not_found_booking()
+    if code != checkout.order_code:  # mã con phải là một khối của lượt này
+        hold = await session.scalar(
+            select(Hold.id).where(Hold.checkout_id == checkout.id, Hold.code == code)
+        )
+        if hold is None:
+            raise _not_found_booking()
+    return await _lookup_checkout(session, ctx, checkout, code)
 
 
 # ------------------------------------------------------------------ tiền về (AC21–AC23)
@@ -542,13 +587,34 @@ async def apply_online_payment(
             select(Hold).where(Hold.checkout_id == checkout.id).order_by(Hold.code)
         )
     )
+    order = new_order(
+        tenant_id,
+        checkout.order_code,
+        checkout.play_date,
+        "online",
+        {
+            "customer_ref": checkout.customer_ref,
+            "customer_kind": checkout.customer_kind,
+            "customer_name": checkout.customer_name,
+            "customer_phone": checkout.customer_phone,
+            "member_code": checkout.member_code,
+            "member_tier": checkout.member_tier,
+        },
+        ONLINE_ACTOR.label,
+        checkout_id=checkout.id,
+    )
+    session.add(order)
+    await session.flush()
     codes = []
+    created: list[Booking] = []
     for n, hold in enumerate(holds, start=1):
         alloc = await session.scalar(select(Allocation).where(Allocation.hold_id == hold.id))
         if alloc is None:  # hold của checkout luôn có allocation (tạo cùng transaction)
             raise RuntimeError(f"Hold {hold.code} has no allocation")
         booking = Booking(
             tenant_id=tenant_id,
+            order_id=order.id,
+            seq=n,
             code=hold.code,
             source="online",
             resource_id=alloc.resource_id,
@@ -585,6 +651,7 @@ async def apply_online_payment(
         )
         hold.status = "converted"
         codes.append(hold.code)
+        created.append(booking)
     checkout.status = "paid"
     checkout.paid_at = data.transaction_at
     audit(
@@ -593,13 +660,21 @@ async def apply_online_payment(
         "booking.online.paid",
         "checkout",
         checkout.pay_ref,
-        {"codes": codes, "amount": checkout.amount, "paid_amount": checkout.paid_amount},
+        {
+            "order_code": order.code,
+            "codes": codes,
+            "amount": checkout.amount,
+            "paid_amount": checkout.paid_amount,
+        },
     )
+    for booking in created:
+        emit_created(session, tenant_id, order, booking)
     outbox.add_event(
         session,
         tenant_id,
         "booking.online_paid",
         {
+            "order_code": order.code,
             "codes": codes,
             "customer_kind": checkout.customer_kind,
             "full_name": checkout.customer_name,

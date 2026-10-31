@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import audit
 from app.core.errors import AppError
-from app.modules.booking_engine import outbox
 from app.modules.booking_engine.codes import next_code
 from app.modules.booking_engine.common import (
     EXCLUSION_VIOLATION,
@@ -34,7 +33,8 @@ from app.modules.booking_engine.dto import (
     CalendarCan,
     CalendarOut,
     CalendarResource,
-    CounterBookingIn,
+    CounterOrderIn,
+    CounterOrderOut,
     CustomerSnapshot,
     ItemCustomer,
     ItemOut,
@@ -53,6 +53,18 @@ from app.modules.booking_engine.models import (
     Resource,
     ResourceType,
     Ticket,
+)
+from app.modules.booking_engine.orders import (
+    MAX_BLOCKS,
+    child_code,
+    conflicts_of,
+    emit_created,
+    find_order,
+    new_order,
+    order_blocks,
+    order_codes,
+    ranges_of,
+    snapshot_values,
 )
 from app.modules.booking_engine.schedules import Hours, effective_on, schedules_of, to_hhmm
 
@@ -162,6 +174,7 @@ async def calendar(
             .order_by(Booking.start_at)
         )
     )
+    orders = await order_codes(session, {b.order_id for b in bookings})
     for b in bookings:
         r = by_id[b.resource_id]
         s_min, e_min = ctx.minute_of(day, b.start_at), ctx.minute_of(day, b.end_at)
@@ -171,6 +184,7 @@ async def calendar(
             CalendarBlock(
                 type="booking",
                 code=b.code,
+                order_code=orders.get(b.order_id),
                 resource_codes=[r.code],
                 start_time=to_hhmm(s_min),
                 end_time=to_hhmm(e_min),
@@ -316,8 +330,21 @@ async def search(session: AsyncSession, tenant_id: int, raw: str) -> SearchResul
         b = await session.scalar(
             select(Booking).where(Booking.tenant_id == tenant_id, Booking.code == code)
         )
-        if b is not None:
-            return SearchResult(kind="booking", code=b.code, play_date=b.play_date)
+        if b is not None:  # mã con
+            orders = await order_codes(session, {b.order_id})
+            return SearchResult(
+                kind="booking", code=b.code, play_date=b.play_date, order_code=orders[b.order_id]
+            )
+        order = await find_order(session, tenant_id, code)
+        if order is not None:  # mã đơn -> danh sách khối
+            blocks = await order_blocks(session, order.id)
+            return SearchResult(
+                kind="order",
+                code=order.code,
+                play_date=order.play_date,
+                order_code=order.code,
+                codes=[blk.code for blk in blocks],
+            )
         row = (
             await session.execute(
                 select(Ticket.code, EventSession.play_date)
@@ -379,9 +406,11 @@ def _customer(item: Booking | Ticket) -> ItemCustomer:
 
 async def booking_item(session: AsyncSession, ctx: Ctx, b: Booking) -> ItemOut:
     r = await session.get(Resource, b.resource_id)
+    orders = await order_codes(session, {b.order_id})
     return ItemOut(
         kind="booking",
         code=b.code,
+        order_code=orders.get(b.order_id),
         version=b.version,
         source=b.source,
         customer=_customer(b),
@@ -439,36 +468,49 @@ async def get_item(session: AsyncSession, tenant_id: int, raw_code: str) -> Item
     )
     if t is not None:
         return await ticket_item(session, ctx, t)
+    order = await find_order(session, tenant_id, code)
+    if order is not None:  # mã đơn một khối -> khối đó; nhiều khối -> dùng mã con
+        blocks = await order_blocks(session, order.id)
+        if len(blocks) == 1:
+            return await booking_item(session, ctx, blocks[0])
     raise not_found(f"booking hoặc vé {code}")
 
 
 # ------------------------------------------------------------------ đặt tại quầy (BR-005…011)
 
 
-def snapshot_values(customer: CustomerSnapshot) -> dict:
-    return {
-        "customer_ref": customer.ref_id,
-        "customer_kind": customer.kind,
-        "customer_name": customer.display_name,
-        "customer_phone": customer.phone,
-        "member_code": customer.member_code,
-        "member_tier": customer.tier,
-    }
+def slot_taken(conflicts: list[dict] | None = None) -> AppError:
+    extra = {"conflicts": conflicts} if conflicts is not None else {}
+    return AppError(
+        "E-003", "Khung giờ này vừa có người đặt. Vui lòng chọn khung khác.", 409, **extra
+    )
 
 
-def slot_taken() -> AppError:
-    return AppError("E-003", "Khung giờ này vừa có người đặt. Vui lòng chọn khung khác.", 409)
+def _merged_blocks(data: CounterOrderIn) -> dict[str, list[tuple[int, int]]]:
+    """Gom khối theo sân; cùng sân, giờ liền nhau -> một khối. Hai khối chồng giờ -> 422."""
+    hours: dict[str, list[int]] = defaultdict(list)
+    for blk in data.blocks:
+        if blk.end_hour <= blk.start_hour:
+            raise AppError("E-001", "Giờ kết thúc phải sau giờ bắt đầu.", 422)
+        code = blk.resource_code.strip().upper()
+        hours[code].extend(range(blk.start_hour, blk.end_hour))
+    for code, hs in hours.items():
+        if len(hs) != len(set(hs)):
+            raise AppError("E-001", f"Các khối của sân {code} bị trùng giờ nhau.", 422)
+    return {code: ranges_of(hs) for code, hs in hours.items()}
 
 
-async def create_counter_booking(
+async def create_counter_order(
     session: AsyncSession,
     tenant_id: int,
     actor: Actor,
-    data: CounterBookingIn,
+    data: CounterOrderIn,
     customer: CustomerSnapshot,
     note: str | None = None,
-) -> ItemOut:
-    """1 lần chọn = 1 booking ``unpaid`` trên 1 sân, hôm nay; tiền tính ở server (BR-009)."""
+) -> CounterOrderOut:
+    """Một lần bấm Đặt sân = **một đơn** (T-019 phương án A): mỗi khối 1 booking ``unpaid``,
+    mã ``{mã đơn}-NN`` theo sân rồi giờ; tiền tính ở server (BR-009). All-or-nothing: một khối
+    trùng lịch -> 409 ``E-003`` kèm ``conflicts``, không tạo gì."""
     ctx = await context(session, tenant_id)
     if data.date > ctx.today and ctx.settings.get("counter_same_day_only", True):
         raise AppError(
@@ -478,79 +520,97 @@ async def create_counter_booking(
         )
     if data.date < ctx.today:
         raise AppError("E-004", PAST_SLOT, 422)
-    r = await _resource_by_code(session, tenant_id, data.resource_code)
-    _, items = await price_slots(session, ctx.tenant, r, data.date, data.start_hour, data.end_hour)
-    # Khung đã qua = giờ kết thúc ≤ hiện tại; khung đang diễn ra vẫn đặt được (BR-011).
-    # Vùng chọn chứa một khung đã qua (khung đầu tiên) là không hợp lệ.
-    if ctx.at(data.date, (data.start_hour + 1) * 60) <= ctx.now:
-        raise AppError("E-004", PAST_SLOT, 422)
 
-    start_at = ctx.at(data.date, data.start_hour * 60)
-    end_at = ctx.at(data.date, data.end_hour * 60)
+    planned: list[tuple[Resource, int, int, list]] = []
+    for code, spans in _merged_blocks(data).items():
+        r = await _resource_by_code(session, tenant_id, code)
+        for start_hour, end_hour in spans:
+            _, items = await price_slots(session, ctx.tenant, r, data.date, start_hour, end_hour)
+            # Khung đã qua = giờ kết thúc ≤ hiện tại; khung đang diễn ra vẫn đặt được (BR-011)
+            if ctx.at(data.date, (start_hour + 1) * 60) <= ctx.now:
+                raise AppError("E-004", PAST_SLOT, 422)
+            planned.append((r, start_hour, end_hour, items))
+    if len(planned) > MAX_BLOCKS:
+        raise AppError("E-001", f"Mỗi đơn tối đa {MAX_BLOCKS} khối.", 422)
+    planned.sort(key=lambda p: (p[0].sort_order, p[0].code, p[1]))
+
     await expire_holds(session)
-    code = await next_code(session, tenant_id, ctx.code_prefix, data.date)
-    amount = sum(i.price for i in items)
-    booking = Booking(
-        tenant_id=tenant_id,
-        code=code,
-        source="counter",
-        resource_id=r.id,
-        play_date=data.date,
-        start_at=start_at,
-        end_at=end_at,
-        amount=amount,
-        price_breakdown=[i.model_dump() for i in items],
-        payment_status="unpaid",
-        note=(note or "").strip() or None,
-        created_by_type=actor.type,
-        created_by_id=actor.id,
-        created_by_label=actor.label,
-        version=1,
-        **snapshot_values(customer),
-    )
+    order_code = await next_code(session, tenant_id, ctx.code_prefix, data.date)
+    snapshot = snapshot_values(customer)
+    order = new_order(tenant_id, order_code, data.date, "counter", snapshot, actor.label)
+    clean_note = (note or "").strip() or None
+    blocks: list[tuple[Booking, Resource]] = []
     try:
         async with session.begin_nested():
-            session.add(booking)
+            session.add(order)
             await session.flush()
-            session.add(
-                Allocation(
+            for seq, (r, start_hour, end_hour, items) in enumerate(planned, start=1):
+                code = child_code(order_code, seq)
+                start_at = ctx.at(data.date, start_hour * 60)
+                end_at = ctx.at(data.date, end_hour * 60)
+                booking = Booking(
                     tenant_id=tenant_id,
+                    order_id=order.id,
+                    seq=seq,
+                    code=code,
+                    source="counter",
                     resource_id=r.id,
-                    time_range=Range(start_at, end_at, bounds="[)"),
-                    kind="booking",
-                    booking_id=booking.id,
-                    owner_code=code,
-                    active=True,
+                    play_date=data.date,
+                    start_at=start_at,
+                    end_at=end_at,
+                    amount=sum(i.price for i in items),
+                    price_breakdown=[i.model_dump() for i in items],
+                    payment_status="unpaid",
+                    note=clean_note,
+                    created_by_type=actor.type,
+                    created_by_id=actor.id,
+                    created_by_label=actor.label,
+                    version=1,
+                    **snapshot,
                 )
-            )
-            await session.flush()
+                session.add(booking)
+                await session.flush()
+                session.add(
+                    Allocation(
+                        tenant_id=tenant_id,
+                        resource_id=r.id,
+                        time_range=Range(start_at, end_at, bounds="[)"),
+                        kind="booking",
+                        booking_id=booking.id,
+                        owner_code=code,
+                        active=True,
+                    )
+                )
+                await session.flush()
+                blocks.append((booking, r))
     except IntegrityError as e:
         if sqlstate(e) == EXCLUSION_VIOLATION:
-            raise slot_taken() from None
+            ranges = [(r, a, b) for r, a, b, _ in planned]
+            raise slot_taken(await conflicts_of(session, ctx, data.date, ranges)) from None
         raise
 
-    audit(
-        session,
-        audit_actor(actor),
-        "booking.counter.create",
-        "booking",
-        code,
-        {
-            "resource": r.code,
-            "date": data.date.isoformat(),
-            "start_time": to_hhmm(data.start_hour * 60),
-            "end_time": to_hhmm(data.end_hour * 60),
-            "amount": amount,
-            "customer_kind": customer.kind,
-            "member_code": customer.member_code,
-        },
-    )
-    outbox.add_event(
-        session,
-        tenant_id,
-        "booking.created",
-        {"code": code, "source": "counter", "play_date": data.date.isoformat()},
-    )
+    for booking, r in blocks:
+        audit(
+            session,
+            audit_actor(actor),
+            "booking.counter.create",
+            "booking",
+            booking.code,
+            {
+                "order_code": order_code,
+                "resource": r.code,
+                "date": data.date.isoformat(),
+                "start_time": ctx.hhmm(data.date, booking.start_at),
+                "end_time": ctx.hhmm(data.date, booking.end_at),
+                "amount": booking.amount,
+                "customer_kind": customer.kind,
+                "member_code": customer.member_code,
+            },
+        )
+        emit_created(session, tenant_id, order, booking)
     await session.flush()
-    await session.refresh(booking)
-    return await booking_item(session, ctx, booking)
+    items_out = []
+    for booking, _ in blocks:
+        await session.refresh(booking)
+        items_out.append(await booking_item(session, ctx, booking))
+    return CounterOrderOut(order_code=order_code, bookings=items_out)

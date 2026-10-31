@@ -17,6 +17,7 @@ from app.modules.booking_engine import (
     customer_history,
     holds,
     online_service,
+    orders,
     outbox,
     payment_service,
     session_service,
@@ -29,7 +30,8 @@ from app.modules.booking_engine.dto import (
     CheckoutCreated,
     CheckoutView,
     CollectIn,
-    CounterBookingIn,
+    CounterOrderIn,
+    CounterOrderOut,
     CustomerBookingRow,
     CustomerSnapshot,
     CustomerStats,
@@ -37,6 +39,8 @@ from app.modules.booking_engine.dto import (
     LookupResult,
     OnlinePaymentIn,
     OnlinePaymentResult,
+    OrderCollectIn,
+    OrderCollectOut,
     PriceTable,
     PriceTableUpdate,
     PublicCalendar,
@@ -186,18 +190,31 @@ async def customer_bookings(
     return await customer_history.recent(session, _tid(tenant_id), refs, limit, offset)
 
 
-async def create_counter_booking(
+async def create_counter_order(
     session: AsyncSession,
     actor: Actor,
-    data: CounterBookingIn,
+    data: CounterOrderIn,
     customer: CustomerSnapshot,
     note: str | None = None,
     *,
     tenant_id: int | None = None,
-) -> ItemOut:
-    return await booking_service.create_counter_booking(
+) -> CounterOrderOut:
+    """Đặt tại quầy: 1 lần bấm = 1 đơn, 1–20 khối cùng ngày, all-or-nothing (T-019)."""
+    return await booking_service.create_counter_order(
         session, _tid(tenant_id), actor, data, customer, note
     )
+
+
+async def collect_order(
+    session: AsyncSession,
+    actor: Actor,
+    order_code: str,
+    data: OrderCollectIn,
+    *,
+    tenant_id: int | None = None,
+) -> OrderCollectOut:
+    """Thu cả đơn: mọi khối chưa thanh toán -> tiền mặt. 404 E-BOOK-3 · 409 E-BOOK-4."""
+    return await orders.collect_order(session, _tid(tenant_id), actor, order_code, data)
 
 
 # ---- Sự kiện / vé

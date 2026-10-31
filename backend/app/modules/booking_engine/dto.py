@@ -201,7 +201,8 @@ class CustomerStats(BaseModel):
 
 
 class CustomerBookingRow(BaseModel):
-    code: str
+    code: str = Field(description="Mã con của khối")
+    order_code: str = Field(description="Mã đơn – khu hội viên chỉ hiện mã này (T-019 AC7)")
     play_date: dt.date
     start_time: str
     end_time: str
@@ -223,7 +224,8 @@ class CalendarResource(BaseModel):
 
 class CalendarBlock(BaseModel):
     type: Literal["booking", "session", "hold"]
-    code: str | None
+    code: str | None = Field(description="Booking: mã con (mở chi tiết); sự kiện: mã sự kiện")
+    order_code: str | None = Field(default=None, description="Booking: mã đơn (hiện trên khối)")
     resource_codes: list[str]
     start_time: str
     end_time: str
@@ -261,19 +263,29 @@ class CalendarOut(BaseModel):
 
 
 class SearchResult(BaseModel):
-    kind: Literal["booking", "ticket", "session"]
-    code: str
+    kind: Literal["order", "booking", "ticket", "session"]
+    code: str = Field(description="order: mã đơn · booking: mã con · ticket / session: mã")
     play_date: dt.date
+    order_code: str | None = Field(default=None, description="order / booking: mã đơn")
+    codes: list[str] = Field(
+        default_factory=list, description="order: mã con các khối (theo thứ tự -01, -02…)"
+    )
 
 
 # ---------- Booking / vé ----------
 
 
-class CounterBookingIn(StrictIn):
+class CounterBlockIn(StrictIn):
     resource_code: str = Field(max_length=10)
-    date: dt.date
     start_hour: int = Field(ge=0, le=23)
     end_hour: int = Field(ge=1, le=24)
+
+
+class CounterOrderIn(StrictIn):
+    """Một lần bấm Đặt sân ở quầy = một đơn (T-019 phương án A): 1–20 khối cùng ngày."""
+
+    date: dt.date
+    blocks: list[CounterBlockIn] = Field(min_length=1, max_length=20)
 
 
 class ItemCustomer(BaseModel):
@@ -314,7 +326,8 @@ class ItemOut(BaseModel):
     """Thông tin booking / vé (SRS IV.5) – không SĐT đầy đủ, không id nội bộ."""
 
     kind: Literal["booking", "ticket"]
-    code: str
+    code: str = Field(description="Booking: mã con {mã đơn}-NN · vé: mã vé")
+    order_code: str | None = Field(default=None, description="Booking: mã đơn")
     version: int
     source: Source
     customer: ItemCustomer
@@ -418,7 +431,8 @@ class TransactionsQuery(BaseModel):
 
 class TransactionRow(BaseModel):
     kind: Literal["booking", "ticket"]
-    code: str
+    code: str = Field(description="Booking: mã con · vé: mã vé")
+    order_code: str | None = Field(default=None, description="Booking: mã đơn")
     play_date: dt.date
     start_time: str
     end_time: str
@@ -552,7 +566,8 @@ class CheckoutView(BaseModel):
     amount: int
     paid_amount: int
     paid_at: dt.datetime | None
-    pay_ref: str
+    order_code: str = Field(description="Mã đơn – khách chỉ thấy mã này (ADR-010)")
+    pay_ref: str = Field(description="= mã đơn bỏ dấu gạch (nội dung chuyển khoản)")
     customer_name: str
     customer_phone: str
     play_date: dt.date
@@ -570,19 +585,30 @@ class LookupPending(BaseModel):
     amount: int
 
 
-class LookupResult(BaseModel):
-    code: str
-    status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
+class LookupItem(BaseModel):
+    code: str = Field(description="Mã con – FE không hiện cho khách")
     resource_name: str
-    play_date: dt.date
     start_time: str
     end_time: str
+    hours: int
+    amount: int
+    status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
+    matched: bool = Field(description="Khối có mã con đúng mã khách nhập")
+
+
+class LookupResult(BaseModel):
+    """Tra cứu theo mã đơn **hoặc** mã con + SĐT -> cả đơn (T-019 AC3)."""
+
+    order_code: str
+    status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
+    play_date: dt.date
     hours: int
     customer_name: str
     customer_phone: str
     amount: int
     payment_method: PaymentMethod | None
     paid_at: dt.datetime | None
+    items: list[LookupItem]
     pending: LookupPending | None = None
 
 
@@ -601,3 +627,22 @@ class OnlinePaymentResult(BaseModel):
         default=False,
         description="Lượt thanh toán hết hạn khi chưa đủ tiền -> tiền đã nhận cần hoàn",
     )
+
+
+# ---------- Đơn đặt (T-019, ADR-010) ----------
+
+
+class CounterOrderOut(BaseModel):
+    order_code: str
+    bookings: list[ItemOut]
+
+
+class OrderCollectIn(StrictIn):
+    method: Literal["cash", "transfer"]
+
+
+class OrderCollectOut(BaseModel):
+    order_code: str
+    collected: list[str] = Field(description="Mã con vừa thu")
+    amount: int = Field(description="Tổng tiền vừa thu")
+    bookings: list[ItemOut] = Field(description="Mọi khối của đơn sau khi thu")
