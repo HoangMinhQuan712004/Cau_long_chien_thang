@@ -50,6 +50,9 @@ class PhoneToken:
     # Tài khoản Google vừa được gộp vào chủ SĐT -> lớp gọi phát lại cookie cho ``account``
     merged: bool = False
     account: User | None = None
+    # Khách đang đăng nhập nhưng tài khoản không được gắn / thành hội viên: mã lý do
+    # (E-AUTH-17 tài khoản có SĐT khác, E-AUTH-18 SĐT không dùng được, E-AUTH-31 hội viên Ngừng)
+    reason: str | None = None
 
 
 async def send_booking_phone_code(
@@ -83,16 +86,18 @@ async def verify_booking_phone(
     expires_at = row.token_expires_at
     if token is None or expires_at is None:  # không xảy ra: đã truyền token_minutes
         raise RuntimeError("OTP verify did not issue a token")
-    linked = None
+    linked, reason = None, None
     if customer_id is not None:
         try:
             async with session.begin_nested():
                 linked = await _link_account(session, customer_id, phone)
-        except (AppError, IntegrityError):
-            linked = None
+        except AppError as e:
+            reason = e.detail["code"]
+        except IntegrityError:  # quầy vừa tạo tài khoản cùng SĐT (hiếm)
+            reason = phone_flow.phone_unusable().detail["code"]
     await session.commit()
     if linked is None:
-        return PhoneToken(token, expires_at)
+        return PhoneToken(token, expires_at, reason=reason)
     account, merged, ensured = linked
     active = account.is_active
     return PhoneToken(
@@ -103,6 +108,7 @@ async def verify_booking_phone(
         member_code=ensured.member_code if ensured is not None and active else None,
         merged=merged and active,
         account=account if merged and active else None,
+        reason=None if active else enroll.account_locked().detail["code"],
     )
 
 
@@ -115,7 +121,7 @@ async def _link_account(
     if user is None or user.role != Role.MEMBER or not user.is_active:
         return None
     if user.phone is not None and user.phone != phone:
-        return None  # tài khoản có SĐT khác: chỉ xác minh SĐT cho lượt đặt
+        raise phone_flow.already_has_phone()  # SĐT khác: chỉ xác minh SĐT cho lượt đặt
     if user.phone == phone and user.phone_verified_at is not None:
         result = phone_flow.PhoneVerified(user, merged=False, password_cleared=False)
     else:

@@ -58,6 +58,12 @@ class PhoneTokenOut(BaseModel):
     member_code: str | None = Field(
         default=None, description="Mã HV của tài khoản đang đăng nhập (đã là / vừa thành hội viên)"
     )
+    reason: str | None = Field(
+        default=None,
+        description="Khách đang đăng nhập nhưng tài khoản không được gắn SĐT / thành hội viên: "
+        "E-AUTH-17 (tài khoản có SĐT khác), E-AUTH-18 (SĐT không dùng được), E-AUTH-31 (hội viên "
+        "Ngừng – tài khoản bị khóa). ``phone_token`` vẫn dùng được để đặt",
+    )
     account_merged: bool = Field(
         default=False,
         description="Tài khoản Google vừa được gộp vào tài khoản chủ SĐT – cookie đã đổi, FE tải "

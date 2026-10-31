@@ -20,7 +20,7 @@ from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import AuditActor, audit, audit_change, audit_detail
+from app.core.audit import SYSTEM_ACTOR, AuditActor, audit, audit_change, audit_detail
 from app.modules.members.models import Customer
 from app.modules.members.profiles import next_code
 from app.modules.members.service import NAME_MAX, PHONE_RE, collapse_spaces
@@ -91,9 +91,10 @@ async def ensure_member_for_phone(
         existing.is_active = True
         existing.version += 1
         await session.flush()
+        # Đổi dữ liệu đã có (hồ sơ quầy tạo) -> người làm là Hệ thống, hiện ở Lịch sử thao tác
         audit(
             session,
-            actor,
+            SYSTEM_ACTOR,
             "member.auto_upgrade_temp",
             "customer",
             code,

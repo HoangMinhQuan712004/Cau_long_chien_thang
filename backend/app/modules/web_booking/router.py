@@ -239,6 +239,7 @@ async def phone_verify(
         became_member=token.became_member,
         member_code=token.member_code,
         account_merged=token.merged,
+        reason=token.reason,
     )
 
 

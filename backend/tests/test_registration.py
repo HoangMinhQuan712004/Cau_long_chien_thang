@@ -227,7 +227,7 @@ async def test_club_created_account_blocks_register(admin, phones):
 # ------------------------------------------------------------------ AC3: tài khoản chưa xác minh
 
 
-async def test_verifier_takes_phone_from_unverified_account(phones):
+async def test_verifier_takes_phone_from_unverified_account(admin, phones):
     phone = unique_phone()
     phones.append(phone)
     async with new_customer(phone) as old:
@@ -243,6 +243,12 @@ async def test_verifier_takes_phone_from_unverified_account(phones):
     [row] = await audit_rows("auth.phone_released", str(old_user.id))
     assert row.actor_type == "system" and row.detail["disabled"] is True
     assert phone not in str(row.detail)
+    r = await admin.get(f"{API}/admin/audit-log", params={"action": "auth.phone_released"})
+    shown = next(i for i in r.json()["items"] if i["id"] == row.id)
+    assert shown["action_label"] == "Gỡ SĐT khỏi tài khoản chưa xác minh"
+    # Hội viên tự đăng ký mới không hiện (khách tự làm)
+    r = await admin.get(f"{API}/admin/audit-log")
+    assert all(i["action"] != "member.self_register" for i in r.json()["items"])
     new_user = await user_of(phone=phone)
     assert new_user.id != old_user.id and new_user.full_name == "Chủ Thật"
 
@@ -285,6 +291,12 @@ async def test_temp_profile_upgraded_keeps_history(admin, phones):
     assert c.version == temp.version + 1
     [row] = await audit_rows("member.auto_upgrade_temp", code)
     assert row.detail["member_code"] == code and phone not in str(row.detail)
+    # Hệ thống đổi dữ liệu quầy đã tạo -> hiện ở Lịch sử thao tác
+    assert (row.actor_type, row.actor_label) == ("system", "Hệ thống")
+    r = await admin.get(f"{API}/admin/audit-log", params={"action": "member.auto_upgrade_temp"})
+    shown = next(i for i in r.json()["items"] if i["id"] == row.id)
+    assert shown["action_label"] == "Tự nâng hồ sơ tạm thành hội viên"
+    assert shown["actor_label"] == "Hệ thống" and shown["target"]["code"] == code
 
 
 async def test_existing_member_only_linked(phones):
@@ -467,7 +479,19 @@ async def test_booking_otp_unusable_phone_still_gives_token(admin, phones):
         r = await booking_verify(c, admin_phone)
         assert r.status_code == 200 and r.json()["phone_token"]
         assert r.json()["became_member"] is False and r.json()["member_code"] is None
+        assert r.json()["reason"] == "E-AUTH-18"
         assert (await c.get(f"{API}/auth/me")).json()["phone"] is None
+
+
+async def test_booking_otp_for_other_phone_keeps_account(phones):
+    """Tài khoản có SĐT khác -> chỉ xác minh cho lượt đặt, ``reason`` E-AUTH-17."""
+    own, other = unique_phone(), unique_phone()
+    phones.extend([own, other])
+    async with new_customer(own) as c:
+        r = await booking_verify(c, other)
+        assert r.status_code == 200 and r.json()["phone_token"]
+        assert (r.json()["became_member"], r.json()["reason"]) == (False, "E-AUTH-17")
+    assert await customer_of(other) is None and (await user_of(phone=own)) is not None
 
 
 async def test_online_booking_after_member_keeps_member_snapshot(admin, phones):
