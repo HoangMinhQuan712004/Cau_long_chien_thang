@@ -1,9 +1,10 @@
-"""Ghi màn Hội viên (T-014): thêm hội viên (kể cả nâng hồ sơ tạm), sửa hồ sơ, tạo hồ sơ tạm.
+"""Ghi màn Hội viên (T-014, chỉnh T-020): thêm hội viên, sửa hồ sơ, tạo hồ sơ tạm.
 
-Hàm ở đây **tự commit** (khác ``service.py`` – phần đó gộp transaction với booking).
+Thêm hội viên / tạo hồ sơ tạm **không commit** – router chạy qua ``Idempotency.run`` (commit nghiệp
+vụ cùng kết quả, gửi lại cùng key -> kết quả cũ – T-020 AC3). Sửa hồ sơ tự commit.
 """
 
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor, audit
@@ -19,7 +20,7 @@ from app.modules.members.profiles import (
     forbidden,
     next_code,
     ref_of,
-    temp_phone_taken,
+    stale,
     to_row,
 )
 from app.modules.members.schemas import (
@@ -29,7 +30,7 @@ from app.modules.members.schemas import (
     MemberUpdateIn,
     TempCreateIn,
 )
-from app.modules.members.service import clean_name, clean_phone, member_phone_taken
+from app.modules.members.service import clean_name, clean_phone
 
 
 async def _new_code(session: AsyncSession) -> str:
@@ -41,20 +42,10 @@ async def _new_code(session: AsyncSession) -> str:
 async def create_member(
     session: AsyncSession, actor: AuditActor, data: MemberCreateIn
 ) -> MemberRow:
-    """Thêm hội viên; SĐT đang là hồ sơ tạm -> E-MEM-1, hoặc nâng hồ sơ đó (``upgrade_temp``)."""
+    """Thêm hội viên. SĐT đã thuộc hội viên -> E-018; đã có hồ sơ tạm -> E-MEM-1 (SRS E-004,
+    T-020 AC1 – không nâng hồ sơ tạm). Không commit."""
     full_name, phone = clean_name(data.full_name), clean_phone(data.phone)
-    # Khóa dòng: hai máy cùng nâng một hồ sơ tạm -> máy sau đọc lại thấy đã là hội viên
-    existing = await session.scalar(
-        select(Customer).where(Customer.phone == phone).with_for_update()
-    )
-    if existing is not None and existing.kind == "member":
-        if data.upgrade_temp:
-            raise AppError("E-MEM-3", f"Hồ sơ này đã là hội viên {existing.member_code}.", 409)
-        raise member_phone_taken(existing, hint="")
-    if existing is not None:
-        if not data.upgrade_temp:
-            raise await temp_phone_taken(session, existing)
-        return await _upgrade_temp(session, actor, existing, full_name, data)
+    await ensure_phone_free(session, phone)
     code = await _new_code(session)
     c = Customer(
         kind="member",
@@ -71,33 +62,10 @@ async def create_member(
     await auth.ensure_customer_account(session, phone, full_name)
     session.add(c)
     audit(session, actor, "member.create", "customer", code, {"tier": data.tier})
-    await commit_or_conflict(session, phone)
+    # Hai máy lưu cùng SĐT: UNIQUE bắt ở flush -> báo trùng như kiểm trước
+    await commit_or_conflict(session, phone, flush_only=True)
     await session.refresh(c)
     return to_row(c, (await bookings_of(session, [c]))[c.id])
-
-
-async def _upgrade_temp(
-    session: AsyncSession, actor: AuditActor, c: Customer, full_name: str, data: MemberCreateIn
-) -> MemberRow:
-    """Hồ sơ tạm (đã khóa) -> hội viên trên **cùng dòng**: id + SĐT giữ nguyên nên lịch sử còn."""
-    bookings = (await bookings_of(session, [c]))[c.id]
-    code = await _new_code(session)
-    c.kind, c.member_code, c.tier = "member", code, data.tier
-    c.full_name, c.gender = full_name, data.gender
-    c.racket, c.is_active = await rackets.ensure(session, data.racket), True
-    await auth.ensure_customer_account(session, c.phone, full_name)
-    await auth.set_customer_account_active(session, c.phone, True)
-    audit(
-        session,
-        actor,
-        "member.promote",
-        "customer",
-        code,
-        {"tier": data.tier, "bookings": bookings, "ref": str(c.public_id)},
-    )
-    await session.commit()  # mã HV cấp dưới khóa advisory, SĐT không đổi -> không có xung đột
-    await session.refresh(c)
-    return to_row(c, bookings)
 
 
 TEMP_FIELDS = {"full_name", "gender"}
@@ -108,7 +76,9 @@ async def update_profile(
 ) -> MemberRow:
     """Sửa hội viên (không đổi SĐT) hoặc hồ sơ tạm (chỉ họ tên, giới tính)."""
     c = await by_ref(session, ref, lock=True)
-    changes = data.model_dump(exclude_unset=True)
+    if c.version != data.version:  # T-020 AC4: máy khác (hoặc hội viên tự sửa) vừa lưu
+        raise stale()
+    changes = data.model_dump(exclude_unset=True, exclude={"version"})
     if c.kind == "temp" and set(changes) - TEMP_FIELDS:
         raise AppError("E-MEM-6", "Hồ sơ tạm chỉ sửa được họ tên và giới tính.", 422)
     if "is_active" in changes:
@@ -123,6 +93,8 @@ async def update_profile(
     changed = sorted(k for k, v in changes.items() if getattr(c, k) != v)
     for field in changed:
         setattr(c, field, changes[field])
+    if changed:
+        c.version += 1
     if "is_active" in changed:  # Ngừng -> khóa tài khoản khách cùng SĐT; Hoạt động -> mở (T-015)
         await auth.set_customer_account_active(session, c.phone, c.is_active)
     if changed:
@@ -145,6 +117,5 @@ async def create_temp(session: AsyncSession, actor: AuditActor, data: TempCreate
     audit(
         session, actor, "member.temp.create", "customer", str(c.public_id), {"full_name": full_name}
     )
-    await session.commit()
     await session.refresh(c)
     return to_row(c, (await bookings_of(session, [c]))[c.id])

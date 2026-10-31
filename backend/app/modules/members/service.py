@@ -128,7 +128,7 @@ async def resolve_customer(
 ) -> CustomerProfile:
     """Xác định khách cho lượt đặt tại quầy.
 
-    - Hội viên: theo mã (không phân biệt hoa thường); không có -> E-014; đang Ngừng -> E-MEM-2.
+    - Hội viên: theo mã (không phân biệt hoa thường); không có -> E-014; Ngừng vẫn chọn được.
     - Hồ sơ tạm: SĐT trùng hội viên -> E-018; trùng hồ sơ tạm -> dùng lại, giữ tên cũ (OQ-21);
       mới -> tạo (ghi nhật ký ``member.temp.create``).
     """
@@ -141,12 +141,7 @@ async def resolve_customer(
             raise AppError(
                 "E-014", "Không tìm thấy hội viên. Kiểm tra lại hoặc chọn Hồ sơ tạm.", 422
             )
-        if not member.is_active:
-            raise AppError(
-                "E-MEM-2",
-                f"Hội viên {member.member_code} đang Ngừng – không chọn được khi đặt sân.",
-                422,
-            )
+        # Hội viên Ngừng vẫn đặt quầy / đăng ký vé được (SRS – T-020 AC2): Ngừng chỉ là nhãn
         return _profile(member)
 
     full_name = clean_name(data.temp.full_name)

@@ -813,12 +813,11 @@ export interface paths {
         put?: never;
         /**
          * Create Member
-         * @description Thêm hội viên.
+         * @description Thêm hội viên. Cần ``Idempotency-Key``: gửi lại cùng key -> trả đúng kết quả cũ (201 cùng
+         *     mã HV, không báo trùng SĐT với chính hồ sơ vừa tạo – T-020 AC3).
          *
-         *     SĐT đang là hồ sơ tạm: không có ``upgrade_temp`` -> 409 E-MEM-1 (``detail``: ``ref``,
-         *     ``full_name``, ``bookings``, ``next_code``); ``upgrade_temp: true`` -> nâng chính hồ sơ đó
-         *     (cùng dòng, giữ lịch sử). Lỗi khác: E-001/E-002 · 409 E-018 (SĐT của hội viên) · 409 E-MEM-3
-         *     (``upgrade_temp`` nhưng hồ sơ vừa thành hội viên – vd. máy khác nâng trước).
+         *     Lỗi: E-001/E-002 · 409 E-018 (SĐT của hội viên) · 409 E-MEM-1 "Số điện thoại đã có hồ sơ
+         *     tạm: {Họ tên} (tạo dd/mm/yyyy)" (SRS E-004 – không nâng hồ sơ tạm, T-020 AC1).
          */
         post: operations["create_member_api_v1_members_post"];
         delete?: never;
@@ -858,7 +857,9 @@ export interface paths {
         put?: never;
         /**
          * Create Temp
-         * @description Tạo hồ sơ tạm. Lỗi: E-001/E-002 · 409 E-018 / E-MEM-1 (đã có hồ sơ tạm).
+         * @description Tạo hồ sơ tạm. Cần ``Idempotency-Key`` (gửi lại -> kết quả cũ, T-020 AC3).
+         *
+         *     Lỗi: E-001/E-002 · 409 E-018 / E-MEM-1 (đã có hồ sơ tạm).
          */
         post: operations["create_temp_api_v1_members_temp_post"];
         delete?: never;
@@ -888,7 +889,8 @@ export interface paths {
          * Update Member
          * @description Sửa hội viên (mã HV) hoặc hồ sơ tạm (``ref``; chỉ họ tên, giới tính – khác ⇒ 422 E-MEM-6).
          *
-         *     403 E-AUTH-2: NV đổi trạng thái. 404 E-NOT-FOUND.
+         *     Gửi kèm ``version`` (từ danh sách / chi tiết): lệch -> 409 E-MEM-9 (máy khác hoặc hội viên tự
+         *     sửa ở khu hội viên vừa lưu – T-020 AC4). 403 E-AUTH-2: NV đổi trạng thái. 404 E-NOT-FOUND.
          */
         patch: operations["update_member_api_v1_members__ref__patch"];
         trace?: never;
@@ -1948,12 +1950,6 @@ export interface components {
             tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
             /** Racket */
             racket?: string | null;
-            /**
-             * Upgrade Temp
-             * @description SĐT đang là hồ sơ tạm (E-MEM-1) -> true: nâng chính hồ sơ đó (giữ lịch sử)
-             * @default false
-             */
-            upgrade_temp: boolean;
         };
         /**
          * MemberDetail
@@ -1988,6 +1984,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Version
+             * @description Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4
+             */
+            version: number;
             /** Note */
             note: string | null;
             /** Total Minutes */
@@ -2126,6 +2127,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Version
+             * @description Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4
+             */
+            version: number;
         };
         /**
          * MemberSearchItem
@@ -2165,6 +2171,11 @@ export interface components {
             racket?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /**
+             * Version
+             * @description ``version`` lúc mở hộp Sửa; lệch -> 409 E-MEM-9
+             */
+            version: number;
         };
         /** MyBookingsOut */
         MyBookingsOut: {
@@ -4694,7 +4705,10 @@ export interface operations {
     create_member_api_v1_members_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -4747,7 +4761,10 @@ export interface operations {
     create_temp_api_v1_members_temp_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };

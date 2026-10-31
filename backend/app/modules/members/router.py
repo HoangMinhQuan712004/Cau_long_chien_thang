@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.core.audit import AuditActor
 from app.core.db import SessionDep
+from app.core.idempotency import IdempotencyDep
 from app.core.permissions import Perm, Principal, require
 from app.core.ratelimit import rate_limit
 from app.modules.members import api, listing, manage, profiles
@@ -95,21 +96,35 @@ async def next_code(_: MemberManager, session: SessionDep):
 
 
 @router.post("", response_model=MemberRow, status_code=status.HTTP_201_CREATED)
-async def create_member(data: MemberCreateIn, principal: MemberManager, session: SessionDep):
-    """Thêm hội viên.
+async def create_member(
+    data: MemberCreateIn, principal: MemberManager, idem: IdempotencyDep, session: SessionDep
+):
+    """Thêm hội viên. Cần ``Idempotency-Key``: gửi lại cùng key -> trả đúng kết quả cũ (201 cùng
+    mã HV, không báo trùng SĐT với chính hồ sơ vừa tạo – T-020 AC3).
 
-    SĐT đang là hồ sơ tạm: không có ``upgrade_temp`` -> 409 E-MEM-1 (``detail``: ``ref``,
-    ``full_name``, ``bookings``, ``next_code``); ``upgrade_temp: true`` -> nâng chính hồ sơ đó
-    (cùng dòng, giữ lịch sử). Lỗi khác: E-001/E-002 · 409 E-018 (SĐT của hội viên) · 409 E-MEM-3
-    (``upgrade_temp`` nhưng hồ sơ vừa thành hội viên – vd. máy khác nâng trước).
+    Lỗi: E-001/E-002 · 409 E-018 (SĐT của hội viên) · 409 E-MEM-1 "Số điện thoại đã có hồ sơ
+    tạm: {Họ tên} (tạo dd/mm/yyyy)" (SRS E-004 – không nâng hồ sơ tạm, T-020 AC1).
     """
-    return await manage.create_member(session, _actor(principal), data)
+
+    async def run() -> MemberRow:
+        return await manage.create_member(session, _actor(principal), data)
+
+    return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
 
 
 @router.post("/temp", response_model=MemberRow, status_code=status.HTTP_201_CREATED)
-async def create_temp(data: TempCreateIn, principal: MemberManager, session: SessionDep):
-    """Tạo hồ sơ tạm. Lỗi: E-001/E-002 · 409 E-018 / E-MEM-1 (đã có hồ sơ tạm)."""
-    return await manage.create_temp(session, _actor(principal), data)
+async def create_temp(
+    data: TempCreateIn, principal: MemberManager, idem: IdempotencyDep, session: SessionDep
+):
+    """Tạo hồ sơ tạm. Cần ``Idempotency-Key`` (gửi lại -> kết quả cũ, T-020 AC3).
+
+    Lỗi: E-001/E-002 · 409 E-018 / E-MEM-1 (đã có hồ sơ tạm).
+    """
+
+    async def run() -> MemberRow:
+        return await manage.create_temp(session, _actor(principal), data)
+
+    return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
 
 
 @router.get("/{ref}", response_model=MemberDetail)
@@ -124,6 +139,7 @@ async def update_member(
 ):
     """Sửa hội viên (mã HV) hoặc hồ sơ tạm (``ref``; chỉ họ tên, giới tính – khác ⇒ 422 E-MEM-6).
 
-    403 E-AUTH-2: NV đổi trạng thái. 404 E-NOT-FOUND.
+    Gửi kèm ``version`` (từ danh sách / chi tiết): lệch -> 409 E-MEM-9 (máy khác hoặc hội viên tự
+    sửa ở khu hội viên vừa lưu – T-020 AC4). 403 E-AUTH-2: NV đổi trạng thái. 404 E-NOT-FOUND.
     """
     return await manage.update_profile(session, _actor(principal), ref, data, _can(principal))
