@@ -52,7 +52,7 @@ async function RedirectIfSignedIn({ searchParams }: Pick<PageProps<"/dang-nhap">
   const { user } = await readCurrentUser();
   if (user) {
     const isMember = (user as { is_member?: boolean }).is_member === true;
-    redirect(next ? destination("member", next) : isMember ? "/hoi-vien/ho-so" : "/");
+    redirect(next ? destination("member", next) : isMember ? "/hoi-vien" : "/");
   }
   return null;
 }

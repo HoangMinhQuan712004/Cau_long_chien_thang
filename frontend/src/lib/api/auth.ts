@@ -207,7 +207,7 @@ export async function memberDestination(next: string): Promise<string> {
   if (next) return destination("member", next);
   try {
     const { data } = await api.GET("/api/v1/auth/me");
-    if ((data as { is_member?: boolean } | undefined)?.is_member) return "/hoi-vien/ho-so";
+    if ((data as { is_member?: boolean } | undefined)?.is_member) return "/hoi-vien";
   } catch {
     /* không đọc được hồ sơ ⇒ về trang chủ */
   }

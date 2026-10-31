@@ -107,16 +107,21 @@ function summarize(calendar: WebCalendar, cells: Cell[], price: Map<string, numb
   return out;
 }
 
-type Props = { initialDate: string; today: string; hotline: string; texts: Dictionary["phoneVerify"] };
+/** Đặt trong khu hội viên (T-018 AC4): họ tên + SĐT lấy từ hồ sơ, khóa; bỏ OTP; server nhận `as_member`. */
+export type MemberIdentity = { name: string; phone: string };
 
-export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
+type Props = { initialDate: string; today: string; hotline: string; texts: Dictionary["phoneVerify"]; member?: MemberIdentity };
+
+export function WebBookingFlow({ initialDate, today, hotline, texts, member }: Props) {
   const router = useRouter();
+  // Phiên đặt trong khu hội viên lưu riêng, không lẫn với /dat-san công khai
+  const storageKey = member ? `${STORAGE_KEY}:member` : STORAGE_KEY;
   const [date, setDate] = useState(initialDate);
   const [calendar, setCalendar] = useState<WebCalendar | null>(null);
   const [loadError, setLoadError] = useState("");
   const [cells, setCells] = useState<Cell[]>([]);
   const [step, setStep] = useState<1 | 2>(1);
-  const [form, setForm] = useState({ name: "", phone: "", note: "" });
+  const [form, setForm] = useState({ name: member?.name ?? "", phone: member?.phone ?? "", note: "" });
   const [touched, setTouched] = useState<{ name?: boolean; phone?: boolean; note?: boolean }>({});
   const [submitted, setSubmitted] = useState(false);
   const [banner, setBanner] = useState("");
@@ -202,11 +207,11 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
 
   // Lần đầu: khôi phục lựa chọn đã lưu trong tab (F5 không mất – AC9) rồi tải lịch.
   useEffect(() => {
-    const saved = readJson<Saved>(STORAGE_KEY);
+    const saved = readJson<Saved>(storageKey);
     if (saved && saved.date === initialDate) {
       /* eslint-disable react-hooks/set-state-in-effect -- khôi phục từ sessionStorage sau khi hydrate */
       applyCells(saved.cells ?? []);
-      setForm({ name: saved.name ?? "", phone: saved.phone ?? "", note: saved.note ?? "" });
+      setForm({ name: member?.name ?? saved.name ?? "", phone: member?.phone ?? saved.phone ?? "", note: saved.note ?? "" });
       if (saved.step === 2 && (saved.cells?.length ?? 0) > 0) applyStep(2);
       /* eslint-enable react-hooks/set-state-in-effect */
     }
@@ -217,13 +222,13 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
     }
     ready.current = true;
     void load(initialDate);
-  }, [initialDate, applyCells, applyStep, load]);
+  }, [initialDate, applyCells, applyStep, load, storageKey, member]);
 
   // Lưu lựa chọn + thông tin đã nhập vào sessionStorage của tab.
   useEffect(() => {
     if (!ready.current) return;
-    writeJson(STORAGE_KEY, { date, cells, name: form.name, phone: form.phone, note: form.note, step } satisfies Saved);
-  }, [date, cells, form, step]);
+    writeJson(storageKey, { date, cells, name: form.name, phone: form.phone, note: form.note, step } satisfies Saved);
+  }, [date, cells, form, step, storageKey]);
 
   // Tự tải lại mỗi 30 giây khi tab đang hiển thị, và ngay khi quay lại tab.
   useEffect(() => {
@@ -323,7 +328,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
     note: form.note.trim().length > 200 ? "Ghi chú tối đa 200 ký tự." : "",
   };
 
-  const skipOtp = Boolean(me?.phone_verified && me.phone && normalizePhone(me.phone) === phone);
+  const skipOtp = Boolean(member) || Boolean(me?.phone_verified && me.phone && normalizePhone(me.phone) === phone);
 
   /** Bấm nút chính: kiểm form → (cần thì) gửi mã OTP → khi có phone_token mới tạo checkout. */
   async function submit(tokenOverride?: string) {
@@ -363,7 +368,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
     try {
       // Giới hạn 6 lượt tạo / 10 phút / IP: báo ngay khi bị chặn, không tự gửi lại (mỗi lần gửi lại cũng bị tính)
       const res = await write(
-        (key) => sendCheckout(key, { date, slots, full_name: cleanName, phone, as_member: false, ...(note ? { note } : {}), ...(phoneToken ? { phone_token: phoneToken } : {}) }),
+        (key) => sendCheckout(key, { date, slots, full_name: cleanName, phone, as_member: Boolean(member), ...(note ? { note } : {}), ...(phoneToken ? { phone_token: phoneToken } : {}) }),
         { retryRateLimit: false },
       );
       if (res.ok) {
@@ -372,8 +377,8 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
           setBanner("Không nhận được mã thanh toán. Vui lòng thử lại.");
           return;
         }
-        removeKey(STORAGE_KEY);
-        router.push(`/thanh-toan/${token}`);
+        removeKey(storageKey);
+        router.push(member ? `/hoi-vien/thanh-toan/${token}` : `/thanh-toan/${token}`);
         return;
       }
       const e = res.error;
@@ -444,7 +449,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
           </div>
         </section>
 
-        {isGuest ? <MemberHint next={`/dat-san?ngay=${date}`} /> : null}
+        {isGuest && !member ? <MemberHint next={`/dat-san?ngay=${date}`} /> : null}
 
         <section className="rounded-2xl border border-border bg-surface p-5">
           <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">Phiếu nhập thông tin</h3>
@@ -457,7 +462,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
                 id={ids.name}
                 value={form.name}
                 maxLength={120}
-                readOnly={otp !== null}
+                readOnly={otp !== null || Boolean(member)}
                 autoComplete="name"
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 onBlur={() => setTouched((t) => ({ ...t, name: true }))}
@@ -481,7 +486,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
                 inputMode="tel"
                 autoComplete="tel"
                 maxLength={16}
-                readOnly={otp !== null}
+                readOnly={otp !== null || Boolean(member)}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                 onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
                 aria-invalid={Boolean(showErr("phone")) || undefined}

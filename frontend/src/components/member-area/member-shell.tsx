@@ -31,7 +31,7 @@ export function useMember(): Ctx {
   return c;
 }
 
-export const HOME_HREF = "/hoi-vien/ho-so";
+export const HOME_HREF = "/hoi-vien";
 
 const NAV = [
   { href: "/hoi-vien", label: "Tổng quan", exact: true },

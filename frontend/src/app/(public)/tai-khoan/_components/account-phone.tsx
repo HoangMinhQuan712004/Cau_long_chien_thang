@@ -24,7 +24,7 @@ export function AccountPhone({ t, hasPhone }: { t: Dictionary["phoneVerify"]; ha
         {result.memberCode && (
           <Alert variant="info">
             Bạn đã là hội viên {result.memberCode}.{" "}
-            <Link href="/hoi-vien/ho-so" className="font-semibold underline">
+            <Link href="/hoi-vien" className="font-semibold underline">
               Vào khu hội viên
             </Link>
           </Alert>
