@@ -97,6 +97,10 @@ function DetailBody({ detail, t }: { detail: MemberDetail; t: Dictionary["member
     // Hồ sơ tạm không có vợt / hạng / trạng thái
     ...(detail.kind === "member" ? [[d.racket, detail.racket ?? "—", <RacketIcon key="i" size={16} />] as [string, string, React.ReactNode]] : []),
     [d.created, formatDayMonthYear(vnDate(detail.created_at)), <CalendarIcon key="i" size={16} />],
+    // T-021: hội viên tự đăng ký trên web (AC9)
+    ...(detail.kind === "member"
+      ? [[d.createdBy, detail.source === "self_register" ? d.sourceSelf : d.sourceCounter, <UserIcon key="i" size={16} />] as [string, string, React.ReactNode]]
+      : []),
   ];
   const hours = Math.round((detail.total_minutes / 60) * 10) / 10;
   const stats: [string, string, React.ReactNode][] = [

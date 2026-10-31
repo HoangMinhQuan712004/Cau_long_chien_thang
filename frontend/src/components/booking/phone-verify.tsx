@@ -12,7 +12,8 @@ type PhoneVerifyTexts = Dictionary["phoneVerify"];
 
 type PhoneVerifyProps = {
   t: PhoneVerifyTexts;
-  onVerified: (merged: boolean, passwordCleared?: boolean) => void;
+  /** `memberCode`: xác minh xong là hội viên (T-021 R1); null nếu không thành hội viên */
+  onVerified: (merged: boolean, passwordCleared?: boolean, memberCode?: string | null) => void;
 };
 
 // Khối xác minh SĐT trong trang đặt sân (tài khoản Google chưa có SĐT): nhập số ⇒ OTP ⇒ đặt tiếp
@@ -58,7 +59,7 @@ export function PhoneVerify({ t, onVerified }: PhoneVerifyProps) {
     setError(null);
     setNotice(null);
     const result = await verifyPhone(sentTo, code);
-    if (result.ok) return onVerified(result.merged, result.password_cleared);
+    if (result.ok) return onVerified(result.merged, result.password_cleared, result.became_member ? (result.member_code ?? null) : null);
     setIsPending(false);
     if (result.code === "E-AUTH-17") return onVerified(false);
     setError(otpErrorText(t.errors, result));

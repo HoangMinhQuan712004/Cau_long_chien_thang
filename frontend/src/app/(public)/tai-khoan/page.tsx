@@ -79,8 +79,24 @@ async function Account() {
             Vào khu hội viên
           </Link>
         </Alert>
+      ) : isMember === false && !user.phone_verified ? (
+        // T-021: xác minh SĐT bằng OTP là thành hội viên. Chưa có SĐT ⇒ form xác minh ngay phía trên;
+        // đã có SĐT nhưng chưa xác minh (tài khoản đời cũ) ⇒ xác minh bằng mã OTP khi đặt sân online
+        <Alert variant="info">
+          <span className="flex flex-wrap items-center justify-between gap-3">
+            <span>Xác minh số điện thoại để trở thành hội viên.</span>
+            {user.phone ? (
+              <Link
+                href="/dat-san"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white focus-ring hover:bg-primary-hover"
+              >
+                Xác minh số điện thoại
+              </Link>
+            ) : null}
+          </span>
+        </Alert>
       ) : isMember === false ? (
-        <Alert variant="info">Bạn chưa là hội viên. Đăng ký hội viên tại quầy để dùng khu hội viên.</Alert>
+        <Alert variant="info">Bạn chưa là hội viên. Vui lòng liên hệ quầy để được hỗ trợ.</Alert>
       ) : null}
 
       <section className="rounded-card bg-surface p-4 shadow-card sm:p-6">

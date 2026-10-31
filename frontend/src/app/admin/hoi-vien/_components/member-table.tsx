@@ -43,6 +43,9 @@ export function MemberTable({ rows, sortDir, onSort, onAction, empty, t }: Props
       cell: (r) => (
         <button type="button" className={NAME} onClick={() => onAction("detail", r)}>
           {r.full_name}
+          {r.kind === "member" && r.source === "self_register" ? (
+            <span className="ml-2 align-middle text-xs font-normal text-muted">{t.drawer.sourceSelf}</span>
+          ) : null}
         </button>
       ),
     },
