@@ -139,7 +139,7 @@ export function RoomScreen({ id }: { id: number }) {
     if (r.done) {
       toast("Đã rời phòng", roomName);
       router.push("/hoi-vien/danh-sach-san");
-    }
+    } else setDialog(null); // phòng vừa đổi (E-ROOM-6): đã tải lại, bấm Rời phòng lại nếu vẫn muốn
     return null;
   }
 
