@@ -51,3 +51,8 @@ def bad_score() -> AppError:
 
 def too_early() -> AppError:
     return AppError("E-ROOM-10", "Chưa tới giờ bắt đầu trận.", 409)
+
+
+def match_in_progress(no: int) -> AppError:
+    """Đang có trận chưa kết thúc: không bốc / đổi thể thức (mỗi phòng 1 trận đang chơi)."""
+    return AppError("E-ROOM-11", f"Trận #{no} đang diễn ra. Kết thúc trận trước.", 409, match_no=no)

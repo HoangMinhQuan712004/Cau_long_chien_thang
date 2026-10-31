@@ -207,7 +207,7 @@ async def test_room_list_counts_and_cards(staff, admin, people):
     room = (await room_for(staff, admin, host.code))["room"]
 
     r = await host.client.get(ROOMS)
-    assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-cache, private"
     body = r.json()
     card = next(c for c in body["items"] if c["id"] == room.id)
     assert card["phase"] == "ongoing" and card["is_mine"] is True
@@ -433,7 +433,7 @@ async def fill(room_id: int, count: int) -> None:
             list(await s.scalars(select(PlayRoomMember).where(PlayRoomMember.room_id == room_id)))
         )
         for i in range(count - have):
-            s.add(PlayRoomMember(room_id=room_id, customer_id=-(room_id * 10 + i + 1)))
+            s.add(PlayRoomMember(room_id=room_id, customer_id=-(room_id * 10 + have + i)))
         await s.commit()
 
 

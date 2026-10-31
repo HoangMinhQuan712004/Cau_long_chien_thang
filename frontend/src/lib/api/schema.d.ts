@@ -1274,6 +1274,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/rooms/{room_id}/format": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Format
+         * @description Đổi thể thức 2 vs 2 / 1 vs 1 (Host). Đã bốc -> xóa kết quả bốc. 409 E-ROOM-11 (đang chơi).
+         */
+        put: operations["set_format_api_v1_member_area_rooms__room_id__format_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/draw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Draw
+         * @description Bốc ngẫu nhiên / Bốc lại từ Hàng chờ (Host, AC15). 409 E-ROOM-8 (chưa đủ) / E-ROOM-11.
+         */
+        post: operations["draw_api_v1_member_area_rooms__room_id__draw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start
+         * @description Bắt đầu trận vừa bốc (Host, AC16). 409 E-ROOM-10 (sớm hơn 15 phút) / E-ROOM-8 (chưa bốc).
+         */
+        post: operations["start_api_v1_member_area_rooms__room_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/matches/{no}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Result
+         * @description Lưu tỉ số (Host, một lần, không sửa – AC17). 422 E-ROOM-9 · 409 E-ROOM-6 (đã lưu / cũ).
+         */
+        post: operations["save_result_api_v1_member_area_rooms__room_id__matches__no__result_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Match List
+         * @description Lịch sử trận đấu (AC19): đã lưu, mới nhất trên cùng; số đếm tính mọi thể thức.
+         */
+        get: operations["match_list_api_v1_member_area_rooms__room_id__matches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/ranking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ranking
+         * @description Xếp hạng trong phòng (AC20).
+         */
+        get: operations["ranking_api_v1_member_area_rooms__room_id__ranking_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/member-area/notifications": {
         parameters: {
             query?: never;
@@ -2278,6 +2398,16 @@ export interface components {
             kind: "member";
             account: components["schemas"]["UserOut"];
         };
+        /** FormatIn */
+        FormatIn: {
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "2v2" | "1v1";
+            /** Version */
+            version: number;
+        };
         /**
          * FrontDeskBookingIn
          * @description Một lần bấm Đặt sân = một đơn (T-019 phương án A).
@@ -2527,6 +2657,56 @@ export interface components {
             /** Amount */
             amount: number;
             bank: components["schemas"]["BankInfo"] | null;
+        };
+        /** MatchList */
+        MatchList: {
+            /**
+             * Total
+             * @description Tổng trận đã lưu (mọi thể thức)
+             */
+            total: number;
+            /** Count 2V2 */
+            count_2v2: number;
+            /** Count 1V1 */
+            count_1v1: number;
+            /**
+             * Items
+             * @description Mới nhất trên cùng (lọc theo ``format``)
+             */
+            items: components["schemas"]["MatchRow"][];
+        };
+        /** MatchRow */
+        MatchRow: {
+            /**
+             * No
+             * @description Trận #n (đánh số theo phòng)
+             */
+            no: number;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "2v2" | "1v1";
+            /** Started At */
+            started_at: string | null;
+            /** Ended At */
+            ended_at: string | null;
+            /**
+             * Team A
+             * @description Tên hiển thị lúc bốc
+             */
+            team_a: string[];
+            /** Team B */
+            team_b: string[];
+            /** Score A */
+            score_a: number;
+            /** Score B */
+            score_b: number;
+            /**
+             * Winner
+             * @enum {string}
+             */
+            winner: "a" | "b";
         };
         /** MemberBooking */
         MemberBooking: {
@@ -3479,6 +3659,42 @@ export interface components {
             /** Sort Order */
             sort_order?: number | null;
         };
+        /** Ranking */
+        Ranking: {
+            /**
+             * Items
+             * @description Xếp theo số trận thắng, bằng nhau thì tỉ lệ thắng
+             */
+            items: components["schemas"]["RankingRow"][];
+        };
+        /** RankingRow */
+        RankingRow: {
+            /**
+             * Rank
+             * @description Đồng hạng khi bằng cả số trận thắng và tỉ lệ thắng
+             */
+            rank: number;
+            /**
+             * Display Name
+             * @description Tên của trận gần nhất (giữ cả người đã rời)
+             */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /** Wins */
+            wins: number;
+            /** Losses */
+            losses: number;
+            /** Played */
+            played: number;
+            /**
+             * Win Rate
+             * @description 0–1, làm tròn 4 chữ số
+             */
+            win_rate: number;
+            /** Is Me */
+            is_me: boolean;
+        };
         /** RegisterOut */
         RegisterOut: {
             account: components["schemas"]["UserOut"];
@@ -3615,6 +3831,21 @@ export interface components {
                 string,
                 string
             ][] | null;
+        };
+        /** ResultIn */
+        ResultIn: {
+            /**
+             * Score A
+             * @description Điểm Đội A, 0–99
+             */
+            score_a: number;
+            /**
+             * Score B
+             * @description Điểm Đội B, 0–99, không bằng Đội A
+             */
+            score_b: number;
+            /** Version */
+            version: number;
         };
         /**
          * Role
@@ -6161,7 +6392,10 @@ export interface operations {
                 /** @description mine: phòng có mình */
                 scope?: "all" | "mine";
             };
-            header?: never;
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -6175,6 +6409,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RoomList"];
                 };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -6190,7 +6431,10 @@ export interface operations {
     get_room_api_v1_member_area_rooms__room_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
             path: {
                 room_id: number;
             };
@@ -6206,6 +6450,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RoomDetail"];
                 };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -6580,6 +6831,245 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RoomDetail"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_format_api_v1_member_area_rooms__room_id__format_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormatIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    draw_api_v1_member_area_rooms__room_id__draw_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_api_v1_member_area_rooms__room_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_result_api_v1_member_area_rooms__room_id__matches__no__result_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+                no: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResultIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    match_list_api_v1_member_area_rooms__room_id__matches_get: {
+        parameters: {
+            query?: {
+                format?: ("2v2" | "1v1") | null;
+            };
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchList"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ranking_api_v1_member_area_rooms__room_id__ranking_get: {
+        parameters: {
+            query?: {
+                format?: ("2v2" | "1v1") | null;
+            };
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ranking"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

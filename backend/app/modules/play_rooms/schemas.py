@@ -122,3 +122,51 @@ class RoomDetail(BaseModel):
     join_requests: list[PendingPersonOut] = Field(description="Chỉ Host thấy (người khác: [])")
     invites: list[PendingPersonOut] = Field(description="Lời mời đang chờ – chỉ Host thấy")
     current_match: CurrentMatchOut | None
+
+
+# ---------- Mốc 2: thể thức, bốc, trận, lịch sử, xếp hạng ----------
+
+
+class FormatIn(_In):
+    format: Format
+    version: int
+
+
+class ResultIn(_In):
+    score_a: int = Field(description="Điểm Đội A, 0–99")
+    score_b: int = Field(description="Điểm Đội B, 0–99, không bằng Đội A")
+    version: int
+
+
+class MatchRow(BaseModel):
+    no: int = Field(description="Trận #n (đánh số theo phòng)")
+    format: Format
+    started_at: dt.datetime | None
+    ended_at: dt.datetime | None
+    team_a: list[str] = Field(description="Tên hiển thị lúc bốc")
+    team_b: list[str]
+    score_a: int
+    score_b: int
+    winner: Literal["a", "b"]
+
+
+class MatchList(BaseModel):
+    total: int = Field(description="Tổng trận đã lưu (mọi thể thức)")
+    count_2v2: int
+    count_1v1: int
+    items: list[MatchRow] = Field(description="Mới nhất trên cùng (lọc theo ``format``)")
+
+
+class RankingRow(BaseModel):
+    rank: int = Field(description="Đồng hạng khi bằng cả số trận thắng và tỉ lệ thắng")
+    display_name: str = Field(description="Tên của trận gần nhất (giữ cả người đã rời)")
+    avatar_url: str | None
+    wins: int
+    losses: int
+    played: int
+    win_rate: float = Field(description="0–1, làm tròn 4 chữ số")
+    is_me: bool
+
+
+class Ranking(BaseModel):
+    items: list[RankingRow] = Field(description="Xếp theo số trận thắng, bằng nhau thì tỉ lệ thắng")
