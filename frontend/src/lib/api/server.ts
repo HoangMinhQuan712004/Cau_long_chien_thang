@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import createClient from "openapi-fetch";
+import type { MemberMe } from "@/components/member-area/types";
 import type { components, paths } from "./schema";
 
 // OpenAPI sinh `bands` dạng tuple [string, string][] nhưng response thật được kiểu hóa là string[][] – khai báo lại cho khớp.
@@ -126,3 +127,21 @@ export async function authedGetJson<T>(
     return { ok: false, status: 0 };
   }
 }
+
+// ---------- Khu hội viên (T-016) ----------
+
+/**
+ * Hồ sơ hội viên của phiên hiện tại. 401 → chưa đăng nhập / hết phiên; 403: E-HV-8 chưa là hội viên,
+ * E-AUTH-25 chưa đổi mật khẩu ban đầu. Một lần mỗi request.
+ */
+export const getMemberMe = cache(async (): Promise<{ ok: true; data: MemberMe } | { ok: false; status: number; code?: string }> => {
+  const cookieHeader = (await cookies()).toString();
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/v1/member-area/me`, { headers: { cookie: cookieHeader }, cache: "no-store" });
+    if (res.ok) return { ok: true, data: (await res.json()) as MemberMe };
+    const body = (await res.json().catch(() => null)) as { detail?: { code?: string } } | null;
+    return { ok: false, status: res.status, code: body?.detail?.code };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+});

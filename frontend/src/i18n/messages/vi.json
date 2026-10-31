@@ -320,7 +320,7 @@
       "racketOther": "Khác…",
       "racketOtherLabel": "Tên vợt khác",
       "statusLabel": "Trạng thái",
-      "inactiveHint": "Hội viên Ngừng không chọn được khi đặt sân",
+      "inactiveHint": "Hội viên Ngừng vẫn chọn được khi đặt sân, có nhãn Ngừng.",
       "lockedHint": "Chỉ Admin được đổi trạng thái.",
       "cancel": "Hủy",
       "addTitle": "Thêm hội viên",
@@ -332,14 +332,12 @@
       "loadError": "Không tải được thông tin hồ sơ. Đóng lại rồi thử lại.",
       "genderUnknown": "Không rõ",
       "editTempTitle": "Sửa hồ sơ tạm",
-      "upgradeNote": "SĐT này đang là hồ sơ tạm “{name}”{bookings}. Lưu sẽ nâng hồ sơ này thành hội viên {code}, lịch sử đặt sân được giữ lại.",
-      "upgradeBookings": " ({n} lần đặt sân)",
-      "upgrade": "Nâng thành hội viên",
-      "upgrading": "Đang nâng…"
+      "conflict": "Hội viên này vừa được cập nhật ở máy khác. Tải lại để xem bản mới nhất.",
+      "reload": "Tải lại"
     },
     "temp": {
       "title": "Tạo hồ sơ tạm",
-      "note": "Hồ sơ tạm chỉ gồm tên, giới tính, SĐT. Có thể chuyển thành hội viên sau.",
+      "note": "Hồ sơ tạm chỉ gồm tên, giới tính, SĐT.",
       "submit": "Tạo hồ sơ tạm"
     },
     "toast": {

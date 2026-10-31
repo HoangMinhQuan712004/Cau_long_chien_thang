@@ -1,23 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { InfoIcon } from "@/components/ui/icons";
 import type { Dictionary } from "@/i18n/dictionaries";
+import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
-import { type MemberFailure, type TempMatch, callMemberApi, memberFailure } from "@/lib/api/members";
+import { type MemberFailure, callMemberApi, memberFailure } from "@/lib/api/members";
+import { newIdempotencyKey } from "@/lib/api/write";
 import type { MemberRow, MemberTier } from "@/lib/api/server";
 import { toast } from "@/lib/feedback";
 import { formatPhone } from "@/lib/phone";
 import type { FormMode } from "./member-form";
 import { MemberFormFields, type MemberValues, RACKET_OTHER } from "./member-form-fields";
-import { TempUpgradeNotice } from "./temp-upgrade-notice";
 import { useRackets } from "./use-rackets";
 
 type BodyProps = {
   canEditStatus: boolean;
   onClose: () => void;
   onSaved: () => void;
+  /** Hồ sơ đã đổi ở máy khác (409 E-MEM-9): tải lại bản mới nhất. */
+  onReload: () => void;
   t: Dictionary["members"];
   id: string;
   isPending: boolean;
@@ -27,11 +30,13 @@ type BodyProps = {
   profile: MemberRow | null;
 };
 /** Nội dung form (state, gọi API, lỗi); nút Lưu ở chân popup nối bằng form={id}. */
-export function FormBody({ id, isPending, setIsPending, mode, initial, profile, canEditStatus, onClose, onSaved, t }: BodyProps) {
+export function FormBody({ id, isPending, setIsPending, mode, initial, profile, canEditStatus, onClose, onSaved, onReload, t }: BodyProps) {
   const f = t.form;
   const [values, setValues] = useState(initial);
   const [error, setError] = useState<MemberFailure | null>(null);
-  const [upgrade, setUpgrade] = useState<TempMatch | null>(null);
+  const [isStale, setIsStale] = useState(false);
+  // Thêm / Tạo hồ sơ tạm: mỗi lần mở hộp một Idempotency-Key; bấm lại cùng nội dung dùng lại key (ADR-004), đổi nội dung thì key mới
+  const sent = useRef<{ key: string; body: string } | null>(null);
   const [nextCode, setNextCode] = useState<string | null>(null);
   // Form có Hạng / Vợt / Mã HV: Thêm hội viên và Sửa hội viên
   const isMemberForm = mode.kind === "add" || profile?.kind === "member";
@@ -52,14 +57,23 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
     racket,
   };
 
-  // Gửi theo loại form; Sửa chỉ gửi trường đã đổi (không bao giờ gửi SĐT)
-  function request(upgradeTemp: boolean) {
+  function keyFor(body: unknown): string {
+    const sig = JSON.stringify(body);
+    if (!sent.current) sent.current = { key: newIdempotencyKey(), body: sig };
+    else if (sent.current.body !== sig) sent.current = { key: newIdempotencyKey(), body: sig };
+    return sent.current.key;
+  }
+
+  // Gửi theo loại form; Sửa chỉ gửi trường đã đổi (không bao giờ gửi SĐT) kèm `version` (khóa lạc quan)
+  function request() {
     if (mode.kind === "temp") {
       const body = { full_name: values.fullName, phone: values.phone, gender: values.gender || null };
-      return callMemberApi(() => api.POST("/api/v1/members/temp", { body }));
+      const key = keyFor(body);
+      return callMemberApi(() => api.POST("/api/v1/members/temp", { body, headers: { "Idempotency-Key": key } }));
     }
     if (mode.kind === "add") {
-      return callMemberApi(() => api.POST("/api/v1/members", { body: { ...memberBody, upgrade_temp: upgradeTemp } }));
+      const key = keyFor(memberBody);
+      return callMemberApi(() => api.POST("/api/v1/members", { body: memberBody, headers: { "Idempotency-Key": key } }));
     }
     const { fullName, gender, tier, isActive } = initial;
     const before: Record<string, unknown> = { full_name: fullName, gender: gender || null, tier: tier || null, racket: profile?.racket ?? null, is_active: isActive };
@@ -69,30 +83,24 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
     const changed = Object.fromEntries(
       Object.entries({ ...memberBody, is_active: values.isActive }).filter(([k, v]) => isAllowed(k) && before[k] !== v),
     );
-    return callMemberApi(() => api.PATCH("/api/v1/members/{ref}", { params: { path: { ref: profile?.ref ?? "" } }, body: changed }));
+    return callMemberApi(() => api.PATCH("/api/v1/members/{ref}", { params: { path: { ref: profile?.ref ?? "" } }, body: { ...changed, version: profile?.version ?? 0 } }));
   }
 
-  async function save(upgradeTemp = false) {
+  async function save() {
     if (isPending) return;
     setIsPending(true);
     setError(null);
-    const { data, error: apiError, response } = await request(upgradeTemp);
+    setIsStale(false);
+    const { data, error: apiError, response } = await request();
     setIsPending(false);
     if (data) return done(data as MemberRow);
     const failure = memberFailure(apiError, response, t.errors);
-    if (failure.code === "E-MEM-3" || failure.code === "E-MEM-4") {
+    if (failure.code === "E-MEM-4") {
       toast(failure.message, undefined, "error");
-      if (failure.code === "E-MEM-3") onSaved();
       return onClose();
     }
-    // SĐT là hồ sơ tạm ⇒ không đóng form, đề nghị nâng; ô Họ tên trống thì điền tên hồ sơ tạm
-    if (failure.temp) {
-      const temp = failure.temp;
-      setUpgrade(temp);
-      setValues((v) => (v.fullName.trim() ? v : { ...v, fullName: temp.fullName }));
-      return;
-    }
-    setUpgrade(null);
+    // 409 E-MEM-9: đã sửa ở máy khác ⇒ không ghi đè, hiện câu + nút Tải lại
+    if (failure.code === "E-MEM-9") return setIsStale(true);
     setError(failure);
   }
 
@@ -113,6 +121,16 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
       }}
       className="flex flex-col gap-4"
     >
+      {isStale ? (
+        <Alert variant="error">
+          <span className="flex flex-wrap items-center justify-between gap-3">
+            <span>{f.conflict}</span>
+            <Button type="button" variant="secondary" onClick={onReload}>
+              {f.reload}
+            </Button>
+          </span>
+        </Alert>
+      ) : null}
       {error && !error.field ? <Alert variant="error">{error.message}</Alert> : null}
       {isMemberForm ? (
         // Mã tự cấp khi lưu ⇒ chỉ hiện chữ, không phải ô nhập
@@ -126,8 +144,6 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
         id={id}
         values={values}
         onChange={(patch) => {
-          // Đổi SĐT ⇒ bỏ đề nghị nâng hồ sơ tạm của số cũ
-          if ("phone" in patch) setUpgrade(null);
           setValues((v) => ({ ...v, ...patch }));
         }}
         withMemberFields={isMemberForm}
@@ -136,11 +152,6 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
         isPhoneLocked={mode.kind === "edit"}
         racketNames={rackets.status === "ok" ? rackets.items.map((r) => r.name) : []}
         error={error}
-        afterPhone={
-          upgrade ? (
-            <TempUpgradeNotice temp={upgrade} isPending={isPending} onUpgrade={() => void save(true)} onDismiss={() => setUpgrade(null)} t={f} />
-          ) : null
-        }
         t={t}
       />
       {mode.kind === "temp" ? <TempNote text={t.temp.note} /> : null}

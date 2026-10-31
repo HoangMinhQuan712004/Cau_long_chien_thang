@@ -30,7 +30,9 @@ type Props = {
 export function MemberForm({ mode, canEditStatus, onClose, onSaved, t }: Props) {
   const f = t.form;
   const isEdit = mode.kind === "edit";
-  const state = useMemberDetail(isEdit ? mode.ref : null, isEdit ? mode.detail : undefined);
+  // Tải lại sau 409 E-MEM-9: bỏ chi tiết có sẵn (đã cũ), lấy bản mới nhất từ server
+  const [reloadKey, setReloadKey] = useState(0);
+  const state = useMemberDetail(isEdit ? mode.ref : null, isEdit && reloadKey === 0 ? mode.detail : undefined, reloadKey);
   const detail = isEdit && state.status === "ok" ? state.detail : null;
   const title =
     mode.kind === "add" ? f.addTitle
@@ -65,6 +67,8 @@ export function MemberForm({ mode, canEditStatus, onClose, onSaved, t }: Props) 
       {isEdit && state.status === "loading" ? <FormSkeleton label={f.loading} /> : null}
       {isFormShown ? (
         <FormBody
+          // Bản mới (version đổi) ⇒ dựng form mới từ dữ liệu mới
+          key={detail?.version ?? 0}
           id={formId}
           isPending={isPending}
           setIsPending={setIsPending}
@@ -75,6 +79,10 @@ export function MemberForm({ mode, canEditStatus, onClose, onSaved, t }: Props) 
           canEditStatus={canEditStatus}
           onClose={onClose}
           onSaved={onSaved}
+          onReload={() => {
+            setReloadKey((k) => k + 1);
+            onSaved();
+          }}
           t={t}
         />
       ) : null}
