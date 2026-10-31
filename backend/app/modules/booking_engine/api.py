@@ -20,6 +20,7 @@ from app.modules.booking_engine import (
     orders,
     outbox,
     payment_service,
+    rooms_feed,
     session_service,
     transactions,
 )
@@ -51,6 +52,7 @@ from app.modules.booking_engine.dto import (
     ResourceList,
     ResourceOut,
     ResourceUpdate,
+    RoomSource,
     SearchResult,
     SessionCreate,
     SessionOut,
@@ -169,6 +171,24 @@ async def search_code(
 
 async def get_item(session: AsyncSession, code: str, *, tenant_id: int | None = None) -> ItemOut:
     return await booking_service.get_item(session, _tid(tenant_id), code)
+
+
+async def room_sources(
+    session: AsyncSession, codes: list[str], *, tenant_id: int | None = None
+) -> list[RoomSource]:
+    """Khối booking theo mã con (phòng chơi, T-017) – có ``customer_ref``; chỉ đọc."""
+    return await rooms_feed.by_codes(session, _tid(tenant_id), codes)
+
+
+async def room_sources_ending_after(
+    session: AsyncSession,
+    after: dt.datetime,
+    play_dates: list[dt.date],
+    *,
+    tenant_id: int | None = None,
+) -> list[RoomSource]:
+    """Khối booking các ngày ``play_dates`` chưa kết thúc tại ``after`` (backfill phòng chơi)."""
+    return await rooms_feed.ending_after(session, _tid(tenant_id), after, play_dates)
 
 
 async def customer_stats(

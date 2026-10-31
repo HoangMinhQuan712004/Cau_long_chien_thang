@@ -9,9 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
 from app.modules.members import avatar, enrollment, self_service, service
+from app.modules.members import room_people as room_people_mod
 from app.modules.members.avatar import Crop, StoredAvatar
 from app.modules.members.enrollment import MemberEnsured
 from app.modules.members.models import Customer
+from app.modules.members.room_people import RoomPerson
 from app.modules.members.schemas import CustomerIn, CustomerProfile, MemberSearchItem
 from app.modules.members.self_service import SelfProfile, SelfUpdate, not_member
 from app.modules.members.service import PHONE_RE, normalize_phone
@@ -21,6 +23,9 @@ __all__ = [
     "MemberEnsured",
     "ensure_member_for_phone",
     "member_of_phone",
+    "RoomPerson",
+    "customer_id_of_ref",
+    "room_people",
     "SelfProfile",
     "SelfUpdate",
     "StoredAvatar",
@@ -127,3 +132,16 @@ async def delete_avatar(session: AsyncSession, customer_id: int, actor: AuditAct
 
 async def load_avatar(session: AsyncSession, customer_id: int) -> StoredAvatar | None:
     return await avatar.load(session, customer_id)
+
+
+# ------------------------------------------------------------------ phòng chơi (T-017)
+
+
+async def room_people(session: AsyncSession, ids: set[int] | list[int]) -> dict[int, RoomPerson]:
+    """Tên hiển thị (Biệt danh / Họ tên), ảnh, còn là hội viên Hoạt động – theo id hồ sơ."""
+    return await room_people_mod.people(session, ids)
+
+
+async def customer_id_of_ref(session: AsyncSession, ref: str) -> int | None:
+    """``customer_ref`` trên booking -> id hồ sơ khách (chưa có hồ sơ -> None)."""
+    return await room_people_mod.id_of_ref(session, ref)

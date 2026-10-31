@@ -6,9 +6,11 @@ from arq import cron
 from arq.connections import RedisSettings
 
 import app.models  # noqa: F401
+import app.modules.member_inbox.handlers  # noqa: F401
 import app.modules.members.handlers  # noqa: F401  (handler nhận sự kiện outbox)
 import app.modules.notifications.handlers  # noqa: F401
 import app.modules.payments.handlers  # noqa: F401
+import app.modules.play_rooms.handlers  # noqa: F401
 from app.core import audit, idempotency
 from app.core.config import settings
 from app.core.context import setup_logging
@@ -16,7 +18,9 @@ from app.core.db import SessionLocal
 from app.modules.auth import otp as otp_service
 from app.modules.auth.models import OtpCode
 from app.modules.booking_engine import api as booking_engine
+from app.modules.member_inbox import api as member_inbox
 from app.modules.notifications import zalo
+from app.modules.play_rooms import lifecycle as play_rooms
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -63,6 +67,17 @@ async def purge_idempotency_keys(ctx) -> int:
         return await idempotency.purge_expired(session)
 
 
+async def play_rooms_tick(ctx) -> tuple[int, int]:
+    """Tạo phòng còn thiếu (hôm nay + ngày mai) và đóng phòng quá giờ + 10 phút (T-017)."""
+    async with SessionLocal() as session:
+        return await play_rooms.tick(session)
+
+
+async def purge_member_notifications(ctx) -> int:
+    async with SessionLocal() as session:
+        return await member_inbox.purge_old(session)
+
+
 class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     functions = [
@@ -72,6 +87,8 @@ class WorkerSettings:
         purge_idempotency_keys,
         send_zalo_otp,
         purge_otp_codes,
+        play_rooms_tick,
+        purge_member_notifications,
     ]
     cron_jobs = [
         cron(publish_booking_outbox, second=set(range(0, 60, 2)), unique=True),  # mỗi 2 giây
@@ -79,4 +96,6 @@ class WorkerSettings:
         cron(purge_audit_log, hour=3, minute=15, second=0),  # hằng ngày
         cron(purge_idempotency_keys, minute=5, second=0),  # mỗi giờ
         cron(purge_otp_codes, minute=35, second=0),  # mỗi giờ: mã quá 24 giờ
+        cron(play_rooms_tick, second=10, unique=True),  # mỗi phút
+        cron(purge_member_notifications, hour=3, minute=40, second=0),  # hằng ngày: > 90 ngày
     ]
