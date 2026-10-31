@@ -49,6 +49,8 @@ GROUPS: tuple[ActionGroup, ...] = (
         (
             _t("account.counter_password_change", "Đổi mật khẩu Tài khoản tại máy"),
             _t("account.counter_device_set", "Đặt máy quầy"),
+            # T-021 AC3: người xác minh OTP lấy SĐT khỏi tài khoản chưa xác minh (Hệ thống làm)
+            _t("auth.phone_released", "Gỡ SĐT khỏi tài khoản chưa xác minh"),
         ),
     ),
     ActionGroup(
@@ -66,6 +68,9 @@ GROUPS: tuple[ActionGroup, ...] = (
             _t("member.create", "Thêm hội viên", "member.promote"),
             _t("member.update", "Sửa hội viên"),
             _t("member.temp.create", "Tạo hồ sơ tạm"),
+            # T-021 R1: chủ SĐT xác minh OTP -> Hệ thống nâng hồ sơ tạm (hội viên tự đăng ký mới
+            # ``member.self_register`` do khách làm, không hiện – như quy ước PR #22)
+            _t("member.auto_upgrade_temp", "Tự nâng hồ sơ tạm thành hội viên"),
         ),
     ),
     ActionGroup(

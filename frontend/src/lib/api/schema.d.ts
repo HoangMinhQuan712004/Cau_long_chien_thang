@@ -2715,6 +2715,11 @@ export interface components {
              */
             member_code?: string | null;
             /**
+             * Reason
+             * @description Khách đang đăng nhập nhưng tài khoản không được gắn SĐT / thành hội viên: E-AUTH-17 (tài khoản có SĐT khác), E-AUTH-18 (SĐT không dùng được), E-AUTH-31 (hội viên Ngừng – tài khoản bị khóa). ``phone_token`` vẫn dùng được để đặt
+             */
+            reason?: string | null;
+            /**
              * Account Merged
              * @description Tài khoản Google vừa được gộp vào tài khoản chủ SĐT – cookie đã đổi, FE tải lại thông tin tài khoản
              * @default false

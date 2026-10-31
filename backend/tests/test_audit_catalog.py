@@ -28,6 +28,7 @@ def test_catalog_follows_srs_groups():
     assert [t.label for t in catalog.GROUPS[1].types] == [
         "Đổi mật khẩu Tài khoản tại máy",
         "Đặt máy quầy",
+        "Gỡ SĐT khỏi tài khoản chưa xác minh",
     ]
     # Xem hồ sơ không hiện ở màn này (BR-002)
     assert "member.view" not in catalog.BY_ACTION
