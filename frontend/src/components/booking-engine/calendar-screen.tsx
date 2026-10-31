@@ -257,12 +257,14 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
       {dialog?.kind === "booking" ? (
         <BookingDialog
           selection={dialog.selection}
+          calendar={calendar}
+          onRefresh={refresh}
           canSession={isAdmin}
           onClose={() => setDialog(null)}
           onSwitchToSession={() => setDialog({ kind: "sessionForm", selection: dialog.selection })}
-          onBooked={(item) => {
+          onBooked={(order) => {
             setDialog(null);
-            setHighlight(item.code);
+            setHighlight(order.order_code);
             refresh();
           }}
           onStale={() => {
