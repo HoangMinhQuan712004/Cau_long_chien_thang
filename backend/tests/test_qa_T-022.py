@@ -254,7 +254,13 @@ async def test_sort_directions_and_stable_order(admin, made):
         await t15.add_ok(admin, made)
     desc = await entries(admin, action="member.create", sort="at_desc")
     asc = await entries(admin, action="member.create", sort="at_asc")
-    assert [i["id"] for i in desc] == [i["id"] for i in reversed(asc)]
+    # Nhật ký không xóa được nên có thể > 100 dòng: so với cực trị trong DB thay vì đảo hai trang
+    lo, hi = (
+        await q("SELECT min(id) AS lo, max(id) AS hi FROM audit_log WHERE action='member.create'")
+    )[0].values()
+    assert desc[0]["id"] == hi and asc[0]["id"] == lo
+    assert [i["id"] for i in desc] == sorted((i["id"] for i in desc), reverse=True)
+    assert [i["id"] for i in asc] == sorted(i["id"] for i in asc)
     ats = [i["at"] for i in desc]
     assert ats == sorted(ats, reverse=True)
     default = await entries(admin, action="member.create")
