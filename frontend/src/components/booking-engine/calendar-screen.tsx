@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorText } from "@/lib/api/write";
+import { normalizeBookingCode } from "@/lib/booking-code";
 import { toast } from "@/lib/feedback";
 import { addDaysIso, formatLongDate, vnDate } from "@/lib/format";
 import { BookingDialog, SessionFormDialog } from "./booking-dialogs";
@@ -115,7 +116,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
 
   async function onSearch(e: React.FormEvent) {
     e.preventDefault();
-    const code = query.replace(/\s+/g, "").toUpperCase();
+    const code = normalizeBookingCode(query);
     if (!code) return;
     const res = await searchCode(code);
     if (!res.ok) {
