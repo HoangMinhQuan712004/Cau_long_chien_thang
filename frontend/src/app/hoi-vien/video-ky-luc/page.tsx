@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { ComingSoon } from "@/components/member-area/coming-soon";
+import { VideoScreen } from "@/components/member-area/video-screen";
 
 export const metadata: Metadata = { title: "Video & kỷ lục" };
 
 export default function Page() {
-  return <ComingSoon title="Video & kỷ lục" />;
+  return <VideoScreen />;
 }

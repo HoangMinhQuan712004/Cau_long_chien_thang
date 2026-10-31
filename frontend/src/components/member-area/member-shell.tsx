@@ -9,6 +9,7 @@ import { api } from "@/lib/api/client";
 import { cn } from "@/lib/cn";
 import { site } from "@/lib/site";
 import { Avatar } from "./avatar";
+import { NotificationBell } from "./notification-bell";
 import { maskPhone, type MemberMe } from "./types";
 
 // Khung khu hội viên (T-016 AC5, AC6, AC15): menu 6 mục, nút tài khoản, hộp "Bạn có thay đổi chưa lưu".
@@ -37,7 +38,7 @@ const NAV = [
   { href: "/hoi-vien/dat-san", label: "Đặt sân" },
   { href: "/hoi-vien/ho-so", label: "Hồ sơ của tôi" },
   { href: "/hoi-vien/video-ky-luc", label: "Video & kỷ lục" },
-  { href: "/hoi-vien/danh-sach-san", label: "Danh sách sân" },
+  { href: "/hoi-vien/danh-sach-san", label: "Danh sách sân", also: "/hoi-vien/phong" },
   { href: "/hoi-vien/lich-su-thanh-toan", label: "Lịch sử thanh toán" },
 ] as const;
 
@@ -131,7 +132,8 @@ function MemberHeader() {
     window.location.replace("/");
   }
 
-  const isActive = (n: (typeof NAV)[number]) => ("exact" in n ? pathname === n.href : pathname.startsWith(n.href));
+  const isActive = (n: (typeof NAV)[number]) =>
+    "exact" in n ? pathname === n.href : pathname.startsWith(n.href) || ("also" in n && pathname.startsWith(n.also));
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-surface">
@@ -162,7 +164,9 @@ function MemberHeader() {
           ))}
         </nav>
 
-        <div className="relative ml-auto" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setAccountOpen(false)}>
+        <div className="ml-auto flex items-center gap-2">
+        <NotificationBell />
+        <div className="relative" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setAccountOpen(false)}>
           <button
             type="button"
             aria-haspopup="menu"
@@ -197,6 +201,7 @@ function MemberHeader() {
               </button>
             </div>
           ) : null}
+        </div>
         </div>
       </div>
 
