@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { isConfirmed, NewPasswordFields } from "@/components/auth/new-password-fields";
 import { isPasswordValid, type PasswordRulesTexts } from "@/components/auth/password-rules";
@@ -11,11 +12,12 @@ import type { Dictionary } from "@/i18n/dictionaries";
 import { INITIAL_PASSWORD_EXPIRED } from "@/lib/api/auth";
 import { changeInitialPassword } from "@/lib/api/password-change";
 import { cn } from "@/lib/cn";
+import { destination, safeNext } from "@/lib/safe-next";
 
 // Đợi tick vẽ xong rồi mới chuyển trang
 const REDIRECT_DELAY_MS = 1200;
 
-/** Đổi mật khẩu lần đầu (hội viên đăng nhập bằng mật khẩu = SĐT) ⇒ tick ⇒ về /tai-khoan. Đăng xuất vẫn được. */
+/** Đổi mật khẩu lần đầu (hội viên đăng nhập bằng mật khẩu = SĐT) ⇒ tick ⇒ về ?next (nếu có) hoặc khu hội viên. Đăng xuất vẫn được. */
 export function ChangePasswordForm({
   t,
   rules,
@@ -26,6 +28,7 @@ export function ChangePasswordForm({
   /** SĐT tài khoản: mật khẩu ban đầu hết hạn ⇒ sang Quên mật khẩu điền sẵn số này. */
   phone: string | null;
 }) {
+  const next = safeNext(useSearchParams().get("next"), "");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [isPending, setIsPending] = useState(false);
@@ -45,7 +48,7 @@ export function ChangePasswordForm({
     if (result.ok) {
       setIsDone(true);
       // Điều hướng cứng: tải lại trang khách với phiên mới, không giữ trang bị chặn cũ
-      setTimeout(() => window.location.replace("/tai-khoan"), REDIRECT_DELAY_MS);
+      setTimeout(() => window.location.replace(destination("member", next, "/hoi-vien/ho-so")), REDIRECT_DELAY_MS);
       return;
     }
     setIsPending(false);
