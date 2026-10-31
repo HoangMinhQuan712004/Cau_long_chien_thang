@@ -89,7 +89,8 @@ async def _staff_codes(session: AsyncSession, rows: list[AuditLog]) -> dict[int,
 def _entry(row: AuditLog, staff_codes: dict[int, str]) -> AuditEntryOut:
     kind = cast(ActorKind, row.actor_type)  # đã lọc theo SHOWN_ACTORS
     is_staff = kind == "staff"
-    detail: dict[str, Any] = row.detail or {}
+    # Dòng cũ / sửa tay có thể là chuỗi, mảng JSON (T-22-1): không được làm 500 cả trang
+    detail: dict[str, Any] = row.detail if isinstance(row.detail, dict) else {}
     action_type = catalog.BY_ACTION[row.action]
     return AuditEntryOut(
         id=row.id,

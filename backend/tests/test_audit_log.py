@@ -229,6 +229,28 @@ async def test_broken_changes_and_target_do_not_break_list(admin):
     assert all(r["target"]["name"] is None and r["changes"] == [good] for r in rows)
 
 
+async def test_detail_not_an_object_does_not_break_list(admin):
+    """T-22-1: ``detail`` là chuỗi / mảng JSON (dòng cũ, sửa tay) -> chỉ còn mã dòng, vẫn 200."""
+    code = f"v{uuid.uuid4().hex[:8]}"
+    async with SessionLocal() as s:
+        s.add_all(
+            AuditLog(
+                actor_type="system",
+                actor_label="Hệ thống",
+                action="config.price.update",
+                entity_type="price_table",
+                entity_code=code,
+                detail=detail,
+            )
+            for detail in ("chuỗi", [1, 2, 3])
+        )
+        await s.commit()
+
+    items = await entries(admin, action="config.price.update", actor="system")
+    rows = [i for i in items if i["target"]["code"] == code]
+    assert len(rows) == 2 and all(r["changes"] == [] for r in rows)
+
+
 async def test_unknown_staff_keeps_name_without_code(admin):
     """NV không tra được (vd dòng mẫu actor_id 9001) -> có tên, không mã; Hệ thống -> null."""
     code = f"v{uuid.uuid4().hex[:8]}"
