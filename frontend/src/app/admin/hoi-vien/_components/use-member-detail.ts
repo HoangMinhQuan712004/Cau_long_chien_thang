@@ -7,8 +7,8 @@ import type { MemberDetail } from "@/lib/api/server";
 type DetailState = { status: "loading" } | { status: "error" } | { status: "ok"; detail: MemberDetail };
 
 /** Tải chi tiết một hồ sơ khi mở drawer / form (mỗi lần gọi backend ghi nhật ký xem ⇒ không tải trước). */
-export function useMemberDetail(ref: string | null, initial?: MemberDetail): DetailState {
-  const [state, setState] = useState<{ ref: string; value: DetailState } | null>(null);
+export function useMemberDetail(ref: string | null, initial?: MemberDetail, reloadKey = 0): DetailState {
+  const [state, setState] = useState<{ ref: string; reloadKey: number; value: DetailState } | null>(null);
 
   useEffect(() => {
     if (!ref || initial) return;
@@ -18,13 +18,13 @@ export function useMemberDetail(ref: string | null, initial?: MemberDetail): Det
       .then(({ data }) => (data ? ({ status: "ok", detail: data } as const) : ({ status: "error" } as const)))
       .catch(() => ({ status: "error" }) as const)
       .then((value) => {
-        if (!isCancelled) setState({ ref, value });
+        if (!isCancelled) setState({ ref, reloadKey, value });
       });
     return () => {
       isCancelled = true;
     };
-  }, [ref, initial]);
+  }, [ref, initial, reloadKey]);
 
   if (initial) return { status: "ok", detail: initial };
-  return state && state.ref === ref ? state.value : { status: "loading" };
+  return state && state.ref === ref && state.reloadKey === reloadKey ? state.value : { status: "loading" };
 }

@@ -6,11 +6,7 @@ export type MemberFailure = {
   field: "full_name" | "phone" | null;
   code: string;
   message: string;
-  /** E-MEM-1: SĐT đang là hồ sơ tạm ⇒ form Thêm đề nghị nâng hồ sơ đó thành hội viên. */
-  temp?: TempMatch;
 };
-
-export type TempMatch = { ref: string; fullName: string; bookings: number; nextCode: string };
 
 type ErrorTexts = { forbidden: string; outOfCodes: string; network: string; unknown: string };
 
@@ -24,24 +20,15 @@ function fieldOf(code: string, message: string): MemberFailure["field"] {
 /** Đọc lỗi của POST/PATCH hội viên; `response` thiếu ⇒ lỗi mạng. */
 export function memberFailure(error: unknown, response: Response | undefined, t: ErrorTexts): MemberFailure {
   if (!response) return { field: null, code: "network", message: t.network };
-  const detail = errorDetail(error) as ReturnType<typeof errorDetail> & {
-    ref?: string;
-    full_name?: string;
-    bookings?: number;
-    next_code?: string;
-  };
+  const detail = errorDetail(error);
   const code = detail.code ?? (response.status === 422 ? "E-001" : "unknown");
   const own: Record<string, string> = {
     "E-AUTH-2": t.forbidden,
     "E-MEM-4": t.outOfCodes,
   };
-  // E-MEM-3 (đã là hội viên) dùng câu của BE vì có mã HV
+  // E-MEM-1 (SĐT đã có hồ sơ tạm), E-MEM-9 (đã sửa ở máy khác): dùng câu của BE
   const message = own[code] ?? errorMessage(error, t.unknown);
-  const temp: TempMatch | undefined =
-    code === "E-MEM-1" && detail.ref
-      ? { ref: detail.ref, fullName: detail.full_name ?? "", bookings: detail.bookings ?? 0, nextCode: detail.next_code ?? "" }
-      : undefined;
-  return { field: fieldOf(code, message), code, message, temp };
+  return { field: fieldOf(code, message), code, message };
 }
 
 /** Gọi API, gom lỗi mạng (fetch ném) thành `{ response: undefined }`. */
