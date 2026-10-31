@@ -105,10 +105,6 @@ async def test_ac40_phone_formats_normalize_to_the_account_phone(style):
         assert (await user_row(phone))["phone_verified_at"] is not None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="[BUG-nhỏ] T-21-1: audit `auth.phone_verified` trước T-021 ghi detail {source: web_booking}; sau T-021 chỉ còn {}",
-)
 async def test_ac40_audit_detail_names_the_source():
     phone = unique_phone()
     async with new_customer(phone) as c:

@@ -154,10 +154,6 @@ async def test_ac1_validation_of_step_1(anon):
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="[BUG] T-21-2: họ tên chỉ gồm khoảng trắng được nhận ở bước 1; xác minh xong ra tài khoản có full_name rỗng (hồ sơ hội viên 'Hội viên')",
-)
 async def test_ac1_whitespace_only_name_is_rejected(anon):
     r = await anon.post(
         f"{REG}/request",
