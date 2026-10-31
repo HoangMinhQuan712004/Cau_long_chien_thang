@@ -6,13 +6,15 @@ from fastapi import APIRouter, Depends, status
 
 from app.core.audit import AuditActor
 from app.core.db import SessionDep
-from app.core.permissions import Perm, Principal, require
+from app.core.errors import AppError
+from app.core.permissions import OptionalPrincipal, Perm, Principal, require
+from app.modules.auth import api as auth
+from app.modules.auth.deps import unauthenticated
 from app.modules.members import rackets
 from app.modules.members.schemas import RacketCreateIn, RacketOut, RacketUpdateIn
 
 router = APIRouter(prefix="/rackets", tags=["members"])
 
-RacketReader = Annotated[Principal, Depends(require(Perm.MEMBER_MANAGE))]
 RacketManager = Annotated[Principal, Depends(require(Perm.RACKET_MANAGE))]
 
 
@@ -20,10 +22,29 @@ def _actor(p: Principal) -> AuditActor:
     return AuditActor(type=p.actor_type, id=p.actor_id, label=p.label)
 
 
+async def racket_reader(
+    principal: OptionalPrincipal, member: auth.OptionalMember
+) -> Principal | None:
+    """NV / Admin (``MEMBER_MANAGE``) hoặc hội viên có hồ sơ (khu hội viên – T-016) -> None."""
+    if principal is not None and principal.has(Perm.MEMBER_MANAGE):
+        return principal
+    if member is not None:
+        return None
+    if principal is None:
+        raise unauthenticated()
+    raise AppError("E-AUTH-2", "Không có quyền thực hiện thao tác này", 403)
+
+
 @router.get("", response_model=list[RacketOut])
-async def list_rackets(principal: RacketReader, session: SessionDep, all: bool = False):  # noqa: A002
-    """Vợt đang dùng, theo thứ tự rồi tên. ``all=1`` (chỉ Admin) -> gồm cả vợt ẩn."""
-    include_hidden = all and principal.has(Perm.RACKET_MANAGE)
+async def list_rackets(
+    principal: Annotated[Principal | None, Depends(racket_reader)],
+    session: SessionDep,
+    all: bool = False,  # noqa: A002
+):
+    """Vợt đang dùng, theo thứ tự rồi tên. ``all=1`` (chỉ Admin) -> gồm cả vợt ẩn.
+
+    Hội viên (khu hội viên) đọc được danh mục đang dùng."""
+    include_hidden = all and principal is not None and principal.has(Perm.RACKET_MANAGE)
     return await rackets.list_rackets(session, include_hidden)
 
 

@@ -16,6 +16,7 @@ from app.modules.auth import router as auth
 from app.modules.booking_engine import router as booking_engine
 from app.modules.content import router as content
 from app.modules.front_desk import router as front_desk
+from app.modules.member_area import router as member_area
 from app.modules.members import me_router as member_me
 from app.modules.members import racket_router
 from app.modules.members import router as members
@@ -55,6 +56,7 @@ for r in (
     content.admin_router,
     booking_engine.router,
     members.router,
+    member_area.router,
     racket_router.router,
     member_me.router,
     front_desk.router,

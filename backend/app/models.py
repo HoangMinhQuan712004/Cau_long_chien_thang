@@ -6,7 +6,7 @@ from app.core.idempotency import IdempotencyKey
 from app.modules.auth.models import AdminSession, OtpCode, User
 from app.modules.booking_engine import models as booking_engine_models
 from app.modules.content.models import Post
-from app.modules.members.models import Customer, Racket
+from app.modules.members.models import Customer, CustomerAvatar, Racket
 from app.modules.payments.models import BankTransaction
 
 __all__ = [
@@ -16,6 +16,7 @@ __all__ = [
     "BankTransaction",
     "Base",
     "Customer",
+    "CustomerAvatar",
     "Racket",
     "IdempotencyKey",
     "Post",

@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_PER_MINUTE: int = 120  # mặc định toàn API, theo IP
     MAX_BODY_BYTES: int = 64 * 1024
+    # Ảnh đại diện hội viên (T-016): tệp ≤ 5 MB; body multipart được thêm 64 KB cho phần đầu
+    AVATAR_MAX_BYTES: int = 5 * 1024 * 1024
 
     # Booking engine: mỗi bản chạy phục vụ một tenant
     TENANT_ID: int = 1
