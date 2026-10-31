@@ -80,18 +80,28 @@ async function Account() {
           </Link>
         </Alert>
       ) : isMember === false && !user.phone_verified ? (
-        // T-021: xác minh SĐT bằng OTP là thành hội viên. Chưa có SĐT ⇒ form xác minh ngay phía trên;
-        // đã có SĐT nhưng chưa xác minh (tài khoản đời cũ) ⇒ xác minh bằng mã OTP khi đặt sân online
+        // T-021: xác minh SĐT bằng OTP là thành hội viên. Chưa có SĐT ⇒ form xác minh ngay phía trên.
+        // Đã có SĐT nhưng chưa xác minh (tài khoản đời cũ): đường chính là Quên mật khẩu (xong là hội viên, AC6),
+        // đường phụ là OTP khi đặt sân online.
         <Alert variant="info">
-          <span className="flex flex-wrap items-center justify-between gap-3">
+          <span className="flex flex-col gap-3">
             <span>Xác minh số điện thoại để trở thành hội viên.</span>
             {user.phone ? (
-              <Link
-                href="/dat-san"
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white focus-ring hover:bg-primary-hover"
-              >
-                Xác minh số điện thoại
-              </Link>
+              <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <Link
+                  href={`/quen-mat-khau?sdt=${encodeURIComponent(user.phone)}`}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white focus-ring hover:bg-primary-hover"
+                >
+                  Xác minh số điện thoại
+                </Link>
+                <span className="text-sm">
+                  Hoặc nhập mã OTP khi{" "}
+                  <Link href="/dat-san" className="font-semibold underline">
+                    đặt sân online
+                  </Link>
+                  .
+                </span>
+              </span>
             ) : null}
           </span>
         </Alert>
