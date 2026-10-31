@@ -564,12 +564,6 @@ async def test_phone_appears_only_in_known_fields_and_never_passwords(admin, mad
 # ============================================================ dòng hỏng / lạ không làm vỡ trang
 
 
-BUG_DETAIL = pytest.mark.xfail(
-    strict=True,
-    reason="[BUG] T-22-1: dòng có `detail` không phải object (chuỗi / mảng JSON, vd dòng cũ hoặc sửa tay) làm 500 cả danh sách: `_entry` gọi `.get` trên chuỗi/mảng",
-)
-
-
 def jsonb(value: str) -> str:
     """Literal jsonb cho SQL: bọc nháy đơn, nhân đôi nháy đơn bên trong."""
     return "'" + value.replace("'", "''") + "'::jsonb"
@@ -578,8 +572,8 @@ def jsonb(value: str) -> str:
 @pytest.mark.parametrize(
     "detail",
     [
-        pytest.param(jsonb('"just a string"'), marks=BUG_DETAIL, id="detail-is-a-string"),
-        pytest.param(jsonb("[1,2,3]"), marks=BUG_DETAIL, id="detail-is-an-array"),
+        pytest.param(jsonb('"just a string"'), id="detail-is-a-string"),
+        pytest.param(jsonb("[1,2,3]"), id="detail-is-an-array"),
         pytest.param(jsonb('{"target": 5, "changes": "x"}'), id="target-and-changes-wrong-type"),
         pytest.param(
             jsonb(
