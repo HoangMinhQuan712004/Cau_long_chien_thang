@@ -235,18 +235,22 @@ async def test_ac1_is_member_in_sign_in_response(admin, made):
         assert r.status_code == 200 and r.json()["account"]["is_member"] is True, r.text
 
 
-@deviation(
-    "OPEN",
-    "T-16-2",
-    "OQ-9: hội viên Ngừng vẫn vào và sửa hồ sơ được; PR #21 khóa tài khoản khi Ngừng nên đăng nhập bị 401",
-)
-async def test_oq9_inactive_member_can_still_enter_and_edit(admin, made):
-    """OQ-9: hội viên Ngừng vẫn vào và sửa được; PR #21 khóa tài khoản khi Ngừng (T-015)."""
+async def test_oq9_inactive_member_web_account_is_locked_user_decision_31_10(admin, made):
+    """Người dùng chốt 31/10 (T-16-2): hội viên Ngừng thì tài khoản web bị khóa, không vào khu hội viên."""
     c, m = await member_login(admin, made)
     r = await admin_patch(admin, m["member_code"], {"is_active": False})
     assert r.status_code == 200, r.text
     r = await c.get(f"{MA}/me")
-    assert r.status_code == 200, r.text
+    assert r.status_code == 401, "phiên đang mở bị thu hồi"
+    async with _client() as fresh:
+        assert (await sign_in(fresh, m["phone"], PW)).status_code in (401, 403), (
+            "không đăng nhập lại được"
+        )
+    # Hoạt động lại thì mở khóa
+    assert (await admin_patch(admin, m["member_code"], {"is_active": True})).status_code == 200
+    async with _client() as again:
+        assert (await sign_in(again, m["phone"], PW)).status_code == 200
+        assert (await again.get(f"{MA}/me")).status_code == 200
 
 
 # ============================================================ AC7–AC8 xem hồ sơ
