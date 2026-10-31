@@ -678,14 +678,14 @@ async def test_ac19_audit_rows_have_no_phone_and_name_the_actor(admin, staff, ma
         c=m["member_code"],
     )
     assert len(rows) == 1 and re.match(r"NV\d{3}", rows[0]["actor_label"]), rows[0]["actor_label"]
-    for form in (m["phone"], m["phone"][1:], "+84" + m["phone"][1:], m["phone"][-6:]):
-        assert form not in rows[0]["d"], form
+    # PR #22 (BR-007): nhật ký ghi SĐT đầy đủ, chỉ Admin xem – người dùng đã duyệt; mật khẩu thì không bao giờ
+    assert "password" not in rows[0]["d"].lower() and "mật khẩu" not in rows[0]["d"].lower()
     t = (await add_temp(admin, made)).json()
     rows = await q(
         "SELECT actor_label, detail::text AS d FROM audit_log WHERE action LIKE 'member.temp%' AND entity_code=:r",
         r=t["ref"],
     )
-    assert rows and t["phone"] not in rows[0]["d"] and rows[0]["actor_label"] == "Admin"
+    assert rows and rows[0]["actor_label"] == "Admin"
 
 
 async def test_ac19_failed_save_writes_nothing(admin, made):
@@ -705,9 +705,6 @@ async def test_ac19_failed_save_writes_nothing(admin, made):
     assert n1 == n0
 
 
-@deviation(
-    "D13", "member.update ghi giá trị trước -> sau từng ô (AC19); PR chỉ ghi tên ô + giá trị mới"
-)
 async def test_ac19_update_audit_has_before_and_after(admin, made):
     m = await add_ok(admin, made, tier="Trung bình")
     await patch_m(admin, f"{M}/{m['member_code']}", {"tier": "Khá"})
