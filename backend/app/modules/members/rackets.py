@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import AuditActor, audit
+from app.core.audit import AuditActor, Value, audit, audit_change, audit_changes, audit_detail
 from app.core.errors import AppError
 from app.modules.members.models import Customer, Racket
 from app.modules.members.schemas import RacketCreateIn, RacketOut, RacketUpdateIn
@@ -38,6 +38,23 @@ def _taken(name: str) -> AppError:
     return AppError("E-MEM-5", f"Vợt “{name}” đã có trong danh mục.", 409)
 
 
+# Lịch sử thao tác (PR #22): tên ô + giá trị hiển thị
+LABELS = {"name": "Tên vợt", "is_active": "Trạng thái", "sort_order": "Thứ tự"}
+
+
+def _shown(racket: Racket) -> dict[str, Value]:
+    return {
+        "name": racket.name,
+        "is_active": "Đang dùng" if racket.is_active else "Ẩn",
+        "sort_order": racket.sort_order,
+    }
+
+
+def created_detail(name: str) -> dict:
+    """Thêm vợt: "(trống) → tên"; ``name`` giữ cho truy vấn cũ."""
+    return audit_detail(None, name, [audit_change("Tên vợt", None, name)], name=name)
+
+
 async def ensure(session: AsyncSession, raw: str | None, actor: AuditActor) -> str | None:
     """Tên vợt chuẩn cho hồ sơ: đã có (kể cả đang ẩn) -> tên trong danh mục; chưa có -> thêm và
     ghi ``racket.create`` cùng lần lưu (SRS BR-018 / T-016 AC17).
@@ -55,7 +72,7 @@ async def ensure(session: AsyncSession, raw: str | None, actor: AuditActor) -> s
         .returning(Racket.id)
     )
     if created_id is not None:
-        audit(session, actor, "racket.create", "racket", None, {"name": name})
+        audit(session, actor, "racket.create", "racket", None, created_detail(name))
     return await session.scalar(select(Racket.name).where(Racket.name_key == key_of(name)))
 
 
@@ -117,7 +134,7 @@ async def create(session: AsyncSession, actor: AuditActor, data: RacketCreateIn)
         raise _taken(name)
     racket = Racket(name=name, name_key=key_of(name), sort_order=data.sort_order)
     session.add(racket)
-    audit(session, actor, "racket.create", "racket", None, {"name": name})
+    audit(session, actor, "racket.create", "racket", None, created_detail(name))
     await _commit(session, name)
     await session.refresh(racket)
     return (await _with_counts(session, [racket]))[0]
@@ -137,11 +154,18 @@ async def update(
         if other is not None and other != racket.id:
             raise _taken(name)
         changes |= {"name": name, "name_key": key_of(name)}
+    before = _shown(racket)
     changed = sorted(k for k, v in changes.items() if getattr(racket, k) != v)
     for field in changed:
         setattr(racket, field, changes[field])
     if changed:
-        detail = {"fields": [f for f in changed if f != "name_key"], "name": racket.name}
+        detail = audit_detail(
+            None,
+            racket.name,
+            audit_changes(LABELS, before, _shown(racket)),
+            fields=[f for f in changed if f != "name_key"],
+            name=racket.name,
+        )
         audit(session, actor, "racket.update", "racket", str(racket.id), detail)
     await _commit(session, racket.name)
     await session.refresh(racket)
@@ -151,6 +175,9 @@ async def update(
 async def delete(session: AsyncSession, actor: AuditActor, racket_id: int) -> None:
     """Xóa hẳn khỏi danh mục; hồ sơ hội viên giữ tên vợt (lưu dạng chữ)."""
     racket = await _get(session, racket_id)
-    audit(session, actor, "racket.delete", "racket", str(racket.id), {"name": racket.name})
+    detail = audit_detail(
+        None, racket.name, [audit_change("Tên vợt", racket.name, None)], name=racket.name
+    )
+    audit(session, actor, "racket.delete", "racket", str(racket.id), detail)
     await session.delete(racket)
     await session.commit()

@@ -207,10 +207,11 @@ async def test_update_profile_syncs_name_and_writes_audit(staff, admin):
                 )
             )
         assert row.actor_label == f"Hội viên (tự sửa) · {code}"
-        changes = row.detail["changes"]
-        assert changes["full_name"] == ["Trần Thị Lan", "Trần Thị Lan Anh"]
+        changes = {c["field"]: (c["before"], c["after"]) for c in row.detail["changes"]}
+        assert row.detail["target"] == {"code": code, "name": "Trần Thị Lan Anh"}
+        assert changes["Họ tên"] == ("Trần Thị Lan", "Trần Thị Lan Anh")
         assert row.detail["renamed_items"] == 1  # booking tại quầy ở đầu test
-        assert changes["email"] == [None, f"L***@{email.split('@')[1]}"]
+        assert changes["Email"] == (None, f"L***@{email.split('@')[1]}")
         assert email not in str(row.detail)
 
         # Không đổi gì -> không ghi, không tăng version
