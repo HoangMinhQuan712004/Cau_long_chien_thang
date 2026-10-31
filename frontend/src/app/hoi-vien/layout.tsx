@@ -31,14 +31,13 @@ async function Gate({ children }: { children: React.ReactNode }) {
   // Tài khoản do sân tạo còn mật khẩu ban đầu (= SĐT) ⇒ đổi mật khẩu trước khi vào khu hội viên
   const { user, expired } = await readCurrentUser();
   if (expired) redirect("/quen-mat-khau");
-  if (user?.must_change_password) redirect("/doi-mat-khau");
+  const path = safeNext((await headers()).get("x-pathname"), "/hoi-vien/ho-so");
+  if (user?.must_change_password) redirect(`/doi-mat-khau?next=${encodeURIComponent(path)}`);
 
   const res = await getMemberMe();
   if (!res.ok) {
-    // Đường dẫn đang mở do proxy.ts ghi vào header
-    const path = safeNext((await headers()).get("x-pathname"), "/hoi-vien/ho-so");
     if (res.status === 401) redirect(`/dang-nhap?next=${encodeURIComponent(path)}&ly-do=het-han`);
-    if (res.code === "E-AUTH-25") redirect("/doi-mat-khau");
+    if (res.code === "E-AUTH-25") redirect(`/doi-mat-khau?next=${encodeURIComponent(path)}`);
     if (res.code === "E-AUTH-30") redirect("/quen-mat-khau");
     if (res.status === 403) redirect("/tai-khoan");
     return (
