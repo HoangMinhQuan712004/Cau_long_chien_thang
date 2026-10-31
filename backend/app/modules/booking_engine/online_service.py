@@ -674,7 +674,7 @@ async def apply_online_payment(
         ),
     )
     for booking in created:
-        emit_created(session, tenant_id, order, booking)
+        await emit_created(session, tenant_id, order, booking)
     outbox.add_event(
         session,
         tenant_id,

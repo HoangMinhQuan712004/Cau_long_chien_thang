@@ -133,6 +133,17 @@ def _validate_customer(data: CheckoutIn) -> tuple[str, str, str | None]:
     return full_name, phone, note
 
 
+async def _member_identity(
+    session: AsyncSession, member: auth.LinkedMember | None
+) -> tuple[str, str]:
+    """(Họ tên, SĐT) từ hồ sơ hội viên của phiên – chỉ hội viên liên kết đang Hoạt động."""
+    profile = await members.get_self_profile(session, member.customer_id) if member else None
+    found = await members.find_by_phone(session, profile.phone) if profile else None
+    if profile is None or found is None or not found.is_active:
+        raise AppError("E-HV-8", "Bạn chưa là hội viên.", 403)
+    return profile.full_name, profile.phone
+
+
 @router.post(
     "/checkouts",
     response_model=CheckoutCreatedOut,
@@ -147,18 +158,28 @@ async def create_checkout(
     idem: IdempotencyDep,
     session: SessionDep,
     verified_phone: auth.VerifiedCustomerPhone,
+    member: auth.OptionalMember,
 ):
     """Giữ chỗ 5 phút + cấp mã, trả ``token`` (một lần) để mở trang thanh toán.
 
     Cần ``phone_token`` của đúng SĐT (trừ khách đăng nhập có SĐT đã xác minh trùng ``phone``).
+    ``as_member`` (đặt trong khu hội viên, T-018 AC4): Họ tên + SĐT lấy từ hồ sơ hội viên của
+    phiên (bỏ qua giá trị gửi lên), không cần ``phone_token``; không phải hội viên liên kết đang
+    Hoạt động -> 403 E-HV-8.
     Lỗi: E-WEB-1 (dữ liệu), E-WEB-2 (khung không đặt được), E-WEB-3 (vừa có người đặt, kèm
     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng),
     E-WEB-8 (chưa xác minh SĐT), E-019.
     """
     await _require_online(session)
+    if data.as_member:
+        full_name, phone = await _member_identity(session, member)
+        data = data.model_copy(update={"full_name": full_name, "phone": phone})
     full_name, phone, note = _validate_customer(data)
-    if verified_phone != phone and not await auth.booking_phone_token_valid(
-        session, data.phone_token, phone
+    # as_member: SĐT của hồ sơ, tài khoản liên kết đã xác minh -> không cần phone_token
+    if (
+        not data.as_member
+        and verified_phone != phone
+        and not await auth.booking_phone_token_valid(session, data.phone_token, phone)
     ):
         raise AppError("E-WEB-8", "Vui lòng xác minh số điện thoại trước khi đặt sân.", 403)
 
