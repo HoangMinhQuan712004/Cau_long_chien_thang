@@ -179,7 +179,9 @@ async def phone_verified_audits(user_id: int) -> int:
     async with SessionLocal() as s:
         return await s.scalar(
             select(func.count()).where(
-                AuditLog.action == "auth.phone_verified", AuditLog.entity_code == str(user_id)
+                AuditLog.action == "auth.phone_verified",
+                AuditLog.entity_code == str(user_id),
+                AuditLog.detail["source"].astext == "web_booking",  # T-21-1: ghi nơi xác minh
             )
         )
 
