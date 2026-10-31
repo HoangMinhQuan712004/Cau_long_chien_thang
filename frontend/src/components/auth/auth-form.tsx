@@ -59,7 +59,7 @@ export function AuthForm({
     setError(null);
     setNotice(null);
     setTaken(null);
-    const result = await registerRequest({ full_name: fullName.trim(), phone, password });
+    const result = await registerRequest({ full_name: fullName.trim().replace(/s+/g, " "), phone, password });
     setPending(false);
     if (!result.ok && result.code === "E-AUTH-23") {
       setIsClosed(true);
