@@ -66,6 +66,8 @@ function Hero({ me }: { me: MemberMe }) {
   const input = useRef<HTMLInputElement>(null);
 
   function pick(f: File | undefined) {
+    // Menu 📷 luôn đóng khi đã có tệp (kể cả khi tệp được đưa vào ô chọn tệp mà không bấm mục menu)
+    setMenu(false);
     if (!f) return;
     if (!FILE_TYPES.includes(f.type) || f.size > MAX_FILE) {
       toast("Ảnh phải là JPG, PNG hoặc WebP, tối đa 5 MB.", undefined, "error");
@@ -77,6 +79,7 @@ function Hero({ me }: { me: MemberMe }) {
   async function remove() {
     if (busy) return;
     setBusy(true);
+    setMenu(false);
     const res = await deleteAvatar();
     setBusy(false);
     if (!res.ok) {
@@ -172,6 +175,7 @@ function Hero({ me }: { me: MemberMe }) {
           onClose={() => setFile(null)}
           onSaved={(url) => {
             setMe((m) => ({ ...m, avatar_url: url }));
+            setMenu(false);
             setFile(null);
           }}
         />

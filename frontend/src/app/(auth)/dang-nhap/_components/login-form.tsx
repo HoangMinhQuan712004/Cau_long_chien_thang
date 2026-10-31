@@ -79,7 +79,7 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
         router.refresh();
       };
       // Hội viên đăng nhập lần đầu bằng mật khẩu = SĐT ⇒ bắt đổi mật khẩu trước
-      if (result.mustChangePassword) go("/doi-mat-khau");
+      if (result.mustChangePassword) go(next ? `/doi-mat-khau?next=${encodeURIComponent(next)}` : "/doi-mat-khau");
       else if (result.kind === "member") void memberDestination(next).then(go);
       else go(destination(result.kind, next));
       return;
