@@ -5,12 +5,13 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Response
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import AppError
-from app.modules.auth import cookies, enroll, member_accounts, membership, otp, service
+from app.modules.auth import cookies, enroll, member_accounts, membership, otp, service, utils
 from app.modules.auth import phone as phone_flow
 from app.modules.auth.deps import AuthStateDep, CurrentCustomer, SessionDep
 from app.modules.auth.models import OtpPurpose, Role, User
@@ -239,6 +240,24 @@ async def _optional_member(state: AuthStateDep, session: SessionDep) -> LinkedMe
 
 # Dependency: hội viên đang đăng nhập hoặc None (vd. đọc danh mục vợt)
 OptionalMember = Annotated[LinkedMember | None, Depends(_optional_member)]
+
+
+def normalize_phone(raw: str) -> str | None:
+    """Chuẩn hóa SĐT như đăng nhập (T-013): ``+84 912.345-678`` -> ``0912345678``; sai -> None."""
+    return utils.normalize_phone(raw)
+
+
+async def linked_phones(session: AsyncSession, phones: set[str]) -> set[str]:
+    """SĐT (trong ``phones``) đang có tài khoản khách hoạt động được xem thẻ hội viên – điều kiện
+    "hội viên có tài khoản liên kết" của phòng chơi (T-017 AC2, AC9). Chỉ đọc."""
+    if not phones:
+        return set()
+    users = await session.scalars(
+        select(User).where(
+            User.phone.in_(sorted(phones)), User.role == Role.MEMBER, User.is_active.is_(True)
+        )
+    )
+    return {u.phone for u in users if u.phone and member_accounts.can_view_member_card(u)}
 
 
 async def is_member(session: AsyncSession, user: User) -> bool:

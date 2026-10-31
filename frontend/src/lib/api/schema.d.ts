@@ -1033,6 +1033,307 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rooms
+         * @description Danh sách sân hôm nay còn mở + số liệu banner (AC4–AC6). 403 E-HV-8 (chưa là hội viên).
+         */
+        get: operations["list_rooms_api_v1_member_area_rooms_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Room
+         * @description Chi tiết phòng (cả phòng đã đóng – chỉ xem). 404 nếu không có / Host chưa đủ điều kiện.
+         */
+        get: operations["get_room_api_v1_member_area_rooms__room_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/join-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Join
+         * @description Xin vào (AC8). 409 E-ROOM-1/2/4/6 · 429 E-SEC-5 (> 10 lần / ngày).
+         */
+        post: operations["request_join_api_v1_member_area_rooms__room_id__join_requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/join-requests/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cancel Join
+         * @description Hủy "Xin vào" của mình (không cần ``version``; chưa xin -> không đổi gì).
+         */
+        delete: operations["cancel_join_api_v1_member_area_rooms__room_id__join_requests_mine_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/join-requests/{request_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Join
+         * @description Host duyệt. 403 E-ROOM-7 · 409 E-ROOM-1/2/6.
+         */
+        post: operations["approve_join_api_v1_member_area_rooms__room_id__join_requests__request_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/join-requests/{request_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Join
+         * @description Host từ chối. 403 E-ROOM-7 · 409 E-ROOM-1/6.
+         */
+        post: operations["reject_join_api_v1_member_area_rooms__room_id__join_requests__request_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite
+         * @description Host mời bằng SĐT đầy đủ (AC9). 422 E-ROOM-3 (một câu cho mọi lý do) · 409 E-ROOM-2/4/6 ·
+         *     403 E-ROOM-7 · 429 E-SEC-5 (> 20 lần / giờ, tính cả lần lỗi).
+         */
+        post: operations["invite_api_v1_member_area_rooms__room_id__invites_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/invites/{invite_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Invite
+         * @description Nhận lời mời -> vào phòng. 404 (không phải lời mời của mình) · 409 E-ROOM-1/2/6.
+         */
+        post: operations["accept_invite_api_v1_member_area_invites__invite_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/invites/{invite_id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decline Invite
+         * @description Từ chối lời mời. 404 · 409 E-ROOM-1/6.
+         */
+        post: operations["decline_invite_api_v1_member_area_invites__invite_id__decline_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Leave
+         * @description Rời phòng (AC11). 409 E-ROOM-5 (đang trong trận) / E-ROOM-1 / E-ROOM-6.
+         */
+        post: operations["leave_api_v1_member_area_rooms__room_id__leave_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/members/{member_id}/kick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kick
+         * @description Host mời ra (AC12). 403 E-ROOM-7 · 404 · 409 E-ROOM-1/5/6.
+         */
+        post: operations["kick_api_v1_member_area_rooms__room_id__members__member_id__kick_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/members/{member_id}/transfer-host": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transfer Host
+         * @description Host chuyển quyền (AC12). 403 E-ROOM-7 · 404 · 409 E-ROOM-1/6.
+         */
+        post: operations["transfer_host_api_v1_member_area_rooms__room_id__members__member_id__transfer_host_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Notifications
+         * @description Thông báo 30 ngày gần nhất (tối đa 50, mới nhất trước) + số chưa đọc. 403 E-HV-8.
+         */
+        get: operations["list_notifications_api_v1_member_area_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read All
+         * @description Đã đọc hết (gửi lại vô hại – không cần Idempotency-Key).
+         */
+        post: operations["read_all_api_v1_member_area_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read One
+         * @description Đánh dấu đã đọc. Thông báo không phải của mình -> 404 E-NOT-FOUND (SEC6).
+         */
+        post: operations["read_one_api_v1_member_area_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rackets": {
         parameters: {
             query?: never;
@@ -1936,6 +2237,30 @@ export interface components {
             bookings: components["schemas"]["ItemOut"][];
         };
         /**
+         * CurrentMatchOut
+         * @description Trận vừa bốc (``drawn``) hoặc đang chơi (``playing``) – mốc 2.
+         */
+        CurrentMatchOut: {
+            /** No */
+            no: number;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "2v2" | "1v1";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "drawn" | "playing";
+            /** Team A */
+            team_a: components["schemas"]["PlayerOut"][];
+            /** Team B */
+            team_b: components["schemas"]["PlayerOut"][];
+            /** Started At */
+            started_at: string | null;
+        };
+        /**
          * CustomerIn
          * @description Khách của lượt đặt: đúng một trong hai – hội viên (theo mã) hoặc hồ sơ tạm.
          */
@@ -1988,6 +2313,16 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** InviteIn */
+        InviteIn: {
+            /**
+             * Phone
+             * @description SĐT **đầy đủ** của hội viên được mời (chuẩn hóa như đăng nhập)
+             */
+            phone: string;
+            /** Version */
+            version: number;
         };
         /** ItemCustomer */
         ItemCustomer: {
@@ -2544,6 +2879,43 @@ export interface components {
              */
             member_code: string;
         };
+        /** NotificationList */
+        NotificationList: {
+            /** Items */
+            items: components["schemas"]["NotificationOut"][];
+            /**
+             * Unread Count
+             * @description Số chưa đọc (30 ngày) – chấm số ở menu
+             */
+            unread_count: number;
+        };
+        /** NotificationOut */
+        NotificationOut: {
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @description room.invited · room.join_requested · room.join_approved · room.join_rejected · room.kicked · room.host_assigned
+             */
+            kind: string;
+            /**
+             * Text
+             * @description Câu hiển thị, vd. “Minh mời bạn vào phòng Sân 1 · 18h–19h.”
+             */
+            text: string;
+            /**
+             * Link
+             * @description Đường dẫn trong web, vd. /hoi-vien/phong/12
+             */
+            link: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Read */
+            read: boolean;
+        };
         /** OnlineSlotIn */
         OnlineSlotIn: {
             /** Resource Code */
@@ -2658,6 +3030,36 @@ export interface components {
             /** Simulate Enabled */
             simulate_enabled: boolean;
         };
+        /** PendingPersonOut */
+        PendingPersonOut: {
+            /**
+             * Id
+             * @description Id yêu cầu / lời mời
+             */
+            id: number;
+            /** Display Name */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** PersonOut */
+        PersonOut: {
+            /**
+             * Display Name
+             * @description Biệt danh nếu có, không thì Họ tên
+             */
+            display_name: string;
+            /**
+             * Avatar Url
+             * @description Ảnh đại diện; null -> FE hiện chữ cái đầu
+             */
+            avatar_url: string | null;
+        };
         /** PhoneCodeIn */
         PhoneCodeIn: {
             /** Phone */
@@ -2757,6 +3159,18 @@ export interface components {
              * @description Mã HV của tài khoản (nếu có)
              */
             member_code?: string | null;
+        };
+        /** PlayerOut */
+        PlayerOut: {
+            /**
+             * Member Id
+             * @description Id dòng thành viên (null nếu đã rời)
+             */
+            member_id: number | null;
+            /** Display Name */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
         };
         /** PostIn */
         PostIn: {
@@ -3207,6 +3621,208 @@ export interface components {
          * @enum {string}
          */
         Role: "admin" | "staff" | "member";
+        /**
+         * RoomCard
+         * @description Thẻ phòng ở Danh sách sân (AC6).
+         */
+        RoomCard: {
+            /** Id */
+            id: number;
+            /**
+             * Resource Name
+             * @description "Sân 1"
+             */
+            resource_name: string;
+            /**
+             * Resource Type Name
+             * @description Loại sân
+             */
+            resource_type_name: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "upcoming" | "ongoing";
+            host: components["schemas"]["PersonOut"];
+            /**
+             * Members
+             * @description Cụm avatar (Host đứng đầu)
+             */
+            members: components["schemas"]["PersonOut"][];
+            /** Member Count */
+            member_count: number;
+            /**
+             * Capacity
+             * @description 8 người / sân, tính cả Host
+             */
+            capacity: number;
+            /**
+             * Is Mine
+             * @description Mình đang trong phòng (tag "Bạn", nút "Vào phòng")
+             */
+            is_mine: boolean;
+            /**
+             * My Join Pending
+             * @description Đã "Xin vào", đang chờ Host duyệt
+             */
+            my_join_pending: boolean;
+            /**
+             * My Invite Id
+             * @description Lời mời đang chờ mình ("Nhận lời mời")
+             */
+            my_invite_id: number | null;
+            /** Version */
+            version: number;
+        };
+        /** RoomDetail */
+        RoomDetail: {
+            /** Id */
+            id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "closed";
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "upcoming" | "ongoing" | "closed";
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "2v2" | "1v1";
+            /** Resource Name */
+            resource_name: string;
+            /** Resource Type Name */
+            resource_type_name: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Closes At
+             * Format: date-time
+             * @description Giờ kết thúc + 10 phút: phòng tự khóa (AC3)
+             */
+            closes_at: string;
+            /**
+             * Can Start From
+             * Format: date-time
+             * @description Bắt đầu trận được từ 15 phút trước giờ
+             */
+            can_start_from: string;
+            /** Capacity */
+            capacity: number;
+            /** Version */
+            version: number;
+            /**
+             * My Role
+             * @enum {string}
+             */
+            my_role: "host" | "member" | "outsider";
+            /** My Join Pending */
+            my_join_pending: boolean;
+            /** My Invite Id */
+            my_invite_id: number | null;
+            /**
+             * Members
+             * @description Host đầu tiên, rồi theo giờ vào
+             */
+            members: components["schemas"]["RoomMemberOut"][];
+            /**
+             * Join Requests
+             * @description Chỉ Host thấy (người khác: [])
+             */
+            join_requests: components["schemas"]["PendingPersonOut"][];
+            /**
+             * Invites
+             * @description Lời mời đang chờ – chỉ Host thấy
+             */
+            invites: components["schemas"]["PendingPersonOut"][];
+            current_match: components["schemas"]["CurrentMatchOut"] | null;
+        };
+        /** RoomList */
+        RoomList: {
+            /**
+             * Date
+             * Format: date
+             * @description Hôm nay (giờ Việt Nam)
+             */
+            date: string;
+            /**
+             * Ongoing Count
+             * @description Đang diễn ra
+             */
+            ongoing_count: number;
+            /**
+             * Upcoming Count
+             * @description Sắp diễn ra
+             */
+            upcoming_count: number;
+            /**
+             * Mine Count
+             * @description "Phòng của bạn" / "Sân của tôi (n)"
+             */
+            mine_count: number;
+            /**
+             * All Count
+             * @description "Tất cả (n)"
+             */
+            all_count: number;
+            /**
+             * Items
+             * @description Theo giờ bắt đầu, rồi tên sân (lọc theo ``scope``)
+             */
+            items: components["schemas"]["RoomCard"][];
+        };
+        /** RoomMemberOut */
+        RoomMemberOut: {
+            /**
+             * Id
+             * @description Id dòng thành viên phòng – dùng cho mời ra / chuyển Host
+             */
+            id: number;
+            /** Display Name */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "host" | "member";
+            /**
+             * Queue State
+             * @description Hàng chờ / Đang chơi
+             * @enum {string}
+             */
+            queue_state: "waiting" | "playing";
+            /**
+             * Waiting Since
+             * Format: date-time
+             */
+            waiting_since: string;
+            /** Is Me */
+            is_me: boolean;
+        };
         /** ScheduleOut */
         ScheduleOut: {
             /**
@@ -3655,6 +4271,14 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VersionIn */
+        VersionIn: {
+            /**
+             * Version
+             * @description ``version`` của phòng lúc người dùng bấm (AC21)
+             */
+            version: number;
         };
         /** WebCalendarOut */
         WebCalendarOut: {
@@ -5515,6 +6139,522 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rooms_api_v1_member_area_rooms_get: {
+        parameters: {
+            query?: {
+                /** @description mine: phòng có mình */
+                scope?: "all" | "mine";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_room_api_v1_member_area_rooms__room_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_join_api_v1_member_area_rooms__room_id__join_requests_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_join_api_v1_member_area_rooms__room_id__join_requests_mine_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_join_api_v1_member_area_rooms__room_id__join_requests__request_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_join_api_v1_member_area_rooms__room_id__join_requests__request_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invite_api_v1_member_area_rooms__room_id__invites_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_invite_api_v1_member_area_invites__invite_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                invite_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decline_invite_api_v1_member_area_invites__invite_id__decline_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                invite_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leave_api_v1_member_area_rooms__room_id__leave_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    kick_api_v1_member_area_rooms__room_id__members__member_id__kick_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+                /** @description Id dòng thành viên phòng */
+                member_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transfer_host_api_v1_member_area_rooms__room_id__members__member_id__transfer_host_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+                /** @description Id dòng thành viên phòng */
+                member_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notifications_api_v1_member_area_notifications_get: {
+        parameters: {
+            query?: {
+                /** @description true: chỉ chưa đọc */
+                unread?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_all_api_v1_member_area_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    read_one_api_v1_member_area_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };

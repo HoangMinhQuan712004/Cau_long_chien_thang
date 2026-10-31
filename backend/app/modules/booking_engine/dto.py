@@ -200,6 +200,18 @@ class CustomerStats(BaseModel):
     minutes: int
 
 
+class RoomSource(BaseModel):
+    """Khối booking cho phòng chơi (T-017) – nội bộ, không trả ra API."""
+
+    code: str
+    customer_ref: str
+    resource_code: str
+    resource_name: str
+    resource_type_name: str
+    start_at: dt.datetime
+    end_at: dt.datetime
+
+
 class CustomerBookingRow(BaseModel):
     code: str = Field(description="Mã con của khối")
     order_code: str = Field(description="Mã đơn – khu hội viên chỉ hiện mã này (T-019 AC7)")

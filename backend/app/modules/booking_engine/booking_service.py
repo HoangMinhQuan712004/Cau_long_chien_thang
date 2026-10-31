@@ -614,7 +614,7 @@ async def create_counter_order(
                 member_code=customer.member_code,
             ),
         )
-        emit_created(session, tenant_id, order, booking)
+        await emit_created(session, tenant_id, order, booking)
     await session.flush()
     items_out = []
     for booking, _ in blocks:
