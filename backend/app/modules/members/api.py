@@ -8,7 +8,7 @@ import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
-from app.modules.members import avatar, enrollment, self_service, service
+from app.modules.members import avatar, enrollment, profiles, self_service, service
 from app.modules.members import room_people as room_people_mod
 from app.modules.members.avatar import Crop, StoredAvatar
 from app.modules.members.enrollment import MemberEnsured
@@ -25,6 +25,7 @@ __all__ = [
     "member_of_phone",
     "RoomPerson",
     "customer_id_of_ref",
+    "booking_refs_of",
     "room_people",
     "SelfProfile",
     "SelfUpdate",
@@ -145,3 +146,10 @@ async def room_people(session: AsyncSession, ids: set[int] | list[int]) -> dict[
 async def customer_id_of_ref(session: AsyncSession, ref: str) -> int | None:
     """``customer_ref`` trên booking -> id hồ sơ khách (chưa có hồ sơ -> None)."""
     return await room_people_mod.id_of_ref(session, ref)
+
+
+async def booking_refs_of(session: AsyncSession, customer_id: int) -> list[str]:
+    """``customer_ref`` của hồ sơ trên booking / vé: id hồ sơ + ``phone:<sđt>`` (booking online
+    đặt trước khi có hồ sơ). Không có hồ sơ -> []."""
+    customer = await session.get(Customer, customer_id)
+    return profiles.booking_refs(customer) if customer is not None else []

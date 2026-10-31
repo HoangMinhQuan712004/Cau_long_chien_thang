@@ -200,6 +200,35 @@ class CustomerStats(BaseModel):
     minutes: int
 
 
+class PaidItem(BaseModel):
+    """Khoản đã thanh toán của một khách (khu hội viên, T-018) – không SĐT."""
+
+    kind: Literal["booking", "ticket"]
+    code: str = Field(description="Booking: mã con (id nội bộ) · vé: mã vé")
+    order_code: str | None = Field(description="Booking: mã đơn – mã khách thấy (ADR-010)")
+    event_name: str | None
+    resource_names: list[str]
+    play_date: dt.date
+    start_at: dt.datetime
+    end_at: dt.datetime
+    amount: int
+    paid_at: dt.datetime
+    payment_method: PaymentMethod | None
+    channel: Source
+
+
+class UpcomingBooking(BaseModel):
+    """Khối booking chưa kết thúc của một khách (Tổng quan khu hội viên, T-018)."""
+
+    code: str
+    order_code: str
+    resource_name: str
+    resource_type_name: str
+    play_date: dt.date
+    start_at: dt.datetime
+    end_at: dt.datetime
+
+
 class RoomSource(BaseModel):
     """Khối booking cho phòng chơi (T-017) – nội bộ, không trả ra API."""
 

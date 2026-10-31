@@ -1033,6 +1033,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Overview
+         * @description Trang Tổng quan (AC1–AC3): tên chào, lịch hôm nay, lịch sắp tới, số thông báo chưa đọc.
+         *     403 E-HV-8 (chưa là hội viên).
+         */
+        get: operations["overview_api_v1_member_area_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payments
+         * @description Các khoản **đã thanh toán** (booking + vé) theo tháng thanh toán, giờ VN (AC7–AC10).
+         */
+        get: operations["payments_api_v1_member_area_payments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/payments/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payment
+         * @description Chi tiết một khoản đã thanh toán của mình; khác -> 404 E-NOT-FOUND.
+         */
+        get: operations["payment_api_v1_member_area_payments__code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/member-area/rooms": {
         parameters: {
             query?: never;
@@ -1045,6 +1106,29 @@ export interface paths {
          * @description Danh sách sân hôm nay còn mở + số liệu banner (AC4–AC6). 403 E-HV-8 (chưa là hội viên).
          */
         get: operations["list_rooms_api_v1_member_area_rooms_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/by-booking/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Room By Booking
+         * @description Phòng của booking vừa đặt (nút "Vào phòng" ở trang thành công, T-018 AC5).
+         *
+         *     Phòng do worker tạo sau khi tiền về (~2 giây): 404 khi chưa có hoặc mình không ở trong phòng
+         *     -> FE thử lại mỗi 2 giây, tối đa ~20 giây.
+         */
+        get: operations["room_by_booking_api_v1_member_area_rooms_by_booking__code__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1626,6 +1710,9 @@ export interface paths {
          * @description Giữ chỗ 5 phút + cấp mã, trả ``token`` (một lần) để mở trang thanh toán.
          *
          *     Cần ``phone_token`` của đúng SĐT (trừ khách đăng nhập có SĐT đã xác minh trùng ``phone``).
+         *     ``as_member`` (đặt trong khu hội viên, T-018 AC4): Họ tên + SĐT lấy từ hồ sơ hội viên của
+         *     phiên (bỏ qua giá trị gửi lên), không cần ``phone_token``; không phải hội viên liên kết đang
+         *     Hoạt động -> 403 E-HV-8.
          *     Lỗi: E-WEB-1 (dữ liệu), E-WEB-2 (khung không đặt được), E-WEB-3 (vừa có người đặt, kèm
          *     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng),
          *     E-WEB-8 (chưa xác minh SĐT), E-019.
@@ -2122,6 +2209,16 @@ export interface components {
             /** Crop Size */
             crop_size: number;
         };
+        /** BookingSummary */
+        BookingSummary: {
+            /** Count */
+            count: number;
+            /**
+             * Hours
+             * @description Tổng giờ chơi các lượt đặt sân
+             */
+            hours: number;
+        };
         /** CalendarBlock */
         CalendarBlock: {
             /**
@@ -2290,6 +2387,12 @@ export interface components {
             note?: string | null;
             /** Phone Token */
             phone_token?: string | null;
+            /**
+             * As Member
+             * @description Đặt trong khu hội viên (/hoi-vien/dat-san): Họ tên + SĐT lấy từ hồ sơ, bỏ qua full_name/phone gửi lên, không cần phone_token (T-018 AC4)
+             * @default false
+             */
+            as_member: boolean;
         };
         /** CheckoutOut */
         CheckoutOut: {
@@ -3144,6 +3247,35 @@ export interface components {
              */
             test_otp?: string | null;
         };
+        /** Overview */
+        Overview: {
+            /**
+             * Greeting Name
+             * @description Biệt danh, không có thì tên ngắn
+             */
+            greeting_name: string;
+            /**
+             * Today
+             * Format: date
+             * @description Hôm nay (giờ VN)
+             */
+            today: string;
+            /**
+             * Today Count
+             * @description Lịch chơi hôm nay chưa kết thúc
+             */
+            today_count: number;
+            /**
+             * Upcoming
+             * @description Tối đa 4: thẻ TIẾP THEO + 3 dòng
+             */
+            upcoming: components["schemas"]["UpcomingItem"][];
+            /**
+             * Unread Count
+             * @description Thông báo chưa đọc
+             */
+            unread_count: number;
+        };
         /**
          * PasswordChangeIn
          * @description Đổi mật khẩu của khách; ``current_password`` không cần khi đang bắt đổi lần đầu.
@@ -3156,6 +3288,87 @@ export interface components {
             new_password: string;
             /** Current Password */
             current_password?: string | null;
+        };
+        /** PaymentItem */
+        PaymentItem: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "booking" | "ticket";
+            /**
+             * Code
+             * @description Id gọi chi tiết (mã con booking / mã vé) – không in ra
+             */
+            code: string;
+            /**
+             * Display Code
+             * @description Mã hiện cho khách: mã chung booking / mã vé
+             */
+            display_code: string;
+            /**
+             * Title
+             * @description "Đặt sân · Sân 1 · 18h–19h" / "Vé sự kiện · {tên} · {sân}"
+             */
+            title: string;
+            /** Event Name */
+            event_name: string | null;
+            /** Resource Names */
+            resource_names: string[];
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** Amount */
+            amount: number;
+            /**
+             * Paid At
+             * Format: date-time
+             */
+            paid_at: string;
+            /**
+             * Method
+             * @description Tag hình thức
+             * @enum {string}
+             */
+            method: "QR" | "Tiền mặt";
+            /**
+             * Channel
+             * @description Tại quầy / online
+             * @enum {string}
+             */
+            channel: "counter" | "online";
+        };
+        /** PaymentList */
+        PaymentList: {
+            /**
+             * Month
+             * @description YYYY-MM đang xem
+             */
+            month: string;
+            /**
+             * Months
+             * @description Dropdown: tối đa 12 tháng gần nhất có giao dịch, luôn có tháng hiện tại
+             */
+            months: string[];
+            /** @description Cả tháng (không theo bộ lọc) */
+            summary: components["schemas"]["PaymentSummary"];
+            /**
+             * Items
+             * @description Theo bộ lọc ``kind``, mới nhất trước
+             */
+            items: components["schemas"]["PaymentItem"][];
         };
         /** PaymentSettingsIn */
         PaymentSettingsIn: {
@@ -3209,6 +3422,21 @@ export interface components {
             pending_checkouts: number;
             /** Simulate Enabled */
             simulate_enabled: boolean;
+        };
+        /** PaymentSummary */
+        PaymentSummary: {
+            /**
+             * Total
+             * @description Đã thanh toán trong tháng (VND)
+             */
+            total: number;
+            /**
+             * Count
+             * @description Số giao dịch (lượt đặt sân + vé)
+             */
+            count: number;
+            bookings: components["schemas"]["BookingSummary"];
+            tickets: components["schemas"]["TicketSummary"];
         };
         /** PendingPersonOut */
         PendingPersonOut: {
@@ -4054,6 +4282,11 @@ export interface components {
             /** Is Me */
             is_me: boolean;
         };
+        /** RoomRef */
+        RoomRef: {
+            /** Room Id */
+            room_id: number;
+        };
         /** ScheduleOut */
         ScheduleOut: {
             /**
@@ -4366,6 +4599,13 @@ export interface components {
         TicketIn: {
             customer: components["schemas"]["CustomerIn"];
         };
+        /** TicketSummary */
+        TicketSummary: {
+            /** Count */
+            count: number;
+            /** Total */
+            total: number;
+        };
         /** TransactionCard */
         TransactionCard: {
             /** Amount */
@@ -4457,6 +4697,67 @@ export interface components {
             reason: string;
             /** Version */
             version: number;
+        };
+        /** UpcomingItem */
+        UpcomingItem: {
+            /**
+             * Room Id
+             * @description null: booking chưa có phòng -> ẩn nút Vào phòng
+             */
+            room_id: number | null;
+            /**
+             * Booking Code
+             * @description Mã con (id nội bộ) – không hiện cho khách
+             */
+            booking_code: string;
+            /**
+             * Order Code
+             * @description Mã chung để hiện (T-019)
+             */
+            order_code: string | null;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "upcoming" | "ongoing";
+            /** Resource Name */
+            resource_name: string;
+            /** Resource Type Name */
+            resource_type_name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "host" | "member";
+            /**
+             * Host Name
+             * @description Role host -> FE hiện "Host: bạn"
+             */
+            host_name: string;
+            /** Members Preview */
+            members_preview: components["schemas"]["PersonOut"][];
+            /**
+             * Count
+             * @description Số người trong phòng (null khi chưa có phòng)
+             */
+            count: number | null;
+            /** Capacity */
+            capacity: number | null;
         };
         /**
          * UserOut
@@ -6386,6 +6687,91 @@ export interface operations {
             };
         };
     };
+    overview_api_v1_member_area_overview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Overview"];
+                };
+            };
+        };
+    };
+    payments_api_v1_member_area_payments_get: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM, mặc định tháng này */
+                month?: string | null;
+                kind?: "all" | "booking" | "ticket";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payment_api_v1_member_area_payments__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ``code`` của dòng (id nội bộ) */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_rooms_api_v1_member_area_rooms_get: {
         parameters: {
             query?: {
@@ -6416,6 +6802,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    room_by_booking_api_v1_member_area_rooms_by_booking__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mã con của khối booking */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomRef"];
+                };
             };
             /** @description Validation Error */
             422: {

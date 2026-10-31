@@ -22,6 +22,8 @@ from app.core.middleware import require_origin
 from app.modules.auth import api as auth
 from app.modules.member_inbox import api as inbox
 from app.modules.play_rooms import actions, matches, views
+from app.modules.play_rooms import api as rooms_api
+from app.modules.play_rooms import errors as room_errors
 from app.modules.play_rooms.common import Me
 from app.modules.play_rooms.models import PlayRoom
 from app.modules.play_rooms.schemas import (
@@ -33,6 +35,7 @@ from app.modules.play_rooms.schemas import (
     ResultIn,
     RoomDetail,
     RoomList,
+    RoomRef,
     VersionIn,
 )
 
@@ -92,6 +95,25 @@ async def list_rooms(
 ):
     """Danh sách sân hôm nay còn mở + số liệu banner (AC4–AC6). 403 E-HV-8 (chưa là hội viên)."""
     return _etag_response(await views.list_rooms(session, _me(member), scope), if_none_match)
+
+
+@router.get("/rooms/by-booking/{code}", response_model=RoomRef)
+async def room_by_booking(
+    code: Annotated[str, Path(max_length=40, description="Mã con của khối booking")],
+    member: auth.CurrentMember,
+    session: SessionDep,
+    response: Response,
+):
+    """Phòng của booking vừa đặt (nút "Vào phòng" ở trang thành công, T-018 AC5).
+
+    Phòng do worker tạo sau khi tiền về (~2 giây): 404 khi chưa có hoặc mình không ở trong phòng
+    -> FE thử lại mỗi 2 giây, tối đa ~20 giây.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    room_id = await rooms_api.room_id_for_booking(session, member.customer_id, code)
+    if room_id is None:
+        raise room_errors.not_found()
+    return RoomRef(room_id=room_id)
 
 
 @router.get("/rooms/{room_id}", response_model=RoomDetail, responses=NOT_MODIFIED)
