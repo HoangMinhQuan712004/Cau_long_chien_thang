@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.booking_engine.models import (
     Allocation,
     Booking,
+    BookingOrder,
     EventSession,
     Hold,
     Resource,
@@ -57,8 +58,20 @@ async def _owner_booking(
     )
     if existing is not None:
         return existing
+    order = BookingOrder(
+        tenant_id=tid,
+        code=code,
+        play_date=start.date(),
+        channel="counter",
+        created_by_label="Test",
+        **TEST_CUSTOMER,
+    )
+    session.add(order)
+    await session.flush()
     row = Booking(
         tenant_id=tid,
+        order_id=order.id,
+        seq=1,
         code=code,
         source="counter",
         resource_id=resource_id,

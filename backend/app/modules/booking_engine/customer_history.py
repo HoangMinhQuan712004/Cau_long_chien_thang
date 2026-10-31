@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.booking_engine.common import context
 from app.modules.booking_engine.dto import CustomerBookingRow, CustomerStats
-from app.modules.booking_engine.models import Booking, Checkout, Resource, Ticket
+from app.modules.booking_engine.models import Booking, BookingOrder, Checkout, Resource, Ticket
 
 
 def _ref_in(refs: list[str]):
@@ -39,8 +39,9 @@ async def recent(
         return []
     ctx = await context(session, tenant_id)
     rows = await session.execute(
-        select(Booking, Resource.name)
+        select(Booking, Resource.name, BookingOrder.code)
         .join(Resource, Resource.id == Booking.resource_id)
+        .join(BookingOrder, BookingOrder.id == Booking.order_id)
         .where(Booking.tenant_id == tenant_id, _ref_in(refs))
         .order_by(Booking.start_at.desc(), Booking.id.desc())
         .offset(offset)
@@ -49,6 +50,7 @@ async def recent(
     return [
         CustomerBookingRow(
             code=b.code,
+            order_code=order_code,
             play_date=b.play_date,
             start_time=ctx.hhmm(b.play_date, b.start_at),
             end_time=ctx.hhmm(b.play_date, b.end_at),
@@ -56,7 +58,7 @@ async def recent(
             amount=b.amount,
             payment_status=b.payment_status,
         )
-        for b, name in rows
+        for b, name, order_code in rows
     ]
 
 

@@ -15,7 +15,13 @@ from app.core.errors import AppError
 from app.modules.booking_engine import outbox
 from app.modules.booking_engine.booking_service import booking_item, normalize_code, ticket_item
 from app.modules.booking_engine.common import STALE_ITEM, Ctx, audit_actor, context, not_found
-from app.modules.booking_engine.dto import Actor, CollectIn, ItemOut, UncollectibleIn
+from app.modules.booking_engine.dto import (
+    Actor,
+    CollectIn,
+    ItemOut,
+    OrderCollectIn,
+    UncollectibleIn,
+)
 from app.modules.booking_engine.models import Booking, EventSession, Ticket
 
 REASON_MAX = 200
@@ -60,19 +66,19 @@ def _entity(item: Booking | Ticket) -> str:
     return "booking" if isinstance(item, Booking) else "ticket"
 
 
-async def collect(
-    session: AsyncSession, tenant_id: int, actor: Actor, code: str, data: CollectIn
-) -> ItemOut:
-    """Thu tiền mặt: số tiền = ``amount`` (không sửa, thu đủ 1 lần); người thu = người thao tác."""
+def cash_only(data: CollectIn | OrderCollectIn) -> None:
     if data.method != "cash":
         raise AppError(
             "E-PAY-0",
             "Chưa hỗ trợ thu chuyển khoản tại quầy. Vui lòng thu tiền mặt.",
             422,
         )
-    ctx = await context(session, tenant_id)
-    item, _ = await _lock(session, tenant_id, code)
-    _check_fresh(item, data.version)
+
+
+def mark_paid(
+    session: AsyncSession, ctx: Ctx, tenant_id: int, actor: Actor, item: Booking | Ticket
+) -> None:
+    """Ghi Đã thanh toán (tiền mặt) cho một khối / vé đã khóa dòng + nhật ký + sự kiện."""
     item.payment_status = "paid"
     item.payment_method = "cash"
     item.paid_at = ctx.now
@@ -93,6 +99,17 @@ async def collect(
         "payment.collected",
         {"code": item.code, "kind": _entity(item), "method": "cash", "amount": item.amount},
     )
+
+
+async def collect(
+    session: AsyncSession, tenant_id: int, actor: Actor, code: str, data: CollectIn
+) -> ItemOut:
+    """Thu tiền mặt: số tiền = ``amount`` (không sửa, thu đủ 1 lần); người thu = người thao tác."""
+    cash_only(data)
+    ctx = await context(session, tenant_id)
+    item, _ = await _lock(session, tenant_id, code)
+    _check_fresh(item, data.version)
+    mark_paid(session, ctx, tenant_id, actor, item)
     return await _view(session, ctx, item)
 
 

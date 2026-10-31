@@ -176,7 +176,13 @@ async def test_register_ticket_and_session_detail(admin, staff):
     item = await staff.get(f"{BK}/items/{t1['code']}")
     assert item.status_code == 200 and item.json()["kind"] == "ticket"
     found = await staff.get(f"{BK}/search", params={"code": t1["code"].lower()})
-    assert found.json() == {"kind": "ticket", "code": t1["code"], "play_date": today().isoformat()}
+    assert found.json() == {
+        "kind": "ticket",
+        "code": t1["code"],
+        "play_date": today().isoformat(),
+        "order_code": None,
+        "codes": [],
+    }
     found = await staff.get(f"{BK}/search", params={"code": ev["code"]})
     assert found.json()["kind"] == "session"
 

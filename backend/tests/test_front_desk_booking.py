@@ -119,7 +119,9 @@ async def test_counter_booking_member(admin, staff):
     r = await book(staff, court["code"], hour, customer=member("hv0087"))
     assert r.status_code == 201, r.text
     item = r.json()
-    assert re.fullmatch(rf"BK-{today():%Y%m%d}-\d{{3}}", item["code"])
+    # Mã đơn BK-YYYYMMDD-NNN, khối nhận mã con -01 (T-019)
+    assert re.fullmatch(rf"BK-{today():%Y%m%d}-\d{{3}}", item["order_code"])
+    assert item["code"] == f"{item['order_code']}-01"
     assert item["kind"] == "booking" and item["source"] == "counter" and item["version"] == 1
     assert item["customer"] == {
         "name": "Phạm Thu Trang",
@@ -391,7 +393,23 @@ async def test_search_code_and_item(admin, staff):
     code = r.json()["code"]
     res = await staff.get(f"{BK}/search", params={"code": f"  {code.lower()} "})
     assert res.status_code == 200
-    assert res.json() == {"kind": "booking", "code": code, "play_date": today().isoformat()}
+    order_code = r.json()["order_code"]
+    assert res.json() == {
+        "kind": "booking",
+        "code": code,
+        "play_date": today().isoformat(),
+        "order_code": order_code,
+        "codes": [],
+    }
+    # Mã đơn -> danh sách khối
+    res = await staff.get(f"{BK}/search", params={"code": order_code})
+    assert res.json() == {
+        "kind": "order",
+        "code": order_code,
+        "play_date": today().isoformat(),
+        "order_code": order_code,
+        "codes": [code],
+    }
 
     res = await staff.get(f"{BK}/search", params={"code": "bk-20000101-999"})
     assert res.status_code == 404

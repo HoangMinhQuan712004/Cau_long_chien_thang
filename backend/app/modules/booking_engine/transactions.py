@@ -19,7 +19,14 @@ from app.modules.booking_engine.dto import (
     TransactionsOut,
     TransactionsQuery,
 )
-from app.modules.booking_engine.models import Allocation, Booking, EventSession, Resource, Ticket
+from app.modules.booking_engine.models import (
+    Allocation,
+    Booking,
+    BookingOrder,
+    EventSession,
+    Resource,
+    Ticket,
+)
 
 PAGE_SIZE = 8
 MAX_DAYS = 92
@@ -71,6 +78,7 @@ async def list_transactions(
         select(
             literal("booking", String).label("kind"),
             Booking.code,
+            BookingOrder.code.label("order_code"),
             Booking.play_date,
             Booking.start_at,
             Booking.end_at,
@@ -84,6 +92,7 @@ async def list_transactions(
             Booking.source,
         )
         .join(Resource, Resource.id == Booking.resource_id)
+        .join(BookingOrder, BookingOrder.id == Booking.order_id)
         .where(
             Booking.tenant_id == tenant_id,
             Booking.play_date.between(date_from, date_to),
@@ -108,6 +117,7 @@ async def list_transactions(
         select(
             literal("ticket", String).label("kind"),
             Ticket.code,
+            literal(None, String).label("order_code"),
             EventSession.play_date,
             EventSession.start_at,
             EventSession.end_at,
@@ -154,6 +164,7 @@ async def list_transactions(
             TransactionRow(
                 kind=r.kind,
                 code=r.code,
+                order_code=r.order_code,
                 play_date=r.play_date,
                 start_time=ctx.hhmm(r.play_date, r.start_at),
                 end_time=ctx.hhmm(r.play_date, r.end_at),

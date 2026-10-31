@@ -269,6 +269,7 @@ class Checkout(_CustomerSnapshot, Base):
     __tablename__ = "checkout"
     __table_args__ = (
         UniqueConstraint("tenant_id", "pay_ref"),
+        UniqueConstraint("tenant_id", "order_code", name="uq_checkout_tenant_id_order_code"),
         CheckConstraint("status IN ('pending', 'paid', 'expired')", name="status"),
         CheckConstraint("amount >= 0 AND paid_amount >= 0", name="amounts"),
         CheckConstraint("customer_kind IN ('member', 'temp')", name="customer_kind"),
@@ -288,6 +289,8 @@ class Checkout(_CustomerSnapshot, Base):
     tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
     token_hash: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True)
     pay_ref: Mapped[str] = mapped_column(String(20))
+    # Mã đơn cấp lúc giữ chỗ (ADR-010); pay_ref = mã này bỏ dấu gạch. Hết hạn -> mã bỏ luôn
+    order_code: Mapped[str] = mapped_column(String(30))
     play_date: Mapped[date] = mapped_column(Date)
     amount: Mapped[int] = mapped_column(Integer)
     paid_amount: Mapped[int] = mapped_column(Integer, server_default=text("0"))
@@ -340,8 +343,38 @@ class Hold(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class BookingOrder(_CustomerSnapshot, Base):
+    """Đơn đặt (ADR-010): một checkout online đã thanh toán, hoặc một lần bấm Đặt sân ở quầy.
+
+    Mã ``BK-YYYYMMDD-NNN`` (dãy số chung với sự kiện); mỗi khối (booking) mang mã con
+    ``{mã đơn}-NN``. Giá, thanh toán, chống trùng lịch vẫn theo từng khối.
+    """
+
+    __tablename__ = "booking_order"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "code"),
+        CheckConstraint("channel IN ('online', 'counter')", name="channel"),
+        CheckConstraint("customer_kind IN ('member', 'temp')", name="customer_kind"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
+    code: Mapped[str] = mapped_column(String(30))
+    play_date: Mapped[date] = mapped_column(Date)
+    channel: Mapped[str] = mapped_column(String(10))
+    checkout_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.checkout.id", ondelete="RESTRICT"), unique=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by_label: Mapped[str] = mapped_column(String(100))
+
+
 class Booking(_CustomerSnapshot, _Payment, Base):
-    """Một lượt đặt trên **một** tài nguyên, các khung liền nhau; tiền chốt lúc đặt (BR-009)."""
+    """Một khối của đơn: **một** tài nguyên, các khung liền nhau; tiền chốt lúc đặt (BR-009).
+
+    ``code`` = mã con ``{mã đơn}-NN`` (ADR-010), ``seq`` = NN.
+    """
 
     __tablename__ = "booking"
     __table_args__ = (
@@ -351,11 +384,17 @@ class Booking(_CustomerSnapshot, _Payment, Base):
         Index("ix_booking_tenant_play_date", "tenant_id", "play_date"),
         Index("ix_booking_tenant_status_play_date", "tenant_id", "payment_status", "play_date"),
         Index("ix_booking_tenant_customer_ref", "tenant_id", "customer_ref"),
+        UniqueConstraint("order_id", "seq"),
+        CheckConstraint("seq BETWEEN 1 AND 99", name="seq"),
         {"schema": SCHEMA},
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
+    order_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA}.booking_order.id", ondelete="RESTRICT"), index=True
+    )
+    seq: Mapped[int] = mapped_column(SmallInteger)
     code: Mapped[str] = mapped_column(String(30))
     source: Mapped[str] = mapped_column(String(10))
     resource_id: Mapped[int] = mapped_column(
