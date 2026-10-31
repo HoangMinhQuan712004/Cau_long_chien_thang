@@ -13,7 +13,7 @@ from email_validator import EmailNotValidError, validate_email
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import AuditActor, audit
+from app.core.audit import AuditActor, audit, audit_changes, audit_detail
 from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
 from app.modules.members import rackets
@@ -168,6 +168,25 @@ async def _validate(
     return full_name, nickname, email
 
 
+SELF_LABELS = {
+    "full_name": "Họ tên",
+    "nickname": "Biệt danh",
+    "email": "Email",
+    "tier": "Trình độ",
+    "racket": "Vợt đang dùng",
+    "show_on_records": "Hiện trên Video & kỷ lục",
+}
+
+
+def _shown(values: dict) -> dict:
+    """Giá trị hiển thị: email che, công tắc Bật / Tắt."""
+    return {
+        **values,
+        "email": mask_email(values["email"]),
+        "show_on_records": "Bật" if values["show_on_records"] else "Tắt",
+    }
+
+
 async def update_profile(
     session: AsyncSession, customer_id: int, data: SelfUpdate, actor: AuditActor
 ) -> tuple[SelfProfile, bool]:
@@ -192,22 +211,22 @@ async def update_profile(
         "racket": racket,
         "show_on_records": data.show_on_records,
     }
-    changes = {
-        name: [getattr(c, name), value]
-        for name, value in after.items()
-        if getattr(c, name) != value
-    }
-    if not changes:
+    before = {name: getattr(c, name) for name in after}
+    changed = [name for name, value in after.items() if before[name] != value]
+    if not changed:
         return await _to_profile(session, c), False
 
-    for name, (_, value) in changes.items():
-        setattr(c, name, value)
+    for name in changed:
+        setattr(c, name, after[name])
     c.version += 1
-    if "email" in changes:
-        changes["email"] = [mask_email(v) for v in changes["email"]]
-    detail: dict = {"changes": changes}
+    # Định dạng Lịch sử thao tác (PR #22): "Tên ô: trước → sau"; email luôn che (T-016)
+    detail = audit_detail(
+        c.member_code,
+        c.full_name,
+        audit_changes(SELF_LABELS, _shown(before), _shown(after)),
+    )
     await session.flush()
-    if "full_name" in changes:
+    if "full_name" in changed:
         # Tên khách trên booking / vé (kể cả cũ) hiện tên mới của hồ sơ (T-016 AC13, BR-004);
         # số booking + vé đã đổi tên ghi cùng dòng nhật ký
         detail["renamed_items"] = await engine.rename_customer(session, booking_refs(c), full_name)

@@ -17,6 +17,7 @@ from sqlalchemy import text
 from app.core.db import engine
 from tests.conftest import API, _client, idem, sign_in
 from tests.helpers_booking import book, new_court, random_phone, safe_hour, temp
+from tests.qa_accounts import db_account
 
 sepay = importlib.import_module("tests.test_qa_T-008").sepay  # fixture cấu hình SePay thử
 M = f"{API}/members"
@@ -678,14 +679,14 @@ async def test_ac19_audit_rows_have_no_phone_and_name_the_actor(admin, staff, ma
         c=m["member_code"],
     )
     assert len(rows) == 1 and re.match(r"NV\d{3}", rows[0]["actor_label"]), rows[0]["actor_label"]
-    for form in (m["phone"], m["phone"][1:], "+84" + m["phone"][1:], m["phone"][-6:]):
-        assert form not in rows[0]["d"], form
+    # PR #22 (BR-007): nhật ký ghi SĐT đầy đủ, chỉ Admin xem – người dùng đã duyệt; mật khẩu thì không bao giờ
+    assert "password" not in rows[0]["d"].lower() and "mật khẩu" not in rows[0]["d"].lower()
     t = (await add_temp(admin, made)).json()
     rows = await q(
         "SELECT actor_label, detail::text AS d FROM audit_log WHERE action LIKE 'member.temp%' AND entity_code=:r",
         r=t["ref"],
     )
-    assert rows and t["phone"] not in rows[0]["d"] and rows[0]["actor_label"] == "Admin"
+    assert rows and rows[0]["actor_label"] == "Admin"
 
 
 async def test_ac19_failed_save_writes_nothing(admin, made):
@@ -705,9 +706,6 @@ async def test_ac19_failed_save_writes_nothing(admin, made):
     assert n1 == n0
 
 
-@deviation(
-    "D13", "member.update ghi giá trị trước -> sau từng ô (AC19); PR chỉ ghi tên ô + giá trị mới"
-)
 async def test_ac19_update_audit_has_before_and_after(admin, made):
     m = await add_ok(admin, made, tier="Trung bình")
     await patch_m(admin, f"{M}/{m['member_code']}", {"tier": "Khá"})
@@ -985,11 +983,9 @@ async def test_account_registered_before_the_club_cannot_read_the_member_card(ad
     phone = random_phone()
     made.append(phone)
     async with _client() as attacker:
-        r = await attacker.post(
-            f"{API}/auth/register",
-            json={"full_name": "Kẻ đăng ký trước", "phone": phone, "password": "Ke-Tan-Cong-1"},
-        )
-        assert r.status_code == 201, r.text
+        await db_account(
+            attacker, phone, "Kẻ đăng ký trước", "Ke-Tan-Cong-1"
+        )  # T-021: /auth/register đóng
         m = await add_ok(admin, made, phone=phone)
         row = (
             await q(
@@ -1026,16 +1022,23 @@ async def test_member_card_is_only_the_own_one(admin, made):
         )
 
 
-async def test_temp_profile_has_no_member_card(admin, made):
+async def test_temp_profile_has_no_card_until_the_owner_verifies_by_otp(admin, made):
     t = (await add_temp(admin, made)).json()
     async with _client() as c:
-        r = await c.post(
-            f"{API}/auth/register",
-            json={"full_name": "Có tạm", "phone": t["phone"], "password": "Co-Tam-Pass-1"},
+        await db_account(c, t["phone"], "Có tạm", "Co-Tam-Pass-1")
+        await x(
+            "UPDATE users SET phone_verified_at = now() WHERE phone=:p", p=t["phone"]
+        )  # xác minh giả, không qua OTP
+        assert (await c.get(f"{API}/me/member")).status_code == 404, "hồ sơ tạm chưa phải hội viên"
+        # T-021 R1: chủ SĐT tự xác minh bằng OTP → được nâng lên hội viên
+        req = await c.post(f"{API}/web/booking/phone/request", json={"phone": t["phone"]})
+        ver = await c.post(
+            f"{API}/web/booking/phone/verify",
+            json={"phone": t["phone"], "otp": req.json()["test_otp"]},
         )
-        assert r.status_code == 201
-        await x("UPDATE users SET phone_verified_at = now() WHERE phone=:p", p=t["phone"])
-        assert (await c.get(f"{API}/me/member")).status_code == 404, "temp profile is not a member"
+        assert ver.status_code == 200 and ver.json()["became_member"] is True, ver.text
+        card = await c.get(f"{API}/me/member")
+        assert card.status_code == 200 and card.json()["member_code"] == ver.json()["member_code"]
 
 
 # ============================================================ đồng thời

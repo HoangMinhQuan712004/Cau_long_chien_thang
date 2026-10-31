@@ -32,6 +32,7 @@ from tests.conftest import (
     sign_in,
     unique_phone,
 )
+from tests.qa_accounts import db_account
 
 WEB = f"{API}/web/booking"
 PR = f"{API}/auth/password-reset"
@@ -78,13 +79,9 @@ def hmac_otp(otp: str) -> str:
 
 
 async def register(anon: AsyncClient, phone: str | None = None, password: str = CUSTOMER_PASSWORD):
+    """Tài khoản khách chưa xác minh SĐT, đã đăng nhập trên ``anon`` (T-021: /auth/register đóng, tạo qua DB)."""
     phone = phone or unique_phone()
-    r = await anon.post(
-        f"{API}/auth/register",
-        json={"full_name": "Khách OTP", "phone": phone, "password": password},
-    )
-    assert r.status_code == 201, r.text
-    return phone
+    return await db_account(anon, phone, "Khách OTP", password)
 
 
 # ---------------------------------------------------------------- Google (khóa RSA thử)
@@ -965,10 +962,7 @@ async def test_ac26_verified_logged_in_customer_skips_the_otp_step(admin):
     code = await make_court(admin)
     async with _client() as c:
         phone = unique_phone()
-        await c.post(
-            f"{API}/auth/register",
-            json={"full_name": "Khách Xác Minh", "phone": phone, "password": CUSTOMER_PASSWORD},
-        )
+        await db_account(c, phone, "Khách Xác Minh")
         # chưa xác minh -> vẫn cần token
         r = await c.post(f"{WEB}/checkouts", json=body_for(code, phone), headers=idem())
         assert r.status_code == 403 and err(r)["code"] == "E-WEB-8"
@@ -1199,10 +1193,7 @@ async def test_ac26_verified_customer_skips_otp_even_when_phone_is_typed_differe
     code = await make_court(admin)
     async with _client() as c:
         phone = unique_phone()
-        await c.post(
-            f"{API}/auth/register",
-            json={"full_name": "Khách Gõ Khác", "phone": phone, "password": CUSTOMER_PASSWORD},
-        )
+        await db_account(c, phone, "Khách Gõ Khác")
         await x("UPDATE users SET phone_verified_at = now() WHERE phone=:p", p=phone)
         spaced = f"+84 {phone[1:4]} {phone[4:7]} {phone[7:]}"
         ok = await c.post(f"{WEB}/checkouts", json=body_for(code, spaced), headers=idem())

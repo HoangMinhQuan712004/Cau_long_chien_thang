@@ -2,12 +2,19 @@
 
 import { useEffect, useId, useRef } from "react";
 import { useAnchoredPopover } from "@/hooks/use-anchored-popover";
+import { useGroupCollapse } from "@/hooks/use-group-collapse";
 import { useListbox } from "@/hooks/use-listbox";
 import { cn } from "@/lib/cn";
 import { ClearButton } from "./clear-button";
+import { DropdownGroup } from "./dropdown-group";
 import { CheckIcon, ChevronDownIcon } from "./icons";
 
-export type SelectOption = { value: string; label: string };
+export type SelectOption = {
+  value: string;
+  label: string;
+  /** Tên nhóm: mục đầu của mỗi nhóm có tiêu đề nhóm phía trên (chỉ là tiêu đề, không chọn được). */
+  group?: string;
+};
 
 type DropdownProps = {
   id?: string;
@@ -26,6 +33,8 @@ type DropdownProps = {
   clearLabel?: string;
   /** Gợi ý khi rê chuột (vd nhãn đầy đủ khi chữ bị cắt "…"). */
   title?: string;
+  /** "tree": nhóm là cha (chữ đậm, bấm để thu gọn / mở), mục con thụt vào có đường kẻ dọc nối như cây thư mục. */
+  variant?: "default" | "tree";
   className?: string;
 };
 
@@ -44,6 +53,7 @@ export function Dropdown({
   onClear,
   clearLabel,
   title,
+  variant = "default",
   className,
   ...aria
 }: DropdownProps) {
@@ -51,25 +61,38 @@ export function Dropdown({
   const listId = `${autoId}-list`;
   const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const optionId = (i: number) => `${autoId}-opt-${i}`;
   const all = placeholder !== undefined ? [{ value: "", label: placeholder }, ...options] : options;
   const selectedIndex = all.findIndex((o) => o.value === value);
+  // Bàn phím chỉ đi qua mục đang hiện (nhóm thu gọn ⇒ bỏ qua con); chỉ số của useListbox tính trên `visible`
+  const groups = useGroupCollapse(all);
+  const visible = groups.visible;
   const box = useListbox({
-    labels: all.map((o) => o.label),
-    selectedIndex,
-    onSelect: (i) => {
-      if (all[i].value !== value) onChange(all[i].value);
+    labels: visible.map((i) => all[i].label),
+    selectedIndex: visible.indexOf(selectedIndex),
+    onSelect: (v) => {
+      if (all[visible[v]].value !== value) onChange(all[visible[v]].value);
     },
   });
+  // Đóng danh sách ⇒ lần mở sau các nhóm lại mở hết (mục đang chọn luôn thấy được)
+  if (!box.isOpen && groups.hasCollapsed) groups.reset();
+  /** Mục đang trỏ, chỉ số trong `all`. */
+  const activeAt = visible[box.activeIndex] ?? -1;
   const place = useAnchoredPopover({ isOpen: box.isOpen, anchorRef: buttonRef, popoverRef: listRef, itemCount: all.length, onDismiss: box.close });
 
   // Mục đang trỏ luôn nằm trong vùng nhìn thấy
   useEffect(() => {
-    if (box.isOpen) listRef.current?.children[box.activeIndex]?.scrollIntoView({ block: "nearest" });
-  }, [box.isOpen, box.activeIndex]);
+    // Tìm theo id (danh sách có thể xen tiêu đề nhóm nên không dùng vị trí con)
+    if (box.isOpen) document.getElementById(`${autoId}-opt-${activeAt}`)?.scrollIntoView({ block: "nearest" });
+  }, [autoId, box.isOpen, activeAt]);
 
   const selected = all[selectedIndex];
   const hasClear = active && onClear !== undefined;
-  const optionId = (i: number) => `${autoId}-opt-${i}`;
+  const isTree = variant === "tree";
+  const toggleGroup = (group: string) => {
+    // Mục đang trỏ bị ẩn theo nhóm ⇒ bỏ trỏ (↓ đi lại từ đầu)
+    box.setActiveIndex(groups.toggle(group).indexOf(activeAt));
+  };
 
   return (
     <div className={cn("relative", className)}>
@@ -82,7 +105,7 @@ export function Dropdown({
         aria-haspopup="listbox"
         aria-expanded={box.isOpen}
         aria-controls={listId}
-        aria-activedescendant={box.isOpen && box.activeIndex >= 0 ? optionId(box.activeIndex) : undefined}
+        aria-activedescendant={box.isOpen && activeAt >= 0 ? optionId(activeAt) : undefined}
         title={title}
         onClick={() => (box.isOpen ? box.close() : box.open())}
         onKeyDown={box.onKeyDown}
@@ -139,26 +162,38 @@ export function Dropdown({
             place?.bottom !== undefined ? "origin-bottom" : "origin-top",
           )}
         >
-          {all.map((o, i) => (
-            <li
+          {all.map((o, i) => [
+            o.group && o.group !== all[i - 1]?.group ? (
+              <DropdownGroup
+                key={`group-${o.group}`}
+                label={o.group}
+                isTree={isTree}
+                isCollapsed={groups.isCollapsed(o.group)}
+                onToggle={() => toggleGroup(o.group ?? "")}
+              />
+            ) : null,
+            o.group && groups.isCollapsed(o.group) ? null : <li
               key={o.value}
               id={optionId(i)}
               role="option"
               aria-selected={i === selectedIndex}
               // Giữ focus ở nút (mẫu activedescendant)
               onMouseDown={(e) => e.preventDefault()}
-              onMouseMove={() => box.activeIndex !== i && box.setActiveIndex(i)}
-              onClick={() => box.choose(i)}
+              onMouseMove={() => activeAt !== i && box.setActiveIndex(visible.indexOf(i))}
+              onClick={() => box.choose(visible.indexOf(i))}
               className={cn(
-                "flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2.5 sm:px-3",
-                i === box.activeIndex && "bg-primary-soft/60",
+                "flex cursor-pointer items-center gap-2 rounded-md px-2.5 sm:px-3",
+                // Cây: cao 44px trên điện thoại (vùng chạm); con thụt vào, viền trái liền nhau thành đường kẻ dọc dưới chevron nhóm
+                isTree ? "min-h-11 sm:min-h-9" : "min-h-9",
+                isTree && o.group && "ml-4.5 rounded-l-none border-l sm:ml-5",
+                i === activeAt && "bg-primary-soft/60",
                 i === selectedIndex && "font-semibold text-primary",
               )}
             >
               <span className="min-w-0 flex-1">{o.label}</span>
               {i === selectedIndex ? <CheckIcon size={16} className="shrink-0" /> : null}
-            </li>
-          ))}
+            </li>,
+          ])}
         </ul>
       ) : null}
     </div>

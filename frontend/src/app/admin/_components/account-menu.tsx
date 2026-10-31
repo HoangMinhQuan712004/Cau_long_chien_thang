@@ -1,12 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { LogoutButton } from "@/components/logout-button";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { cn } from "@/lib/cn";
-import { ChevronDownIcon, LogOutIcon } from "@/components/ui/icons";
+import { ChevronDownIcon, HistoryIcon, LogOutIcon } from "@/components/ui/icons";
 
 type Props = {
+  role: "admin" | "staff";
   name: string;
   roleLabel: string;
   t: Dictionary["adminNav"];
@@ -19,8 +21,8 @@ function initials(name: string): string {
   return letters.join("").toLocaleUpperCase("vi");
 }
 
-/** Tài khoản trên header: bấm mở menu nhỏ (tên, vai trò, Đăng xuất); đóng bằng Esc hoặc bấm ra ngoài. */
-export function AccountMenu({ name, roleLabel, t }: Props) {
+/** Tài khoản trên header: bấm mở menu nhỏ (tên, vai trò, Lịch sử thao tác – chỉ Admin, Đăng xuất); đóng bằng Esc hoặc bấm ra ngoài. */
+export function AccountMenu({ role, name, roleLabel, t }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -92,6 +94,20 @@ export function AccountMenu({ name, roleLabel, t }: Props) {
             <p className="truncate text-sm font-semibold">{name}</p>
             <p className="truncate text-xs text-muted">{roleLabel}</p>
           </div>
+          {role === "admin" ? (
+            <Link
+              href="/admin/lich-su-thao-tac"
+              onClick={() => setIsOpen(false)}
+              className={cn(`
+                mt-1 flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm font-medium
+                focus-ring
+                hover:bg-primary-soft/60 hover:text-primary
+              `)}
+            >
+              <HistoryIcon size={16} />
+              {t.auditLog}
+            </Link>
+          ) : null}
           <LogoutButton
             area="admin"
             className={cn(`

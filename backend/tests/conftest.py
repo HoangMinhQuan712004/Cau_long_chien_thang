@@ -4,7 +4,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -29,7 +29,8 @@ from app.core import queue, ratelimit  # noqa: E402
 from app.core.db import SessionLocal, engine  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
-from app.modules.auth.models import Role, User  # noqa: E402
+from app.modules.auth.models import OtpCode, Role, User  # noqa: E402
+from app.modules.auth.utils import normalize_phone  # noqa: E402
 from app.scripts import seed  # noqa: E402
 from tests.db_guard import reset_refusal  # noqa: E402
 
@@ -136,20 +137,73 @@ def unique_phone() -> str:
     return "08" + str(uuid.uuid4().int)[:8]
 
 
+_customer_hash: str | None = None
+
+
 @asynccontextmanager
 async def new_customer(phone: str | None = None) -> AsyncIterator[AsyncClient]:
-    """Client đã đăng ký + đăng nhập (JWT cookie) bằng một khách mới (SĐT chưa xác minh)."""
+    """Client đã đăng nhập (JWT cookie) bằng một khách mới, **SĐT chưa xác minh** – như tài khoản
+    tự đăng ký không OTP đời T-013. Từ T-021 đường đó đã đóng (410) nên tạo thẳng trong DB;
+    đăng ký thật (OTP, thành hội viên) dùng ``new_registered``."""
+    global _counter, _customer_hash
+    _counter += 1
+    if _customer_hash is None:
+        _customer_hash = hash_password(CUSTOMER_PASSWORD)
+    phone = phone or unique_phone()
+    async with SessionLocal() as s:
+        s.add(
+            User(
+                phone=phone,
+                full_name=f"Khách {_counter}",
+                hashed_password=_customer_hash,
+                role=Role.MEMBER,
+                is_active=True,
+            )
+        )
+        await s.commit()
+    async with _client() as c:
+        r = await sign_in(c, phone, CUSTOMER_PASSWORD)
+        assert r.status_code == 200, r.text
+        yield c
+
+
+async def age_otp_codes(phone: str) -> None:
+    """Mã OTP đã phát cho SĐT coi như phát từ 2 giờ trước (bỏ chờ gửi lại / giới hạn giờ)."""
+    async with SessionLocal() as s:
+        await s.execute(
+            update(OtpCode)
+            .where(OtpCode.phone == phone)
+            .values(created_at=OtpCode.created_at - timedelta(hours=2))
+        )
+        await s.commit()
+
+
+async def register(
+    client: AsyncClient, phone: str, full_name: str = "Khách Đăng Ký", password: str = ""
+):
+    """Đăng ký 2 bước (T-021) bằng mã thử; trả response của bước verify.
+
+    Lùi giờ các mã cũ của SĐT: test gửi nhiều mã cho cùng số không vướng chờ gửi lại 60 giây."""
+    await age_otp_codes(normalize_phone(phone) or phone)
+    r = await client.post(
+        f"{API}/auth/register/request",
+        json={"full_name": full_name, "phone": phone, "password": password or CUSTOMER_PASSWORD},
+    )
+    assert r.status_code == 202, r.text
+    return await client.post(
+        f"{API}/auth/register/verify", json={"phone": phone, "otp": r.json()["test_otp"]}
+    )
+
+
+@asynccontextmanager
+async def new_registered(
+    phone: str | None = None, full_name: str | None = None
+) -> AsyncIterator[AsyncClient]:
+    """Client vừa đăng ký 2 bước (SĐT đã xác minh = hội viên, T-021) và đã đăng nhập."""
     global _counter
     _counter += 1
     async with _client() as c:
-        r = await c.post(
-            f"{API}/auth/register",
-            json={
-                "full_name": f"Khách {_counter}",
-                "phone": phone or unique_phone(),
-                "password": CUSTOMER_PASSWORD,
-            },
-        )
+        r = await register(c, phone or unique_phone(), full_name or f"Khách {_counter}")
         assert r.status_code == 201, r.text
         yield c
 

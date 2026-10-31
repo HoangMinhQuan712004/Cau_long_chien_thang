@@ -14,9 +14,10 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import audit
+from app.core.audit import audit, audit_detail
 from app.core.errors import AppError
 from app.modules.booking_engine import outbox
+from app.modules.booking_engine.audit_fields import paid_changes
 from app.modules.booking_engine.common import Ctx, audit_actor, context
 from app.modules.booking_engine.dto import (
     Actor,
@@ -24,7 +25,13 @@ from app.modules.booking_engine.dto import (
     OrderCollectIn,
     OrderCollectOut,
 )
-from app.modules.booking_engine.models import Allocation, Booking, BookingOrder, Resource
+from app.modules.booking_engine.models import (
+    Allocation,
+    Booking,
+    BookingOrder,
+    Resource,
+    ResourceType,
+)
 
 CHILD_RE = re.compile(r"^(?P<order>.+)-(?P<seq>\d{2})$")
 MAX_BLOCKS = 99
@@ -164,17 +171,21 @@ async def collect_order(
         raise AppError("E-BOOK-4", "Đơn không còn khối nào chưa thanh toán.", 409)
     for b in unpaid:
         mark_paid(session, ctx, tenant_id, actor, b)
+    # Dòng tổng của cả đơn (màn Lịch sử thao tác hiện từng khối ``payment.collect`` ở trên)
     audit(
         session,
         audit_actor(actor),
         "payment.collect_order",
         "booking_order",
         order.code,
-        {
-            "codes": [b.code for b in unpaid],
-            "amount": sum(b.amount for b in unpaid),
-            "method": "cash",
-        },
+        audit_detail(
+            order.code,
+            unpaid[0].customer_name,
+            paid_changes("Tiền mặt"),
+            codes=[b.code for b in unpaid],
+            amount=sum(b.amount for b in unpaid),
+            method="cash",
+        ),
     )
     await session.flush()
     items = []
@@ -189,10 +200,21 @@ async def collect_order(
     )
 
 
-def emit_created(
+async def emit_created(
     session: AsyncSession, tenant_id: int, order: BookingOrder, block: Booking
 ) -> None:
-    """Sự kiện ``booking.created`` cho từng khối, mang cả mã đơn (AC8; phòng chơi gắn mã con)."""
+    """Sự kiện ``booking.created`` cho từng khối, mang cả mã đơn (AC8; phòng chơi gắn mã con).
+
+    Kèm sân + giờ cho phòng chơi (T-017). **Không** mang ``customer_ref`` / SĐT: payload được ghi
+    log – phòng chơi lấy khách qua ``api.room_sources``.
+    """
+    row = (
+        await session.execute(
+            select(Resource.code, Resource.name, ResourceType.name)
+            .join(ResourceType, ResourceType.id == Resource.resource_type_id)
+            .where(Resource.id == block.resource_id)
+        )
+    ).one()
     outbox.add_event(
         session,
         tenant_id,
@@ -202,5 +224,10 @@ def emit_created(
             "order_code": order.code,
             "source": block.source,
             "play_date": block.play_date.isoformat(),
+            "resource_code": row[0],
+            "resource_name": row[1],
+            "resource_type_name": row[2],
+            "start_at": block.start_at.isoformat(),
+            "end_at": block.end_at.isoformat(),
         },
     )

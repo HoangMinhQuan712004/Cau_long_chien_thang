@@ -84,6 +84,28 @@ def upload_limit(path: str) -> int | None:
     return None
 
 
+def _too_large(path: str):
+    """Ảnh đại diện quá lớn -> câu của màn ảnh (E-HV-13); đường khác -> E-SEC-6."""
+    if upload_limit(path) is not None:
+        return _error(413, "E-HV-13", "Ảnh phải là JPG, PNG hoặc WebP, tối đa 5 MB.")
+    return _error(413, "E-SEC-6", "Dữ liệu gửi lên quá lớn.")
+
+
+async def _drain(receive: Receive, already: int, cap: int) -> bool:
+    """Đọc bỏ phần body còn lại (tối đa ``cap`` byte) trước khi trả lỗi: đóng kết nối khi client
+    còn đang gửi làm proxy (Next rewrite) báo ngắt kết nối thay vì chuyển JSON lỗi. True nếu đã
+    đọc hết."""
+    size = already
+    while size <= cap:
+        message = await receive()
+        if message["type"] == "http.disconnect":
+            return False
+        size += len(message.get("body", b""))
+        if not message.get("more_body", False):
+            return True
+    return False
+
+
 class BodyLimitMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app
@@ -93,11 +115,15 @@ class BodyLimitMiddleware:
             await self.app(scope, receive, send)
             return
         limit = upload_limit(scope["path"]) or settings.MAX_BODY_BYTES
-        too_large = _error(413, "E-SEC-6", "Dữ liệu gửi lên quá lớn.")
+        too_large = _too_large(scope["path"])
+        # Đọc bỏ tối đa chừng này rồi mới trả lỗi; quá nữa thì đóng (không đọc vô hạn)
+        drain_cap = max(4 * limit, 1024 * 1024)
         length = _headers(scope).get(b"content-length")
         if length is not None:
             try:
                 if int(length) > limit:
+                    if int(length) <= drain_cap:
+                        await _drain(receive, 0, drain_cap)
                     await too_large(scope, receive, send)
                     return
             except ValueError:
@@ -115,6 +141,8 @@ class BodyLimitMiddleware:
             body = message.get("body", b"")
             size += len(body)
             if size > limit:
+                if message.get("more_body", False):
+                    await _drain(receive, size, drain_cap)
                 await too_large(scope, receive, send)
                 return
             chunks.append(body)

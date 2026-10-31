@@ -56,6 +56,7 @@ def to_row(c: Customer, bookings: int) -> MemberRow:
         bookings=bookings,
         created_at=c.created_at,
         version=c.version,
+        source=c.source,
     )
 
 

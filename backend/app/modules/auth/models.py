@@ -38,8 +38,10 @@ STAFF_CODE_SEQ = Sequence("staff_code_seq", metadata=Base.metadata)
 class User(TimestampMixin, Base):
     __tablename__ = "users"
     __table_args__ = (
+        # Tài khoản bị gỡ SĐT mà không còn cách đăng nhập khác thì bị vô hiệu (T-021 AC3)
         CheckConstraint(
-            "phone IS NOT NULL OR username IS NOT NULL OR google_sub IS NOT NULL", name="login_id"
+            "phone IS NOT NULL OR username IS NOT NULL OR google_sub IS NOT NULL OR NOT is_active",
+            name="login_id",
         ),
     )
 
@@ -104,6 +106,7 @@ class OtpPurpose(enum.StrEnum):
     PASSWORD_RESET = "password_reset"  # quên mật khẩu (chưa đăng nhập)
     PHONE_VERIFY = "phone_verify"  # khách đã đăng nhập gắn / xác minh SĐT
     BOOKING_PHONE = "booking_phone"  # đặt online: xác minh SĐT trước khi giữ chỗ
+    REGISTER = "register"  # đăng ký tài khoản (T-021): dữ liệu chờ ở ``registration_requests``
 
 
 class OtpCode(Base):
@@ -131,3 +134,18 @@ class OtpCode(Base):
     token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     ip: Mapped[str | None] = mapped_column(String(45))
+
+
+class RegistrationRequest(Base):
+    """Dữ liệu đăng ký chờ OTP (T-021): **chưa** tạo tài khoản; mật khẩu đã băm.
+
+    Một dòng cho mỗi mã OTP đăng ký; xóa theo mã (job dọn mã 24 giờ) và ngay khi đăng ký xong.
+    """
+
+    __tablename__ = "registration_requests"
+
+    otp_code_id: Mapped[int] = mapped_column(
+        ForeignKey("otp_codes.id", ondelete="CASCADE"), primary_key=True
+    )
+    full_name: Mapped[str] = mapped_column(String(100))
+    hashed_password: Mapped[str] = mapped_column(String(255))

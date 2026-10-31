@@ -10,9 +10,16 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import AuditActor, audit
+from app.core.audit import AuditActor, Value, audit, audit_change, audit_changes, audit_detail
 from app.core.errors import AppError
 from app.modules.booking_engine import occupancy, outbox
+from app.modules.booking_engine.audit_fields import (
+    RESOURCE_LABELS,
+    active_label,
+    hours_values,
+    price_cell_label,
+    vnd,
+)
 from app.modules.booking_engine.dto import (
     Actor,
     PriceCellOut,
@@ -259,13 +266,13 @@ async def create_resource(
             created_by_label=actor.label,
         )
     )
-    detail = {
+    after = {
         "name": name,
-        "resource_type": rtype.code,
-        "open_time": to_hhmm(hours.open_minute),
-        "close_time": to_hhmm(hours.close_minute),
-        "peak_bands": hours.peak_bands_hhmm,
+        "resource_type": rtype.name,
+        **hours_values(hours),
+        "is_active": active_label(True),
     }
+    detail = audit_detail(code, name, audit_changes(RESOURCE_LABELS, {}, after))
     audit(session, _audit_actor(actor), "config.resource.create", "resource", code, detail)
     outbox.add_event(session, tenant_id, "config.resource.created", {"code": code})
     await session.flush()
@@ -284,12 +291,17 @@ async def update_resource(
     tomorrow = today + timedelta(days=1)
     tz = tz_of(tenant)
     changes: dict = {}
+    # Giá trị hiển thị trước / sau cho Lịch sử thao tác
+    before: dict[str, Value] = {}
+    after: dict[str, Value] = {}
+    extra: dict[str, str] = {}
 
     if data.name is not None:
         name = _clean_name(data.name, label)
         if name != r.name:
             await _ensure_unique_name(session, tenant_id, name, label, exclude_id=r.id)
             changes["name"] = {"from": r.name, "to": name}
+            before["name"], after["name"] = r.name, name
             r.name = name
 
     if data.resource_type_code is not None:
@@ -297,6 +309,7 @@ async def update_resource(
         if rtype.id != r.resource_type_id:
             old = await session.get(ResourceType, r.resource_type_id)
             changes["resource_type"] = {"from": old.code, "to": rtype.code}
+            before["resource_type"], after["resource_type"] = old.name, rtype.name
             r.resource_type_id = rtype.id
 
     if data.is_active is not None and data.is_active != r.is_active:
@@ -311,6 +324,8 @@ async def update_resource(
                     **occupancy.listing(busy),
                 )
         changes["is_active"] = {"from": r.is_active, "to": data.is_active}
+        before["is_active"] = active_label(r.is_active)
+        after["is_active"] = active_label(data.is_active)
         r.is_active = data.is_active
 
     if any(v is not None for v in (data.open_time, data.close_time, data.peak_bands)):
@@ -362,6 +377,9 @@ async def update_resource(
                         created_by_label=actor.label,
                     )
                 )
+            before.update(hours_values(base))
+            after.update(hours_values(hours))
+            extra["effective_from"] = f"{tomorrow:%d/%m/%Y}"
             changes["schedule"] = {
                 "effective_from": tomorrow.isoformat(),
                 "open_time": to_hhmm(hours.open_minute),
@@ -379,7 +397,9 @@ async def update_resource(
             if _sqlstate(e) == UNIQUE_VIOLATION:
                 raise _duplicate_name(label) from None
             raise
-        audit(session, _audit_actor(actor), "config.resource.update", "resource", r.code, changes)
+        cell_changes = audit_changes(RESOURCE_LABELS, before, after)
+        detail = audit_detail(r.code, r.name, cell_changes, **extra)
+        audit(session, _audit_actor(actor), "config.resource.update", "resource", r.code, detail)
         outbox.add_event(
             session, tenant_id, "config.resource.updated", {"code": r.code, "fields": list(changes)}
         )
@@ -447,20 +467,16 @@ async def update_price_table(
         (p.resource_type_id, p.day_type, p.band): p.price_per_hour
         for p in await session.scalars(select(PriceRule).where(PriceRule.tenant_id == tenant_id))
     }
-    changes = []
+    cell_changes = []  # Lịch sử thao tác: 1 lần lưu = 1 dòng, mỗi ô đổi 1 cặp trước → sau
     for (type_code, day_type, band), price in sorted(cells.items()):
         type_id = types[type_code].id
         old = existing.get((type_id, day_type, band))
         if old == price:
             continue
-        changes.append(
-            {
-                "resource_type": type_code,
-                "day_type": day_type,
-                "band": band,
-                "from": old,
-                "to": price,
-            }
+        cell_changes.append(
+            audit_change(
+                price_cell_label(types[type_code].name, day_type, band), vnd(old), vnd(price)
+            )
         )
         stmt = insert(PriceRule).values(
             tenant_id=tenant_id,
@@ -489,7 +505,7 @@ async def update_price_table(
         "config.price.update",
         "price_table",
         f"v{tenant.version}",
-        {"version": tenant.version, "changes": changes},
+        audit_detail(None, "Bảng giá", cell_changes, version=tenant.version),
     )
     outbox.add_event(session, tenant_id, "config.price.updated", {"version": tenant.version})
     await session.flush()

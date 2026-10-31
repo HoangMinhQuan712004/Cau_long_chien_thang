@@ -136,6 +136,12 @@ export const requestPhoneVerify = (phone: string) =>
 export const verifyPhone = (phone: string, otp: string) =>
   callOtpApi(() => api.POST("/api/v1/auth/phone/verify", { body: { phone, otp } }));
 
+// Đăng ký 2 bước (T-021): gửi mã OTP tới SĐT (chưa tạo tài khoản) ⇒ nhập đúng mã thì tạo tài khoản + hội viên + đăng nhập luôn
+export const registerRequest = (body: { full_name: string; phone: string; password: string }) =>
+  callOtpApi(() => api.POST("/api/v1/auth/register/request", { body }));
+export const registerVerify = (phone: string, otp: string) =>
+  callOtpApi(() => api.POST("/api/v1/auth/register/verify", { body: { phone, otp } }));
+
 // Mốc (ms) được bấm "Gửi lại mã"; 429 vẫn có mốc vì mã trước còn dùng được; lỗi khác ⇒ null
 export function otpResendAt(result: { ok: true; resend_after: number } | OtpFailure): number | null {
   if (result.ok) return Date.now() + result.resend_after * 1000;

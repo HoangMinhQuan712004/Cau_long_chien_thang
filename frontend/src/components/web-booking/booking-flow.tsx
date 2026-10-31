@@ -10,7 +10,8 @@ import { errorText, write } from "@/lib/api/write";
 import { formatLongDate, formatVnd } from "@/lib/format";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { MemberHint } from "./member-hint";
-import { BookingPhoneOtp } from "./phone-otp";
+import { toast } from "@/lib/feedback";
+import { BookingPhoneOtp, type VerifiedAccount } from "./phone-otp";
 import { getWebCalendar, requestBookingPhone, sendCheckout } from "./requests";
 import { MAX_CELLS, RESTORE_KEY, type Cell, type WebCalendar } from "./types";
 
@@ -298,6 +299,21 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
       .catch(() => {});
   }, []);
 
+  // Đặt online lúc đã đăng nhập: xác minh SĐT xong có thể thành hội viên / gộp tài khoản (T-021). Việc đặt sân vẫn tiếp tục.
+  function afterAccountVerified(a: VerifiedAccount) {
+    if (a.becameMember) toast(a.memberCode ? `Bạn đã là hội viên ${a.memberCode}` : "Bạn đã là hội viên", "Mục \"Khu hội viên\" đã có ở menu tài khoản.");
+    else if (a.reason === "E-AUTH-31") toast("Tài khoản hội viên đang bị ngừng. Vui lòng liên hệ quầy.", undefined, "error");
+    // Gộp tài khoản: cookie đã đổi ⇒ lấy lại thông tin tài khoản
+    if (a.merged) {
+      void api
+        .GET("/api/v1/auth/me")
+        .then(({ data }) => data && setMe({ full_name: data.full_name, phone: data.phone ?? null, phone_verified: data.phone_verified }))
+        .catch(() => {});
+    }
+    // Header (menu "Khu hội viên") là server component ⇒ làm mới
+    if (a.becameMember || a.merged) router.refresh();
+  }
+
   // ---- Bước 2: kiểm tra + gửi ----
   const cleanName = form.name.trim().replace(/\s+/g, " ");
   const phone = normalizePhone(form.phone);
@@ -347,7 +363,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
     try {
       // Giới hạn 6 lượt tạo / 10 phút / IP: báo ngay khi bị chặn, không tự gửi lại (mỗi lần gửi lại cũng bị tính)
       const res = await write(
-        (key) => sendCheckout(key, { date, slots, full_name: cleanName, phone, ...(note ? { note } : {}), ...(phoneToken ? { phone_token: phoneToken } : {}) }),
+        (key) => sendCheckout(key, { date, slots, full_name: cleanName, phone, as_member: false, ...(note ? { note } : {}), ...(phoneToken ? { phone_token: phoneToken } : {}) }),
         { retryRateLimit: false },
       );
       if (res.ok) {
@@ -511,11 +527,12 @@ export function WebBookingFlow({ initialDate, today, hotline, texts }: Props) {
               initialResendAt={otp.resendAt}
               initialTestOtp={otp.testOtp}
               onChangePhone={() => setOtp(null)}
-              onVerified={(token, expiresAt, accountVerified) => {
+              onVerified={(token, expiresAt, accountVerified, account) => {
                 writeJson(PHONE_TOKEN_KEY, { phone: otp.phone, token, expiresAt } satisfies PhoneToken);
                 notifyToken();
                 // BE đã đánh dấu SĐT của tài khoản là đã xác minh ⇒ lần đặt sau bỏ OTP (AC40)
                 if (accountVerified && me?.phone && normalizePhone(me.phone) === otp.phone) setMe({ ...me, phone_verified: true });
+                afterAccountVerified(account);
                 setOtp(null);
                 void submit(token); // đã xác minh: giữ chỗ + tạo thanh toán luôn
               }}

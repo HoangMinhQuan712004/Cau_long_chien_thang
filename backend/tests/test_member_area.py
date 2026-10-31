@@ -31,6 +31,13 @@ async def create_member(admin, phone: str, name: str = "Nguyễn Văn Minh", tie
     return r.json()["member_code"]
 
 
+async def reset_version(code: str) -> None:
+    """Test cũ giả định hồ sơ mới có ``version`` = 1."""
+    async with SessionLocal() as s:
+        await s.execute(update(Customer).where(Customer.member_code == code).values(version=1))
+        await s.commit()
+
+
 async def customer_id_of(code: str) -> int:
     async with SessionLocal() as s:
         return await s.scalar(select(Customer.id).where(Customer.member_code == code))
@@ -46,11 +53,18 @@ async def verify_booking_phone(client, phone: str) -> dict:
 
 @asynccontextmanager
 async def linked_member(admin, name: str = "Nguyễn Văn Minh", tier: str | None = "Trung bình"):
-    """Khách tự đăng ký + xác minh SĐT, rồi sân thêm hội viên cùng SĐT -> (client, id, mã, SĐT)."""
+    """Khách xác minh SĐT -> hội viên (T-021 R1), sân sửa tên + hạng -> (client, id, mã, SĐT)."""
     phone = random_phone()
     async with new_customer(phone) as c:
         await verify_booking_phone(c, phone)
-        code = await create_member(admin, phone, name, tier)
+        [row] = (await admin.get(f"{API}/members", params={"q": phone})).json()["items"]
+        code = row["member_code"]
+        r = await admin.patch(
+            f"{API}/members/{code}",
+            json={"full_name": name, "tier": tier, "version": row["version"]},
+        )
+        assert r.status_code == 200, r.text
+        await reset_version(code)
         yield c, await customer_id_of(code), code, phone
 
 
@@ -133,7 +147,8 @@ async def test_club_created_account_must_change_password_first(admin):
         assert (await c.get(ME)).status_code == 200
 
 
-async def test_temp_profile_is_never_member(staff, admin):
+async def test_temp_profile_upgraded_when_phone_verified(staff, admin):
+    """T-021 (thay luật T-016): hồ sơ tạm + chủ SĐT xác minh OTP -> nâng lên hội viên."""
     phone = random_phone()
     court = await new_court(admin)
     hour = await safe_hour()
@@ -142,10 +157,13 @@ async def test_temp_profile_is_never_member(staff, admin):
     assert r.status_code == 201
     async with new_customer(phone) as c:
         body = await verify_booking_phone(c, phone)
-        assert body["account_verified"] is True
-        assert (await c.get(f"{API}/auth/me")).json()["is_member"] is False
+        assert body["account_verified"] is True and body["became_member"] is True
+        assert (await c.get(f"{API}/auth/me")).json()["is_member"] is True
         r = await c.get(ME)
-        assert r.status_code == 403 and r.json()["detail"]["code"] == "E-HV-8"
+        assert r.status_code == 200 and r.json()["member_code"] == body["member_code"]
+        assert r.json()["full_name"] == "T"  # giữ họ tên của hồ sơ
+    detail = (await admin.get(f"{API}/members/{body['member_code']}")).json()
+    assert detail["bookings"] == 1  # lượt đặt khi còn là hồ sơ tạm
 
 
 async def test_member_area_needs_customer_session(anon, admin, staff):
@@ -207,10 +225,11 @@ async def test_update_profile_syncs_name_and_writes_audit(staff, admin):
                 )
             )
         assert row.actor_label == f"Hội viên (tự sửa) · {code}"
-        changes = row.detail["changes"]
-        assert changes["full_name"] == ["Trần Thị Lan", "Trần Thị Lan Anh"]
+        changes = {c["field"]: (c["before"], c["after"]) for c in row.detail["changes"]}
+        assert row.detail["target"] == {"code": code, "name": "Trần Thị Lan Anh"}
+        assert changes["Họ tên"] == ("Trần Thị Lan", "Trần Thị Lan Anh")
         assert row.detail["renamed_items"] == 1  # booking tại quầy ở đầu test
-        assert changes["email"] == [None, f"L***@{email.split('@')[1]}"]
+        assert changes["Email"] == (None, f"L***@{email.split('@')[1]}")
         assert email not in str(row.detail)
 
         # Không đổi gì -> không ghi, không tăng version

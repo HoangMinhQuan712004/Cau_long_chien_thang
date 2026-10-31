@@ -27,6 +27,11 @@ class CheckoutIn(StrictIn):
     # Token từ /web/booking/phone/verify (T-013 AC26); khách đăng nhập có SĐT đã xác minh trùng
     # ``phone`` thì không cần
     phone_token: str | None = Field(default=None, max_length=128)
+    as_member: bool = Field(
+        default=False,
+        description="Đặt trong khu hội viên (/hoi-vien/dat-san): Họ tên + SĐT lấy từ hồ sơ, "
+        "bỏ qua full_name/phone gửi lên, không cần phone_token (T-018 AC4)",
+    )
 
 
 class PhoneCodeIn(StrictIn):
@@ -50,6 +55,24 @@ class PhoneTokenOut(BaseModel):
         default=False,
         description="Khách đang đăng nhập có SĐT trùng SĐT vừa xác minh -> tài khoản đã xác minh, "
         "lần đặt sau không cần OTP (cả khi đã xác minh từ trước)",
+    )
+    became_member: bool = Field(
+        default=False,
+        description="T-021: tài khoản đang đăng nhập vừa thành hội viên nhờ lần xác minh này",
+    )
+    member_code: str | None = Field(
+        default=None, description="Mã HV của tài khoản đang đăng nhập (đã là / vừa thành hội viên)"
+    )
+    reason: str | None = Field(
+        default=None,
+        description="Khách đang đăng nhập nhưng tài khoản không được gắn SĐT / thành hội viên: "
+        "E-AUTH-17 (tài khoản có SĐT khác), E-AUTH-18 (SĐT không dùng được), E-AUTH-31 (hội viên "
+        "Ngừng – tài khoản bị khóa). ``phone_token`` vẫn dùng được để đặt",
+    )
+    account_merged: bool = Field(
+        default=False,
+        description="Tài khoản Google vừa được gộp vào tài khoản chủ SĐT – cookie đã đổi, FE tải "
+        "lại thông tin tài khoản",
     )
 
 

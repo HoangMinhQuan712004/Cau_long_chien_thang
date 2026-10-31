@@ -179,7 +179,9 @@ async def phone_verified_audits(user_id: int) -> int:
     async with SessionLocal() as s:
         return await s.scalar(
             select(func.count()).where(
-                AuditLog.action == "auth.phone_verified", AuditLog.entity_code == str(user_id)
+                AuditLog.action == "auth.phone_verified",
+                AuditLog.entity_code == str(user_id),
+                AuditLog.detail["source"].astext == "web_booking",  # T-21-1: ghi nơi xác minh
             )
         )
 
@@ -222,7 +224,8 @@ async def test_other_phone_or_anonymous_does_not_verify_account(anon):
         assert (await c.get(f"{API}/auth/me")).json()["phone_verified"] is False
 
 
-async def test_account_without_phone_is_not_attached(monkeypatch):
+async def test_account_without_phone_gets_phone_attached(monkeypatch):
+    """T-021 AC5 (thay T-013 AC40): tài khoản Google chưa có SĐT -> gắn SĐT vừa xác minh."""
     sub = str(uuid.uuid4().int)[:21]
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", CLIENT_ID)
     monkeypatch.setattr(google, "_signing_key", lambda _credential: _KEY.public_key())
@@ -230,10 +233,9 @@ async def test_account_without_phone_is_not_attached(monkeypatch):
         user_id = (await c.get(f"{API}/auth/me")).json()["id"]
         phone = random_phone()
         body = await verify_booking_phone(c, phone)
-        assert body["account_verified"] is False
+        assert body["account_verified"] is True and body["became_member"] is True
         user = await account(user_id=user_id)
-        assert user.phone is None and user.phone_verified_at is None
-        assert await account(phone) is None
+        assert user.phone == phone and user.phone_verified_at is not None
 
 
 async def test_admin_session_does_not_verify(admin):

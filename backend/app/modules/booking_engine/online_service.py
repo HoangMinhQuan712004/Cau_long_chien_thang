@@ -14,9 +14,10 @@ from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import audit
+from app.core.audit import SYSTEM_ACTOR, audit, audit_detail
 from app.core.errors import AppError
 from app.modules.booking_engine import outbox
+from app.modules.booking_engine.audit_fields import paid_changes
 from app.modules.booking_engine.booking_service import calendar, snapshot_values
 from app.modules.booking_engine.codes import next_code
 from app.modules.booking_engine.common import (
@@ -654,21 +655,26 @@ async def apply_online_payment(
         created.append(booking)
     checkout.status = "paid"
     checkout.paid_at = data.transaction_at
+    # Thu tiền QR: tiền về xác nhận qua bên thứ 3 -> người làm là Hệ thống (SRS Lịch sử thao tác
+    # BR-009); 1 lần thanh toán = 1 dòng dù nhiều booking
     audit(
         session,
-        audit_actor(ONLINE_ACTOR),
+        SYSTEM_ACTOR,
         "booking.online.paid",
         "checkout",
         checkout.pay_ref,
-        {
-            "order_code": order.code,
-            "codes": codes,
-            "amount": checkout.amount,
-            "paid_amount": checkout.paid_amount,
-        },
+        audit_detail(
+            order.code,
+            checkout.customer_name,
+            paid_changes("QR"),
+            order_code=order.code,
+            codes=codes,
+            amount=checkout.amount,
+            paid_amount=checkout.paid_amount,
+        ),
     )
     for booking in created:
-        emit_created(session, tenant_id, order, booking)
+        await emit_created(session, tenant_id, order, booking)
     outbox.add_event(
         session,
         tenant_id,

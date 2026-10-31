@@ -12,10 +12,10 @@ from app.modules.auth.models import User
 from app.modules.members.models import Customer
 from tests.conftest import (
     API,
-    CUSTOMER_PASSWORD,
     _client,
     idem,
-    new_customer,
+    new_registered,
+    register,
     sign_in,
     unique_phone,
 )
@@ -56,12 +56,10 @@ async def age_initial_password(phone: str, days: float) -> None:
         await s.commit()
 
 
-async def register(phone: str):
+async def register_phone(phone: str):
+    """Đăng ký 2 bước (T-021): lỗi trùng chỉ báo sau khi nhập đúng mã."""
     async with _client() as c:
-        return await c.post(
-            f"{API}/auth/register",
-            json={"full_name": "Người Lạ", "phone": phone, "password": CUSTOMER_PASSWORD},
-        )
+        return await register(c, phone, "Người Lạ")
 
 
 # ------------------------------------------------------------------ đăng ký trùng (E-AUTH-22)
@@ -70,11 +68,11 @@ async def register(phone: str):
 async def test_duplicate_register_does_not_reveal_member_account(admin, phones):
     self_registered = unique_phone()
     phones.append(self_registered)
-    async with new_customer(self_registered):
+    async with new_registered(self_registered):  # tài khoản tự đăng ký đã xác minh
         pass
     member_phone = await member_account(admin, phones)
 
-    normal, member = await register(self_registered), await register(member_phone)
+    normal, member = await register_phone(self_registered), await register_phone(member_phone)
     assert normal.status_code == member.status_code == 409
     a, b = normal.json()["detail"], member.json()["detail"]
     assert (a["phone"], b["phone"]) == (self_registered, member_phone)  # SĐT chính người gọi gửi

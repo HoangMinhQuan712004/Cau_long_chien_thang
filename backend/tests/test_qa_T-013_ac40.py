@@ -1,8 +1,10 @@
+# ruff: noqa: E501
 """QA T-013 AC40: tài khoản khách đã xác minh SĐT thì không cần OTP khi đặt sân.
 
 Viết từ spec (AC19, AC26, AC40), không phụ thuộc test của BACKEND. Mỗi test dùng SĐT riêng.
 """
 
+import re
 import uuid
 
 import pytest
@@ -103,6 +105,14 @@ async def test_ac40_phone_formats_normalize_to_the_account_phone(style):
         assert (await user_row(phone))["phone_verified_at"] is not None
 
 
+async def test_ac40_audit_detail_names_the_source():
+    phone = unique_phone()
+    async with new_customer(phone) as c:
+        await booking_verify(c, phone)
+        rows = await audits((await user_row(phone))["id"])
+        assert len(rows) == 1 and "web_booking" in rows[0]["d"]
+
+
 async def test_ac40_audit_entry_has_no_secret_and_names_the_customer():
     phone = unique_phone()
     async with new_customer(phone) as c:
@@ -110,7 +120,6 @@ async def test_ac40_audit_entry_has_no_secret_and_names_the_customer():
         row = await user_row(phone)
         rows = await audits(row["id"])
         assert len(rows) == 1
-        assert "web_booking" in rows[0]["d"]
         assert phone not in rows[0]["d"] and phone[1:] not in rows[0]["d"], "no full phone in audit"
         assert rows[0]["actor_type"] == "customer" and rows[0]["actor_label"], "names the customer"
 
@@ -231,7 +240,8 @@ async def test_ac40_garbage_cookie_is_a_guest_not_a_500():
         assert body["account_verified"] is False and body["phone_token"]
 
 
-async def test_ac40_google_account_without_phone_is_not_given_a_phone():
+async def test_ac40_t021_google_account_without_phone_gets_the_verified_phone_and_becomes_member():
+    """T-021 AC5: tài khoản Google chưa có SĐT nhập SĐT + OTP khi đặt sân → gắn SĐT, xác minh, thành hội viên."""
     sub = "qa-ac40-" + uuid.uuid4().hex[:12]
     row = await q(
         "INSERT INTO users (full_name, google_sub, google_email, role, is_active)"
@@ -247,12 +257,16 @@ async def test_ac40_google_account_without_phone_is_not_given_a_phone():
         c.cookies.set("access_token", token)
         assert (await c.get(f"{API}/auth/me")).status_code == 200
         body = await booking_verify(c, phone)
-        assert body["account_verified"] is False
+        assert body["account_verified"] is True and body["became_member"] is True, body
+        assert re.fullmatch(r"HV\d{4,5}", body["member_code"])
+        me = (await c.get(f"{API}/auth/me")).json()
+        assert me["phone"] == phone and me["phone_verified"] is True and me["is_member"] is True
     after = (await q("SELECT phone, phone_verified_at FROM users WHERE id=:i", i=row[0]["id"]))[0]
-    assert after["phone"] is None and after["phone_verified_at"] is None
-    assert not await q("SELECT 1 FROM users WHERE phone=:p", p=phone), (
-        "no account created for the phone"
+    assert after["phone"] == phone and after["phone_verified_at"] is not None
+    assert len(await q("SELECT 1 FROM users WHERE phone=:p", p=phone)) == 1, (
+        "một tài khoản, không tạo thêm"
     )
+    assert (await q("SELECT kind FROM customer WHERE phone=:p", p=phone))[0]["kind"] == "member"
 
 
 async def test_ac40_response_shape_is_stable():

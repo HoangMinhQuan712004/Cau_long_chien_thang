@@ -67,6 +67,7 @@ Tier = Literal[
     "Chuyên nghiệp",
 ]
 Gender = Literal["male", "female"]
+Source = Literal["counter", "self_register"]
 
 
 class MemberRow(BaseModel):
@@ -84,6 +85,10 @@ class MemberRow(BaseModel):
     bookings: int
     created_at: dt.datetime
     version: int = Field(description="Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4")
+    source: Source = Field(
+        description="Người tạo: ``counter`` = quầy / Admin, ``self_register`` = Tự đăng ký online "
+        "(T-021; hồ sơ tạm luôn ``counter``)"
+    )
 
 
 class MemberCounts(BaseModel):

@@ -10,6 +10,9 @@ import { requestBookingPhone, verifyBookingPhone } from "./requests";
 
 type Texts = Dictionary["phoneVerify"];
 
+/** Kết quả phía tài khoản khi khách đang đăng nhập xác minh SĐT lúc đặt (T-021): thành hội viên / gộp tài khoản / lý do không gắn được. */
+export type VerifiedAccount = { becameMember: boolean; memberCode: string | null; merged: boolean; reason: string | null };
+
 // Bước xác minh SĐT trước khi giữ chỗ (T-013 AC24): nhập 6 số OTP gửi tới `phone`; đúng ⇒ `phone_token` (30 phút).
 // Các khung giờ đã chọn nằm ở cha và giữ nguyên trong suốt bước này.
 export function BookingPhoneOtp({
@@ -24,7 +27,7 @@ export function BookingPhoneOtp({
   phone: string;
   initialResendAt: number | null;
   initialTestOtp: string | null;
-  onVerified: (token: string, expiresAt: string, accountVerified: boolean) => void;
+  onVerified: (token: string, expiresAt: string, accountVerified: boolean, account: VerifiedAccount) => void;
   onChangePhone: () => void;
 }) {
   const [digits, setDigits] = useState(EMPTY_OTP);
@@ -41,7 +44,14 @@ export function BookingPhoneOtp({
     setNotice(null);
     const result = await verifyBookingPhone(phone, code);
     // account_verified: BE (AC40) đã đặt phone_verified_at cho tài khoản ⇒ lần đặt sau bỏ OTP
-    if (result.ok) return onVerified(result.phone_token, result.expires_at, result.account_verified === true);
+    if (result.ok) {
+      return onVerified(result.phone_token, result.expires_at, result.account_verified === true, {
+        becameMember: result.became_member === true,
+        memberCode: result.member_code ?? null,
+        merged: result.account_merged === true,
+        reason: result.reason ?? null,
+      });
+    }
     setIsPending(false);
     setError(otpErrorText(t.errors, result));
     setDigits(EMPTY_OTP);

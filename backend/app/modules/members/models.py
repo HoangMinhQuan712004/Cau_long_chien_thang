@@ -22,6 +22,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.db import Base, TimestampMixin
 
 KINDS = ("member", "temp")
+# Nguồn hồ sơ hội viên: quầy / Admin thêm, hoặc khách tự xác minh SĐT trên web (T-021 R1)
+SOURCES = ("counter", "self_register")
 # Hạng = trình độ chơi (thấp -> cao, cũng là thứ tự hiển thị); NULL = chưa xếp hạng
 TIERS = (
     "Yếu",
@@ -49,6 +51,7 @@ class Customer(TimestampMixin, Base):
             name="tier",
         ),
         CheckConstraint("gender IS NULL OR gender IN ('male', 'female')", name="gender"),
+        CheckConstraint("source IN ('counter', 'self_register')", name="source"),
         Index("ix_customer_kind_is_active", "kind", "is_active"),
     )
 
@@ -72,6 +75,8 @@ class Customer(TimestampMixin, Base):
     show_on_records: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     # Khóa lạc quan cho Hồ sơ của tôi (E-HV-12) – tăng khi hội viên tự sửa
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    # Ai tạo / nâng thành hội viên: "counter" (quầy, Admin) | "self_register" ("Tự đăng ký online")
+    source: Mapped[str] = mapped_column(String(20), server_default=text("'counter'"))
 
 
 # Email không trùng giữa các hồ sơ, không phân biệt hoa thường (ADR-009 §6)

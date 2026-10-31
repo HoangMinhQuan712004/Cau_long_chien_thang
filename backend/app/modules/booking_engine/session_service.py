@@ -11,9 +11,10 @@ from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import audit
+from app.core.audit import audit, audit_change, audit_detail
 from app.core.errors import AppError
 from app.modules.booking_engine import outbox
+from app.modules.booking_engine.audit_fields import customer_text, new_values, time_text, vnd
 from app.modules.booking_engine.booking_service import (
     normalize_code,
     session_counts,
@@ -46,7 +47,7 @@ from app.modules.booking_engine.dto import (
 )
 from app.modules.booking_engine.holds import expire_holds
 from app.modules.booking_engine.models import Allocation, EventSession, Hold, Resource, Ticket
-from app.modules.booking_engine.schedules import Hours, effective_on, schedules_of, to_hhmm
+from app.modules.booking_engine.schedules import Hours, effective_on, schedules_of
 
 NAME_MAX = 100
 CAPACITY_RANGE = (1, 99)
@@ -301,15 +302,20 @@ async def create_session(
         "session.create",
         "session",
         code,
-        {
-            "name": name,
-            "resources": [r.code for r in resources],
-            "date": data.date.isoformat(),
-            "start_time": to_hhmm(data.start_hour * 60),
-            "end_time": to_hhmm(data.end_hour * 60),
-            "capacity": capacity,
-            "ticket_price": ticket_price,
-        },
+        audit_detail(
+            code,
+            name,
+            new_values(
+                **{
+                    "Sân": ", ".join(r.name for r in resources),
+                    "Khung giờ": time_text(start_at, end_at),
+                    "Giá vé": vnd(ticket_price),
+                }
+            ),
+            resources=[r.code for r in resources],
+            capacity=capacity,
+            ticket_price=ticket_price,
+        ),
     )
     outbox.add_event(
         session, tenant_id, "session.created", {"code": code, "play_date": data.date.isoformat()}
@@ -348,7 +354,12 @@ async def delete_session(
         "session.delete",
         "session",
         ev.code,
-        {"name": ev.name, "resources": [r.code for r in resources]},
+        audit_detail(
+            ev.code,
+            ev.name,
+            [audit_change("Trạng thái", "Đã tạo", "Đã xóa")],
+            resources=[r.code for r in resources],
+        ),
     )
     outbox.add_event(session, tenant_id, "session.deleted", {"code": ev.code})
     await session.flush()
@@ -408,12 +419,20 @@ async def register_ticket(
         "ticket.create",
         "ticket",
         ticket.code,
-        {
-            "session": ev.code,
-            "amount": ticket.amount,
-            "customer_kind": customer.kind,
-            "member_code": customer.member_code,
-        },
+        audit_detail(
+            ticket.code,
+            customer.display_name,
+            new_values(
+                **{
+                    "Khách": customer_text(customer),
+                    "Sự kiện": f"{ev.code} · {ev.name}",
+                }
+            ),
+            session=ev.code,
+            amount=ticket.amount,
+            customer_kind=customer.kind,
+            member_code=customer.member_code,
+        ),
     )
     outbox.add_event(
         session, tenant_id, "ticket.created", {"code": ticket.code, "session": ev.code}

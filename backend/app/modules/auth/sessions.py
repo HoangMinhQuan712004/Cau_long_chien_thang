@@ -3,11 +3,12 @@
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import SYSTEM_ACTOR, Value, audit, audit_change, audit_detail
 from app.core.config import settings
 from app.modules.auth.models import AdminSession, Role, SessionEndReason, User
 from app.modules.auth.schemas import AdminAccountOut
@@ -98,6 +99,15 @@ async def resolve(session: AsyncSession, token: str | None) -> tuple[AdminSessio
     return admin_session, user
 
 
+def account_detail(
+    user: User, changes: list[dict[str, Value]] | None = None, **extra: Any
+) -> dict[str, Any]:
+    """Lịch sử thao tác: đối tượng là tài khoản (mã NV + tên; Admin; khách theo tên)."""
+    code = user.staff_code if user.role == Role.STAFF else None
+    name = actor_label(user) if user.role == Role.ADMIN else user.full_name
+    return audit_detail(code, name, changes, **extra)
+
+
 def active_filter(now: datetime):
     return (AdminSession.revoked_at.is_(None), AdminSession.expires_at > now)
 
@@ -123,4 +133,16 @@ async def replace_password(session: AsyncSession, user: User, hashed: str | None
     user.token_version += 1
     user.failed_login_count = 0
     user.locked_until = None
-    return await revoke_all(session, user.id, SessionEndReason.PASSWORD_CHANGED)
+    revoked = await revoke_all(session, user.id, SessionEndReason.PASSWORD_CHANGED)
+    if revoked:
+        # Hệ thống đăng xuất các phiên đang mở (SRS Lịch sử thao tác, nhóm Đăng nhập, đăng xuất)
+        change = audit_change("Phiên", "Đang mở", "Đã đăng xuất do đổi mật khẩu")
+        audit(
+            session,
+            SYSTEM_ACTOR,
+            "auth.logout_password_changed",
+            "user",
+            str(user.id),
+            account_detail(user, [change], revoked=revoked),
+        )
+    return revoked

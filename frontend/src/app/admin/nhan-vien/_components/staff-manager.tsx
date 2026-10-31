@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,13 +11,28 @@ import type { StaffTexts } from "./staff-form-kit";
 import { StaffCreateForm } from "./staff-forms";
 import { STAFF_COLUMNS, StaffRow } from "./staff-row";
 
+type Props = {
+  staff: Staff[];
+  /** Mã NV trên URL (`?ma=`): cuộn tới, tô nổi và focus dòng đó. */
+  focusCode: string | null;
+  t: StaffTexts;
+};
+
 // Trang quản lý nhân viên; ghi xong thì refresh để lấy lại danh sách
-export function StaffManager({ staff, t }: { staff: Staff[]; t: StaffTexts }) {
+export function StaffManager({ staff, focusCode, t }: Props) {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   // Vừa tạo ⇒ khối sao chép tên đăng nhập (+ mật khẩu ngẫu nhiên), chỉ giữ trong bộ nhớ trang
   const [created, setCreated] = useState<{ staff: Staff; password: string | null } | null>(null);
+  const focusId = staff.some((s) => s.staff_code === focusCode) ? `nhan-vien-${focusCode}` : null;
+
+  // Mở từ link ⇒ đưa dòng ra giữa màn (tránh header dính) và focus để bàn phím / trình đọc màn hình bắt đầu từ đó
+  useEffect(() => {
+    const row = focusId ? document.getElementById(focusId) : null;
+    row?.scrollIntoView({ block: "center" });
+    row?.focus({ preventScroll: true });
+  }, [focusId]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -87,6 +102,7 @@ export function StaffManager({ staff, t }: { staff: Staff[]; t: StaffTexts }) {
                 key={s.id}
                 t={t}
                 staff={s}
+                isFocused={s.staff_code === focusCode}
                 onChanged={() => router.refresh()}
                 onNotice={setNotice}
               />

@@ -423,7 +423,14 @@ async def test_price_table_get_and_update(admin):
             .where(AuditLog.action == "config.price.update")
             .order_by(AuditLog.id.desc())
         )
-    assert audit_row.detail["changes"][0]["to"] == audit_row.detail["changes"][0]["from"] - 2_000
+    # Lịch sử thao tác: 1 lần lưu = 1 dòng, mỗi ô đổi "Tên ô: trước → sau" (giá đã định dạng)
+    change = audit_row.detail["changes"][0]
+
+    def money(v: str) -> int:
+        return int(v.removesuffix(" ₫").replace(".", ""))
+
+    assert money(change["after"]) == money(change["before"]) - 2_000
+    assert " · " in change["field"]
 
 
 @pytest.mark.parametrize(

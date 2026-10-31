@@ -6,8 +6,10 @@ from app.core.idempotency import IdempotencyKey
 from app.modules.auth.models import AdminSession, OtpCode, User
 from app.modules.booking_engine import models as booking_engine_models
 from app.modules.content.models import Post
+from app.modules.member_inbox.models import MemberNotification
 from app.modules.members.models import Customer, CustomerAvatar, Racket
 from app.modules.payments.models import BankTransaction
+from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember, PlayRoomRequest
 
 __all__ = [
     "AdminSession",
@@ -19,6 +21,11 @@ __all__ = [
     "CustomerAvatar",
     "Racket",
     "IdempotencyKey",
+    "MemberNotification",
+    "PlayMatch",
+    "PlayRoom",
+    "PlayRoomMember",
+    "PlayRoomRequest",
     "Post",
     "User",
     "booking_engine_models",

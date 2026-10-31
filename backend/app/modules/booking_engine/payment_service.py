@@ -10,9 +10,10 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import audit
+from app.core.audit import audit, audit_change, audit_detail
 from app.core.errors import AppError
 from app.modules.booking_engine import outbox
+from app.modules.booking_engine.audit_fields import paid_changes
 from app.modules.booking_engine.booking_service import booking_item, normalize_code, ticket_item
 from app.modules.booking_engine.common import STALE_ITEM, Ctx, audit_actor, context, not_found
 from app.modules.booking_engine.dto import (
@@ -91,7 +92,13 @@ def mark_paid(
         "payment.collect",
         _entity(item),
         item.code,
-        {"method": "cash", "method_label": METHOD_LABELS["cash"], "amount": item.amount},
+        audit_detail(
+            item.code,
+            item.customer_name,
+            paid_changes(METHOD_LABELS["cash"]),
+            method="cash",
+            amount=item.amount,
+        ),
     )
     outbox.add_event(
         session,
@@ -149,7 +156,15 @@ async def mark_uncollectible(
         "payment.uncollectible",
         _entity(item),
         item.code,
-        {"reason": reason, "amount": item.amount},
+        audit_detail(
+            item.code,
+            item.customer_name,
+            [
+                audit_change("Thanh toán", "Chưa thanh toán", "Không thu được"),
+                audit_change("Lý do", None, reason),
+            ],
+            amount=item.amount,
+        ),
     )
     outbox.add_event(
         session,

@@ -8,6 +8,7 @@ Quy ước transaction: hàm ghi **không commit** – người gọi sở hữu
 """
 
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -16,10 +17,12 @@ from app.modules.booking_engine import (
     config_service,
     customer_history,
     holds,
+    member_history,
     online_service,
     orders,
     outbox,
     payment_service,
+    rooms_feed,
     session_service,
     transactions,
 )
@@ -41,6 +44,7 @@ from app.modules.booking_engine.dto import (
     OnlinePaymentResult,
     OrderCollectIn,
     OrderCollectOut,
+    PaidItem,
     PriceTable,
     PriceTableUpdate,
     PublicCalendar,
@@ -51,6 +55,7 @@ from app.modules.booking_engine.dto import (
     ResourceList,
     ResourceOut,
     ResourceUpdate,
+    RoomSource,
     SearchResult,
     SessionCreate,
     SessionOut,
@@ -59,6 +64,7 @@ from app.modules.booking_engine.dto import (
     TransactionsOut,
     TransactionsQuery,
     UncollectibleIn,
+    UpcomingBooking,
 )
 from app.modules.booking_engine.models import DEFAULT_TENANT_SETTINGS, Tenant
 from app.modules.booking_engine.tenant import current_tenant_id
@@ -169,6 +175,65 @@ async def search_code(
 
 async def get_item(session: AsyncSession, code: str, *, tenant_id: int | None = None) -> ItemOut:
     return await booking_service.get_item(session, _tid(tenant_id), code)
+
+
+async def room_sources(
+    session: AsyncSession, codes: list[str], *, tenant_id: int | None = None
+) -> list[RoomSource]:
+    """Khối booking theo mã con (phòng chơi, T-017) – có ``customer_ref``; chỉ đọc."""
+    return await rooms_feed.by_codes(session, _tid(tenant_id), codes)
+
+
+async def room_sources_ending_after(
+    session: AsyncSession,
+    after: dt.datetime,
+    play_dates: list[dt.date],
+    *,
+    tenant_id: int | None = None,
+) -> list[RoomSource]:
+    """Khối booking các ngày ``play_dates`` chưa kết thúc tại ``after`` (backfill phòng chơi)."""
+    return await rooms_feed.ending_after(session, _tid(tenant_id), after, play_dates)
+
+
+# ------------------------------------------------------------------ khu hội viên (T-018)
+
+
+async def paid_items(
+    session: AsyncSession,
+    refs: list[str],
+    from_at: dt.datetime,
+    to_at: dt.datetime,
+    *,
+    tenant_id: int | None = None,
+) -> list[PaidItem]:
+    """Booking + vé **đã thanh toán** của các ref, ``paid_at`` trong ``[from_at, to_at)``."""
+    return await member_history.paid_items(session, _tid(tenant_id), refs, from_at, to_at)
+
+
+async def paid_item(
+    session: AsyncSession, refs: list[str], code: str, *, tenant_id: int | None = None
+) -> PaidItem | None:
+    """Một khoản đã thanh toán (mã con booking / mã vé) của các ref, không có -> None."""
+    return await member_history.paid_item(session, _tid(tenant_id), refs, code)
+
+
+async def paid_months(
+    session: AsyncSession,
+    refs: list[str],
+    since: dt.datetime,
+    tz: ZoneInfo,
+    *,
+    tenant_id: int | None = None,
+) -> list[dt.date]:
+    """Các tháng (ngày 1, theo ``tz``) có khoản đã thanh toán từ ``since``, mới nhất trước."""
+    return await member_history.paid_months(session, _tid(tenant_id), refs, since, tz)
+
+
+async def upcoming_bookings(
+    session: AsyncSession, refs: list[str], after: dt.datetime, *, tenant_id: int | None = None
+) -> list[UpcomingBooking]:
+    """Khối booking của các ref chưa kết thúc tại ``after``, theo giờ bắt đầu."""
+    return await member_history.upcoming(session, _tid(tenant_id), refs, after)
 
 
 async def customer_stats(

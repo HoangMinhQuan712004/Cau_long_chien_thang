@@ -14,7 +14,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import AuditActor, audit
+from app.core.audit import AuditActor, audit, audit_change, audit_detail
 from app.core.config import settings
 from app.core.errors import AppError
 from app.modules.members.models import Customer, CustomerAvatar
@@ -113,7 +113,12 @@ async def save(
             set_={"content_type": CONTENT_TYPE, "bytes": data, "etag": etag},
         )
     )
-    audit(session, actor, "member.avatar_update", "customer", customer.member_code, None)
+    detail = audit_detail(
+        customer.member_code,
+        customer.full_name,
+        [audit_change("Ảnh đại diện", None, "Ảnh mới")],
+    )
+    audit(session, actor, "member.avatar_update", "customer", customer.member_code, detail)
     return StoredAvatar(data, etag, CONTENT_TYPE)
 
 
@@ -123,7 +128,12 @@ async def remove(session: AsyncSession, customer: Customer, actor: AuditActor) -
     )
     if not result.rowcount:
         return False
-    audit(session, actor, "member.avatar_delete", "customer", customer.member_code, None)
+    detail = audit_detail(
+        customer.member_code,
+        customer.full_name,
+        [audit_change("Ảnh đại diện", "Có ảnh", None)],
+    )
+    audit(session, actor, "member.avatar_delete", "customer", customer.member_code, detail)
     return True
 
 

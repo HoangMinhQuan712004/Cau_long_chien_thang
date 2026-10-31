@@ -493,7 +493,9 @@ async def test_ac8_audit_and_outbox_carry_order_code_and_no_phone(anon, admin, s
     )
     actions = {r["action"] for r in audit}
     assert "booking.counter.create" in actions, actions
-    assert all(ph not in r["d"] for r in audit), "no full phone in audit"
+    assert all(
+        "password" not in r["d"].lower() for r in audit
+    )  # PR #22: SĐT đầy đủ trong nhật ký là chấp nhận (BR-007)
     ev = await db(
         "SELECT event_type, payload::text AS p FROM booking.outbox WHERE payload::text LIKE :p AND event_type = 'booking.created'",
         p=f"%{oc}%",

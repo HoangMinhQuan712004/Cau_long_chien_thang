@@ -36,6 +36,7 @@ from app.core.db import SessionLocal, engine
 from app.main import app
 from app.modules.booking_engine.testing import make_allocation, release_allocation
 from tests.conftest import API
+from tests.qa_accounts import db_account
 
 B = f"{API}/booking"
 EVIL = "https://evil.example"
@@ -186,11 +187,7 @@ async def _registered(role_by_admin: tuple | None = None):
     async with _http() as c:
         if role_by_admin is None:
             phone = "08" + str(uuid.uuid4().int)[:8]
-            r = await c.post(
-                f"{API}/auth/register",
-                json={"password": password, "full_name": f"QA {n}", "phone": phone},
-            )
-            assert r.status_code == 201, r.text
+            await db_account(c, phone, f"QA {n}", password)  # T-021: /auth/register đã đóng (410)
         else:
             admin_client, role = role_by_admin
             assert role == "staff"
