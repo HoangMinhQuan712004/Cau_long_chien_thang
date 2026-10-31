@@ -54,7 +54,7 @@ async def create_member(
         phone=phone,
         gender=data.gender,
         tier=data.tier,
-        racket=await rackets.ensure(session, data.racket),
+        racket=await rackets.ensure(session, data.racket, actor),
         is_active=True,
     )
     # Hội viên = khách có tài khoản đăng nhập (T-015), cùng transaction. Gọi TRƯỚC ``add``: câu
@@ -89,7 +89,7 @@ async def update_profile(
     if "full_name" in changes:
         changes["full_name"] = clean_name(changes["full_name"] or "")
     if "racket" in changes:
-        changes["racket"] = await rackets.ensure(session, changes["racket"])
+        changes["racket"] = await rackets.ensure(session, changes["racket"], actor)
     changed = sorted(k for k, v in changes.items() if getattr(c, k) != v)
     for field in changed:
         setattr(c, field, changes[field])

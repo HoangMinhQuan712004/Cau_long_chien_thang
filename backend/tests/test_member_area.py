@@ -185,6 +185,13 @@ async def test_update_profile_syncs_name_and_writes_audit(staff, admin):
         assert out["tier"] == "Khá" and out["racket"] == racket
         names = [r["name"] for r in (await c.get(RACKETS)).json()]
         assert racket in names  # danh mục vợt chung (dev) – hội viên đọc được
+        async with SessionLocal() as s:
+            added = await s.scalar(
+                select(AuditLog).where(
+                    AuditLog.action == "racket.create", AuditLog.detail["name"].astext == racket
+                )
+            )
+        assert added is not None and added.actor_label == f"Hội viên (tự sửa) · {code}"
         assert out["show_on_records"] is True and out["version"] == me["version"] + 1
         assert out == (await c.get(ME)).json()
 

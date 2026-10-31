@@ -4,8 +4,9 @@ import asyncio
 import uuid
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 
+from app.core.audit import AuditActor, AuditLog
 from app.core.db import SessionLocal
 from app.modules.members import rackets
 from app.modules.members.models import Customer, Racket
@@ -14,6 +15,7 @@ from tests.helpers_booking import patch_member, random_phone
 
 R = f"{API}/rackets"
 M = f"{API}/members"
+ACTOR = AuditActor(type="admin", id=None, label="Test")
 
 
 @pytest.fixture
@@ -72,12 +74,22 @@ async def test_can_flag_and_anonymous(admin, staff, anon):
 # ------------------------------------------------------------------ hội viên -> tự thêm
 
 
+async def racket_create_audits(name: str) -> int:
+    async with SessionLocal() as s:
+        return await s.scalar(
+            select(func.count()).where(
+                AuditLog.action == "racket.create", AuditLog.detail["name"].astext == name
+            )
+        )
+
+
 async def test_member_racket_added_and_reused(admin, staff, cleanup):
     body = {"full_name": f"HV {cleanup}", "phone": random_phone(), "racket": f"Victor  {cleanup}"}
     first = await staff.post(M, json=body, headers=idem())
     assert first.status_code == 201 and first.json()["racket"] == f"Victor {cleanup}"
     [row] = await racket_rows(f"victor {cleanup}")
     assert row.is_active
+    assert await racket_create_audits(f"Victor {cleanup}") == 1  # vợt mới ghi nhật ký (T-020)
 
     # Gõ khác hoa thường / khoảng trắng -> dùng lại tên chuẩn trong danh mục (kể cả vợt đã ẩn)
     await admin.patch(f"{R}/{row.id}", json={"is_active": False})
@@ -87,6 +99,7 @@ async def test_member_racket_added_and_reused(admin, staff, cleanup):
         headers=idem(),
     )
     assert second.status_code == 201 and second.json()["racket"] == f"Victor {cleanup}"
+    assert await racket_create_audits(f"Victor {cleanup}") == 1  # dùng lại -> không ghi thêm
     code = second.json()["member_code"]
     r = await patch_member(staff, code, {"racket": f"Apacs {cleanup}"})
     assert r.status_code == 200 and r.json()["racket"] == f"Apacs {cleanup}"
@@ -104,11 +117,12 @@ async def test_concurrent_new_racket_one_row(cleanup):
     """Hai transaction cùng thêm một vợt mới: B chờ A trên UNIQUE(name_key) rồi ON CONFLICT DO
     NOTHING -> dùng lại dòng của A (không IntegrityError / 500)."""
     async with SessionLocal() as a, SessionLocal() as b:
-        assert await rackets.ensure(a, f"Felet {cleanup}") == f"Felet {cleanup}"
-        second = asyncio.create_task(rackets.ensure(b, f"  felet {cleanup} "))
+        assert await rackets.ensure(a, f"Felet {cleanup}", ACTOR) == f"Felet {cleanup}"
+        second = asyncio.create_task(rackets.ensure(b, f"  felet {cleanup} ", ACTOR))
         await asyncio.sleep(0.3)
         assert not second.done()  # đang chờ khóa của A
         await a.commit()
         assert await second == f"Felet {cleanup}"
         await b.commit()
     assert len(await racket_rows(f"felet {cleanup}")) == 1
+    assert await racket_create_audits(f"Felet {cleanup}") == 1  # chỉ máy thêm thật ghi nhật ký
