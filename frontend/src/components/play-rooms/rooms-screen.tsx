@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/member-area/avatar";
 import { PageBanner } from "@/components/member-area/page-banner";
@@ -18,7 +19,8 @@ import { dmy, hourRange, seatsText } from "./utils";
 export function RoomsScreen() {
   const [data, setData] = useState<RoomList | null>(null);
   const [error, setError] = useState("");
-  const [scope, setScope] = useState<"all" | "mine">("all");
+  // ?loc=cua-toi (từ "Xem tất cả" ở Tổng quan) mở sẵn bộ lọc "Sân của tôi"
+  const [scope, setScope] = useState<"all" | "mine">(useSearchParams().get("loc") === "cua-toi" ? "mine" : "all");
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const apply = useCallback((res: Awaited<ReturnType<typeof roomsApi.listRooms>>) => {

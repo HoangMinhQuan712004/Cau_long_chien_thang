@@ -87,7 +87,7 @@ export function AuthForm({
         result.upgraded_from_temp ? "Lịch sử đặt sân trước đây của bạn đã được giữ lại." : undefined,
       );
       // Hội viên mới vào khu hội viên (hoặc ?next an toàn, không vào khu quản trị)
-      router.replace(destination("member", nextParam, "/hoi-vien/ho-so"));
+      router.replace(destination("member", nextParam, "/hoi-vien"));
       router.refresh();
       return;
     }

@@ -75,7 +75,7 @@ async function Account() {
       {isMember === true ? (
         <Alert variant="info">
           Bạn là hội viên.{" "}
-          <Link href="/hoi-vien/ho-so" className="font-semibold underline">
+          <Link href="/hoi-vien" className="font-semibold underline">
             Vào khu hội viên
           </Link>
         </Alert>

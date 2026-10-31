@@ -31,7 +31,7 @@ async function Gate({ children }: { children: React.ReactNode }) {
   // Tài khoản do sân tạo còn mật khẩu ban đầu (= SĐT) ⇒ đổi mật khẩu trước khi vào khu hội viên
   const { user, expired } = await readCurrentUser();
   if (expired) redirect("/quen-mat-khau");
-  const path = safeNext((await headers()).get("x-pathname"), "/hoi-vien/ho-so");
+  const path = safeNext((await headers()).get("x-pathname"), "/hoi-vien");
   if (user?.must_change_password) redirect(`/doi-mat-khau?next=${encodeURIComponent(path)}`);
 
   const res = await getMemberMe();

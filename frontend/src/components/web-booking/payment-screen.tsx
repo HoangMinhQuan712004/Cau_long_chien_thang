@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { formatLongDate, formatVnd } from "@/lib/format";
 import { BankBox, CopyButton, mmss, useCountdown } from "./pay-parts";
 import { getCheckout } from "./requests";
+import { RoomLinks } from "./room-links";
 import { RESTORE_KEY, type Checkout } from "./types";
 
 // /thanh-toan/{token}: QR + đếm ngược theo giờ server, hỏi trạng thái mỗi 3 giây (10 giây khi tab ẩn) → Thành công | Hết thời gian giữ chỗ (T-008 AC15–AC18).
@@ -14,8 +15,10 @@ type View = "pending" | "paid" | "expired";
 
 const hhmm = (t: string) => t.slice(0, 5);
 
-export function PaymentScreen({ token, hotline }: { token: string; hotline: string }) {
+export function PaymentScreen({ token, hotline, member = false }: { token: string; hotline: string; member?: boolean }) {
   const router = useRouter();
+  // Trong khu hội viên (T-018): đặt lại / đặt thêm quay về /hoi-vien/dat-san, đặt xong có nút Vào phòng
+  const bookPath = member ? "/hoi-vien/dat-san" : "/dat-san";
   const [checkout, setCheckout] = useState<Checkout | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [offline, setOffline] = useState(false);
@@ -57,7 +60,7 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
       <Card>
         <h1 className="text-xl font-bold">Không tìm thấy lượt thanh toán.</h1>
         <p className="mt-2 text-sm text-muted">Liên kết không đúng hoặc đã cũ. Nếu bạn đã chuyển khoản, vui lòng gọi hotline {hotline} kèm mã booking.</p>
-        <Link href="/dat-san" className="mt-4 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white">
+        <Link href={bookPath} className="mt-4 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white">
           Đặt sân
         </Link>
       </Card>
@@ -76,11 +79,11 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
   // Đếm ngược về 0 nhưng server chưa báo expired (ân hạn nhận tiền báo trễ) → hiện màn hết hạn, vẫn hỏi tiếp tới khi server trả kết quả cuối.
   const view: View = checkout.status === "paid" ? "paid" : checkout.status === "expired" || left === 0 ? "expired" : "pending";
 
-  if (view === "paid") return <PaidView checkout={checkout} />;
+  if (view === "paid") return <PaidView checkout={checkout} member={member} bookPath={bookPath} />;
 
   const date = checkout.items[0]?.play_date;
   function rebook() {
-    if (!date) return router.push("/dat-san");
+    if (!date) return router.push(bookPath);
     try {
       const items = checkout!.items.flatMap((it) => {
         return Array.from({ length: it.hours }, (_, i) => ({ code: it.resource_code, hour: it.start_hour + i }));
@@ -89,7 +92,7 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
     } catch {
       /* không lưu được thì chỉ chuyển trang */
     }
-    router.push(`/dat-san?ngay=${date}`);
+    router.push(`${bookPath}?ngay=${date}`);
   }
 
   return (
@@ -153,7 +156,7 @@ export function PaymentScreen({ token, hotline }: { token: string; hotline: stri
   );
 }
 
-function PaidView({ checkout }: { checkout: Checkout }) {
+function PaidView({ checkout, member, bookPath }: { checkout: Checkout; member: boolean; bookPath: string }) {
   const names = [...new Set(checkout.items.map((i) => i.resource_name))].join(", ");
   const date = checkout.items[0]?.play_date;
   return (
@@ -182,11 +185,12 @@ function PaidView({ checkout }: { checkout: Checkout }) {
       </dl>
 
       <p className="mt-4 text-sm text-muted">Lưu mã booking để tra cứu. Vui lòng đến trước giờ chơi và báo mã tại quầy.</p>
+      {member ? <RoomLinks items={checkout.items} /> : null}
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <Link href="/tra-cuu" className="rounded-lg border border-border px-4 py-3 text-center text-sm font-semibold hover:bg-primary-softer">
-          Tra cứu booking
+        <Link href={member ? "/hoi-vien/lich-su-thanh-toan" : "/tra-cuu"} className="rounded-lg border border-border px-4 py-3 text-center text-sm font-semibold hover:bg-primary-softer">
+          {member ? "Lịch sử thanh toán" : "Tra cứu booking"}
         </Link>
-        <Link href="/dat-san" className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white">
+        <Link href={bookPath} className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white">
           Đặt thêm sân
         </Link>
       </div>

@@ -48,7 +48,7 @@ export function ChangePasswordForm({
     if (result.ok) {
       setIsDone(true);
       // Điều hướng cứng: tải lại trang khách với phiên mới, không giữ trang bị chặn cũ
-      setTimeout(() => window.location.replace(destination("member", next, "/hoi-vien/ho-so")), REDIRECT_DELAY_MS);
+      setTimeout(() => window.location.replace(destination("member", next, "/hoi-vien")), REDIRECT_DELAY_MS);
       return;
     }
     setIsPending(false);
