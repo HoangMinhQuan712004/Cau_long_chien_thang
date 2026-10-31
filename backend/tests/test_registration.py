@@ -57,13 +57,13 @@ async def user_of(**where) -> User | None:
         return await s.scalar(q)
 
 
-async def audit_rows(action: str, code: str) -> list[AuditLog]:
+async def audit_rows(action: str, code: str, phone: str | None = None) -> list[AuditLog]:
+    """Mã HV được cấp lại sau khi test khác dọn hồ sơ (nhật ký không xóa) -> lọc thêm SĐT che."""
+    q = select(AuditLog).where(AuditLog.action == action, AuditLog.entity_code == code)
+    if phone is not None:
+        q = q.where(AuditLog.detail["phone"].astext == f"{phone[:4]} xxx {phone[-3:]}")
     async with SessionLocal() as s:
-        return list(
-            await s.scalars(
-                select(AuditLog).where(AuditLog.action == action, AuditLog.entity_code == code)
-            )
-        )
+        return list(await s.scalars(q))
 
 
 async def request_code(client, phone: str, full_name: str = "Khách Mới", password: str = ""):
@@ -114,7 +114,7 @@ async def test_register_creates_account_and_member(anon, phones):
             == 0
         )
     # AC10: nhật ký có Mã HV, SĐT che
-    [row] = await audit_rows("member.self_register", code)
+    [row] = await audit_rows("member.self_register", code, phone)
     assert (
         row.detail["member_code"] == code and row.detail["phone"] == f"{phone[:4]} xxx {phone[-3:]}"
     )
@@ -289,7 +289,7 @@ async def test_temp_profile_upgraded_keeps_history(admin, phones):
     assert (c.kind, c.member_code, c.full_name) == ("member", code, "Khách Quen")  # giữ tên
     assert c.source == "self_register" and c.created_at > temp.created_at
     assert c.version == temp.version + 1
-    [row] = await audit_rows("member.auto_upgrade_temp", code)
+    [row] = await audit_rows("member.auto_upgrade_temp", code, phone)
     assert row.detail["member_code"] == code and phone not in str(row.detail)
     # Hệ thống đổi dữ liệu quầy đã tạo -> hiện ở Lịch sử thao tác
     assert (row.actor_type, row.actor_label) == ("system", "Hệ thống")

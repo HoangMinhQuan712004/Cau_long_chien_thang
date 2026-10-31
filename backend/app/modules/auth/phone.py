@@ -69,16 +69,20 @@ async def request_code(session: AsyncSession, user: User, phone: str, ip: str | 
     return CodeSent(issued.resend_after, issued.otp if settings.OTP_TEST_MODE else None)
 
 
-async def attach(session: AsyncSession, current: User, phone: str) -> PhoneVerified:
+async def attach(
+    session: AsyncSession, current: User, phone: str, source: str | None = None
+) -> PhoneVerified:
     """Gắn / xác minh / gộp theo SĐT vừa nhập đúng mã (không commit, đã khóa SĐT).
 
     Lỗi ``E-AUTH-17`` / ``E-AUTH-18`` ném **trước** khi đổi dữ liệu. Dùng chung cho
-    ``/auth/phone/verify`` và OTP khi đặt online lúc đã đăng nhập (T-021 AC5).
+    ``/auth/phone/verify`` và OTP khi đặt online lúc đã đăng nhập (T-021 AC5); ``source`` ghi vào
+    nhật ký nơi xác minh (vd. ``web_booking``).
     """
     now = datetime.now(UTC)
+    detail = {"source": source} if source else None
     if _verifying_own_phone(current, phone):
         current.phone_verified_at = now
-        audit(session, _actor(current), "auth.phone_verified", "user", str(current.id))
+        audit(session, _actor(current), "auth.phone_verified", "user", str(current.id), detail)
         return PhoneVerified(current, merged=False, password_cleared=False)
     if current.phone is not None:
         raise already_has_phone()
@@ -86,7 +90,7 @@ async def attach(session: AsyncSession, current: User, phone: str) -> PhoneVerif
     if owner is None:
         current.phone = phone
         current.phone_verified_at = now
-        audit(session, _actor(current), "auth.phone_verified", "user", str(current.id))
+        audit(session, _actor(current), "auth.phone_verified", "user", str(current.id), detail)
         return PhoneVerified(current, merged=False, password_cleared=False)
 
     if (
@@ -113,7 +117,11 @@ async def attach(session: AsyncSession, current: User, phone: str) -> PhoneVerif
         "auth.account_merged",
         "user",
         str(owner.id),
-        {"merged_from_user_id": merged_from, "password_cleared": password_cleared},
+        {
+            "merged_from_user_id": merged_from,
+            "password_cleared": password_cleared,
+            **(detail or {}),
+        },
     )
     return PhoneVerified(owner, merged=True, password_cleared=password_cleared)
 

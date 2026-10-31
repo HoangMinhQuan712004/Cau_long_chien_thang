@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from app.core.audit import AuditLog
 from app.core.config import settings
@@ -12,6 +12,7 @@ from app.core.db import SessionLocal
 from app.core.security import create_token
 from app.modules.auth.models import AdminSession, User
 from app.modules.auth.utils import normalize_phone, staff_username
+from app.modules.members.models import Customer
 from tests.conftest import API, _client, register, sign_in, unique_phone
 
 STAFF = f"{API}/admin/staff"
@@ -90,6 +91,11 @@ async def test_customer_register_sign_in_me_logout(anon):
         await c.post(f"{API}/auth/logout")
         c.cookies.clear()
         assert (await c.get(f"{API}/auth/me")).status_code == 401
+    # Đăng ký tạo cả hội viên (R1): dọn để test chạy sau không thấy "Lê Thị Lan"
+    async with SessionLocal() as s:
+        await s.execute(delete(Customer).where(Customer.phone == phone))
+        await s.execute(delete(User).where(User.phone == phone))
+        await s.commit()
 
 
 @pytest.mark.parametrize(
@@ -99,6 +105,7 @@ async def test_customer_register_sign_in_me_logout(anon):
         {"full_name": "A", "phone": unique_phone(), "password": "password123"},  # thiếu in hoa
         {"full_name": "A", "phone": unique_phone(), "password": "Short1"},
         {"full_name": "A", "phone": unique_phone(), "password": PASSWORD, "email": "a@b.vn"},
+        {"full_name": " 	 ", "phone": unique_phone(), "password": PASSWORD},  # T-21-2
     ],
 )
 async def test_register_validation(anon, body):

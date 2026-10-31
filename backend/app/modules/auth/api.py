@@ -125,7 +125,7 @@ async def _link_account(
     if user.phone == phone and user.phone_verified_at is not None:
         result = phone_flow.PhoneVerified(user, merged=False, password_cleared=False)
     else:
-        result = await phone_flow.attach(session, user, phone)
+        result = await phone_flow.attach(session, user, phone, source="web_booking")
     account = result.account
     ensured = await enroll.enroll(session, account)
     await session.flush()

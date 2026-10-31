@@ -37,6 +37,16 @@ NewPassword = Annotated[
 ]
 
 
+def _full_name(value: str) -> str:
+    name = " ".join(value.split())  # gộp khoảng trắng; chỉ toàn khoảng trắng -> lỗi (T-21-2)
+    if not name:
+        raise PydanticCustomError("blank_name", "Vui lòng nhập họ tên.")
+    return name
+
+
+FullName = Annotated[str, Field(min_length=1, max_length=100), AfterValidator(_full_name)]
+
+
 class _In(BaseModel):
     # Không tự cắt khoảng trắng (mật khẩu giữ nguyên văn); trường lạ -> 422
     model_config = ConfigDict(extra="forbid")
@@ -171,7 +181,7 @@ class PhoneVerifyOut(BaseModel):
 
 
 class RegisterRequestIn(_In):
-    full_name: str = Field(min_length=1, max_length=100)
+    full_name: FullName
     phone: Phone
     password: NewPassword
 
