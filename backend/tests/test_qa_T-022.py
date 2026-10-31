@@ -254,15 +254,14 @@ async def test_sort_directions_and_stable_order(admin, made):
         await t15.add_ok(admin, made)
     desc = await entries(admin, action="member.create", sort="at_desc")
     asc = await entries(admin, action="member.create", sort="at_asc")
-    # Nhật ký không xóa được nên có thể > 100 dòng: so với cực trị trong DB thay vì đảo hai trang
+    # Nhật ký không xóa được nên có thể > 100 dòng: so với cực trị theo thời điểm trong DB
     lo, hi = (
-        await q("SELECT min(id) AS lo, max(id) AS hi FROM audit_log WHERE action='member.create'")
+        await q("SELECT min(at) AS lo, max(at) AS hi FROM audit_log WHERE action='member.create'")
     )[0].values()
-    assert desc[0]["id"] == hi and asc[0]["id"] == lo
-    assert [i["id"] for i in desc] == sorted((i["id"] for i in desc), reverse=True)
-    assert [i["id"] for i in asc] == sorted(i["id"] for i in asc)
-    ats = [i["at"] for i in desc]
-    assert ats == sorted(ats, reverse=True)
+    parse = dt.datetime.fromisoformat
+    assert parse(desc[0]["at"]) == hi and parse(asc[0]["at"]) == lo
+    assert [i["at"] for i in desc] == sorted((i["at"] for i in desc), reverse=True)
+    assert [i["at"] for i in asc] == sorted(i["at"] for i in asc)
     default = await entries(admin, action="member.create")
     assert [i["id"] for i in default] == [i["id"] for i in desc], "default = newest first"
     assert (await admin.get(LOG, params={"sort": "name_asc"})).status_code == 422

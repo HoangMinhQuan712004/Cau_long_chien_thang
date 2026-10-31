@@ -19,6 +19,7 @@ from app.core.db import engine
 from tests.conftest import API, _client, idem, sign_in, unique_phone
 from tests.helpers_booking import book, new_court, safe_hour
 from tests.helpers_web import WEB
+from tests.qa_accounts import db_account
 
 MA = f"{API}/member-area"
 M = f"{API}/members"
@@ -185,16 +186,12 @@ async def test_ac1_initial_password_older_than_3_days_is_blocked_e_auth_30(admin
     assert r.status_code == 403 and err(r)["code"] == "E-AUTH-30", r.text
 
 
-async def test_ac1_self_registered_account_needs_verified_phone_to_link(admin, made):
-    """Đăng ký trước bằng SĐT của hội viên (không OTP) → chưa liên kết; xác minh OTP rồi mới vào."""
+async def test_ac1_unverified_account_needs_otp_to_link_to_a_club_member(admin, made):
+    """Tài khoản đời cũ (SĐT chưa xác minh) trùng SĐT hội viên quầy tạo → chưa liên kết; xác minh OTP rồi mới vào."""
     phone = unique_phone()
     made.append(phone)
     async with _client() as c:
-        r = await c.post(
-            f"{API}/auth/register",
-            json={"full_name": "Khách Đăng Ký Trước", "phone": phone, "password": "Tu-Dang-Ky-1"},
-        )
-        assert r.status_code == 201, r.text
+        await db_account(c, phone, "Khách Đăng Ký Trước", "Tu-Dang-Ky-1")
         await add_member(admin, made, phone=phone)
         assert (await c.get(f"{API}/auth/me")).json()["is_member"] is False
         r = await c.get(f"{MA}/me")
@@ -209,23 +206,32 @@ async def test_ac1_self_registered_account_needs_verified_phone_to_link(admin, m
         assert (await c.get(f"{MA}/me")).status_code == 200
 
 
-async def test_ac1_temp_profile_is_not_linked_even_when_verified(admin, made):
+async def test_ac1_t021_temp_profile_is_upgraded_when_the_owner_verifies_the_phone(admin, made):
+    """T-021 R1: hồ sơ tạm + chủ SĐT tự xác minh OTP → nâng lên hội viên trên cùng dòng, giữ lịch sử."""
     phone = unique_phone()
     made.append(phone)
     t = await admin.post(
         f"{M}/temp", json={"full_name": f"{tag()} Tạm", "phone": phone}, headers=idem()
     )
     assert t.status_code == 201
+    before = (await q("SELECT id, public_id, kind FROM customer WHERE phone=:p", p=phone))[0]
+    assert before["kind"] == "temp"
     async with _client() as c:
-        await c.post(
-            f"{API}/auth/register",
-            json={"full_name": "Có hồ sơ tạm", "phone": phone, "password": "Tu-Dang-Ky-1"},
+        await db_account(c, phone, "Có hồ sơ tạm", "Tu-Dang-Ky-1")
+        r = await c.get(f"{MA}/me")
+        assert r.status_code == 403 and err(r)["code"] == "E-HV-8", (
+            "chưa xác minh OTP: chưa phải hội viên"
         )
         req = await c.post(f"{WEB}/phone/request", json={"phone": phone})
-        await c.post(f"{WEB}/phone/verify", json={"phone": phone, "otp": req.json()["test_otp"]})
-        assert (await c.get(f"{API}/auth/me")).json()["is_member"] is False
-        r = await c.get(f"{MA}/me")
-        assert r.status_code == 403 and err(r)["code"] == "E-HV-8"
+        ver = await c.post(
+            f"{WEB}/phone/verify", json={"phone": phone, "otp": req.json()["test_otp"]}
+        )
+        assert ver.status_code == 200 and ver.json()["became_member"] is True, ver.text
+        assert (await c.get(f"{API}/auth/me")).json()["is_member"] is True
+        assert (await c.get(f"{MA}/me")).status_code == 200
+    after = (await q("SELECT id, public_id, kind FROM customer WHERE phone=:p", p=phone))[0]
+    assert after["id"] == before["id"] and after["public_id"] == before["public_id"]
+    assert after["kind"] == "member", "nâng trên cùng dòng, không tạo dòng mới"
 
 
 async def test_ac1_is_member_in_sign_in_response(admin, made):

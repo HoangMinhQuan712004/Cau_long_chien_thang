@@ -17,6 +17,7 @@ from sqlalchemy import text
 from app.core.db import engine
 from tests.conftest import API, _client, idem, sign_in
 from tests.helpers_booking import book, new_court, random_phone, safe_hour, temp
+from tests.qa_accounts import db_account
 
 sepay = importlib.import_module("tests.test_qa_T-008").sepay  # fixture cấu hình SePay thử
 M = f"{API}/members"
@@ -982,11 +983,9 @@ async def test_account_registered_before_the_club_cannot_read_the_member_card(ad
     phone = random_phone()
     made.append(phone)
     async with _client() as attacker:
-        r = await attacker.post(
-            f"{API}/auth/register",
-            json={"full_name": "Kẻ đăng ký trước", "phone": phone, "password": "Ke-Tan-Cong-1"},
-        )
-        assert r.status_code == 201, r.text
+        await db_account(
+            attacker, phone, "Kẻ đăng ký trước", "Ke-Tan-Cong-1"
+        )  # T-021: /auth/register đóng
         m = await add_ok(admin, made, phone=phone)
         row = (
             await q(
@@ -1023,16 +1022,23 @@ async def test_member_card_is_only_the_own_one(admin, made):
         )
 
 
-async def test_temp_profile_has_no_member_card(admin, made):
+async def test_temp_profile_has_no_card_until_the_owner_verifies_by_otp(admin, made):
     t = (await add_temp(admin, made)).json()
     async with _client() as c:
-        r = await c.post(
-            f"{API}/auth/register",
-            json={"full_name": "Có tạm", "phone": t["phone"], "password": "Co-Tam-Pass-1"},
+        await db_account(c, t["phone"], "Có tạm", "Co-Tam-Pass-1")
+        await x(
+            "UPDATE users SET phone_verified_at = now() WHERE phone=:p", p=t["phone"]
+        )  # xác minh giả, không qua OTP
+        assert (await c.get(f"{API}/me/member")).status_code == 404, "hồ sơ tạm chưa phải hội viên"
+        # T-021 R1: chủ SĐT tự xác minh bằng OTP → được nâng lên hội viên
+        req = await c.post(f"{API}/web/booking/phone/request", json={"phone": t["phone"]})
+        ver = await c.post(
+            f"{API}/web/booking/phone/verify",
+            json={"phone": t["phone"], "otp": req.json()["test_otp"]},
         )
-        assert r.status_code == 201
-        await x("UPDATE users SET phone_verified_at = now() WHERE phone=:p", p=t["phone"])
-        assert (await c.get(f"{API}/me/member")).status_code == 404, "temp profile is not a member"
+        assert ver.status_code == 200 and ver.json()["became_member"] is True, ver.text
+        card = await c.get(f"{API}/me/member")
+        assert card.status_code == 200 and card.json()["member_code"] == ver.json()["member_code"]
 
 
 # ============================================================ đồng thời

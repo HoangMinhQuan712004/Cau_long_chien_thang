@@ -162,9 +162,9 @@ async def test_ac6_exclusion_constraint_unchanged_and_released_slot_is_free(lega
 
 
 async def test_ac6_schema_matches_models_after_upgrade(legacy_db):
-    await alembic(command.upgrade, TARGET)
+    await alembic(command.upgrade, "head")  # T-021 thêm migration sau T-019: so với mô hình ở head
     await alembic(
-        lambda cfg, _rev: command.check(cfg), TARGET
+        lambda cfg, _rev: command.check(cfg), "head"
     )  # raises if autogenerate finds a diff
 
 

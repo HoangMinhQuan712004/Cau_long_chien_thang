@@ -20,9 +20,13 @@ from tests.conftest import (
     API,
     CUSTOMER_PASSWORD,
     _client,
+    age_otp_codes,
+    new_registered,
+    register,
     sign_in,
     unique_phone,
 )
+from tests.qa_accounts import db_account
 
 EVIL = "https://evil.example"
 ADMIN_LOGIN = settings.FIRST_ADMIN_PHONE
@@ -100,11 +104,7 @@ async def test_ac1_username_is_case_insensitive_and_returns_staff_card(admin, an
 
 async def test_ac1_customer_gets_customer_kind_with_own_full_phone(anon):
     phone = unique_phone()
-    r = await anon.post(
-        f"{API}/auth/register",
-        json={"full_name": "Khách Đăng Nhập", "phone": phone, "password": CUSTOMER_PASSWORD},
-    )
-    assert r.status_code == 201
+    await db_account(None, phone, "Khách Đăng Nhập")  # T-021: /auth/register đóng, tạo qua DB
     async with _client() as c:
         r = await sign_in(c, phone, CUSTOMER_PASSWORD)
         assert r.status_code == 200
@@ -314,10 +314,7 @@ async def test_ac4_login_audits_success_and_each_session_is_separate(admin):
 
 async def test_ac4_one_session_kind_per_browser(anon):
     phone = unique_phone()
-    await anon.post(
-        f"{API}/auth/register",
-        json={"full_name": "Khách Hai Vai", "phone": phone, "password": CUSTOMER_PASSWORD},
-    )
+    await db_account(anon, phone, "Khách Hai Vai")
     assert (await anon.get(f"{API}/auth/me")).status_code == 200
     r = await sign_in(anon, ADMIN_LOGIN, ADMIN_PW)
     assert r.status_code == 200
@@ -716,106 +713,97 @@ async def test_ac13_session_of_another_staff_is_e_staff_2(admin):
     assert r.status_code == 404 and err(r)["code"] == "E-STAFF-2"
 
 
-# ---------------------------------------- AC19 đăng ký khách
+# ---------------------------------------- AC19 đăng ký khách (T-021: 2 bước OTP, thành hội viên)
+
+REG = f"{API}/auth/register"
 
 
-async def test_ac19_register_by_phone_leaves_it_unverified(anon):
-    phone = unique_phone()
-    r = await anon.post(
-        f"{API}/auth/register",
-        json={"full_name": "  Khách   Mới ", "phone": phone, "password": "Password123"},
+async def reg_request(client, phone, name="Khách Mới", password="Password123", **extra):
+    return await client.post(
+        f"{REG}/request", json={"full_name": name, "phone": phone, "password": password, **extra}
     )
-    assert r.status_code == 201
+
+
+async def test_ac19_old_register_endpoint_is_closed_410(anon):
+    r = await anon.post(
+        REG, json={"full_name": "Cũ", "phone": unique_phone(), "password": "Password123"}
+    )
+    assert r.status_code == 410 and err(r)["code"] == "E-AUTH-32"
+    assert not any(c.startswith("access_token=") for c in cookie_lines(r))
+
+
+async def test_ac19_register_by_otp_verifies_the_phone_and_makes_a_member(anon):
+    phone = unique_phone()
+    r = await register(anon, phone, "  Khách   Mới ")
+    assert r.status_code == 201, r.text
     body = r.json()
-    assert body["phone"] == phone and body["phone_verified"] is False and body["role"] == "member"
+    assert re.fullmatch(r"HV\d{4,5}", body["member_code"]) and body["upgraded_from_temp"] is False
+    acc = body["account"]
+    assert acc["phone"] == phone and acc["phone_verified"] is True and acc["role"] == "member"
     assert (
-        body["full_name"] == "Khách Mới" and "email" not in body and "hashed_password" not in body
+        acc["full_name"] == "Khách Mới"
+        and "email" not in acc
+        and "hashed_password" not in str(body)
     )
     assert any(c.startswith("access_token=") for c in cookie_lines(r))
     row = (await q("SELECT phone_verified_at FROM users WHERE phone=:p", p=phone))[0]
-    assert row["phone_verified_at"] is None, "registration must not verify the phone"
-    assert (await anon.get(f"{API}/auth/me")).json()["phone_verified"] is False
+    assert row["phone_verified_at"] is not None
+    assert (await anon.get(f"{API}/auth/me")).json()["phone_verified"] is True
 
 
-async def test_ac19_duplicate_phone_in_any_format_is_e_auth_22(anon, customer):
-    phone = (await customer.get(f"{API}/auth/me")).json()["phone"]
+async def test_ac19_duplicate_phone_in_any_format_is_e_auth_22_only_after_otp(anon):
+    async with new_registered() as owner:
+        phone = (await owner.get(f"{API}/auth/me")).json()["phone"]
     for variant in (phone, "+84" + phone[1:], f"{phone[:4]} {phone[4:7]} {phone[7:]}"):
         async with _client() as c:
-            r = await c.post(
-                f"{API}/auth/register",
-                json={"full_name": "Trùng Số", "phone": variant, "password": "Password123"},
-            )
+            r = await register(c, variant, "Trùng Số")
             assert r.status_code == 409 and err(r)["code"] == "E-AUTH-22", variant
-    admin_dup = await anon.post(
-        f"{API}/auth/register",
-        json={"full_name": "Trùng Admin", "phone": ADMIN_LOGIN, "password": "Password123"},
-    )
-    assert admin_dup.status_code == 409 and err(admin_dup)["code"] == "E-AUTH-22"
+    async with _client() as c:
+        admin_dup = await register(c, ADMIN_LOGIN, "Trùng Admin")
+        assert admin_dup.status_code == 409 and err(admin_dup)["code"] == "E-AUTH-22"
 
 
-async def test_ac19_concurrent_duplicate_registration_creates_one_account(anon):
+async def test_ac19_concurrent_verify_of_one_phone_creates_one_account_and_one_member(anon):
     phone = unique_phone()
+    async with _client() as c0:
+        await age_otp_codes(phone)
+        r = await reg_request(c0, phone, "Song Song")
+        assert r.status_code == 202, r.text
+        otp = r.json()["test_otp"]
 
     async def one():
         async with _client() as c:
-            return (
-                await c.post(
-                    f"{API}/auth/register",
-                    json={"full_name": "Song Song", "phone": phone, "password": "Password123"},
-                )
-            ).status_code
+            return (await c.post(f"{REG}/verify", json={"phone": phone, "otp": otp})).status_code
 
     codes = sorted(await asyncio.gather(*[one() for _ in range(4)]))
-    assert codes == [201, 409, 409, 409], codes
+    assert codes.count(201) == 1 and set(codes) <= {201, 400, 409}, codes
     assert len(await q("SELECT 1 FROM users WHERE phone=:p", p=phone)) == 1
+    assert len(await q("SELECT 1 FROM customer WHERE phone=:p AND kind='member'", p=phone)) == 1
 
 
 @pytest.mark.parametrize(
     "phone", ["", "123", "0123456789012", "abc", "09123456", "+1 202 555 0100"]
 )
 async def test_ac19_invalid_phone_is_422(anon, phone):
-    r = await anon.post(
-        f"{API}/auth/register",
-        json={"full_name": "Số Sai", "phone": phone, "password": "Password123"},
-    )
+    r = await reg_request(anon, phone, "Số Sai")
     assert r.status_code == 422
 
 
-async def test_ac19_register_is_limited_to_10_per_hour_per_ip(anon):
+async def test_ac19_register_request_is_limited_to_10_per_hour_per_ip(anon):
     for i in range(10):
         async with _client() as c:
-            r = await c.post(
-                f"{API}/auth/register",
-                json={
-                    "full_name": f"Hàng Loạt {i}",
-                    "phone": unique_phone(),
-                    "password": "Password123",
-                },
-            )
-            assert r.status_code == 201, (i, r.text)
+            r = await reg_request(c, unique_phone(), f"Hàng Loạt {i}")
+            assert r.status_code == 202, (i, r.text)
     async with _client() as c:
-        r = await c.post(
-            f"{API}/auth/register",
-            json={"full_name": "Thứ Mười Một", "phone": unique_phone(), "password": "Password123"},
-        )
+        r = await reg_request(c, unique_phone(), "Thứ Mười Một")
         assert r.status_code == 429 and err(r)["code"] == "E-SEC-5"
 
 
 async def test_ac19_register_rejects_weak_password_extra_fields_and_email(anon):
-    base = {"full_name": "Khách", "phone": unique_phone()}
-    assert (
-        await anon.post(f"{API}/auth/register", json={**base, "password": "weakpass"})
-    ).status_code == 422
-    assert (
-        await anon.post(
-            f"{API}/auth/register", json={**base, "password": "Password123", "email": "a@b.vn"}
-        )
-    ).status_code == 422
-    assert (
-        await anon.post(
-            f"{API}/auth/register", json={**base, "password": "Password123", "role": "admin"}
-        )
-    ).status_code == 422
+    phone = unique_phone()
+    assert (await reg_request(anon, phone, password="weakpass")).status_code == 422
+    assert (await reg_request(anon, phone, email="a@b.vn")).status_code == 422
+    assert (await reg_request(anon, phone, role="admin")).status_code == 422
 
 
 # ---------------------------------------- AC33 seed không ghi đè Admin
@@ -842,7 +830,10 @@ async def test_ac33_reseeding_never_overwrites_the_admin(anon):
     ("path", "body"),
     [
         ("/auth/sign-in", {"login": ADMIN_LOGIN, "password": ADMIN_PW}),
-        ("/auth/register", {"full_name": "Evil", "phone": "0911222333", "password": "Password123"}),
+        (
+            "/auth/register/request",
+            {"full_name": "Evil", "phone": "0911222333", "password": "Password123"},
+        ),
         ("/auth/refresh", None),
         ("/auth/logout", None),
     ],
