@@ -206,7 +206,7 @@ export function RoomScreen({ id }: { id: number }) {
                   Hủy yêu cầu
                 </Button>
               ) : (
-                <Button variant="secondary" onClick={() => void inline(() => roomsApi.requestJoin(id), ["Đã gửi yêu cầu vào phòng", "Host sẽ duyệt"])} loading={busy} disabled={room.members.length >= MAX_MEMBERS}>
+                <Button variant="secondary" onClick={() => void inline((v) => roomsApi.requestJoin(id, v), ["Đã gửi yêu cầu vào phòng", "Host sẽ duyệt"])} loading={busy} disabled={room.members.length >= MAX_MEMBERS}>
                   Xin vào
                 </Button>
               )}
@@ -406,9 +406,9 @@ export function RoomScreen({ id }: { id: number }) {
         <InviteDialog
           onClose={() => setDialog(null)}
           onSend={async (phone) => {
-            const res = await roomsApi.invite(id, phone);
-            if (!res.ok) return errorText(res.error);
-            toast("Đã gửi lời mời", "Người chơi sẽ nhận thông báo");
+            const r = await write((v) => roomsApi.invite(id, phone, v));
+            if (r.error) return r.error;
+            if (r.done) toast("Đã gửi lời mời", "Người chơi sẽ nhận thông báo");
             setDialog(null);
             return null;
           }}

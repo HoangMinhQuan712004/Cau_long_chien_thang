@@ -26,10 +26,10 @@ export type RoomsApi = {
   getRoom(id: number): Promise<Read<RoomDetail>>;
   listMatches(id: number, format: Format | "all"): Promise<Read<MatchList>>;
   getRanking(id: number, format: Format | "all"): Promise<Read<RankingRow[]>>;
-  requestJoin(id: number): Promise<WriteResult<unknown>>;
+  requestJoin(id: number, version: number): Promise<WriteResult<unknown>>;
   cancelRequest(id: number): Promise<WriteResult<unknown>>;
   decide(id: number, requestId: number, approve: boolean, version: number): Promise<WriteResult<unknown>>;
-  invite(id: number, phone: string): Promise<WriteResult<unknown>>;
+  invite(id: number, phone: string, version: number): Promise<WriteResult<unknown>>;
   answerInvite(inviteId: number, accept: boolean): Promise<WriteResult<unknown>>;
   leave(id: number, version: number): Promise<WriteResult<unknown>>;
   kick(id: number, memberId: number, version: number): Promise<WriteResult<unknown>>;
@@ -50,10 +50,10 @@ const real: RoomsApi = {
     read(() => looseApi.GET(`${P}/rooms/{id}/matches`, { params: { path: { id }, query: format === "all" ? {} : { format } } })),
   getRanking: (id, format) =>
     read(() => looseApi.GET(`${P}/rooms/{id}/ranking`, { params: { path: { id }, query: format === "all" ? {} : { format } } })),
-  requestJoin: (id) => post(`/rooms/${id}/join-requests`),
+  requestJoin: (id, version) => post(`/rooms/${id}/join-requests`, { version }),
   cancelRequest: (id) => write((key) => looseApi.DELETE(`${P}/rooms/${id}/join-requests/mine`, { headers: { "Idempotency-Key": key } })),
   decide: (id, rid, approve, version) => post(`/rooms/${id}/join-requests/${rid}/${approve ? "approve" : "reject"}`, { version }),
-  invite: (id, phone) => post(`/rooms/${id}/invites`, { phone }),
+  invite: (id, phone, version) => post(`/rooms/${id}/invites`, { phone, version }),
   answerInvite: (iid, accept) => post(`/invites/${iid}/${accept ? "accept" : "decline"}`),
   leave: (id, version) => post(`/rooms/${id}/leave`, { version }),
   kick: (id, mid, version) => post(`/rooms/${id}/members/${mid}/kick`, { version }),

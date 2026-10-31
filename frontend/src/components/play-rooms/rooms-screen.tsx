@@ -45,7 +45,7 @@ export function RoomsScreen() {
     setBusyId(room.id);
     const res =
       kind === "request"
-        ? await roomsApi.requestJoin(room.id)
+        ? await roomsApi.requestJoin(room.id, room.version)
         : kind === "cancel"
           ? await roomsApi.cancelRequest(room.id)
           : await roomsApi.answerInvite(room.my_invite_id ?? 0, kind === "accept");
