@@ -1603,6 +1603,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/speed-ranking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Speed Ranking
+         * @description Top 10 cú đập nhanh nhất trong kỳ (tuần T2→CN / tháng / năm, giờ VN) + hạng của tôi.
+         *
+         *     Mỗi hội viên lấy số đo cao nhất trong kỳ, bằng nhau thì ai đạt trước xếp trên. Chỉ hội viên
+         *     Hoạt động có tài khoản liên kết. Tắt "Hiện trên kỷ lục" -> "Hội viên ẩn danh" (mình luôn thấy
+         *     tên mình). Không trả id của người khác. ``period`` / ``date`` sai -> 422.
+         */
+        get: operations["speed_ranking_api_v1_member_area_speed_ranking_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rackets": {
         parameters: {
             query?: never;
@@ -3437,7 +3461,7 @@ export interface components {
             avatar_url: string | null;
             /**
              * Record Kmh
-             * @description Đợt 1 chưa có dữ liệu kỷ lục
+             * @description Kỷ lục tốc độ cú đập mọi thời gian (km/h); null: chưa có số đo
              */
             record_kmh?: number | null;
             /** Version */
@@ -5078,6 +5102,82 @@ export interface components {
              * @constant
              */
             day_type: "holiday";
+        };
+        /** SpeedMe */
+        SpeedMe: {
+            /** Rank */
+            rank: number;
+            /**
+             * Speed Kmh
+             * @description Số đo cao nhất của mình trong kỳ
+             */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /**
+             * Gap To Top10
+             * @description km/h hạng 10 − của mình; null khi mình đã trong top 10
+             */
+            gap_to_top10: number | null;
+        };
+        /** SpeedRanking */
+        SpeedRanking: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "week" | "month" | "year";
+            /**
+             * Start
+             * Format: date
+             * @description Ngày đầu kỳ (giờ VN)
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             * @description Ngày cuối kỳ, tính cả ngày này (giờ VN)
+             */
+            end: string;
+            /**
+             * Total Members
+             * @description Số hội viên có số đo trong kỳ
+             */
+            total_members: number;
+            /**
+             * Top
+             * @description Tối đa 10, hạng 1 trước
+             */
+            top: components["schemas"]["SpeedRankingRow"][];
+            /** @description null: mình chưa có số đo trong kỳ */
+            me: components["schemas"]["SpeedMe"] | null;
+            /**
+             * Bar Floor Kmh
+             * @description Mốc đầu thanh tốc độ (FE)
+             */
+            bar_floor_kmh: number;
+        };
+        /** SpeedRankingRow */
+        SpeedRankingRow: {
+            /** Rank */
+            rank: number;
+            /**
+             * Display Name
+             * @description 'Hội viên ẩn danh' khi người đó tắt Hiện trên kỷ lục
+             */
+            display_name: string;
+            /**
+             * Avatar Url
+             * @description null với người ẩn danh (FE dùng avatar chung)
+             */
+            avatar_url: string | null;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /** Is Me */
+            is_me: boolean;
         };
         /**
          * StaffCreateIn
@@ -8294,6 +8394,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    speed_ranking_api_v1_member_area_speed_ranking_get: {
+        parameters: {
+            query?: {
+                period?: "week" | "month" | "year";
+                /** @description Ngày bất kỳ trong kỳ, mặc định hôm nay */
+                date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpeedRanking"];
+                };
             };
             /** @description Validation Error */
             422: {

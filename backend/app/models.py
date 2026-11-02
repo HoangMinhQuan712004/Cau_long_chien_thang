@@ -10,6 +10,7 @@ from app.modules.member_inbox.models import MemberNotification
 from app.modules.members.models import Customer, CustomerAvatar, Racket
 from app.modules.payments.models import BankTransaction
 from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember, PlayRoomRequest
+from app.modules.records.models import SpeedRecord
 
 __all__ = [
     "AdminSession",
@@ -27,6 +28,7 @@ __all__ = [
     "PlayRoomMember",
     "PlayRoomRequest",
     "Post",
+    "SpeedRecord",
     "User",
     "booking_engine_models",
 ]
