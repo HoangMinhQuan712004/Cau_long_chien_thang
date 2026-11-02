@@ -545,7 +545,12 @@ async def test_ac19_history_counts_filter_order_and_viewable_by_outsiders(admin,
 
 async def test_ac20_ranking_matches_an_independent_oracle_with_tied_ranks(admin, people, seats):
     host, rid, _, _ = await room_with(admin, people, seats, 5)  # 6 người
-    for a, b in ((21, 10), (8, 21), (21, 14), (12, 21)):
+    # Sau trận 2v2 đầu tiên luôn đồng hạng: 2 người thắng 1-0, 2 người thua 0-1.
+    # (Sau 4 trận ghép đội ngẫu nhiên thì có lượt không ai bằng ai -> không assert đồng hạng ở đó.)
+    await play(host.client, rid, 21, 10)
+    r1 = (await host.client.get(f"{ROOMS}/{rid}/ranking")).json()["items"]
+    assert [row["rank"] for row in r1] == [1, 1, 3, 3], "đồng hạng khi bằng cả hai (1, 1, 3…)"
+    for a, b in ((8, 21), (21, 14), (12, 21)):
         await play(host.client, rid, a, b)
     h = (await host.client.get(f"{ROOMS}/{rid}/matches")).json()
     r = (await host.client.get(f"{ROOMS}/{rid}/ranking")).json()["items"]
@@ -562,9 +567,6 @@ async def test_ac20_ranking_matches_an_independent_oracle_with_tied_ranks(admin,
     for row in r:
         better = sum(1 for y in r if (y["wins"], y["win_rate"]) > (row["wins"], row["win_rate"]))
         assert row["rank"] == better + 1, "đồng hạng khi bằng cả hai (1, 1, 3…)"
-    assert any(r[i]["rank"] == r[i + 1]["rank"] for i in range(len(r) - 1)), (
-        "kịch bản này có đồng hạng"
-    )
     assert sum(row["is_me"] for row in r) <= 1
 
 
