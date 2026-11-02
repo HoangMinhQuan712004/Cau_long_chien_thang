@@ -1964,6 +1964,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/reports/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Overview
+         * @description Cả màn trong một lần đọc: kỳ + kỳ trước, 3 chỉ số, doanh thu theo ngày / sân, heatmap.
+         *
+         *     Thiếu cả hai ngày ⇒ Tuần (hôm nay − 6 → hôm nay). Doanh thu theo ngày chơi.
+         *     Lỗi 422: E-REPORT-1 (Từ ngày sau Đến ngày), E-REPORT-2 (> 90 ngày), E-REPORT-3 (sau hôm nay).
+         */
+        get: operations["get_overview_api_v1_admin_reports_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -2219,6 +2242,18 @@ export interface components {
              */
             hours: number;
         };
+        /** BookingsOut */
+        BookingsOut: {
+            /** Current */
+            current: number;
+            /** Previous */
+            previous: number;
+            /**
+             * Tickets
+             * @description Số vé xé vé đã gồm trong current
+             */
+            tickets: number;
+        };
         /** CalendarBlock */
         CalendarBlock: {
             /**
@@ -2459,6 +2494,17 @@ export interface components {
             /** Bookings */
             bookings: components["schemas"]["ItemOut"][];
         };
+        /** CourtOut */
+        CourtOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Revenue */
+            revenue: number;
+            /** Is Active */
+            is_active: boolean;
+        };
         /**
          * CurrentMatchOut
          * @description Trận vừa bốc (``drawn``) hoặc đang chơi (``playing``) – mốc 2.
@@ -2500,6 +2546,16 @@ export interface components {
              */
             kind: "member";
             account: components["schemas"]["UserOut"];
+        };
+        /** DailyOut */
+        DailyOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Revenue */
+            revenue: number;
         };
         /** FormatIn */
         FormatIn: {
@@ -2546,6 +2602,51 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HeatCellOut */
+        HeatCellOut: {
+            /** Booked Hours */
+            booked_hours: number;
+            /**
+             * Open Hours
+             * @description 0 ⇒ không sân nào mở, ô hiện “–”
+             */
+            open_hours: number;
+        };
+        /** HeatColumnOut */
+        HeatColumnOut: {
+            /**
+             * Date
+             * @description null khi mode = weekday
+             */
+            date: string | null;
+            /**
+             * Weekday
+             * @description 0 = T2 … 6 = CN
+             */
+            weekday: number;
+            /** Is Today */
+            is_today: boolean;
+        };
+        /** HeatmapOut */
+        HeatmapOut: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "day" | "weekday";
+            /** Columns */
+            columns: components["schemas"]["HeatColumnOut"][];
+            /**
+             * Hours
+             * @description Giờ bắt đầu khung 1 giờ, vd 5 = 05h–06h
+             */
+            hours: number[];
+            /**
+             * Cells
+             * @description cells[hàng giờ][cột]
+             */
+            cells: components["schemas"]["HeatCellOut"][][];
         };
         /** InviteIn */
         InviteIn: {
@@ -3116,6 +3217,13 @@ export interface components {
              */
             version: number;
         };
+        /** MetricOut */
+        MetricOut: {
+            /** Current */
+            current: number;
+            /** Previous */
+            previous: number;
+        };
         /** MyBookingsOut */
         MyBookingsOut: {
             /** Items */
@@ -3455,6 +3563,21 @@ export interface components {
              */
             created_at: string;
         };
+        /** PeriodOut */
+        PeriodOut: {
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /** Days */
+            days: number;
+        };
         /** PersonOut */
         PersonOut: {
             /**
@@ -3644,6 +3767,24 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** PreviousOut */
+        PreviousOut: {
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /**
+             * Until
+             * @description So cùng mốc (BR-005): kỳ có hôm nay ⇒ ngày cuối kỳ trước chỉ tính tới mốc này
+             */
+            until: string | null;
         };
         /** PriceCellIn */
         PriceCellIn: {
@@ -3955,6 +4096,26 @@ export interface components {
             phone: string;
             /** Otp */
             otp: string;
+        };
+        /** ReportOverviewOut */
+        ReportOverviewOut: {
+            period: components["schemas"]["PeriodOut"];
+            previous: components["schemas"]["PreviousOut"];
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /** Active Courts */
+            active_courts: number;
+            revenue: components["schemas"]["MetricOut"];
+            bookings: components["schemas"]["BookingsOut"];
+            new_members: components["schemas"]["MetricOut"];
+            /** Daily */
+            daily: components["schemas"]["DailyOut"][];
+            /** Courts */
+            courts: components["schemas"]["CourtOut"][];
+            heatmap: components["schemas"]["HeatmapOut"];
         };
         /** ResetConfirmIn */
         ResetConfirmIn: {
@@ -8257,6 +8418,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditLogPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_overview_api_v1_admin_reports_overview_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportOverviewOut"];
                 };
             };
             /** @description Validation Error */

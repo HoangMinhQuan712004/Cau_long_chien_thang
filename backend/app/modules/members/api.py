@@ -4,7 +4,9 @@ Hàm ghi **không commit**; người gọi sở hữu transaction.
 """
 
 import asyncio
+from datetime import datetime
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
@@ -26,6 +28,7 @@ __all__ = [
     "RoomPerson",
     "customer_id_of_ref",
     "booking_refs_of",
+    "count_new_members",
     "room_people",
     "SelfProfile",
     "SelfUpdate",
@@ -153,3 +156,17 @@ async def booking_refs_of(session: AsyncSession, customer_id: int) -> list[str]:
     đặt trước khi có hồ sơ). Không có hồ sơ -> []."""
     customer = await session.get(Customer, customer_id)
     return profiles.booking_refs(customer) if customer is not None else []
+
+
+# ------------------------------------------------------------------ báo cáo
+
+
+async def count_new_members(session: AsyncSession, start: datetime, end: datetime) -> int:
+    """Hội viên có ngày tạo trong ``[start, end)``; không tính hồ sơ tạm (SRS Báo cáo BR-008).
+
+    Hồ sơ tạm nâng lên hội viên tính theo ngày tạo hồ sơ (không lưu ngày nâng, OQ-4).
+    """
+    stmt = select(func.count(Customer.id)).where(
+        Customer.kind == "member", Customer.created_at >= start, Customer.created_at < end
+    )
+    return int(await session.scalar(stmt) or 0)
