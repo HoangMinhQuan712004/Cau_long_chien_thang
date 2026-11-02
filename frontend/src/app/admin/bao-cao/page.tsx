@@ -74,7 +74,7 @@ function ReportSkeleton() {
           </Card>
         ))}
       </div>
-      <div className="grid gap-3 lg:grid-cols-[3fr_2fr] lg:gap-4">
+      <div className="grid gap-3 lg:grid-cols-2 lg:gap-4">
         {[0, 1].map((i) => (
           <Card key={i} className="flex flex-col gap-3 px-4 py-3.5 lg:px-4.5 lg:py-4">
             <Skeleton className="h-5 w-40" />

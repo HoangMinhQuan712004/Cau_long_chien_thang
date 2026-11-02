@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useDragScroll } from "@/hooks/use-drag-scroll";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { cn } from "@/lib/cn";
 import { formatDayMonth } from "@/lib/format";
+import { dragScrollClass } from "./chart-parts";
 import { decimal1, fill, hoursCount, round1, WEEKDAY_SHORT } from "./report-format";
 import type { HeatCell, HeatColumn, ReportOverview } from "@/lib/api/server";
 
@@ -27,7 +29,8 @@ function level(pct: number) {
   return pct < 90 ? 3 : 4;
 }
 
-const hourLabel = (h: number) => `${String(h).padStart(2, "0")}h–${String(h + 1).padStart(2, "0")}h`;
+const pad = (h: number) => String(h).padStart(2, "0");
+const hourLabel = (h: number) => `${pad(h)}h–${pad(h + 1)}h`;
 const columnLabel = (c: HeatColumn) =>
   c.date ? `${WEEKDAY_SHORT[c.weekday]} ${formatDayMonth(c.date)}` : WEEKDAY_SHORT[c.weekday];
 
@@ -36,33 +39,46 @@ function cellTitle(cell: HeatCell, pct: number, col: HeatColumn, hour: number, t
   const vars = { day: columnLabel(col), hours: hourLabel(hour) };
   if (cell.open_hours === 0) return fill(t.closed, vars);
   if (col.date === null) return fill(t.cellWeekday, { ...vars, pct: `${decimal1(pct)}%` });
-  return fill(t.cellDay, { ...vars, booked: hoursCount(cell.booked_hours), open: hoursCount(cell.open_hours) });
+  const booked = hoursCount(cell.booked_hours);
+  return fill(t.cellDay, { ...vars, booked, open: hoursCount(cell.open_hours), pct: `${decimal1(pct)}%` });
 }
 
-type Props = { heatmap: ReportOverview["heatmap"]; t: T };
+type Props = {
+  heatmap: ReportOverview["heatmap"];
+  /** Tên vùng cuộn ngang. */
+  scrollLabel: string;
+  t: T;
+};
 
 /** Heatmap công suất: hàng = khung 1 giờ, cột = ngày (kỳ ≤ 7 ngày) hoặc thứ; ô "–" khi không sân nào mở (BR-016, BR-017). */
-export function CapacityHeatmap({ heatmap, t }: Props) {
+export function CapacityHeatmap({ heatmap, scrollLabel, t }: Props) {
   const { columns, hours, cells } = heatmap;
-  // Đã cuộn ngang ⇒ cột giờ có viền phải (biết là còn cột bị che)
-  const [isScrolled, setIsScrolled] = useState(false);
+  // Đã cuộn ngang ⇒ cột giờ có viền phải (biết là còn cột bị che); máy tính bấm giữ chuột kéo để cuộn
+  const { ref, edges, isScrollable, isDragging } = useDragScroll<HTMLDivElement>();
+  // Ô đang chạm / bấm ⇒ dòng chi tiết dưới bảng (điện thoại không có rê chuột)
+  const [selected, setSelected] = useState<string | null>(null);
   // Cột giờ dính trái: nền đặc, không khoảng hở (bảng không border-spacing, khung cuộn không padding)
   // nên ô cuộn qua bị che hết; ô màu là khối bên trong ô bảng (p-0.5 tạo khe giữa các ô)
+  // Điện thoại: cột giờ hẹp chỉ ghi giờ bắt đầu ("05h") ⇒ 7 cột vừa 375px không phải kéo
   const stickyCol = cn(
-    "sticky left-0 z-1 w-15 bg-surface pr-1.5 text-left sm:w-18",
-    isScrolled && "border-r",
+    "sticky left-0 z-1 w-8 bg-surface pr-1 text-left sm:w-18 sm:pr-1.5",
+    edges.left && "border-r",
   );
 
   return (
     <div className="flex flex-col gap-3">
       {/* `relative`: chữ sr-only (absolute) trong ô bám khung cuộn, không làm tràn trang */}
       <div
-        className="relative overflow-x-auto overscroll-x-contain"
-        onScroll={(e) => setIsScrolled(e.currentTarget.scrollLeft > 0)}
+        ref={ref}
+        tabIndex={isScrollable ? 0 : undefined}
+        role={isScrollable ? "region" : undefined}
+        aria-label={isScrollable ? scrollLabel : undefined}
+        className={cn("relative overflow-x-auto overscroll-x-contain focus-ring", dragScrollClass(isScrollable, isDragging))}
       >
-        {/* Điện thoại: ô hẹp (≈ 54px, vừa "100,0%" còn lề) ⇒ thấy được nhiều cột; từ sm ô rộng dần theo khung */}
+        {/* Điện thoại: chữ 11px, số không kèm "%" (đơn vị ghi ở chú giải) ⇒ 7 cột vừa khung; từ sm ô rộng dần */}
         <table className={cn(`
-          w-full min-w-md table-fixed border-separate border-spacing-0 text-xs tabular-nums
+          w-full table-fixed border-separate border-spacing-0 text-2xs tabular-nums
+          sm:min-w-md sm:text-xs
         `)}>
           <thead>
             <tr>
@@ -89,7 +105,8 @@ export function CapacityHeatmap({ heatmap, t }: Props) {
             {hours.map((hour, r) => (
               <tr key={hour}>
                 <th scope="row" className={cn(stickyCol, "font-medium whitespace-nowrap text-muted")}>
-                  {hourLabel(hour)}
+                  <span aria-hidden className="sm:hidden">{pad(hour)}h</span>
+                  <span className="sr-only sm:not-sr-only">{hourLabel(hour)}</span>
                 </th>
                 {columns.map((col, c) => {
                   const cell = cells[r]?.[c] ?? { booked_hours: 0, open_hours: 0 };
@@ -97,12 +114,21 @@ export function CapacityHeatmap({ heatmap, t }: Props) {
                   const pct = isClosed ? 0 : round1((cell.booked_hours / cell.open_hours) * 100);
                   const label = cellTitle(cell, pct, col, hour, t);
                   return (
-                    <td key={col.date ?? col.weekday} title={label} className="p-0.5">
+                    <td
+                      key={col.date ?? col.weekday}
+                      title={label}
+                      onClick={() => setSelected((s) => (s === label ? null : label))}
+                      className="p-px sm:p-0.5"
+                    >
                       <span className={cn(
-                        "flex h-7 items-center justify-center rounded-md sm:h-8",
+                        "flex h-7 items-center justify-center rounded-sm sm:h-8 sm:rounded-md",
+                        selected === label && "ring-2 ring-foreground ring-inset",
                         isClosed ? "text-subtle" : LEVEL_CLASS[level(pct)],
                       )}>
-                        <span aria-hidden>{isClosed ? "–" : `${decimal1(pct)}%`}</span>
+                        <span aria-hidden>
+                          {isClosed ? "–" : decimal1(pct)}
+                          {isClosed ? null : <span className="hidden sm:inline">%</span>}
+                        </span>
                         <span className="sr-only">{label}</span>
                       </span>
                     </td>
@@ -114,8 +140,15 @@ export function CapacityHeatmap({ heatmap, t }: Props) {
         </table>
       </div>
 
-      {/* Chú giải màu: Thấp → Cao */}
+      {/* Chi tiết ô đang chọn (giữ chỗ sẵn bằng dòng gợi ý ⇒ không nhảy bố cục) */}
+      <p aria-live="polite" className={cn("text-xs tabular-nums sm:text-ui", selected ? `
+        font-semibold
+      ` : `text-subtle`)}>
+        {selected ?? t.tapHint}
+      </p>
+      {/* Chú giải màu: Thấp → Cao; điện thoại ô không ghi "%" ⇒ nêu đơn vị */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted">
+        <span className="font-semibold sm:hidden">{t.unit}</span>
         <span>{t.low}</span>
         {t.levels.map((label, i) => (
           <span key={label} className="flex items-center gap-1">
