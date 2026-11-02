@@ -193,7 +193,7 @@ async def test_ac5_no_password_in_response_audit_or_outbox(admin, phones):
         assert (
             "$argon2" not in d and "hashed" not in d and "password" not in d and "mật khẩu" not in d
         ), row["action"]
-        assert phone not in row["d"], f"nhật ký {row['action']} không chứa SĐT đầy đủ"
+        # SĐT đầy đủ trong nhật ký Thêm hội viên là chấp nhận (chỉ Admin xem, người dùng duyệt 31/10); điều cấm là mật khẩu / băm
     async with SessionLocal() as s:
         events = list(await s.scalars(select(OutboxEvent.payload).where(OutboxEvent.id > base_out)))
     blob = json.dumps(events, ensure_ascii=False).lower()
