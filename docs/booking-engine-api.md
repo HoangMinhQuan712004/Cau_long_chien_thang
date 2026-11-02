@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-023, T-025)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -9,6 +9,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
 > **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, đã vào `dev`) – mục 11.2 và 12.11.**
 > **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007). Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, chưa vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
+> **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8.**
 > **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (đã vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
 > Mục 5.1, 10, 11 và 12 (kể cả phần đánh dấu **(T-021)** và mục 12.11) đã có trong `dev`. Chưa có gì trong `main`/production.
@@ -332,6 +333,8 @@ Chạy bằng `arq app.workers.worker.WorkerSettings`.
 | `purge_audit_log` | hằng ngày 03:15 | Xóa dòng nhật ký quá 12 tháng |
 | `purge_idempotency_keys` | mỗi giờ (phút 5) | Xóa key quá 24 giờ |
 | `purge_otp_codes` (T-013) | mỗi giờ (phút 35) | Xóa mã OTP quá 24 giờ |
+| `play_rooms_tick` (T-017) | mỗi phút (giây thứ 10) | Tạo phòng chơi còn thiếu cho booking hôm nay và ngày mai chưa kết thúc (backfill lúc deploy, lưới an toàn khi lỡ sự kiện; idempotent theo mã booking); đóng phòng quá giờ. Mục 13.2 |
+| `purge_member_notifications` (T-017) | hằng ngày 03:40 | Xóa thông báo hội viên quá 90 ngày |
 | `send_zalo_otp` (T-013) | theo yêu cầu | Gửi OTP qua Zalo ZNS. **Hiện là stub, chưa gửi thật** |
 
 Job `expire_pending_bookings` của luồng cũ đã bỏ.
@@ -816,7 +819,7 @@ Lệnh ghi cần `Origin` đúng. **(T-020)** `POST /members` và `POST /members
 | GET | `/members/search?q=` | `member.search` | Tối đa 20 hội viên `{ref, member_code, name, phone, tier, is_active}`; `q` 1–50 ký tự, tìm theo mã / tên / SĐT (≥ 3 chữ số), gồm cả Ngừng. Rate limit 60/phút/người |
 | GET | `/members?q=&kind=&status=&tier=&racket=&sort=&page=1&size=20` | `member.manage` | Danh sách |
 | GET | `/members/next-code` | `member.manage` | `{member_code}` Mã HV dự kiến (chỉ để hiển thị; mã thật cấp lúc lưu) |
-| POST | `/members` → 201 | `member.manage` | Thêm hội viên |
+| POST | `/members` → 201 | `member.manage` | Thêm hội viên. **(T-026, chưa vào `dev`)** Phản hồi là `MemberRow` thêm `account_created` (`true`: SĐT chưa có tài khoản nên vừa tạo, mật khẩu ban đầu = SĐT; `false`: SĐT đã có tài khoản, mật khẩu hiện có giữ nguyên) và `initial_password_expires_at` (lúc tạo + `MEMBER_INITIAL_PASSWORD_DAYS` = 3 ngày; chỉ có khi `account_created`; quá hạn → `E-AUTH-30`, dùng Quên mật khẩu). Gửi lại cùng `Idempotency-Key` trả đúng body lần đầu, gồm cả hai trường. Mật khẩu **không** nằm trong response, log, nhật ký hay outbox: giao diện tự ghép "Mật khẩu ban đầu: {SĐT}" từ SĐT vừa nhập. Hạn là UTC có múi giờ, giao diện đổi sang giờ Việt Nam |
 | POST | `/members/temp` → 201 | `member.manage` | Tạo hồ sơ tạm |
 | GET | `/members/{ref}` | `member.manage` | Chi tiết; **ghi nhật ký `member.view`** mỗi lần xem |
 | PATCH | `/members/{ref}` | `member.manage` | Sửa hội viên hoặc hồ sơ tạm |
@@ -1004,3 +1007,126 @@ R1 chạy ở **4 chỗ**, luôn sau khi chính chủ SĐT nhập đúng OTP: (1
 **Bảo mật.** Bước `request` không tra SĐT đã có tài khoản hay chưa: mọi SĐT nhận cùng trả lời, cùng lượng việc (băm mật khẩu, phát mã); `E-AUTH-22` chỉ báo sau khi nhập đúng OTP, tức người dò phải giữ được SIM. Khóa theo SĐT và mã dùng một lần: hai lần `verify` đồng thời cho 1×201 và 1×400, chỉ có một tài khoản và một hội viên. Giới hạn OTP dùng chung với T-013 (theo SĐT và IP), cộng 10 lần/giờ/IP cho bước `request`.
 
 **Production chưa có Zalo.** Không có kênh OTP (`OTP_TEST_MODE` tắt, thiếu Zalo) thì `/auth/register/request` trả 503 `E-AUTH-23`: production tạm không cho khách tự đăng ký cho tới khi có Zalo. Đây là hành vi đúng.
+
+## 13. Khu hội viên: tổng quan, lịch sử thanh toán, phòng chơi, thông báo (T-017, T-018)
+
+> Đã vào `dev` (PR #24). Đối chiếu với code `dev` (`member_area/home_router.py`, `play_rooms/`, `member_inbox/`) và handoff BE T-017 mốc 1, mốc 2, T-018. Tên trang đối chiếu theo thư mục `frontend/src/app/hoi-vien/`; nút và nội dung màn chưa kiểm trên giao diện. Nếu code lệch tài liệu này, code đúng.
+
+Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
+
+- Chỉ **hội viên có tài khoản liên kết** (điều kiện như mục 12.6): chưa đăng nhập → 401; chưa là hội viên → 403 `E-HV-8`.
+- Lệnh ghi cần `Origin`. Lệnh ghi trên phòng cần thêm `Idempotency-Key` (gửi lại cùng key → đúng kết quả cũ, header `Idempotent-Replayed`) và `version` của phòng, rồi trả `RoomDetail` mới nhất: giao diện thay luôn state, không cần GET lại. Ngoại lệ không cần `version`: hủy xin vào (`DELETE …/join-requests/mine`), nhận hoặc từ chối lời mời.
+- **Không có SĐT** ở bất kỳ phản hồi nào. Người được nhận diện bằng `display_name` (Biệt danh nếu có, không thì Họ tên) và `avatar_url` (`/api/v1/member-area/avatars/{id}?v=…`, `null` thì giao diện hiện chữ cái đầu). Id người trong phòng là `members[].id` (id dòng thành viên phòng).
+
+### 13.1 Tổng quan và lịch sử thanh toán (T-018)
+
+| Method | Path | Ghi chú |
+|---|---|---|
+| GET | `/overview` | `{greeting_name, today, today_count, upcoming[], unread_count}`, `no-store`. Giao diện: `/hoi-vien` |
+| GET | `/payments?month=YYYY-MM&kind=all\|booking\|ticket` | `{month, months[], summary, items[]}`, `no-store`. Tháng sai định dạng → 422. Giao diện: `/hoi-vien/lich-su-thanh-toan` |
+| GET | `/payments/{code}` | Một khoản đã thanh toán **của mình** (cùng dạng một `items[]`); khoản khác hoặc không có → 404 `E-NOT-FOUND`. Dùng cho hóa đơn. `code` là mã con booking hoặc mã vé (không in ra cho khách) |
+| GET | `/rooms/by-booking/{code}` | `{room_id}`. `code` = mã con, lấy từ `items[].code` của `GET /web/booking/checkouts/{token}` khi `status = "paid"`. 404 khi phòng chưa tạo hoặc mình không ở trong phòng. Giao diện thử lại khoảng 10 lần, cách 2 giây |
+
+**`/overview`:**
+
+- `greeting_name`: Biệt danh; không có thì tên ngắn (chữ cuối của Họ tên). Câu chào sáng, chiều, tối do giao diện tự tính. `today` là hôm nay giờ Việt Nam.
+- `today_count`: mọi lịch chơi hôm nay chưa kết thúc (không chỉ 4 mục trả về). `unread_count`: thông báo chưa đọc.
+- `upcoming[]` (tối đa 4, theo giờ bắt đầu): `{room_id, booking_code, order_code, play_date, start_at, end_at, phase: upcoming|ongoing, resource_name, resource_type_name, role: host|member, host_name, members_preview[] (≤ 4 người), count, capacity}`.
+  - `room_id = null`: booking chưa có phòng → **ẩn** nút "Vào phòng"; khi đó `count` và `capacity` cũng `null`.
+  - `booking_code` là mã con (nội bộ, không hiện); `order_code` là mã chung để hiện.
+  - Nguồn: phòng chưa đóng mà mình đang ở trong (mọi ngày), và booking của mình chưa kết thúc mà chưa có phòng. Theo hồ sơ `[id, "phone:<sđt>"]`, nên gồm cả booking đặt online trước khi có hồ sơ. Booking đã có phòng mà mình đã rời **không** hiện.
+
+**`/payments`:**
+
+- Chỉ khoản **Đã thanh toán**, gồm booking và vé. Tháng tính theo `paid_at`, giờ Việt Nam (31/03 17:30 UTC thuộc tháng 4). Mặc định tháng hiện tại.
+- `months`: tối đa 12 tháng gần nhất có giao dịch, luôn có tháng hiện tại, mới nhất trước.
+- `summary` tính cho **cả tháng**, không theo `kind`: `{total, count, bookings: {count, hours}, tickets: {count, total}}`. Số trên tab "Tất cả / Đặt sân / Vé" lấy từ đây.
+- `items[]` (mới nhất trước): `{kind: booking|ticket, code, display_code, title, event_name, resource_names[], play_date, start_at, end_at, amount, paid_at, method: "QR"|"Tiền mặt", channel: counter|online}`.
+  - `display_code`: booking = mã chung (`order_code`), vé = mã vé. `code` chỉ để gọi chi tiết, không in ra.
+  - `title`: "Đặt sân · Sân 1 · 18h–19h" hoặc "Vé sự kiện · {tên} · {sân}".
+- Booking của hồ sơ có SĐT chưa liên kết (`phone:…`) vẫn nằm trong lịch sử.
+- **(T-023, chưa vào `dev`)** Vé mua online cũng hiện ở đây, có hóa đơn.
+
+**Đặt sân trong khu hội viên** (`/hoi-vien/dat-san`): giao diện dùng lại `POST /web/booking/checkouts` với `as_member: true`. Họ tên và SĐT lấy từ hồ sơ của phiên (`full_name`, `phone` gửi lên bị bỏ qua), **không** cần `phone_token`. Không phải hội viên liên kết đang Hoạt động (ẩn danh, chưa xác minh, Ngừng) → 403 `E-HV-8`. **Không gửi cờ** thì giữ nguyên như `/dat-san`: đặt hộ SĐT khác vẫn cần `phone_token`. Đơn nhiều sân hay nhiều khối: **mỗi khối một phòng**, nên giao diện gọi `by-booking` cho từng `items[].code`.
+
+### 13.2 Phòng chơi (T-017)
+
+**Khái niệm.**
+
+- Một **phòng** cho mỗi khối booking (mã con). Host = hồ sơ khách của booking, đứng sẵn trong Hàng chờ. Sức chứa 8 người, tính cả Host.
+- Booking `phone:` (khách chưa có hồ sơ) **không** tạo phòng. Điều kiện "Host là hội viên **Hoạt động** có tài khoản liên kết" xét lúc đọc và lúc ghi; không đủ thì phòng bị ẩn (404). Hồ sơ tạm được nâng lên hội viên (T-021, cùng id) thì phòng tự hiện.
+- Phòng tạo từ sự kiện outbox `booking.created` (có thêm `resource_code`, `resource_name`, `resource_type_name`, `start_at`, `end_at`; **không** có tham chiếu khách hay SĐT). Worker job `play_rooms_tick` là lưới an toàn và là backfill lúc deploy (mục 7).
+- Phòng đóng sau giờ kết thúc + 10 phút: ghi bị chặn ngay (`E-ROOM-1`) kể cả khi job chưa chạy; job đổi `status = closed`, yêu cầu và lời mời đang chờ thành `expired`, trận đang chơi thành `abandoned`.
+- Danh sách chỉ có phòng **hôm nay** còn mở. Xem một phòng đã đóng bằng `GET /rooms/{id}` vẫn được.
+
+| Method | Path | Ghi chú |
+|---|---|---|
+| GET | `/rooms?scope=all\|mine` | `RoomList = {date, ongoing_count, upcoming_count, mine_count, all_count, items: RoomCard[]}`, xếp theo giờ bắt đầu rồi tên sân. Giao diện: `/hoi-vien/danh-sach-san` |
+| GET | `/rooms/{id}` | `RoomDetail`. Không có hoặc Host chưa đủ điều kiện → 404 `E-NOT-FOUND`. Giao diện: `/hoi-vien/phong/{id}` |
+| POST | `/rooms/{id}/join-requests` `{version}` | Xin vào; bấm lại không tạo thêm. Tối đa 10 lần/ngày/người → 429 `E-SEC-5` |
+| DELETE | `/rooms/{id}/join-requests/mine` | Hủy xin vào |
+| POST | `/rooms/{id}/join-requests/{rid}/approve` · `/reject` `{version}` | Chỉ Host (`E-ROOM-7`) |
+| POST | `/rooms/{id}/invites` `{phone, version}` | Chỉ Host. SĐT **đầy đủ** của người được mời, chuẩn hóa như đăng nhập. Tối đa 20 lần/giờ/Host, **tính cả lần lỗi** (chống dò SĐT) → 429 `E-SEC-5` |
+| POST | `/invites/{iid}/accept` · `/decline` | Chính người được mời; lời mời của người khác → 404 |
+| POST | `/rooms/{id}/leave` `{version}` | Host rời → Host mới **ngẫu nhiên** (ưu tiên người còn đủ điều kiện làm Host; nếu không ai đủ thì vẫn chuyển cho một người, phòng giữ `open` nhưng bị ẩn theo quy tắc trên). Người cuối rời → phòng `closed`. Đang ở trận `playing` → `E-ROOM-5` |
+| POST | `/rooms/{id}/members/{mid}/kick` · `/transfer-host` `{version}` | Chỉ Host. `mid` = `members[].id`. Tự mời ra, chuyển cho chính mình → 404 |
+| PUT | `/rooms/{id}/format` `{format: "2v2"\|"1v1", version}` | Chỉ Host. Đã bốc → xóa kết quả bốc. Đang chơi → `E-ROOM-11` |
+| POST | `/rooms/{id}/draw` `{version}` | Bốc ngẫu nhiên hoặc bốc lại (trận `drawn`, giữ nguyên số `#n`). `E-ROOM-8` nếu Hàng chờ chưa đủ 4 (2v2) hoặc 2 (1v1); `E-ROOM-11` nếu đang chơi |
+| POST | `/rooms/{id}/start` `{version}` | Trận `drawn` → `playing`, người được bốc sang "Đang chơi". `E-ROOM-10` nếu sớm hơn `can_start_from`; `E-ROOM-8` nếu chưa bốc |
+| POST | `/rooms/{id}/matches/{no}/result` `{score_a, score_b, version}` | Lưu **một lần**, không sửa: 0–99, không hòa, sai → 422 `E-ROOM-9`. Gửi lại **cùng** `Idempotency-Key` → đúng kết quả cũ; **khác** key → 409 `E-ROOM-6`. Người chơi về **cuối** Hàng chờ. Ghi nhật ký `room.match_saved` |
+| GET | `/rooms/{id}/matches?format=` | `MatchList = {total, count_2v2, count_1v1, items}`; số đếm tính mọi thể thức, `items` lọc theo `format`, mới nhất trên cùng. Mỗi item: `{no, format, started_at, ended_at, team_a[], team_b[] (tên lúc bốc), score_a, score_b, winner: a\|b}`. Chỉ trận đã lưu (không có trận bỏ dở) |
+| GET | `/rooms/{id}/ranking?format=` | `items[] = {rank, display_name, avatar_url, wins, losses, played, win_rate (0–1), is_me}`. Xếp theo số trận thắng, bằng nhau thì tỉ lệ thắng; đồng hạng khi bằng cả hai (kiểu 1, 1, 3) |
+
+**ETag cho polling:** `GET /rooms`, `/rooms/{id}`, `/matches`, `/ranking` trả `ETag` (weak, theo nội dung và người xem) và `Cache-Control: no-cache, private`. Gửi `If-None-Match` mà không có gì đổi → **304** không có thân. Giao diện hỏi lại mỗi 5 giây và giữ ETag của lần trước.
+
+**`RoomCard`:** `{id, resource_name, resource_type_name, start_at, end_at, phase: upcoming|ongoing, host, members[], member_count, capacity, is_mine, my_join_pending, my_invite_id, version}`. Nút theo thứ tự: `is_mine` → "Vào phòng"; `my_invite_id` → "Nhận lời mời" / "Từ chối"; `my_join_pending` → "Đã xin vào" (bấm để hủy); `member_count >= capacity` → "Đã đủ"; còn lại → "Xin vào".
+
+**`RoomDetail`:** `{id, status: open|closed, phase: upcoming|ongoing|closed, format, resource_name, resource_type_name, start_at, end_at, closes_at, can_start_from, capacity, version, my_role: host|member|outsider, my_join_pending, my_invite_id, members[], join_requests[], invites[], current_match}`.
+
+- `members[] = {id, display_name, avatar_url, role: host|member, queue_state: waiting|playing, waiting_since, is_me}`, Host đứng đầu, rồi theo giờ vào.
+- `join_requests[]`, `invites[]` = `{id, display_name, avatar_url, created_at}`; **chỉ Host thấy**, người khác nhận `[]`.
+- `can_start_from` = giờ bắt đầu − 15 phút; `closes_at` = giờ kết thúc + 10 phút.
+- `current_match` = `null` hoặc `{no, format, status: drawn|playing, team_a[], team_b[], started_at}`; mỗi người chơi `{member_id (null nếu đã rời), display_name, avatar_url}`. Trận đã lưu thì `current_match = null`. Giao diện làm mờ "Bốc ngẫu nhiên" và đổi thể thức khi `status = playing`.
+
+**Quy tắc bốc (do server làm, `secrets.SystemRandom`):**
+
+- Phòng chưa có trận nào bắt đầu: mọi người coi như cùng mốc, bốc ngẫu nhiên hoàn toàn.
+- Sau đó: lấy người có `waiting_since` sớm nhất. Gặp nhiều người cùng mốc ở vị trí cần cắt thì bốc ngẫu nhiên trong nhóm đó. Chia đội ngẫu nhiên.
+- Mỗi phòng chỉ có một trận `drawn` hoặc `playing` (ràng buộc unique một phần trong DB). Người đã được bốc mà rời hoặc bị mời ra → xóa kết quả bốc. Đóng phòng khi đang chơi → trận `abandoned` (không tỉ số, không vào Lịch sử hay Xếp hạng), mọi người về Hàng chờ.
+- Giới hạn 8 người giữ bằng khóa dòng phòng (`FOR UPDATE`) trước khi đếm: 3 lệnh duyệt đồng thời khi phòng đang 7 người → 1 thành công, 2 nhận 409.
+
+**Mã lỗi phòng chơi:**
+
+| Code | HTTP | Thông điệp / khi nào |
+|---|---|---|
+| E-ROOM-1 | 409 | "Phòng đã đóng." |
+| E-ROOM-2 | 409 | "Phòng đã đủ 8 người." |
+| E-ROOM-3 | 422 | "Số điện thoại này chưa có tài khoản hội viên." Một câu cho mọi lý do (không có hội viên, chưa liên kết, Ngừng): không dò được SĐT |
+| E-ROOM-4 | 409 | "Người này đã ở trong phòng." (kể cả tự mời mình) |
+| E-ROOM-5 | 409 | "Bạn đang trong trận #n. Kết thúc trận trước khi rời phòng." hoặc "Người này đang trong trận #n…" (kèm `match_no`) |
+| E-ROOM-6 | 409 | "Phòng vừa thay đổi, đã tải lại." (`version` cũ, hoặc lưu kết quả bằng key khác). Giao diện tải lại phòng |
+| E-ROOM-7 | 403 | "Chỉ Host được làm thao tác này." |
+| E-ROOM-8 | 409 | "Chưa đủ người để bốc." |
+| E-ROOM-9 | 422 | "Tỉ số không hợp lệ (0–99, không hòa)." |
+| E-ROOM-10 | 409 | "Chưa tới giờ bắt đầu trận." |
+| E-ROOM-11 | 409 | "Trận #n đang diễn ra. Kết thúc trận trước." (bốc hoặc đổi thể thức lúc đang chơi; kèm `match_no`) |
+| E-NOT-FOUND | 404 | "Không tìm thấy phòng." (không có, Host chưa đủ điều kiện, hoặc không phải của mình) |
+
+**Nhật ký:** `room.join_approved`, `room.kicked`, `room.host_transferred` (`reason`: `host_left` hoặc `transfer`), `room.match_saved` (tỉ số, đội). Người làm là khách.
+
+### 13.3 Thông báo (module `member_inbox`)
+
+| Method | Path | Ghi chú |
+|---|---|---|
+| GET | `/notifications?unread=` | `{items, unread_count}`: 30 ngày gần nhất, tối đa 50, mới nhất trước, `no-store`. Mỗi item: `{id, kind, text, link, created_at, read}` |
+| POST | `/notifications/read-all` · `/notifications/{id}/read` | 204. Cần `Origin`, **không** cần `Idempotency-Key`. Thông báo của người khác → 404 |
+
+- `kind`: `room.invited`, `room.join_requested`, `room.join_approved`, `room.join_rejected`, `room.kicked`, `room.host_assigned`. `link` = `/hoi-vien/phong/{id}`.
+- Thông báo tạo cùng transaction với hành động. Sau commit phát `member.notification_created` `{id, customer_id, kind}` (không có SĐT); handler hiện chỉ ghi log, là chỗ nối Zalo sau này. Rollback thì không phát.
+- Job `purge_member_notifications` xóa thông báo quá 90 ngày (mục 7).
+
+### 13.4 Migration và vận hành
+
+- Migration `0cbf30ad5193` (nối sau `9738bbfe2eb7`): 4 bảng phòng chơi (gồm bảng trận) và `member_notification`. Không backfill trong migration. T-018 không có migration.
+- Không biến môi trường hay gói mới.
+- **Worker production phải chạy bản mới** để có hai job `play_rooms_tick` và `purge_member_notifications`. Thiếu job thì phòng chỉ tạo qua sự kiện outbox, không đóng đúng giờ và không backfill.

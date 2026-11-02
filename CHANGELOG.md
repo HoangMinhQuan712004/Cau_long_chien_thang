@@ -4,8 +4,9 @@ Ghi các thay đổi người dùng hoặc người vận hành nhìn thấy đ�
 
 ## Chưa phát hành
 
-Các mục T-005, T-006, T-008, T-012 đã có ở link dev; T-013, T-015 (PR #21), và T-016, T-019, T-020 (PR #23), T-021 (PR #24) và T-024 (PR #27) cũng đã lên dev. Tất cả chưa lên production (cần người dùng duyệt).
+Các mục T-005, T-006, T-008, T-012 đã có ở link dev; T-013, T-015 (PR #21), và T-016, T-019, T-020 (PR #23), T-021, T-017, T-018 (PR #24), Báo cáo (PR #26) và T-024 (PR #27) cũng đã lên dev. Tất cả chưa lên production (cần người dùng duyệt).
 
+- **Tài khoản hội viên do sân tạo báo rõ mật khẩu ban đầu (T-026, backend xong, chưa lên dev):** khi quầy thêm hội viên, API trả `account_created` và `initial_password_expires_at` để màn quầy báo cho nhân viên: SĐT mới thì tạo tài khoản với mật khẩu ban đầu là SĐT, phải đổi trong 3 ngày; SĐT đã có tài khoản thì giữ nguyên mật khẩu cũ. Mật khẩu không nằm trong phản hồi, log hay nhật ký. Không đổi DB.
 - **Mua vé sự kiện online (T-023, backend xong, chưa lên dev):**
   - Hội viên và khách mua vé sự kiện bằng QR SePay như đặt sân online: chọn 1 đến 10 vé, giữ chỗ 5 phút (+ 60 giây ân hạn), tiền về đủ thì tự sinh vé `{mã sự kiện}-Vnn` (nguồn Online, đã thanh toán). Giá vé chốt lúc giữ chỗ.
   - Ghế đang giữ tính vào số chỗ đã chiếm: hai người mua chỗ cuối cùng thì chỉ một người giữ được; đăng ký tại quầy cũng không vượt được chỗ đang giữ. Hết hạn thì nhả ghế.
@@ -14,6 +15,13 @@ Các mục T-005, T-006, T-008, T-012 đã có ở link dev; T-013, T-015 (PR #2
   - Khu hội viên có lịch đặt sân riêng: ô sân do chính hội viên đặt hiện khác ô của người khác và mở được đơn của mình. Ô của người khác không lộ tên, SĐT hay tiền.
   - Mã lỗi mới `E-WEB-9`, `E-WEB-10`, `E-WEB-11`. Câu `E-WEB-8` đổi thành "Vui lòng xác minh số điện thoại trước khi thanh toán." Có migration `9f73fd765c58` (thêm cột, không đổi dữ liệu cũ), không biến môi trường mới. Chi tiết: `docs/booking-engine-api.md` mục 10.8.
 - **Giá từng ô trên lịch admin (T-025, backend xong, chưa lên dev):** `GET /booking/calendar` thêm `hour_prices` cho mỗi sân để màn đặt quầy hiện giá trước khi đặt. Giá cuối vẫn do server chốt lúc đặt. Không đổi DB.
+- **Phòng chơi, Tổng quan và Lịch sử thanh toán của hội viên (T-017, T-018, đã lên dev):**
+  - Khu `/hoi-vien` có Tổng quan (lịch chơi hôm nay và sắp tới), Đặt sân không phải nhập lại họ tên, SĐT, OTP, Danh sách sân, Lịch sử thanh toán theo tháng (mở hóa đơn).
+  - Mỗi khối booking có một **phòng chơi** tối đa 8 người: xin vào, mời bằng SĐT, Host duyệt hoặc mời ra, chuyển Host. Trong phòng: chọn 2v2 hoặc 1v1, bốc đội ngẫu nhiên, bắt đầu trận, nhập tỉ số một lần, xem Lịch sử trận và Xếp hạng. Phòng khóa sau giờ kết thúc 10 phút.
+  - Hộp thông báo cho hội viên (được mời, xin vào, được duyệt, bị mời ra, thành Host).
+  - Vận hành: worker phải chạy bản mới (job `play_rooms_tick` mỗi phút và `purge_member_notifications` hằng ngày). Có migration `0cbf30ad5193` (bảng phòng chơi và thông báo, không đổi dữ liệu cũ), không biến môi trường mới.
+  - Ảnh đại diện quá 5 MB nay báo lỗi JSON `E-HV-13` (từ T-021).
+- **Báo cáo & phân tích (PR #26, Admin):** màn Báo cáo mới ở mục đầu menu quản trị, gồm 3 chỉ số, doanh thu theo ngày và theo sân, bản đồ nhiệt công suất. Chưa có tài liệu API.
 - **Bỏ màn "Tiền về" (T-024, PR #27, 02/11/2026):** gỡ trang `/admin/tien-ve`, mục menu "Tiền về" và số đỏ đếm giao dịch chưa xử lý. API `GET /payments/bank-transactions` và `POST /payments/bank-transactions/{id}/resolve` trả 404. Webhook SePay vẫn ghi mọi giao dịch (kể cả không khớp mã, trả thừa) vào DB; tiền cần hoàn đối soát trên SePay hoặc ngân hàng. Quyền `payments.view`/`payments.resolve` thay bằng `payments.simulate` (chỉ giả lập tiền về ở link dev). Không đổi DB.
 - **Đăng ký là thành hội viên (T-021):**
   - Khách đăng ký ở `/dang-ky` theo **hai bước**: nhập họ tên, SĐT, mật khẩu → nhập mã OTP. Mã đúng thì tạo tài khoản **và** hội viên (Mã HV, chưa xếp hạng), đăng nhập luôn. SĐT đã có hồ sơ tạm thì hồ sơ đó được nâng lên hội viên, giữ lịch sử đặt sân.
