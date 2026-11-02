@@ -4,7 +4,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -37,6 +37,13 @@ from tests.db_guard import reset_refusal  # noqa: E402
 API = settings.API_PREFIX
 ORIGIN = "http://testserver"
 BACKEND_DIR = Path(__file__).resolve().parent.parent
+
+
+def vn_today() -> date:
+    """Hôm nay theo giờ VN (múi giờ nghiệp vụ). Không dùng ``date.today``: máy CI chạy UTC,
+    00:00–07:00 giờ VN nó còn là hôm qua -> đặt quầy "hôm nay" thành ngày đã qua (E-004)."""
+    return datetime.now(settings.tz).date()
+
 
 # Origin check (ADR-004 S4): client test gửi Origin của "site" test
 settings.ALLOWED_ORIGINS = [ORIGIN]

@@ -27,14 +27,14 @@ import hmac
 import json
 import time
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.db import SessionLocal
-from tests.conftest import API, ORIGIN, idem
+from tests.conftest import API, ORIGIN, idem, vn_today
 from tests.helpers_web import phone_token
 
 P = f"{API}/payments"
@@ -164,7 +164,7 @@ async def web_checkout(anon, code: str, hour: int = 10):
     return await anon.post(
         f"{W}/checkouts",
         json={
-            "date": (date.today() + timedelta(days=21)).isoformat(),
+            "date": (vn_today() + timedelta(days=21)).isoformat(),
             "slots": [{"resource_code": code, "start_hour": hour}],
             "full_name": "QA T012",
             "phone": ph,
@@ -348,13 +348,13 @@ async def test_ac4_toggle_off_disables_public_booking(admin, anon):
     await configure(admin)
     assert (
         await anon.get(
-            f"{W}/calendar", params={"date": (date.today() + timedelta(days=3)).isoformat()}
+            f"{W}/calendar", params={"date": (vn_today() + timedelta(days=3)).isoformat()}
         )
     ).json()["online_enabled"] is True
     await configure(admin, online_toggle=False, webhook_secret=...)
     cal = (
         await anon.get(
-            f"{W}/calendar", params={"date": (date.today() + timedelta(days=3)).isoformat()}
+            f"{W}/calendar", params={"date": (vn_today() + timedelta(days=3)).isoformat()}
         )
     ).json()
     assert cal["online_enabled"] is False
@@ -488,7 +488,7 @@ async def test_ac8_empty_db_falls_back_to_env(admin, anon):
         assert d["online_enabled"] is True
         cal = (
             await anon.get(
-                f"{W}/calendar", params={"date": (date.today() + timedelta(days=3)).isoformat()}
+                f"{W}/calendar", params={"date": (vn_today() + timedelta(days=3)).isoformat()}
             )
         ).json()
         assert cal["online_enabled"] is True

@@ -35,7 +35,7 @@ from app.core.config import settings
 from app.core.db import SessionLocal, engine
 from app.main import app
 from app.modules.booking_engine.testing import make_allocation, release_allocation
-from tests.conftest import API
+from tests.conftest import API, vn_today
 from tests.qa_accounts import db_account
 
 B = f"{API}/booking"
@@ -127,7 +127,7 @@ async def new_resource(adm, **kw):
 
 
 def next_weekday(weekday: int, min_days: int = 2) -> date:
-    d = date.today() + timedelta(days=min_days)
+    d = vn_today() + timedelta(days=min_days)
     while d.weekday() != weekday:
         d += timedelta(days=1)
     return d
@@ -149,7 +149,7 @@ async def add_holiday(adm, day: date, name: str | None = None, to: date | None =
 async def free_holiday(adm, picker):
     """Create a one-day holiday on the first free date (within 20 days) accepted by `picker`."""
     for offset in range(2, 22):
-        day = date.today() + timedelta(days=offset)
+        day = vn_today() + timedelta(days=offset)
         if not picker(day):
             continue
         r = await add_holiday(adm, day)
@@ -280,7 +280,7 @@ def _special_day_covers(days, d: date) -> bool:
 
 async def test_d2_and_d4_partial_peak_frame_priced_by_half_hours_from_tomorrow(adm):
     res = await new_resource(adm)  # peaks 05–07, 17–21
-    tomorrow = date.today() + timedelta(days=1)
+    tomorrow = vn_today() + timedelta(days=1)
     if _special_day_covers(await _special_days(adm), tomorrow):
         pytest.skip("tomorrow is a holiday")
     r = await write(
@@ -383,7 +383,7 @@ async def _free(alloc_ids) -> None:
 
 async def test_d4_hours_change_blocked_only_by_occupancy_from_tomorrow(adm):
     res = await new_resource(adm)  # open 05:00–22:00
-    today, tomorrow = date.today(), date.today() + timedelta(days=1)
+    today, tomorrow = vn_today(), vn_today() + timedelta(days=1)
     path = f"{B}/resources/{res['code']}"
     version = res["version"]
     ids = [await _occupy(res["code"], today, 21, 22)]  # today is not affected by a change
@@ -405,7 +405,7 @@ async def test_d4_hours_change_blocked_only_by_occupancy_from_tomorrow(adm):
 
 async def test_d4_conflict_list_is_capped_at_six_with_remainder(adm):
     res = await new_resource(adm)
-    first = date.today() + timedelta(days=2)
+    first = vn_today() + timedelta(days=2)
     ids = [await _occupy(res["code"], first + timedelta(days=i), 20, 21) for i in range(8)]
     try:
         r = await write(
@@ -424,7 +424,7 @@ async def test_d4_conflict_list_is_capped_at_six_with_remainder(adm):
 async def test_d5_deactivate_blocked_when_occupied_from_today(adm):
     res = await new_resource(adm)
     path = f"{B}/resources/{res['code']}"
-    alloc = await _occupy(res["code"], date.today() + timedelta(days=1), 10, 11)
+    alloc = await _occupy(res["code"], vn_today() + timedelta(days=1), 10, 11)
     try:
         r = await write(
             adm, "PATCH", path, json_body={"version": res["version"], "is_active": False}
@@ -544,7 +544,7 @@ async def test_d7_price_table_optimistic_lock_and_validation(adm):
 
 
 async def test_d8_special_day_overlap_year_and_delete(adm):
-    base = date.today() + timedelta(days=3)
+    base = vn_today() + timedelta(days=3)
     if base.year != (base + timedelta(days=4)).year:
         pytest.skip("range crosses a year boundary")
     day, sid = await free_holiday(adm, lambda d: d.year == (d + timedelta(days=4)).year)
@@ -563,9 +563,7 @@ async def test_d8_special_day_overlap_year_and_delete(adm):
     # validation: from > to, different years, name length
     r = await add_holiday(adm, day + timedelta(days=2), to=day)
     assert r.status_code in INVALID_STATUSES, r.text
-    r = await add_holiday(
-        adm, date(date.today().year, 12, 30), to=date(date.today().year + 1, 1, 2)
-    )
+    r = await add_holiday(adm, date(vn_today().year, 12, 30), to=date(vn_today().year + 1, 1, 2))
     assert r.status_code in INVALID_STATUSES, r.text
     for bad in ("", "x" * 101):
         r = await add_holiday(adm, day, bad)
@@ -774,7 +772,7 @@ async def test_sec5_forbidden_body_fields_rejected_with_422(adm):
 
 
 async def test_sec6_idempotency_replay_same_key_one_record(adm):
-    day = date.today() + timedelta(days=5)
+    day = vn_today() + timedelta(days=5)
     body = {
         "date_from": day.isoformat(),
         "date_to": day.isoformat(),
@@ -814,7 +812,7 @@ async def test_sec6_missing_or_malformed_key_rejected_with_400(adm, method, path
 
 
 async def test_sec6_concurrent_same_key_creates_single_record(adm):
-    day = date.today() + timedelta(days=6)
+    day = vn_today() + timedelta(days=6)
     if _special_day_covers(await _special_days(adm), day):
         pytest.skip("date already a holiday")
     body = {
@@ -848,7 +846,7 @@ async def _audit_rows(where="TRUE", params=None):
 
 
 async def test_sec7_audit_row_written_for_config_write_and_not_for_failure(adm):
-    day = date.today() + timedelta(days=7)
+    day = vn_today() + timedelta(days=7)
     if _special_day_covers(await _special_days(adm), day):
         pytest.skip("date already a holiday")
     name = f"QA audit {uuid.uuid4().hex[:6]}"
