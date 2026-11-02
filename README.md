@@ -13,10 +13,10 @@ project_caulong/
 │   │   ├── members/         hội viên, hồ sơ tạm, danh mục vợt, thẻ hội viên `/me/member` (PR #21)
 │   │   ├── member_area/     khu hội viên: Hồ sơ của tôi + ảnh đại diện (T-016)
 │   │   ├── web_booking/     API public cho khách: lịch, lượt thanh toán (checkout), tra cứu (T-008)
-│   │   ├── payments/        webhook SePay, bảng `payments.bank_transaction`, Tiền về cần xử lý (T-008)
+│   │   ├── payments/        webhook SePay, bảng `payments.bank_transaction` (T-008; không có màn xử lý tay)
 │   │   ├── notifications/   lắng nghe event (email/Zalo: TODO)
 │   │   └── content/         bài viết phục vụ SEO
-│   ├── app/workers/         ARQ: outbox, nhả giữ chỗ quá hạn, dọn nhật ký/idempotency
+│   ├── app/workers/         ARQ: outbox, nhả giữ chỗ quá hạn, phòng chơi, dọn nhật ký/idempotency/thông báo
 │   ├── alembic/             migration
 │   └── tests/
 ├── frontend/                Next.js App Router (Cache Components)
@@ -224,7 +224,7 @@ Thử không tốn tiền: bật **Test Mode** trên SePay → menu Giao dịch 
 
 Khóa webhook là secret: chỉ dán vào trang Cài đặt, không gửi qua board hay tin nhắn. Nghi lộ khóa → tạo khóa mới trên SePay rồi dán lại trên trang (khóa cũ ngừng được chấp nhận ngay khi Lưu).
 
-Giao dịch không tự khớp (sai nội dung, tiền về sau khi hết hạn, trả thừa) không bị mất: nằm ở "Tiền về cần xử lý" để Admin hoàn tiền thủ công rồi bấm Đã xử lý.
+Giao dịch không tự khớp (sai nội dung, tiền về sau khi hết hạn, trả thừa) không bị mất: webhook ghi vào `payments.bank_transaction` (cột `outcome`). Không có màn xử lý tay; chủ sân đối soát và hoàn tiền trên SePay hoặc ngân hàng.
 
 ## Đăng nhập, nhân viên và OTP (T-013)
 
@@ -238,7 +238,7 @@ Mục này dùng để biết ai đăng nhập bằng gì, cấu hình biến m�
 |---|---|---|
 | Admin (chủ sân) | Số điện thoại + mật khẩu | `/dang-nhap` → `/admin` |
 | Nhân viên | Tên đăng nhập + mật khẩu. **Mỗi nhân viên một tài khoản** (mã `NV001`…), đăng nhập ở máy nào cũng được | `/dang-nhap` → `/admin` |
-| Khách | SĐT hoặc tên đăng nhập + mật khẩu, hoặc Google. Tự đăng ký tại `/dang-ky` (từ T-021, chưa vào dev: phải xác minh SĐT bằng OTP và đăng ký xong là hội viên) | `/dang-nhap` → `/tai-khoan` (hội viên: `/hoi-vien`) |
+| Khách | SĐT hoặc tên đăng nhập + mật khẩu, hoặc Google. Tự đăng ký tại `/dang-ky` (từ T-021: phải xác minh SĐT bằng OTP và đăng ký xong là hội viên) | `/dang-nhap` → `/tai-khoan` (hội viên: `/hoi-vien`) |
 
 - Chỉ có **một** trang `/dang-nhap` với một ô "Số điện thoại hoặc tên đăng nhập".
 - Sai mật khẩu 5 lần liên tiếp → khóa 15 phút. Phiên Admin/nhân viên tồn tại tối đa 12 giờ, rồi phải đăng nhập lại.
@@ -322,9 +322,9 @@ Sau khi lên T-013, route cũ `/auth/login` và `/admin/users` bị gỡ (trả 
 
 API: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 5.1.
 
-## Hội viên và khu hội viên (T-015, T-016, T-020)
+## Hội viên và khu hội viên (T-015, T-016, T-017, T-018, T-020)
 
-> Tất cả phần dưới đã có trong `dev` (PR #21 `c288d08`, rồi PR #23 `993b27c` gồm khu hội viên T-016 và chỉnh T-020), đối chiếu với code. Tên trang và nút của khu hội viên chưa kiểm trên giao diện. Phần "Đăng ký tài khoản = hội viên" (T-021) **chưa vào `dev`**. Chưa có gì trong `main`/production.
+> Tất cả phần dưới đã có trong `dev` (PR #21 `c288d08`, rồi PR #23 `993b27c` gồm khu hội viên T-016 và chỉnh T-020), đối chiếu với code. Tên trang và nút của khu hội viên chưa kiểm trên giao diện. Chưa có gì trong `main`/production.
 
 ### Màn Hội viên (quản trị)
 
@@ -357,6 +357,7 @@ Quầy thêm hội viên thì hệ thống tạo luôn tài khoản web cho SĐT
 2. Hệ thống đưa sang `/doi-mat-khau`, bắt đặt mật khẩu mới (không được trùng SĐT) trước khi dùng tiếp.
 3. **Trong 3 ngày** (`MEMBER_INITIAL_PASSWORD_DAYS`) phải đổi. Quá hạn thì không đăng nhập được bằng mật khẩu ban đầu nữa; hội viên bấm **Quên mật khẩu** và nhập mã OTP.
 4. SĐT đã có tài khoản (khách tự đăng ký, Admin, nhân viên) thì **không đụng**, mật khẩu giữ nguyên.
+5. **(T-026, chưa vào dev)** `POST /members` trả thêm `account_created` (`true` = vừa tạo tài khoản, mật khẩu ban đầu là SĐT; `false` = SĐT đã có tài khoản) và `initial_password_expires_at` (hạn đổi, UTC; hiển thị theo giờ Việt Nam) để màn quầy báo cho nhân viên. Mật khẩu **không** nằm trong phản hồi, log hay nhật ký. Chi tiết: `docs/booking-engine-api.md` mục 12.3. Giao diện chưa kiểm.
 
 Khách tự đăng ký ở `/dang-ky` là đường khác: xem "Đăng ký tài khoản = hội viên (T-021)" bên dưới.
 
@@ -374,7 +375,7 @@ docker compose -p caulong-dev exec api python -m app.scripts.backfill_member_acc
 
 ### Khu hội viên trên web (T-016)
 
-Khu `/hoi-vien` dành cho khách đã đăng nhập **và là hội viên**. Đợt 1 chỉ có "Hồ sơ của tôi"; các mục còn lại (Tổng quan, Đặt sân, Video & kỷ lục, Danh sách sân, Lịch sử thanh toán) mở trang "Sắp ra mắt".
+Khu `/hoi-vien` dành cho khách đã đăng nhập **và là hội viên**. Từ T-016 có "Hồ sơ của tôi" (`/hoi-vien/ho-so`); T-017 và T-018 thêm Tổng quan, Đặt sân, Danh sách sân, phòng chơi và Lịch sử thanh toán (mục "Tổng quan, phòng chơi, Lịch sử thanh toán" bên dưới). Trang `/hoi-vien/video-ky-luc` có trong mã nguồn nhưng chưa có API và chưa được kiểm.
 
 - **Ai vào được:** tài khoản khách có SĐT trùng SĐT của một **hội viên** (hồ sơ tạm không tính), và SĐT đó là tài khoản do sân tạo **hoặc** đã xác minh bằng OTP. Hệ thống không lưu liên kết riêng mà so SĐT; vì SĐT hồ sơ không đổi được nên liên kết ổn định.
 - Khách đăng ký không OTP (tài khoản đời cũ) bằng SĐT của hội viên mà chưa xác minh OTP → chưa vào được (báo "Bạn chưa là hội viên."). Xác minh SĐT trong `/tai-khoan` rồi vào lại. Từ T-021, ai xác minh SĐT cũng tự là hội viên (bên dưới).
@@ -386,9 +387,28 @@ Khu `/hoi-vien` dành cho khách đã đăng nhập **và là hội viên**. Đ�
 
 Biến mới: `AVATAR_MAX_BYTES` (mặc định 5242880 = 5 MB, đã có trong `backend/.env.example`). T-016 thêm gói `pillow` và `python-multipart`: **phải build lại image backend**. Ảnh lưu trong Postgres (khoảng vài chục KB mỗi hội viên), nên sao lưu DB lớn hơn một chút. Reverse proxy phía trước (Caddy, Next rewrite) phải cho thân request tới khoảng 5,06 MB trên đường tải ảnh.
 
-### Đăng ký tài khoản = hội viên (T-021, chưa vào dev)
+### Tổng quan, phòng chơi, Lịch sử thanh toán (T-017, T-018)
 
-> Đối chiếu với code backend `be/T-021-dang-ky-hoi-vien` @ `6ab2ad3` (cục bộ, nối trên T-022). Giao diện `/dang-ky` mới chưa bàn giao nên chưa kiểm tên nút.
+Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu theo `frontend/src/app/hoi-vien/`, nội dung màn chưa kiểm):
+
+| Trang | Dùng để | API (`/api/v1/member-area`) |
+|---|---|---|
+| `/hoi-vien` | Tổng quan: lời chào, lịch chơi hôm nay và sắp tới (tối đa 4), thông báo | `GET /overview`, `GET /notifications` |
+| `/hoi-vien/dat-san` | Đặt sân khi đã là hội viên, không nhập lại họ tên, SĐT, OTP | `POST /web/booking/checkouts` với `as_member: true` |
+| `/hoi-vien/danh-sach-san` | Danh sách phòng chơi hôm nay: xin vào, nhận lời mời | `GET /rooms` |
+| `/hoi-vien/phong/{id}` | Phòng: thành viên, mời, duyệt, bốc đội, nhập tỉ số, lịch sử trận, xếp hạng | `/rooms/{id}/…` |
+| `/hoi-vien/lich-su-thanh-toan` | Các khoản đã thanh toán theo tháng, mở hóa đơn | `GET /payments`, `GET /payments/{code}` |
+
+- **Phòng chơi:** mỗi khối booking (mã con) có một phòng cho tối đa **8 người**. Host là người đặt, phải là hội viên Hoạt động có tài khoản web (booking của khách chưa có hồ sơ không tạo phòng). Host duyệt người xin vào, mời bằng SĐT đầy đủ, mời ra, chuyển Host. Giao diện hỏi lại phòng mỗi 5 giây bằng `ETag`.
+- **Trận:** Host chọn thể thức (2v2 hoặc 1v1), server bốc đội ngẫu nhiên (ưu tiên người chờ lâu), bắt đầu được từ 15 phút trước giờ, tỉ số nhập **một lần** (0–99, không hòa) rồi vào Lịch sử trận và Xếp hạng. Phòng tự khóa sau giờ kết thúc 10 phút.
+- **Thông báo** của hội viên (được mời, xin vào, được duyệt, bị mời ra, thành Host mới) nằm trong hộp thư của khu hội viên; chưa gửi Zalo.
+- **Lịch sử thanh toán:** chỉ khoản **Đã thanh toán**, tính theo tháng thanh toán (giờ Việt Nam); khách chỉ thấy **mã đơn**, không thấy mã con.
+- **Worker bắt buộc chạy bản mới:** hai job `play_rooms_tick` (mỗi phút: tạo phòng còn thiếu cho booking hôm nay và ngày mai, đóng phòng quá giờ) và `purge_member_notifications` (hằng ngày 03:40). Thiếu worker thì phòng không đóng đúng giờ. Không biến môi trường hay gói mới. Migration `0cbf30ad5193` tạo bảng phòng chơi và thông báo, không backfill dữ liệu.
+- Chi tiết endpoint, mã lỗi `E-ROOM-1…11`, quy tắc bốc: `docs/booking-engine-api.md` mục 13.
+
+### Đăng ký tài khoản = hội viên (T-021)
+
+> Đã vào `dev` (PR #24). Đối chiếu với code backend `dev`. Giao diện `/dang-ky` mới chưa bàn giao nên chưa kiểm tên nút.
 
 **Quy tắc:** tài khoản web có SĐT **đã xác minh bằng OTP** là hội viên. Quầy vẫn tạo hội viên (kèm tài khoản) như trên; hai đường cùng tồn tại.
 
