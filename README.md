@@ -404,7 +404,17 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 - **Thông báo** của hội viên (được mời, xin vào, được duyệt, bị mời ra, thành Host mới) nằm trong hộp thư của khu hội viên; chưa gửi Zalo.
 - **Lịch sử thanh toán:** chỉ khoản **Đã thanh toán**, tính theo tháng thanh toán (giờ Việt Nam); khách chỉ thấy **mã đơn**, không thấy mã con.
 - **Worker bắt buộc chạy bản mới:** hai job `play_rooms_tick` (mỗi phút: tạo phòng còn thiếu cho booking hôm nay và ngày mai, đóng phòng quá giờ) và `purge_member_notifications` (hằng ngày 03:40). Thiếu worker thì phòng không đóng đúng giờ. Không biến môi trường hay gói mới. Migration `0cbf30ad5193` tạo bảng phòng chơi và thông báo, không backfill dữ liệu.
-- Chi tiết endpoint, mã lỗi `E-ROOM-1…11`, quy tắc bốc: `docs/booking-engine-api.md` mục 13.
+- **Host tự xếp đội hình (T-027, backend xong, chưa vào `dev`):** thay cho Bốc, Host chọn tay đội A và đội B (đủ 2 người mỗi đội ở 2v2, 1 người ở 1v1) rồi lưu; trận vào trạng thái "đã bốc" như kết quả Bốc, và vẫn bắt đầu bằng "Bắt đầu trận". Không đổi thứ tự chờ của ai. API `PUT /member-area/rooms/{id}/lineup`, lỗi `E-ROOM-12`.
+- Chi tiết endpoint, mã lỗi `E-ROOM-1…12`, quy tắc bốc: `docs/booking-engine-api.md` mục 13.
+
+### Lịch sử chơi và Bảng xếp hạng tốc độ (T-029, T-030)
+
+> Backend xong trên nhánh cục bộ, **chưa vào `dev`**. Giao diện chưa bàn giao nên chưa ghi tên trang hay nút.
+
+- **Lịch sử chơi (T-029):** `GET /member-area/play-history?month=YYYY-MM` trả các buổi hội viên đã chơi ít nhất một trận trong tháng (ngày chơi giờ VN), kèm số trận, thắng, thua. Chỉ tính trận đã kết thúc. Dùng lại dữ liệu phòng chơi, không migration.
+- **Bảng xếp hạng tốc độ (T-030 giai đoạn A):** `GET /member-area/speed-ranking?period=week|month|year` trả top 10 cú đập nhanh nhất trong kỳ và hạng của chính mình. Hội viên tắt "Hiện trên video & kỷ lục" hiện là "Hội viên ẩn danh". Hội viên Ngừng không vào bảng. `record_kmh` trong `GET /member-area/me` nay là kỷ lục mọi thời gian. Module backend mới `records`, bảng `speed_record` (migration `ee7aaa89b694`).
+- **Chưa có cách ghi số đo thật** (giai đoạn A chỉ đọc). Để thử trên máy dev, nạp số đo giả: `cd backend; .venv\Scripts\python -m app.modules.records.seed_demo` (xóa bằng `--clear`). Lệnh từ chối chạy khi `ENV=production`; biến tên là `ENV`, không phải `APP_ENV`.
+- Chi tiết: `docs/booking-engine-api.md` mục 13.5 và 13.6.
 
 ### Đăng ký tài khoản = hội viên (T-021)
 
