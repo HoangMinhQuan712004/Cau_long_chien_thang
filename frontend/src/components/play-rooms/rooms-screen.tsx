@@ -95,7 +95,7 @@ export function RoomsScreen() {
         }
       />
       <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Lọc phòng">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" role="group" aria-label="Lọc phòng">
           {(
             [
               ["all", `Tất cả (${data?.all_count ?? 0})`],
@@ -107,7 +107,7 @@ export function RoomsScreen() {
               type="button"
               aria-pressed={scope === k}
               onClick={() => setScope(k)}
-              className={cn("h-9 rounded-full border px-4 text-sm font-medium focus-ring", scope === k ? "border-primary-hover bg-primary-hover text-surface" : "border-border-strong bg-surface hover:bg-primary-softer")}
+              className={cn("h-11 shrink-0 rounded-full border px-5 text-sm font-semibold whitespace-nowrap focus-ring sm:h-10", scope === k ? "border-primary-hover bg-primary-hover text-surface" : "border-border-strong bg-surface hover:bg-primary-softer")}
             >
               {label}
             </button>
@@ -132,7 +132,7 @@ export function RoomsScreen() {
         ) : (
           groups.map((g) => (
             <section key={g.key} className="mt-6" aria-label={`${g.ongoing ? "Đang diễn ra" : "Sắp diễn ra"} ${g.label}`}>
-              <h2 className="flex items-center gap-2 text-xs font-semibold tracking-wide text-muted uppercase">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-muted">
                 <span aria-hidden className={cn("size-2 rounded-full", g.ongoing ? "bg-primary" : "border border-subtle")} />
                 {g.ongoing ? "Đang diễn ra" : "Sắp diễn ra"} · {g.label}
                 <span aria-hidden className="h-px flex-1 bg-border" />
@@ -161,68 +161,75 @@ function Crown() {
 function RoomCardView({ r, busy, onAct }: { r: RoomCard; busy: boolean; onAct: (k: "request" | "cancel" | "accept" | "decline") => void }) {
   const full = r.member_count >= MAX_MEMBERS;
   const mine = r.is_mine;
+  const ongoing = r.phase === "ongoing";
   const shown = r.members.slice(0, 7);
   const extra = r.member_count - shown.length;
+  const cta = "inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-cta px-4 text-sm font-bold tracking-wide text-cta-fg uppercase hover:bg-cta-hover focus-ring";
   return (
-    <article className={cn("rounded-card border p-4 shadow-card", mine ? "border-primary/25 bg-primary-softer" : "border-border bg-surface", full && !mine && "opacity-80")}>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="text-base font-bold">{r.resource_name}</h3>
-          <p className="text-xs text-muted">
-            {r.resource_type_name} · {hourRange(r.start_at, r.end_at)}
-          </p>
+    <article className={cn("overflow-hidden rounded-xl border bg-surface shadow-card", mine ? "border-primary/40 ring-1 ring-primary/20" : "border-border", full && !mine && "opacity-85")}>
+      {/* Dải trạng thái: pill Đang diễn ra (vàng) / Sắp diễn ra */}
+      <div className="flex items-center justify-between gap-2 bg-appbar px-4 py-2.5 text-surface">
+        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold", ongoing ? "bg-cta text-cta-fg" : "bg-surface/15 text-surface")}>{ongoing ? "Đang diễn ra" : "Sắp diễn ra"}</span>
+        <span className="text-sm font-semibold tabular-nums">{hourRange(r.start_at, r.end_at)}</span>
+      </div>
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="text-lg leading-tight font-bold">{r.resource_name}</h3>
+            <p className="text-xs text-muted">{r.resource_type_name}</p>
+          </div>
+          {mine ? <span className="rounded-full bg-primary-softer px-2.5 py-0.5 text-xs font-semibold text-primary ring-1 ring-primary/25">Bạn</span> : null}
         </div>
-        {mine ? <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span> : null}
-      </div>
-      <p className="mt-3 flex items-center gap-1.5 text-sm">
-        <Crown />
-        <span>
-          Host: <b className="font-semibold">{r.host.display_name}</b>
-        </span>
-      </p>
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <div className="flex -space-x-1.5" aria-hidden>
-          {shown.map((m, i) => (
-            <Avatar key={`${m.display_name}-${i}`} url={m.avatar_url} name={m.display_name} size={26} className="ring-2 ring-surface" />
-          ))}
-          {extra > 0 ? <span className="grid size-[26px] place-items-center rounded-full bg-border text-xs font-semibold ring-2 ring-surface">+{extra}</span> : null}
+        <p className="mt-3 flex items-center gap-1.5 text-sm">
+          <Crown />
+          <span>
+            Host: <b className="font-semibold">{r.host.display_name}</b>
+          </span>
+        </p>
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <div className="flex -space-x-1.5" aria-hidden>
+            {shown.map((m, i) => (
+              <Avatar key={`${m.display_name}-${i}`} url={m.avatar_url} name={m.display_name} size={28} className="ring-2 ring-surface" />
+            ))}
+            {extra > 0 ? <span className="grid size-7 place-items-center rounded-full bg-border text-xs font-semibold ring-2 ring-surface">+{extra}</span> : null}
+          </div>
+          <span className="text-sm font-bold tabular-nums">
+            {r.member_count}/{MAX_MEMBERS}
+          </span>
         </div>
-        <span className="text-sm font-semibold tabular-nums">
-          {r.member_count}/{MAX_MEMBERS}
-        </span>
-      </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuemin={0} aria-valuemax={MAX_MEMBERS} aria-valuenow={r.member_count} aria-label="Số người trong phòng">
-        <div className={cn("h-full rounded-full", full ? "bg-subtle" : "bg-primary")} style={{ width: `${(r.member_count / MAX_MEMBERS) * 100}%` }} />
-      </div>
-      <p className="mt-1 text-xs text-muted">{seatsText(r.member_count)}</p>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuemin={0} aria-valuemax={MAX_MEMBERS} aria-valuenow={r.member_count} aria-label="Số người trong phòng">
+          <div className={cn("h-full rounded-full", full ? "bg-subtle" : "bg-linear-to-r from-primary-hover to-primary")} style={{ width: `${(r.member_count / MAX_MEMBERS) * 100}%` }} />
+        </div>
+        <p className="mt-1 text-xs text-muted">{seatsText(r.member_count)}</p>
 
-      <div className="mt-4 flex gap-2">
-        {mine ? (
-          <Link href={`/hoi-vien/phong/${r.id}`} className="inline-flex h-10 flex-1 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-surface hover:bg-primary-hover focus-ring">
-            Vào phòng
-          </Link>
-        ) : r.my_invite_id !== null ? (
-          <>
-            <Button className="flex-1" onClick={() => onAct("accept")} loading={busy} disabled={full}>
-              Nhận lời mời
+        <div className="mt-4 flex gap-2">
+          {mine ? (
+            <Link href={`/hoi-vien/phong/${r.id}`} className={cta}>
+              Vào phòng
+            </Link>
+          ) : r.my_invite_id !== null ? (
+            <>
+              <Button variant="cta" block className="flex-1" onClick={() => onAct("accept")} loading={busy} disabled={full}>
+                Nhận lời mời
+              </Button>
+              <Button variant="secondary" className="h-11 sm:h-11" onClick={() => onAct("decline")} disabled={busy}>
+                Từ chối
+              </Button>
+            </>
+          ) : r.my_join_pending ? (
+            <Button variant="secondary" block className="flex-1" onClick={() => onAct("cancel")} loading={busy} title="Bấm để hủy yêu cầu">
+              Đã xin vào
             </Button>
-            <Button variant="secondary" onClick={() => onAct("decline")} disabled={busy}>
-              Từ chối
+          ) : full ? (
+            <Button variant="secondary" block className="flex-1" disabled>
+              Đã đủ
             </Button>
-          </>
-        ) : r.my_join_pending ? (
-          <Button variant="secondary" className="flex-1" onClick={() => onAct("cancel")} loading={busy} title="Bấm để hủy yêu cầu">
-            Đã xin vào
-          </Button>
-        ) : full ? (
-          <Button variant="secondary" className="flex-1" disabled>
-            Đã đủ
-          </Button>
-        ) : (
-          <Button variant="secondary" className="flex-1" onClick={() => onAct("request")} loading={busy}>
-            Xin vào
-          </Button>
-        )}
+          ) : (
+            <Button variant="secondary" block className="flex-1" onClick={() => onAct("request")} loading={busy}>
+              Xin vào
+            </Button>
+          )}
+        </div>
       </div>
     </article>
   );

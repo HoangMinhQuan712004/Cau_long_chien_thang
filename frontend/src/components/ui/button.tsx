@@ -16,6 +16,8 @@ const VARIANT_CLASS = {
   ghost: "text-muted enabled:hover:bg-primary-soft/60 enabled:hover:text-primary",
   // Hành động không hoàn tác được (Xóa) – chỉ dùng trong hộp xác nhận
   danger: "bg-danger text-surface enabled:hover:bg-danger/90",
+  // Nút hành động chính của khu hội viên (T-028): vàng, chữ tối, in hoa đậm. Mỗi màn chỉ một nút.
+  cta: "bg-cta font-bold tracking-wide text-cta-fg uppercase enabled:hover:bg-cta-hover enabled:active:scale-[0.98] motion-reduce:enabled:active:scale-100",
 } as const;
 
 /** Nút (prototype `.btn.primary` / `.btn.secondary`). */

@@ -10,7 +10,7 @@ import { formatDate, formatTime } from "@/lib/format";
 import { useMember } from "./member-shell";
 
 /** Chuông thông báo trong web (T-017 AC22): chấm số chưa đọc, danh sách, "Đã đọc hết", bấm một dòng → tới phòng. */
-export function NotificationBell() {
+export function NotificationBell({ onDark = false }: { onDark?: boolean }) {
   const { leave } = useMember();
   const router = useRouter();
   const [items, setItems] = useState<NotificationItem[]>([]);
@@ -33,6 +33,13 @@ export function NotificationBell() {
   }, [apply]);
   usePolling(() => void load(), 15000);
 
+  // Mục "Thông báo" trong sheet Tài khoản (điện thoại) mở danh sách ở chuông trên app bar
+  useEffect(() => {
+    const openList = () => setOpen(true);
+    window.addEventListener("member:open-notifications", openList);
+    return () => window.removeEventListener("member:open-notifications", openList);
+  }, []);
+
   async function readAll() {
     await roomsApi.readAll();
     await load();
@@ -54,7 +61,7 @@ export function NotificationBell() {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
-        className="relative grid size-10 place-items-center rounded-full hover:bg-primary-softer focus-ring"
+        className={cn("relative grid place-items-center rounded-full focus-ring", onDark ? "size-11 text-surface hover:bg-surface/15" : "size-10 hover:bg-primary-softer")}
       >
         <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
           <path d="M5 8a5 5 0 0 1 10 0c0 4 1.5 5.5 1.5 5.5h-13S5 12 5 8ZM8.5 16.5a1.6 1.6 0 0 0 3 0" />

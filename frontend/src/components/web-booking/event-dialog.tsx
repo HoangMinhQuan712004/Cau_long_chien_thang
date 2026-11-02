@@ -212,16 +212,17 @@ export function EventDialog({
       open={open}
       onClose={onClose}
       title={data?.name ?? "Sự kiện"}
+      footerClassName={canBuy && data ? "border-0 bg-appbar text-surface" : undefined}
       footer={
         canBuy && data ? (
           <div className="flex w-full items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs text-muted">
+              <p className="text-xs text-surface/80">
                 Tổng ({count} Vé)
               </p>
-              <p className="text-lg font-bold text-primary tabular-nums">{formatVnd(total)}</p>
+              <p className="text-lg font-bold text-surface tabular-nums">{formatVnd(total)}</p>
             </div>
-            <Button onClick={() => void submit()} loading={busy} disabled={otp !== null || Boolean(errors.name || errors.phone)} className="min-h-11 px-6">
+            <Button variant="cta" onClick={() => void submit()} loading={busy} disabled={otp !== null || Boolean(errors.name || errors.phone)} className="h-12 px-6 text-sm sm:h-12 sm:text-sm">
               {busy ? "Đang xử lý…" : needsOtp ? "Gửi mã xác minh" : "Xác nhận"}
             </Button>
           </div>

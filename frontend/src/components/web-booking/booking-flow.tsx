@@ -5,13 +5,17 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { CourtGrid, type GridCell, type GridRow } from "@/components/court-grid/court-grid";
 import { MyBookingModal } from "@/components/member-area/cell-dialogs";
 import { getMemberCalendar } from "@/components/member-area/cell-requests";
+import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { otpErrorText, otpResendAt } from "@/lib/api/auth";
 import { api } from "@/lib/api/client";
 import { errorText, write } from "@/lib/api/write";
+import { cn } from "@/lib/cn";
 import { formatLongDate, formatVnd } from "@/lib/format";
+import { fullAddress, phoneHref, site } from "@/lib/site";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
+import { DayStrip } from "./day-strip";
 import { EventDialog } from "./event-dialog";
 import { MemberHint } from "./member-hint";
 import { clearToken, readJson, removeKey, saveToken, savedToken, useVerifiedPhone, writeJson } from "./session-store";
@@ -94,6 +98,8 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pendingDate, setPendingDate] = useState<string | null>(null);
+  // Thanh tổng dưới đáy: mở rộng để xem danh sách khối đã chọn (T-028 AC7)
+  const [barOpen, setBarOpen] = useState(false);
   // Hội viên bấm ô "Sân của bạn" / "Sự kiện" (T-023): hộp thoại tương ứng; `opener` để trả focus về ô khi đóng
   const [cellDialog, setCellDialog] = useState<{ kind: "mine" | "event"; code: string } | null>(initialEvent ? { kind: "event", code: initialEvent } : null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -102,7 +108,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
   const [me, setMe] = useState<Me | null>(null);
   const [isGuest, setIsGuest] = useState(false); // /auth/me trả 401 ⇒ chưa đăng nhập (hiện gợi ý hội viên)
   const verifiedPhone = useVerifiedPhone();
-  const ids = { date: useId(), name: useId(), phone: useId(), note: useId() };
+  const ids = { name: useId(), phone: useId(), note: useId() };
 
   const dateRef = useRef(initialDate);
   const cellsRef = useRef<Cell[]>([]);
@@ -229,7 +235,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
               member && s.mine && orderCode
                 ? {
                     kind: "block",
-                    key,
+                    key: `mine|${orderCode}`,
                     tone: "mine",
                     lines: ["Sân của bạn"],
                     aria: "sân của bạn, xem chi tiết",
@@ -238,12 +244,12 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
                       setCellDialog({ kind: "mine", code: orderCode });
                     },
                   }
-                : { kind: "block", key, tone: "paid", lines: ["Đã đặt"], aria: "đã có người đặt", onClick: () => toast("Khung giờ này đã có người đặt", undefined, "info") };
+                : { kind: "block", key: "booked", tone: "booked", lines: ["Đã đặt"], aria: "đã có người đặt", onClick: () => toast("Khung giờ này đã có người đặt", undefined, "info") };
           } else if (s.state === "event") {
             const eventCode = s.event_code;
             out[h] = {
               kind: "block",
-              key,
+              key: `event|${eventCode ?? key}`,
               tone: "session",
               lines: [s.has_ticket ? "Có vé" : "Sự kiện", <b key="n" className="text-xs">{s.taken}/{s.capacity}</b>],
               aria: `sự kiện ${s.taken ?? 0} trên ${s.capacity ?? 0} người${s.has_ticket ? ", bạn đã có vé" : ""}${eventCode ? ", xem chi tiết" : ""}`,
@@ -428,12 +434,23 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
           ← Quay lại chọn giờ
         </button>
         <div>
-          <h2 className="text-2xl font-bold">Thông tin người đặt</h2>
-          <p className="text-sm text-muted">Bước 2/3 · Nhập thông tin để nhận mã booking</p>
+          <h2 className="text-2xl font-bold">Xác nhận đặt sân</h2>
+          <p className="text-sm text-muted">Kiểm tra lại thông tin rồi thanh toán để giữ chỗ.</p>
         </div>
 
-        <section className="rounded-2xl border border-border bg-surface p-5" aria-labelledby="sum-title">
-          <h3 id="sum-title" className="text-xs font-semibold tracking-wide text-muted uppercase">
+        <section className="rounded-xl bg-surface p-4 shadow-card sm:p-5" aria-labelledby="venue-title">
+          <h3 id="venue-title" className="text-sm font-bold text-primary">
+            Thông tin sân
+          </h3>
+          <p className="mt-2 font-semibold">{site.name}</p>
+          <p className="text-sm text-muted">{fullAddress}</p>
+          <a href={phoneHref} className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline focus-ring">
+            {site.phone}
+          </a>
+        </section>
+
+        <section className="rounded-xl bg-surface p-4 shadow-card sm:p-5" aria-labelledby="sum-title">
+          <h3 id="sum-title" className="text-sm font-bold text-primary">
             Thông tin lịch đặt
           </h3>
           <dl className="mt-3 space-y-3 text-sm">
@@ -466,8 +483,8 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
 
         {isGuest && !member ? <MemberHint next={`/dat-san?ngay=${date}`} /> : null}
 
-        <section className="rounded-2xl border border-border bg-surface p-5">
-          <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">Phiếu nhập thông tin</h3>
+        <section className="rounded-xl bg-surface p-4 shadow-card sm:p-5">
+          <h3 className="text-sm font-bold text-primary">Khách hàng</h3>
           <div className="mt-3 space-y-4">
             <div>
               <label htmlFor={ids.name} className="mb-1 block text-sm font-medium">
@@ -561,7 +578,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
               type="button"
               onClick={() => void submit()}
               disabled={busy || onlineOff}
-              className="mt-5 w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+              className="mt-5 h-12 w-full rounded-lg bg-cta px-4 text-sm font-bold tracking-wide text-cta-fg uppercase hover:bg-cta-hover focus-ring disabled:opacity-60"
             >
               {busy ? "Đang xử lý…" : skipOtp || (isValidPhone(phone) && verifiedPhone === phone) ? "Xác nhận & thanh toán" : "Gửi mã xác minh"}
             </button>
@@ -570,6 +587,17 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
           {onlineOff ? (
             <p className="mt-2 text-center text-xs text-danger">Đặt online đang tạm ngưng. Vui lòng gọi hotline {hotline}.</p>
           ) : null}
+        </section>
+
+        <section className="rounded-xl border border-accent/50 bg-accent-soft p-4 text-sm sm:p-5" aria-labelledby="note-title">
+          <h3 id="note-title" className="text-sm font-bold text-accent-fg">
+            Lưu ý
+          </h3>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground">
+            <li>Khung giờ được giữ {holdMinutes} phút để chuyển khoản; hết thời gian mà chưa nhận được tiền thì khung giờ được mở lại.</li>
+            <li>Đặt sân online không hủy và không hoàn tiền.</li>
+            <li>Vui lòng đến trước giờ chơi và báo mã booking tại quầy.</li>
+          </ul>
         </section>
       </div>
     );
@@ -581,55 +609,54 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
     calendar && calendar.columns.length ? `Mở cửa ${pad2(calendar.columns[0])}:00 – ${pad2(calendar.columns[calendar.columns.length - 1] + 1)}:00 · ` : "";
 
   return (
-    <div className="space-y-5">
-      <p className="text-sm text-muted">
-        {openText}Đặt online thanh toán trước bằng chuyển khoản QR
+    <div className={cn("space-y-4", cells.length > 0 && "pb-28 sm:pb-0")}>
+      <DayStrip date={date} today={today} onPick={onDateInput} />
+
+      <ul aria-label="Chú thích màu" className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted">
+        <Legend swatch="border border-border-strong bg-surface" text="Trống" />
+        <Legend swatch="bg-cell-booked" text="Đã đặt" />
+        {member ? <Legend swatch="bg-blk-mine" text="Sân của bạn" /> : null}
+        <Legend swatch="bg-blk-session" text="Sự kiện" />
+        <Legend swatch="bg-cell-off" text="Không bán / Quá giờ" />
+        <Legend swatch="border-2 border-sel-edge bg-sel" text="Đang chọn" />
+      </ul>
+
+      <p className="px-1 text-xs text-muted">
+        {openText}Bấm vào ô trắng để chọn, có thể chọn nhiều khung giờ và nhiều sân trong cùng ngày. Đặt online thanh toán trước bằng chuyển khoản QR.
       </p>
 
-      <div>
-        <label htmlFor={ids.date} className="mb-1 block text-sm font-medium">
-          Chọn ngày
-        </label>
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            id={ids.date}
-            type="date"
-            value={date}
-            min={today}
-            onChange={(e) => onDateInput(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm"
-          />
-          <span className="text-sm text-muted" aria-live="polite">
-            {formatLongDate(date)}
-          </span>
-        </div>
-      </div>
-
-      <section className="rounded-2xl border border-border bg-surface p-4" aria-label="Lịch sân">
-        <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted">
-          <Legend swatch="border border-border bg-surface" text="Trắng = Trống" />
-          <Legend swatch="bg-blk-paid" text="Đỏ = Đã đặt" />
-          <Legend swatch="bg-blk-session" text="Tím = Sự kiện · đã đặt / tối đa người" />
-          {member ? <Legend swatch="bg-blk-mine" text="Xanh dương = Sân của bạn" /> : null}
-          {member ? <Legend swatch="bg-blk-session ring-2 ring-blk-session-fg ring-inset" text="Có vé = bạn đã có vé sự kiện" /> : null}
-          <Legend swatch="bg-cell-off" text="Xám = Không bán" />
-          <Legend swatch="bg-primary" text="Xanh = Đang chọn" />
-        </ul>
-
+      <section aria-label="Lịch sân" className="space-y-3">
         {loadError ? (
-          <div role="alert" className="space-y-2 py-6 text-center text-sm">
+          <div role="alert" className="space-y-2 rounded-xl bg-surface py-8 text-center text-sm shadow-card">
             <p className="text-danger">{loadError}</p>
-            <button type="button" onClick={() => void load(date)} className="min-h-10 rounded-lg border border-border px-4 py-2">
+            <button type="button" onClick={() => void load(date)} className="min-h-11 rounded-lg border border-border px-4 py-2">
               Thử lại
             </button>
           </div>
         ) : !calendar ? (
-          <p className="py-10 text-center text-sm text-muted">Đang tải lịch sân…</p>
+          <p className="rounded-xl bg-surface py-10 text-center text-sm text-muted shadow-card">Đang tải lịch sân…</p>
         ) : calendar.resources.length === 0 ? (
-          <p className="py-10 text-center text-sm text-muted">Chưa có sân nào mở cho ngày này.</p>
+          <p className="rounded-xl bg-surface py-10 text-center text-sm text-muted shadow-card">Chưa có sân nào mở cho ngày này.</p>
         ) : (
-          <CourtGrid label="Lịch sân" columns={hours} rows={gridRows} selected={selected} selectable busy={loading} onToggle={toggle} onClear={() => applyCells([])} />
+          <CourtGrid
+            label="Lịch sân"
+            columns={hours}
+            rows={gridRows}
+            selected={selected}
+            selectable
+            busy={loading}
+            onToggle={toggle}
+            onClear={() => applyCells([])}
+            mergeBlocks
+            scrollToNow={date === today}
+            scrollKey={`${date}|${calendar.resources.length}`}
+          />
         )}
+        {onlineOff ? (
+          <p role="status" className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+            Đặt online đang tạm ngưng. Vui lòng gọi hotline {hotline}.
+          </p>
+        ) : null}
       </section>
 
       {notice ? (
@@ -638,44 +665,55 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
         </p>
       ) : null}
 
-      <section data-bottom-bar className="sticky bottom-3 z-20 rounded-2xl border border-border bg-surface p-4 shadow-lg" aria-label="Bạn đang chọn">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs text-muted">Bạn đang chọn</p>
-            {groups.length ? (
-              <ul className="max-h-28 overflow-y-auto text-sm font-semibold">
-                {groups.map((g) => (
-                  <li key={g.code}>
-                    {g.name} · {formatLongDate(date)} · {g.ranges} ({g.hours.length} giờ)
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm font-semibold">Chưa chọn khung giờ</p>
-            )}
-            <p className="mt-0.5 text-xs text-muted">
-              {groups.length
-                ? `Khung giờ được giữ ${holdMinutes} phút sau khi bạn bấm Thanh toán.`
-                : "Bấm vào ô trắng để chọn — có thể chọn nhiều khung giờ, nhiều sân trong cùng ngày"}
-            </p>
-            {onlineOff ? <p className="mt-1 text-xs text-danger">Đặt online đang tạm ngưng. Vui lòng gọi hotline {hotline}.</p> : null}
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-xs text-muted">Tổng</p>
-              <p className="text-lg font-bold tabular-nums">{formatVnd(total)}</p>
-            </div>
+      {cells.length > 0 ? (
+        <section
+          data-bottom-bar
+          aria-label="Bạn đang chọn"
+          className="fixed inset-x-0 bottom-0 z-40 rounded-t-[20px] bg-appbar text-surface shadow-[0_-6px_24px_rgb(0_0_0/0.25)] sm:sticky sm:bottom-3 sm:rounded-2xl sm:shadow-lg"
+        >
+          <div className="px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3">
             <button
               type="button"
-              onClick={() => applyStep(2)}
-              disabled={!cells.length || onlineOff || !calendar}
-              className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => setBarOpen((o) => !o)}
+              aria-expanded={barOpen}
+              aria-controls="bar-list"
+              className="mx-auto mb-1 flex h-6 w-full items-center justify-center rounded text-surface/80 hover:text-surface focus-ring"
             >
-              Tiếp tục
+              <span className="sr-only">{barOpen ? "Thu gọn danh sách khung đã chọn" : "Xem danh sách khung đã chọn"}</span>
+              <svg aria-hidden viewBox="0 0 20 20" className={cn("size-5 transition-transform motion-reduce:transition-none", barOpen && "rotate-180")} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m5 12.5 5-5 5 5" />
+              </svg>
             </button>
+            {barOpen ? (
+              <ul id="bar-list" className="mb-3 max-h-40 space-y-1 overflow-y-auto rounded-xl bg-surface/10 p-3 text-sm">
+                {groups.map((g) => (
+                  <li key={g.code} className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0">
+                      <b>{g.name}</b>: {g.ranges}
+                    </span>
+                    <span className="shrink-0 tabular-nums">{formatVnd(g.amount)}</span>
+                  </li>
+                ))}
+                <li className="pt-1 text-xs text-surface/80">Khung giờ được giữ {holdMinutes} phút sau khi bạn bấm thanh toán.</li>
+              </ul>
+            ) : null}
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1 leading-tight">
+                <p className="text-xs text-surface/80">
+                  Tổng giờ: <b className="text-surface">{totalHours}</b>
+                </p>
+                <p className="text-lg font-bold tabular-nums">
+                  <span className="text-xs font-normal text-surface/80">Tổng tiền: </span>
+                  {formatVnd(total)}
+                </p>
+              </div>
+              <Button variant="cta" onClick={() => applyStep(2)} disabled={onlineOff || !calendar} className="h-12 min-w-36 px-6 text-sm sm:h-12 sm:text-sm">
+                Tiếp theo
+              </Button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       {member ? <MyBookingModal orderCode={cellDialog?.kind === "mine" ? cellDialog.code : null} onClose={closeCellDialog} /> : null}
       <EventDialog
@@ -720,7 +758,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
 function Legend({ swatch, text }: { swatch: string; text: string }) {
   return (
     <li className="inline-flex items-center gap-1.5">
-      <span aria-hidden className={`inline-block size-3.5 rounded-sm ${swatch}`} />
+      <span aria-hidden className={`inline-block size-4 shrink-0 rounded-[5px] ${swatch}`} />
       {text}
     </li>
   );

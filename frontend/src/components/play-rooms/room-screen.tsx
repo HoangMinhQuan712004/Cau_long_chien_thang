@@ -294,7 +294,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
         {tab === "history" ? (
           <RoomHistory roomId={id} />
         ) : (
-          <>
+          <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr] lg:items-start">
+            <div className="min-w-0 space-y-4">
             <section className="overflow-hidden rounded-card bg-surface shadow-card" aria-label="Điều khiển trận">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4" hidden={!MATCHES_READY}>
                 <div className="flex items-center gap-3">
@@ -343,11 +344,14 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                 {isHost ? (
                   <div className="flex gap-2">
                     {playing ? (
-                      <Button onClick={() => setDialog({ kind: "result" })}>Kết thúc trận</Button>
+                      <Button variant="cta" onClick={() => setDialog({ kind: "result" })} className="h-11 px-5 sm:h-11 sm:text-sm">
+                        Kết thúc trận
+                      </Button>
                     ) : (
                       <>
                         <Button
                           variant="secondary"
+                          className="h-11 sm:h-11"
                           onClick={() => void inline((v) => roomsApi.draw(id, v)).then(() => setDraft(null))}
                           loading={busy}
                           disabled={waitingAll.length < need}
@@ -355,6 +359,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                           {drawn ? "Bốc lại" : "Bốc ngẫu nhiên"}
                         </Button>
                         <Button
+                          variant="cta"
+                          className="h-11 px-5 sm:h-11 sm:text-sm"
                           onClick={() => void inline((v) => roomsApi.start(id, v))}
                           loading={busy}
                           disabled={!drawn || Boolean(lu?.hasDraft) || beforeStart}
@@ -382,6 +388,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
               />
             </section>
 
+            </div>
+            <div className="min-w-0 space-y-4">
             {isHost && room.join_requests.length > 0 ? (
               <section className="rounded-card bg-surface p-4 shadow-card sm:p-5" aria-labelledby="req-title">
                 <h2 id="req-title" className="text-base font-bold">
@@ -435,7 +443,7 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                   </Button>
                 ) : null}
               </div>
-              <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                 {room.members.map((m) => (
                   <MemberTile
                     key={m.id}
@@ -455,7 +463,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                 ))}
               </ul>
             </section>
-          </>
+            </div>
+          </div>
         )}
       </div>
 

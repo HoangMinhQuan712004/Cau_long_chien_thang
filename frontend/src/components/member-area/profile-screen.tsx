@@ -95,7 +95,7 @@ function Hero({ me }: { me: MemberMe }) {
   const joined = `${me.joined_at.slice(5, 7)}/${me.joined_at.slice(0, 4)}`;
 
   return (
-    <section aria-label="Thông tin hội viên" className="relative overflow-hidden bg-primary-hover text-surface">
+    <section aria-label="Thông tin hội viên" className="relative overflow-hidden bg-appbar text-surface">
       <CourtLines />
       <div className="relative mx-auto flex max-w-6xl items-center gap-4 px-4 py-8 sm:gap-6 sm:py-10">
         <div className="relative shrink-0" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setMenu(false)}>
@@ -489,7 +489,7 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
         <Button type="button" variant="secondary" onClick={cancel} disabled={!dirty || busy}>
           Hủy
         </Button>
-        <Button type="submit" disabled={!dirty} loading={busy}>
+        <Button type="submit" variant="cta" className="h-11 px-5 sm:h-11 sm:text-sm" disabled={!dirty} loading={busy}>
           {busy ? "Đang lưu…" : "Lưu thay đổi"}
         </Button>
       </div>

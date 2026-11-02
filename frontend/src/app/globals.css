@@ -52,6 +52,20 @@
   --medal-silver: #c3c9c6;
   --medal-bronze: #b8794a;
   --medal-fg: #3b2f08;
+
+  /* T-028 – khu hội viên & lưới đặt sân của khách.
+     CTA: một nút hành động chính mỗi màn, chữ tối trên vàng (≥ 7:1; chữ trắng trên vàng chỉ ~2:1 nên không dùng). */
+  --cta: #e3b02c;
+  --cta-hover: #d4a21f;
+  --cta-fg: #2b2200;
+  /* Thanh trên (app bar), đậm hơn xanh thương hiệu một nấc để chữ trắng nổi */
+  --appbar: color-mix(in srgb, var(--primary-hover) 88%, black);
+  --appbar-soft: color-mix(in srgb, var(--primary-hover) 78%, white);
+  /* Ô đang chọn: xanh bạc hà + viền xanh đậm; ô đã đặt: đỏ san hô (chữ trắng ≥ 4.5:1) */
+  --sel: #c4f1da;
+  --sel-edge: #0f5c42;
+  --cell-booked: #c9432f;
+  --cell-booked-fg: #ffffff;
 }
 
 @theme inline {
@@ -94,6 +108,15 @@
   --color-medal-silver: var(--medal-silver);
   --color-medal-bronze: var(--medal-bronze);
   --color-medal-fg: var(--medal-fg);
+  --color-cta: var(--cta);
+  --color-cta-hover: var(--cta-hover);
+  --color-cta-fg: var(--cta-fg);
+  --color-appbar: var(--appbar);
+  --color-appbar-soft: var(--appbar-soft);
+  --color-sel: var(--sel);
+  --color-sel-edge: var(--sel-edge);
+  --color-cell-booked: var(--cell-booked);
+  --color-cell-booked-fg: var(--cell-booked-fg);
   --shadow-card: var(--card-shadow);
   --radius-card: 14px;
   /* Cỡ theo prototype, viết bằng rem để phóng to cùng trang trên màn lớn */
@@ -140,6 +163,11 @@
   .animate-scale-in {
     animation: none;
   }
+}
+
+/* T-028 AC1: thanh điều hướng dưới (điện thoại) tự ẩn khi màn có thanh hành động riêng, để không chồng hai thanh */
+body:has([data-bottom-bar]) [data-member-nav] {
+  display: none;
 }
 
 body {
