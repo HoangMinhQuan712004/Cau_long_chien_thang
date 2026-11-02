@@ -47,6 +47,11 @@
   --info-soft: color-mix(in srgb, var(--info) 10%, white);
   /* Heatmap công suất mức 40–69% (các mức khác dùng primary-soft / primary / primary-hover) */
   --heat-mid: color-mix(in srgb, var(--primary) 42%, white);
+  /* Bục top 3 của Bảng xếp hạng: vàng / bạc / đồng (nền bục + chữ trên bục) */
+  --medal-gold: #d9a406;
+  --medal-silver: #c3c9c6;
+  --medal-bronze: #b8794a;
+  --medal-fg: #3b2f08;
 }
 
 @theme inline {
@@ -85,6 +90,10 @@
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
   --color-heat-mid: var(--heat-mid);
+  --color-medal-gold: var(--medal-gold);
+  --color-medal-silver: var(--medal-silver);
+  --color-medal-bronze: var(--medal-bronze);
+  --color-medal-fg: var(--medal-fg);
   --shadow-card: var(--card-shadow);
   --radius-card: 14px;
   /* Cỡ theo prototype, viết bằng rem để phóng to cùng trang trên màn lớn */

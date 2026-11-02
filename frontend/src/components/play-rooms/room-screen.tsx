@@ -54,11 +54,11 @@ function Crown({ className }: { className?: string }) {
   );
 }
 
-export function RoomScreen({ id }: { id: number }) {
+export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab?: "play" | "history" }) {
   const router = useRouter();
   const [room, setRoom] = useState<RoomDetail | null>(null);
   const [problem, setProblem] = useState<"" | "notfound" | "error">("");
-  const [tab, setTab] = useState<"play" | "history">("play");
+  const [tab, setTab] = useState<"play" | "history">(initialTab);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
   const versionRef = useRef(0);
@@ -156,7 +156,7 @@ export function RoomScreen({ id }: { id: number }) {
   if (problem === "notfound" || (problem === "error" && !room)) {
     return (
       <div className="mx-auto max-w-md px-4 py-20 text-center" role="alert">
-        <p className="font-semibold">{problem === "notfound" ? "Không tìm thấy phòng." : "Không tải được phòng. Vui lòng thử lại."}</p>
+        <p className="font-semibold">{problem === "notfound" ? "Phòng này không còn xem được." : "Không tải được phòng. Vui lòng thử lại."}</p>
         <div className="mt-4 flex justify-center gap-3">
           {problem === "error" ? <Button onClick={() => void load()}>Thử lại</Button> : null}
           <Link href="/hoi-vien/danh-sach-san" className="inline-flex h-11 items-center rounded-lg border border-primary px-4 text-sm font-semibold text-primary sm:h-9.5">
