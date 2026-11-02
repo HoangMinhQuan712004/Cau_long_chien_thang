@@ -166,7 +166,7 @@ async def _buyer[T: (CheckoutIn, EventCheckoutIn)](
         and verified_phone != phone
         and not await auth.booking_phone_token_valid(session, data.phone_token, phone)
     ):
-        raise AppError("E-WEB-8", "Vui lòng xác minh số điện thoại trước khi đặt sân.", 403)
+        raise AppError("E-WEB-8", "Vui lòng xác minh số điện thoại trước khi thanh toán.", 403)
     return data, full_name, phone, note
 
 
