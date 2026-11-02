@@ -78,12 +78,13 @@ async def test_upgrade_creates_the_five_tables_without_backfilled_rows(mig_db):
 
 async def test_schema_matches_models_and_roundtrip_is_clean(mig_db):
     await alembic(command.upgrade, TARGET)
-    await alembic(lambda cfg, _rev: command.check(cfg), TARGET)
     await alembic(command.downgrade, BEFORE)
     assert await tables() == set(), "đảo ngược gỡ sạch 5 bảng"
     await alembic(command.upgrade, TARGET)
     assert await tables() == TABLES
-    await alembic(lambda cfg, _rev: command.check(cfg), TARGET)
+    # `alembic check` chỉ chạy được khi DB ở head; các migration sau T-017 làm head đổi -> nâng tới `head`
+    await alembic(command.upgrade, "head")
+    await alembic(lambda cfg, _rev: command.check(cfg), "head")
 
 
 async def test_constraints_enforce_unique_room_per_booking_and_member_per_room(mig_db):
