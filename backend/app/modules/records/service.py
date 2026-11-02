@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -51,7 +52,7 @@ async def _best_in(session: AsyncSession, start: datetime, end: datetime) -> lis
             SpeedRecord.measured_at,
             SpeedRecord.id,
         )
-        .distinct(SpeedRecord.customer_id)
+        .ext(distinct_on(SpeedRecord.customer_id))
     )
     return [_Best(cid, kmh, at) for cid, kmh, at in rows]
 

@@ -14,6 +14,7 @@ from app.modules.records import seed_demo
 from app.modules.records.models import SpeedRecord
 from app.modules.records.service import period_bounds
 from tests import test_play_rooms as base
+from tests.conftest import _rate_limit_backend
 from tests.test_play_rooms import MA
 
 people = base.people  # fixture dùng chung (hội viên có tài khoản liên kết)
@@ -58,7 +59,10 @@ async def ranking(client, period: str, day: str) -> dict:
 
 
 async def test_ranking_order_ties_privacy_gap_and_inactive(people):
-    hv = [await people(f"Tay Vợt {i:02d}") for i in range(12)]
+    hv = []
+    for i in range(12):
+        _rate_limit_backend.clear()  # 12 lần đăng ký OTP cùng IP vượt giới hạn gửi mã
+        hv.append(await people(f"Tay Vợt {i:02d}"))
     for p in hv:
         await set_profile(p.customer_id, show_on_records=True)
     anon_hv, me, stopped = hv[1], hv[10], hv[11]
