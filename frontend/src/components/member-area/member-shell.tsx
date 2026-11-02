@@ -12,7 +12,7 @@ import { Avatar } from "./avatar";
 import { NotificationBell } from "./notification-bell";
 import { maskPhone, type MemberMe } from "./types";
 
-// Khung khu hội viên (T-016 AC5, AC6, AC15): menu 6 mục, nút tài khoản, hộp "Bạn có thay đổi chưa lưu".
+// Khung khu hội viên (T-016 AC5, AC6, AC15; T-029 AC5): menu 8 mục (lg: 5 mục + "…", xl: đủ 8), nút tài khoản, hộp "Bạn có thay đổi chưa lưu".
 
 type Ctx = {
   me: MemberMe;
@@ -37,10 +37,15 @@ const NAV = [
   { href: "/hoi-vien", label: "Tổng quan", exact: true },
   { href: "/hoi-vien/dat-san", label: "Đặt sân" },
   { href: "/hoi-vien/ho-so", label: "Hồ sơ của tôi" },
+  { href: "/hoi-vien/lich-su-choi", label: "Lịch sử chơi" },
   { href: "/hoi-vien/video-ky-luc", label: "Video & kỷ lục" },
+  { href: "/hoi-vien/bang-xep-hang", label: "Bảng xếp hạng" },
   { href: "/hoi-vien/danh-sach-san", label: "Danh sách sân", also: "/hoi-vien/phong" },
   { href: "/hoi-vien/lich-su-thanh-toan", label: "Lịch sử thanh toán" },
 ] as const;
+
+/** Màn lg chỉ đủ chỗ cho 5 mục đầu; các mục còn lại gom vào "…" (xl trở lên hiện đủ). */
+const PRIMARY_COUNT = 5;
 
 export function MemberShell({ initial, children }: { initial: MemberMe; children: React.ReactNode }) {
   const [me, setMe] = useState(initial);
@@ -159,9 +164,10 @@ function MemberHeader() {
         </Link>
 
         <nav aria-label="Khu hội viên" id="member-nav" className="hidden h-full items-stretch gap-1 lg:flex">
-          {NAV.map((n) => (
-            <NavLink key={n.href} n={n} active={isActive(n)} onClick={go(n.href)} />
+          {NAV.map((n, i) => (
+            <NavLink key={n.href} n={n} active={isActive(n)} onClick={go(n.href)} className={i >= PRIMARY_COUNT ? "hidden xl:flex" : undefined} />
           ))}
+          <MoreMenu items={NAV.slice(PRIMARY_COUNT)} isActive={isActive} go={go} />
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
@@ -230,7 +236,7 @@ function MemberHeader() {
   );
 }
 
-function NavLink({ n, active, onClick }: { n: (typeof NAV)[number]; active: boolean; onClick: (e: React.MouseEvent) => void }) {
+function NavLink({ n, active, onClick, className }: { n: (typeof NAV)[number]; active: boolean; onClick: (e: React.MouseEvent) => void; className?: string }) {
   return (
     <Link
       href={n.href}
@@ -239,10 +245,52 @@ function NavLink({ n, active, onClick }: { n: (typeof NAV)[number]; active: bool
       className={cn(
         "relative flex items-center px-2 text-sm whitespace-nowrap hover:text-primary focus-ring",
         active ? "font-bold text-primary" : "text-muted",
+        className,
       )}
     >
       {n.label}
       {active ? <span aria-hidden className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-primary" /> : null}
     </Link>
+  );
+}
+
+/** Nút "…" (chỉ màn lg, dưới xl): mở danh sách các mục không đủ chỗ trên thanh menu. */
+function MoreMenu({ items, isActive, go }: { items: readonly (typeof NAV)[number][]; isActive: (n: (typeof NAV)[number]) => boolean; go: (href: string) => (e: React.MouseEvent) => void }) {
+  const [open, setOpen] = useState(false);
+  const active = items.some(isActive);
+  return (
+    <div className="relative flex items-stretch xl:hidden" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setOpen(false)}>
+      <button
+        type="button"
+        aria-label="Thêm mục menu"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
+        className={cn("relative flex items-center px-2 text-sm hover:text-primary focus-ring", active ? "font-bold text-primary" : "text-muted")}
+      >
+        <span aria-hidden>···</span>
+        {active ? <span aria-hidden className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-primary" /> : null}
+      </button>
+      {open ? (
+        <div role="menu" className="absolute top-full right-0 z-40 mt-1 w-56 rounded-card bg-surface p-1.5 shadow-card ring-1 ring-border">
+          {items.map((n) => (
+            <Link
+              key={n.href}
+              href={n.href}
+              role="menuitem"
+              onClick={(e) => {
+                setOpen(false);
+                go(n.href)(e);
+              }}
+              aria-current={isActive(n) ? "page" : undefined}
+              className={cn("block rounded-lg px-3 py-2.5 text-sm hover:bg-primary-softer focus-ring", isActive(n) ? "font-bold text-primary" : "font-medium")}
+            >
+              {n.label}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }

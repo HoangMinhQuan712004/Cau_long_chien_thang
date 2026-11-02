@@ -19,7 +19,9 @@ class MemberMeOut(BaseModel):
     racket: str | None = Field(description="Tên vợt đang dùng (danh mục GET /rackets)")
     show_on_records: bool
     avatar_url: str | None = Field(description="Đã gồm ?v={etag}; null -> hiện chữ cái")
-    record_kmh: int | None = Field(default=None, description="Đợt 1 chưa có dữ liệu kỷ lục")
+    record_kmh: int | None = Field(
+        default=None, description="Kỷ lục tốc độ cú đập mọi thời gian (km/h); null: chưa có số đo"
+    )
     version: int
 
 

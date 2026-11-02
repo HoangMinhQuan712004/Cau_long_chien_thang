@@ -146,6 +146,11 @@ async def room_people(session: AsyncSession, ids: set[int] | list[int]) -> dict[
     return await room_people_mod.people(session, ids)
 
 
+async def member_ids(session: AsyncSession) -> list[int]:
+    """Id mọi hồ sơ hội viên (không gồm hồ sơ tạm) – cho script dữ liệu thử của module khác."""
+    return list(await session.scalars(select(Customer.id).where(Customer.kind == "member")))
+
+
 async def customer_id_of_ref(session: AsyncSession, ref: str) -> int | None:
     """``customer_ref`` trên booking -> id hồ sơ khách (chưa có hồ sơ -> None)."""
     return await room_people_mod.id_of_ref(session, ref)
