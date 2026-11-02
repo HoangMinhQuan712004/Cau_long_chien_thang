@@ -45,7 +45,7 @@ async def test_new_phone_creates_account_with_deadline_and_replay(staff, phones)
     assert again.json() == data
 
     # AC5: không có mật khẩu ở response / audit
-    assert "password" not in first.text.lower()
+    assert [k for k in data if "password" in k] == ["initial_password_expires_at"]
     async with SessionLocal() as s:
         user = await s.scalar(select(User).where(User.phone == phone))
         row = await s.scalar(
