@@ -7,15 +7,19 @@ import { CheckIcon, LoaderIcon, PlusIcon } from "@/components/ui/icons";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Dictionary } from "@/i18n/dictionaries";
-import type { MemberDetail } from "@/lib/api/server";
+import type { MemberCreated, MemberDetail } from "@/lib/api/server";
 import { cn } from "@/lib/cn";
 import { formatPhone } from "@/lib/phone";
+import { AccountNotice } from "./account-notice";
 import { FormBody } from "./member-form-body";
 import { EMPTY_MEMBER, valuesOf } from "./member-form-fields";
 import { useMemberDetail } from "./use-member-detail";
 
 // Sửa dùng chung cho hội viên và hồ sơ tạm (loại lấy từ chi tiết)
 export type FormMode = { kind: "add" } | { kind: "temp" } | { kind: "edit"; ref: string; detail?: MemberDetail };
+
+/** Kết quả Thêm hội viên khi vừa tạo tài khoản (T-026): SĐT đã nhập (= mật khẩu ban đầu) + hạn đổi. */
+export type AccountCreated = { row: MemberCreated; phone: string; expiresAt: string | null };
 
 type Props = {
   mode: FormMode;
@@ -42,7 +46,10 @@ export function MemberForm({ mode, canEditStatus, onClose, onSaved, t }: Props) 
   // Trạng thái đang lưu nằm ở đây vì nút Lưu ở chân popup (ngoài <form>, nối bằng form={formId})
   const formId = useId();
   const [isPending, setIsPending] = useState(false);
+  const [created, setCreated] = useState<AccountCreated | null>(null);
   const isFormShown = !isEdit || detail !== null;
+
+  if (created) return <AccountNotice info={created} t={t} onClose={onClose} />;
 
   return (
     <Modal
@@ -79,6 +86,7 @@ export function MemberForm({ mode, canEditStatus, onClose, onSaved, t }: Props) 
           canEditStatus={canEditStatus}
           onClose={onClose}
           onSaved={onSaved}
+          onAccountCreated={setCreated}
           onReload={() => {
             setReloadKey((k) => k + 1);
             onSaved();

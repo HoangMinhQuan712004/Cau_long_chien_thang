@@ -32,11 +32,13 @@ export function authFailure(error: ApiError): boolean {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Đặt sân tại quầy: một đơn gồm 1–20 khối cùng ngày (kéo chọn vùng đầu, rồi "+ Thêm khối" – T-019)
+// Đặt sân tại quầy: một đơn gồm 1–20 khối cùng ngày (chọn ô trên lưới, rồi "+ Thêm khối" – T-019)
 // ---------------------------------------------------------------------------------------------
 
 type BookingProps = {
   selection: Selection;
+  /** Chọn nhiều ô trên lưới (T-025): các khối đã gom sẵn; không có thì dùng một khối từ `selection`. */
+  initialBlocks?: Block[];
   /** Lịch đang xem: nguồn giờ trống cho "+ Thêm khối" và tên sân. */
   calendar: Calendar;
   /** Admin: có tab "Đặt sự kiện" trong popup. */
@@ -51,8 +53,8 @@ type BookingProps = {
   onRefresh: () => void;
 };
 
-export function BookingDialog({ selection, calendar, canSession, onClose, onSwitchToSession, onBooked, onStale, onRefresh }: BookingProps) {
-  const [blocks, setBlocks] = useState<Block[]>(() => [{ resource_code: selection.resourceCodes[0], start_hour: selection.startHour, end_hour: selection.endHour }]);
+export function BookingDialog({ selection, initialBlocks, calendar, canSession, onClose, onSwitchToSession, onBooked, onStale, onRefresh }: BookingProps) {
+  const [blocks, setBlocks] = useState<Block[]>(() => initialBlocks?.length ? initialBlocks : [{ resource_code: selection.resourceCodes[0], start_hour: selection.startHour, end_hour: selection.endHour }]);
   const [quotes, setQuotes] = useState<Record<string, Quote | string>>({});
   const [adding, setAdding] = useState(false);
   const [conflicts, setConflicts] = useState<string[]>([]);

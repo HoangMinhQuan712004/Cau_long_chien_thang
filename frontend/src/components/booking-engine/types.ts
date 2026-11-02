@@ -12,6 +12,8 @@ export type CalendarResource = {
   is_active: boolean;
   /** Giờ bắt đầu các ô Xám (không bán) của sân này. */
   off_hours: number[];
+  /** Giá/giờ từng ô bán được (giờ bắt đầu → VND), chỉ để xem trước tổng tiền (T-025 AC9). */
+  hour_prices?: Record<string, number>;
 };
 
 export type CalendarBlock = {

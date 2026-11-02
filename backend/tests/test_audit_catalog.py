@@ -41,7 +41,11 @@ def test_actor_filter_uses_known_actor_types():
 
 def test_actions_for_all_and_one_type():
     assert set(catalog.actions_for(None)) == set(catalog.BY_ACTION)
-    assert catalog.actions_for("payment.collect") == ("payment.collect", "booking.online.paid")
+    assert catalog.actions_for("payment.collect") == (
+        "payment.collect",
+        "booking.online.paid",
+        "ticket.online.paid",  # T-023: tiền về cho vé mua online
+    )
 
 
 def test_changes_keep_label_order_and_skip_unchanged():

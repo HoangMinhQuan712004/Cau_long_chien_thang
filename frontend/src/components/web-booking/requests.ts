@@ -3,13 +3,13 @@ import { callOtpApi } from "@/lib/api/auth";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { toApiError, type ApiError } from "@/lib/api/write";
-import type { Checkout, Lookup, WebCalendar } from "./types";
+import type { Checkout, EventCheckoutBody, EventDetail, Lookup, WebCalendar } from "./types";
 
 // Lời gọi API công khai của web khách (không cần đăng nhập). Ghi: dùng `write()` (Idempotency-Key) ở nơi gọi.
 
 export type Read<T> = { ok: true; data: T } | { ok: false; error: ApiError };
 
-async function read<T>(call: () => Promise<{ data?: T; error?: unknown; response: Response }>): Promise<Read<T>> {
+export async function read<T>(call: () => Promise<{ data?: T; error?: unknown; response: Response }>): Promise<Read<T>> {
   try {
     const { data, error, response } = await call();
     if (response.ok && data !== undefined) return { ok: true, data };
@@ -40,3 +40,11 @@ export const requestBookingPhone = (phone: string) =>
 
 export const verifyBookingPhone = (phone: string, otp: string) =>
   callOtpApi(() => api.POST("/api/v1/web/booking/phone/verify", { body: { phone, otp } }));
+
+// ---- Vé sự kiện (T-023) ----
+export const getEventDetail = (code: string) =>
+  read<EventDetail>(() => api.GET("/api/v1/web/booking/events/{code}", { params: { path: { code } } }));
+
+/** Gọi qua `write((key) => sendEventCheckout(key, body))`; response như CheckoutCreatedOut (có `token`). */
+export const sendEventCheckout = (key: string, body: EventCheckoutBody) =>
+  api.POST("/api/v1/web/booking/event-checkouts", { body, headers: { "Idempotency-Key": key } });

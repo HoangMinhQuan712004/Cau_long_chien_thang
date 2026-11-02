@@ -1,7 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { CourtGrid, type GridCell, type GridRow } from "@/components/court-grid/court-grid";
+import { MyBookingModal } from "@/components/member-area/cell-dialogs";
+import { getMemberCalendar } from "@/components/member-area/cell-requests";
 import { Modal } from "@/components/ui/modal";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { otpErrorText, otpResendAt } from "@/lib/api/auth";
@@ -9,41 +12,18 @@ import { api } from "@/lib/api/client";
 import { errorText, write } from "@/lib/api/write";
 import { formatLongDate, formatVnd } from "@/lib/format";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
+import { EventDialog } from "./event-dialog";
 import { MemberHint } from "./member-hint";
+import { clearToken, readJson, removeKey, saveToken, savedToken, useVerifiedPhone, writeJson } from "./session-store";
 import { toast } from "@/lib/feedback";
 import { BookingPhoneOtp, type VerifiedAccount } from "./phone-otp";
 import { getWebCalendar, requestBookingPhone, sendCheckout } from "./requests";
-import { MAX_CELLS, RESTORE_KEY, type Cell, type WebCalendar } from "./types";
+import { MAX_CELLS, RESTORE_KEY, type Cell, type SlotExtra, type WebCalendar } from "./types";
 
 // /dat-san – bước 1: chọn khung giờ trên lưới (nhiều ô, nhiều sân, cùng 1 ngày, tối đa 16 ô); bước 2: nhập thông tin người đặt.
 // Server tự tính giá và kiểm lại mọi điều kiện; FE chỉ gửi sân + giờ + thông tin khách (T-008 AC1–AC9).
 
 const STORAGE_KEY = "wk-booking-v1";
-// phone_token (30 phút) của SĐT đã xác minh OTP: dùng lại cho các lượt đặt kế tiếp, không bắt nhập mã lại
-const PHONE_TOKEN_KEY = "wk-phone-token-v1";
-
-type PhoneToken = { phone: string; token: string; expiresAt: string };
-/** phone_token còn dùng được (còn > 15 giây) cho đúng SĐT này, không thì null. */
-function savedToken(forPhone: string): string | null {
-  const t = readJson<PhoneToken>(PHONE_TOKEN_KEY);
-  return t && t.phone === forPhone && Date.parse(t.expiresAt) - Date.now() > 15_000 ? t.token : null;
-}
-
-// Kho nhỏ quanh sessionStorage để nhãn "đã xác minh" cập nhật khi lưu / xóa token (không setState trong effect)
-const tokenListeners = new Set<() => void>();
-const subscribeToken = (cb: () => void) => {
-  tokenListeners.add(cb);
-  return () => void tokenListeners.delete(cb);
-};
-const notifyToken = () => tokenListeners.forEach((l) => l());
-const readTokenRaw = (): string | null => {
-  try {
-    return sessionStorage.getItem(PHONE_TOKEN_KEY);
-  } catch {
-    return null;
-  }
-};
-
 type Me = { full_name: string; phone: string | null; phone_verified: boolean };
 
 type Saved = { date: string; cells: Cell[]; name: string; phone: string; note: string; step: 1 | 2 };
@@ -52,29 +32,6 @@ type Restore = { date: string; items: Cell[] };
 const cellKey = (c: Cell) => `${c.code}|${c.hour}`;
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const range = (a: number, b: number) => `${pad2(a)}:00 – ${pad2(b)}:00`;
-
-function readJson<T>(key: string): T | null {
-  try {
-    const raw = sessionStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : null;
-  } catch {
-    return null;
-  }
-}
-function writeJson(key: string, value: unknown) {
-  try {
-    sessionStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* sessionStorage có thể bị chặn (chế độ riêng tư) – bỏ qua, không ảnh hưởng luồng đặt */
-  }
-}
-function removeKey(key: string) {
-  try {
-    sessionStorage.removeItem(key);
-  } catch {
-    /* bỏ qua */
-  }
-}
 
 type Group = { code: string; name: string; hours: number[]; ranges: string; amount: number };
 
@@ -110,9 +67,17 @@ function summarize(calendar: WebCalendar, cells: Cell[], price: Map<string, numb
 /** Đặt trong khu hội viên (T-018 AC4): họ tên + SĐT lấy từ hồ sơ, khóa; bỏ OTP; server nhận `as_member`. */
 export type MemberIdentity = { name: string; phone: string };
 
-type Props = { initialDate: string; today: string; hotline: string; texts: Dictionary["phoneVerify"]; member?: MemberIdentity };
+type Props = {
+  initialDate: string;
+  today: string;
+  hotline: string;
+  texts: Dictionary["phoneVerify"];
+  member?: MemberIdentity;
+  /** `?event=` (T-023 AC18): tự mở popup sự kiện này khi vào trang */
+  initialEvent?: string | null;
+};
 
-export function WebBookingFlow({ initialDate, today, hotline, texts, member }: Props) {
+export function WebBookingFlow({ initialDate, today, hotline, texts, member, initialEvent = null }: Props) {
   const router = useRouter();
   // Phiên đặt trong khu hội viên lưu riêng, không lẫn với /dat-san công khai
   const storageKey = member ? `${STORAGE_KEY}:member` : STORAGE_KEY;
@@ -129,19 +94,14 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member }: P
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pendingDate, setPendingDate] = useState<string | null>(null);
+  // Hội viên bấm ô "Sân của bạn" / "Sự kiện" (T-023): hộp thoại tương ứng; `opener` để trả focus về ô khi đóng
+  const [cellDialog, setCellDialog] = useState<{ kind: "mine" | "event"; code: string } | null>(initialEvent ? { kind: "event", code: initialEvent } : null);
+  const openerRef = useRef<HTMLElement | null>(null);
   // Bước nhập OTP (đang mở khi != null); khách đăng nhập đã xác minh SĐT thì bỏ qua (AC26)
   const [otp, setOtp] = useState<{ phone: string; resendAt: number | null; testOtp: string | null } | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [isGuest, setIsGuest] = useState(false); // /auth/me trả 401 ⇒ chưa đăng nhập (hiện gợi ý hội viên)
-  // SĐT đã có phone_token (chỉ để đổi nhãn nút / hiện "đã xác minh"); hạn thật được kiểm lại lúc bấm nút
-  const rawToken = useSyncExternalStore(subscribeToken, readTokenRaw, () => null);
-  const verifiedPhone = useMemo(() => {
-    try {
-      return rawToken ? (JSON.parse(rawToken) as PhoneToken).phone : null;
-    } catch {
-      return null;
-    }
-  }, [rawToken]);
+  const verifiedPhone = useVerifiedPhone();
   const ids = { date: useId(), name: useId(), phone: useId(), note: useId() };
 
   const dateRef = useRef(initialDate);
@@ -163,7 +123,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member }: P
   const load = useCallback(
     async (d: string, quiet = false) => {
       if (!quiet) setLoading(true);
-      const res = await getWebCalendar(d);
+      const res = await (member ? getMemberCalendar(d) : getWebCalendar(d));
       if (dateRef.current !== d) return;
       if (!quiet) setLoading(false);
       if (!res.ok) {
@@ -202,7 +162,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member }: P
         if (!kept.length) applyStep(1);
       }
     },
-    [applyCells, applyStep],
+    [applyCells, applyStep, member],
   );
 
   // Lần đầu: khôi phục lựa chọn đã lưu trong tab (F5 không mất – AC9) rồi tải lịch.
@@ -253,8 +213,66 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member }: P
   const total = groups.reduce((s, g) => s + g.amount, 0);
   const totalHours = cells.length;
   const selected = useMemo(() => new Set(cells.map(cellKey)), [cells]);
+  // Lưới dùng chung (T-025): dữ liệu lịch khách / hội viên → hàng + ô. Hội viên: ô của mình mở thông tin + hóa đơn, ô người khác chỉ báo đã có người đặt (T-023 AC1–AC3).
+  const gridRows = useMemo<GridRow[]>(
+    () =>
+      (calendar?.resources ?? []).map((r) => {
+        const byHour = new Map(r.slots.map((s) => [s.start_hour, s as (typeof r.slots)[number] & SlotExtra]));
+        const out: Record<number, GridCell> = {};
+        for (const h of calendar?.columns ?? []) {
+          const s = byHour.get(h);
+          const key = `${r.code}|${h}`;
+          if (!s || s.state === "closed") out[h] = { kind: "off" };
+          else if (s.state === "booked") {
+            const orderCode = s.order_code;
+            out[h] =
+              member && s.mine && orderCode
+                ? {
+                    kind: "block",
+                    key,
+                    tone: "mine",
+                    lines: ["Sân của bạn"],
+                    aria: "sân của bạn, xem chi tiết",
+                    onClick: (el) => {
+                      openerRef.current = el;
+                      setCellDialog({ kind: "mine", code: orderCode });
+                    },
+                  }
+                : { kind: "block", key, tone: "paid", lines: ["Đã đặt"], aria: "đã có người đặt", onClick: () => toast("Khung giờ này đã có người đặt", undefined, "info") };
+          } else if (s.state === "event") {
+            const eventCode = s.event_code;
+            out[h] = {
+              kind: "block",
+              key,
+              tone: "session",
+              lines: [s.has_ticket ? "Có vé" : "Sự kiện", <b key="n" className="text-xs">{s.taken}/{s.capacity}</b>],
+              aria: `sự kiện ${s.taken ?? 0} trên ${s.capacity ?? 0} người${s.has_ticket ? ", bạn đã có vé" : ""}${eventCode ? ", xem chi tiết" : ""}`,
+              ring: Boolean(s.has_ticket),
+              onClick: eventCode
+                ? (el) => {
+                    openerRef.current = el;
+                    setCellDialog({ kind: "event", code: eventCode });
+                  }
+                : undefined,
+            };
+          } else out[h] = { kind: "free", price: s.price ?? null };
+        }
+        return { code: r.code, name: r.name, cells: out };
+      }),
+    [calendar, member],
+  );
   const onlineOff = calendar ? !calendar.online_enabled : false;
   const holdMinutes = calendar?.hold_minutes ?? 5;
+
+  function closeCellDialog() {
+    setCellDialog(null);
+    // Trả focus về ô đã bấm (hộp thoại gốc tự làm khi ô còn tồn tại; đây là dự phòng khi lưới vừa vẽ lại)
+    // Mở từ `?event=`: bỏ tham số để F5 / chia sẻ link không mở lại popup
+    if (window.location.search.includes("event=")) window.history.replaceState(null, "", `?ngay=${dateRef.current}`);
+    const opener = openerRef.current;
+    openerRef.current = null;
+    if (opener) setTimeout(() => opener.isConnected && opener.focus(), 0);
+  }
 
   // ---- Chọn ô / đổi ngày ----
   function toggle(code: string, hour: number) {
@@ -392,10 +410,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member }: P
         return;
       }
       if (e.code === "E-WEB-5") void load(dateRef.current, true);
-      if (e.code === "E-WEB-8") {
-        removeKey(PHONE_TOKEN_KEY);
-        notifyToken();
-      } // token hết hạn / không khớp SĐT ⇒ xác minh lại ở lần bấm kế tiếp
+      if (e.code === "E-WEB-8") clearToken(); // token hết hạn / không khớp SĐT ⇒ xác minh lại ở lần bấm kế tiếp
       setBanner(errorText(e));
     } finally {
       setBusy(false);
@@ -533,8 +548,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member }: P
               initialTestOtp={otp.testOtp}
               onChangePhone={() => setOtp(null)}
               onVerified={(token, expiresAt, accountVerified, account) => {
-                writeJson(PHONE_TOKEN_KEY, { phone: otp.phone, token, expiresAt } satisfies PhoneToken);
-                notifyToken();
+                saveToken({ phone: otp.phone, token, expiresAt });
                 // BE đã đánh dấu SĐT của tài khoản là đã xác minh ⇒ lần đặt sau bỏ OTP (AC40)
                 if (accountVerified && me?.phone && normalizePhone(me.phone) === otp.phone) setMe({ ...me, phone_verified: true });
                 afterAccountVerified(account);
@@ -596,6 +610,8 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member }: P
           <Legend swatch="border border-border bg-surface" text="Trắng = Trống" />
           <Legend swatch="bg-blk-paid" text="Đỏ = Đã đặt" />
           <Legend swatch="bg-blk-session" text="Tím = Sự kiện · đã đặt / tối đa người" />
+          {member ? <Legend swatch="bg-blk-mine" text="Xanh dương = Sân của bạn" /> : null}
+          {member ? <Legend swatch="bg-blk-session ring-2 ring-blk-session-fg ring-inset" text="Có vé = bạn đã có vé sự kiện" /> : null}
           <Legend swatch="bg-cell-off" text="Xám = Không bán" />
           <Legend swatch="bg-primary" text="Xanh = Đang chọn" />
         </ul>
@@ -612,66 +628,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member }: P
         ) : calendar.resources.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted">Chưa có sân nào mở cho ngày này.</p>
         ) : (
-          <div className={`relative overflow-x-auto ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
-            <div className="min-w-max [--c0:5.5rem] [--col:3.25rem] sm:[--c0:6.5rem] sm:[--col:3.5rem]">
-              <div className="flex text-xs text-muted">
-                <div className="sticky left-0 z-10 flex w-(--c0) shrink-0 items-center bg-surface pr-2">Sân</div>
-                {hours.map((h) => (
-                  <div key={h} className="w-(--col) shrink-0 pb-1 text-center">
-                    {h}h
-                  </div>
-                ))}
-              </div>
-              {calendar.resources.map((r) => {
-                const byHour = new Map(r.slots.map((s) => [s.start_hour, s]));
-                return (
-                  <div key={r.code} className="flex border-t border-border/60">
-                    <div className="sticky left-0 z-10 flex w-(--c0) shrink-0 items-center bg-surface pr-2 text-sm font-medium">{r.name}</div>
-                    {hours.map((h) => {
-                      const s = byHour.get(h);
-                      const base = "m-0.5 flex h-11 w-[calc(var(--col)-0.25rem)] shrink-0 flex-col items-center justify-center rounded-md text-[11px] leading-tight";
-                      const label = `${r.name}, ${pad2(h)}:00 đến ${pad2(h + 1)}:00`;
-                      if (!s || s.state === "closed") {
-                        return <div key={h} role="img" aria-label={`${label}, không bán`} className={`${base} bg-cell-off`} />;
-                      }
-                      if (s.state === "booked") {
-                        return (
-                          <div key={h} role="img" aria-label={`${label}, đã đặt`} className={`${base} bg-blk-paid font-medium text-blk-paid-fg`}>
-                            Đã đặt
-                          </div>
-                        );
-                      }
-                      if (s.state === "event") {
-                        return (
-                          <div key={h} role="img" aria-label={`${label}, sự kiện ${s.taken ?? 0} trên ${s.capacity ?? 0} người`} className={`${base} bg-blk-session text-blk-session-fg`}>
-                            <span>Sự kiện</span>
-                            <b className="text-xs">
-                              {s.taken}/{s.capacity}
-                            </b>
-                          </div>
-                        );
-                      }
-                      const on = selected.has(`${r.code}|${h}`);
-                      return (
-                        <button
-                          key={h}
-                          type="button"
-                          onClick={() => toggle(r.code, h)}
-                          disabled={loading}
-                          aria-pressed={on}
-                          aria-label={`${label}, trống${s.price != null ? `, ${formatVnd(s.price)}` : ""}`}
-                          title={s.price != null ? formatVnd(s.price) : undefined}
-                          className={`${base} border font-medium ${on ? "border-primary bg-primary text-white" : "border-border bg-surface hover:bg-primary-softer"} focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary`}
-                        >
-                          {on ? `${h}h–${h + 1}h` : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <CourtGrid label="Lịch sân" columns={hours} rows={gridRows} selected={selected} selectable busy={loading} onToggle={toggle} onClear={() => applyCells([])} />
         )}
       </section>
 
@@ -719,6 +676,17 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member }: P
           </div>
         </div>
       </section>
+
+      {member ? <MyBookingModal orderCode={cellDialog?.kind === "mine" ? cellDialog.code : null} onClose={closeCellDialog} /> : null}
+      <EventDialog
+        eventCode={cellDialog?.kind === "event" ? cellDialog.code : null}
+        date={date}
+        member={member}
+        hotline={hotline}
+        texts={texts}
+        onClose={closeCellDialog}
+        onChanged={() => void load(dateRef.current, true)}
+      />
 
       <Modal
         open={pendingDate !== null}

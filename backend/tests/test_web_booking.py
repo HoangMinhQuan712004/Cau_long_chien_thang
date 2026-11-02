@@ -35,9 +35,9 @@ async def test_public_calendar_states_and_prices(anon, admin, staff):
         headers=idem(),
     )
     assert r.status_code == 201, r.text
-    assert (
-        await checkout(anon, [(court["code"], 12)], name="Bí Mật Người Khác")
-    ).status_code == 201
+    event_code = r.json()["code"]
+    held = await checkout(anon, [(court["code"], 12)], name="Bí Mật Người Khác")
+    assert held.status_code == 201
 
     r = await web_calendar(anon, day)
     assert r.status_code == 200, r.text
@@ -56,11 +56,13 @@ async def test_public_calendar_states_and_prices(anon, admin, staff):
         "band": None,
         "taken": 0,
         "capacity": 8,
+        "event_code": event_code,  # T-023: mở popup sự kiện / mua vé
     }
     assert slots[12]["state"] == "booked" and slots[12]["price"] is None
     assert slots[13]["state"] == "free" and slots[13]["price"] > 0 and slots[13]["band"]
     # Không lộ tên / SĐT / mã của người khác; sân ngừng không hiện
-    assert "Bí Mật" not in r.text and "BK-" not in r.text
+    assert "Bí Mật" not in r.text and held.json()["order_code"] not in r.text
+    assert r.text.count("BK-") == r.text.count(event_code)  # mã duy nhất: mã sự kiện
     assert "S06" not in [x["code"] for x in cal["resources"]]
 
 

@@ -91,6 +91,19 @@ class MemberRow(BaseModel):
     )
 
 
+class MemberCreatedOut(MemberRow):
+    """Thêm hội viên (T-026): kèm thông tin tài khoản đăng nhập – **không** có mật khẩu."""
+
+    account_created: bool = Field(
+        description="True: SĐT chưa có tài khoản -> vừa tạo, mật khẩu ban đầu = SĐT, phải đổi "
+        "trước ``initial_password_expires_at``. False: SĐT đã có tài khoản – giữ mật khẩu hiện có"
+    )
+    initial_password_expires_at: dt.datetime | None = Field(
+        description="Hạn đổi mật khẩu ban đầu (chỉ khi ``account_created``); quá hạn -> E-AUTH-30, "
+        "dùng Quên mật khẩu"
+    )
+
+
 class MemberCounts(BaseModel):
     all: int
     member: int
