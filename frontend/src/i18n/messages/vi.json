@@ -509,6 +509,7 @@
     "updatedAt": "Cập nhật lần cuối: {time} · {date}",
     "refresh": "Làm mới",
     "refreshing": "Đang tải…",
+    "scrollChart": "Rộng hơn khung: kéo ngang hoặc dùng phím ← → để xem hết",
     "loading": "Đang tính số liệu…",
     "period": {
       "label": "Kỳ",
@@ -562,7 +563,8 @@
     "courts": {
       "title": "Doanh thu theo sân",
       "subtitle": "{range} · triệu đồng",
-      "lowest": "↓ thấp nhất",
+      "lowestOne": "Thấp nhất: {name} · {amount}",
+      "lowestMany": "Thấp nhất ({n} sân): {amount} – {names}",
       "total": "Tổng {n} sân: {total}",
       "bar": "{name} · {amount}",
       "inactive": "(ngừng hoạt động)",
@@ -574,9 +576,11 @@
       "subtitleWeekday": "{range} · trung bình theo thứ · mỗi ô = số sân đã đặt ÷ {n} sân · ô càng đậm càng đầy",
       "today": "hôm nay",
       "hours": "Khung giờ",
-      "cellDay": "{day} · {hours} · {booked}/{open} sân đã đặt",
+      "cellDay": "{day} · {hours} · {booked}/{open} sân đã đặt ({pct})",
       "cellWeekday": "{day} · {hours} · {pct} sân đã đặt (trung bình)",
       "closed": "{day} · {hours} · không có sân mở cửa",
+      "unit": "Đơn vị: %",
+      "tapHint": "Chạm hoặc bấm vào ô để xem chi tiết",
       "low": "Thấp",
       "high": "Cao",
       "levels": [

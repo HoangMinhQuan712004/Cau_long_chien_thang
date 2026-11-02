@@ -26,6 +26,7 @@ from app.modules.members.profiles import (
 )
 from app.modules.members.schemas import (
     MemberCan,
+    MemberCreatedOut,
     MemberCreateIn,
     MemberRow,
     MemberUpdateIn,
@@ -42,9 +43,11 @@ async def _new_code(session: AsyncSession) -> str:
 
 async def create_member(
     session: AsyncSession, actor: AuditActor, data: MemberCreateIn
-) -> MemberRow:
+) -> MemberCreatedOut:
     """Thêm hội viên. SĐT đã thuộc hội viên -> E-018; đã có hồ sơ tạm -> E-MEM-1 (SRS E-004,
-    T-020 AC1 – không nâng hồ sơ tạm). Không commit."""
+    T-020 AC1 – không nâng hồ sơ tạm). Không commit.
+
+    Kèm ``account_created`` + hạn đổi mật khẩu ban đầu (T-026) – không bao giờ trả mật khẩu."""
     full_name, phone = clean_name(data.full_name), clean_phone(data.phone)
     await ensure_phone_free(session, phone)
     code = await _new_code(session)
@@ -60,13 +63,18 @@ async def create_member(
     )
     # Hội viên = khách có tài khoản đăng nhập (T-015), cùng transaction. Gọi TRƯỚC ``add``: câu
     # SELECT bên trong autoflush hồ sơ -> trùng SĐT nổ ngoài ``commit_or_conflict`` (500)
-    await auth.ensure_customer_account(session, phone, full_name)
+    expires_at = await auth.create_member_account(session, phone, full_name)
     session.add(c)
     audit(session, actor, "member.create", "customer", code, member_detail(c))
     # Hai máy lưu cùng SĐT: UNIQUE bắt ở flush -> báo trùng như kiểm trước
     await commit_or_conflict(session, phone, flush_only=True)
     await session.refresh(c)
-    return to_row(c, (await bookings_of(session, [c]))[c.id])
+    row = to_row(c, (await bookings_of(session, [c]))[c.id])
+    return MemberCreatedOut(
+        **row.model_dump(),
+        account_created=expires_at is not None,
+        initial_password_expires_at=expires_at,
+    )
 
 
 TEMP_FIELDS = {"full_name", "gender"}

@@ -886,6 +886,8 @@ export interface paths {
          *
          *     Lỗi: E-001/E-002 · 409 E-018 (SĐT của hội viên) · 409 E-MEM-1 "Số điện thoại đã có hồ sơ
          *     tạm: {Họ tên} (tạo dd/mm/yyyy)" (SRS E-004 – không nâng hồ sơ tạm, T-020 AC1).
+         *     Response kèm ``account_created`` / ``initial_password_expires_at`` (T-026, không có mật
+         *     khẩu); gửi lại cùng key trả đúng như lần đầu.
          */
         post: operations["create_member_api_v1_members_post"];
         delete?: never;
@@ -3199,6 +3201,61 @@ export interface components {
             tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
             /** Racket */
             racket?: string | null;
+        };
+        /**
+         * MemberCreatedOut
+         * @description Thêm hội viên (T-026): kèm thông tin tài khoản đăng nhập – **không** có mật khẩu.
+         */
+        MemberCreatedOut: {
+            /** Ref */
+            ref: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "member" | "temp";
+            /** Member Code */
+            member_code: string | null;
+            /** Full Name */
+            full_name: string;
+            /** Phone */
+            phone: string;
+            /** Gender */
+            gender: ("male" | "female") | null;
+            /** Tier */
+            tier: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
+            /** Racket */
+            racket: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Bookings */
+            bookings: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Version
+             * @description Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4
+             */
+            version: number;
+            /**
+             * Source
+             * @description Người tạo: ``counter`` = quầy / Admin, ``self_register`` = Tự đăng ký online (T-021; hồ sơ tạm luôn ``counter``)
+             * @enum {string}
+             */
+            source: "counter" | "self_register";
+            /**
+             * Account Created
+             * @description True: SĐT chưa có tài khoản -> vừa tạo, mật khẩu ban đầu = SĐT, phải đổi trước ``initial_password_expires_at``. False: SĐT đã có tài khoản – giữ mật khẩu hiện có
+             */
+            account_created: boolean;
+            /**
+             * Initial Password Expires At
+             * @description Hạn đổi mật khẩu ban đầu (chỉ khi ``account_created``); quá hạn -> E-AUTH-30, dùng Quên mật khẩu
+             */
+            initial_password_expires_at: string | null;
         };
         /**
          * MemberDetail
@@ -6931,7 +6988,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MemberRow"];
+                    "application/json": components["schemas"]["MemberCreatedOut"];
                 };
             };
             /** @description Validation Error */

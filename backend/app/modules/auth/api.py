@@ -173,6 +173,14 @@ async def ensure_customer_account(
     return await member_accounts.ensure_customer_account(session, phone, full_name, active)
 
 
+async def create_member_account(
+    session: AsyncSession, phone: str, full_name: str, active: bool = True
+) -> datetime | None:
+    """Như ``ensure_customer_account`` nhưng trả **hạn đổi mật khẩu ban đầu** khi vừa tạo tài
+    khoản (MK = SĐT); SĐT đã có tài khoản -> None (giữ mật khẩu cũ). Chưa commit (T-026)."""
+    return await member_accounts.create_customer_account(session, phone, full_name, active)
+
+
 async def set_customer_account_active(session: AsyncSession, phone: str, active: bool) -> None:
     """Hội viên Ngừng / Hoạt động -> khóa / mở tài khoản khách cùng SĐT. Không commit."""
     await member_accounts.set_customer_account_active(session, phone, active)
