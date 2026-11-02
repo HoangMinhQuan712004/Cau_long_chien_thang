@@ -45,7 +45,7 @@ from app.modules.booking_engine.dto import (
     SessionOut,
     SessionTicket,
 )
-from app.modules.booking_engine.holds import expire_holds
+from app.modules.booking_engine.holds import expire_holds, seat_hold_counted
 from app.modules.booking_engine.models import Allocation, EventSession, Hold, Resource, Ticket
 from app.modules.booking_engine.schedules import Hours, effective_on, schedules_of
 
@@ -110,8 +110,7 @@ async def session_view(
         .where(
             Hold.tenant_id == ctx.tenant.id,
             Hold.session_id == ev.id,
-            Hold.status == "active",
-            Hold.expires_at > ctx.now,
+            seat_hold_counted(ctx.now),
         )
         .order_by(Hold.expires_at)
     )
@@ -378,7 +377,10 @@ async def register_ticket(
     note: str | None = None,
 ) -> ItemOut:
     ctx = await context(session, tenant_id)
-    # Khóa dòng sự kiện: đếm chỗ + cấp số vé tuần tự, hai máy không vượt sức chứa
+    # Nhả ghế của lượt mua vé online đã hết hạn trước khi đếm (T-023)
+    await expire_holds(session)
+    # Khóa dòng sự kiện: đếm chỗ + cấp số vé tuần tự, hai máy không vượt sức chứa (kể cả ghế
+    # đang giữ online)
     ev = await _session_by_code(session, tenant_id, code, for_update=True)
     if ev.play_date != ctx.today:
         message = (

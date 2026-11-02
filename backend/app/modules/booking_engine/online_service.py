@@ -4,7 +4,6 @@ Hàm ở đây **không commit** – lớp gọi sở hữu transaction. Chống
 constraint của ``allocation`` (giữ chỗ và booking dùng chung): ``23P01`` -> ``E-WEB-3``.
 """
 
-import hashlib
 import secrets
 from collections import defaultdict
 from datetime import date, datetime, timedelta
@@ -16,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import SYSTEM_ACTOR, audit, audit_detail
 from app.core.errors import AppError
-from app.modules.booking_engine import outbox
+from app.modules.booking_engine import outbox, ticket_online
 from app.modules.booking_engine.audit_fields import paid_changes
 from app.modules.booking_engine.booking_service import calendar, snapshot_values
 from app.modules.booking_engine.codes import next_code
@@ -26,6 +25,7 @@ from app.modules.booking_engine.common import (
     audit_actor,
     context,
     sqlstate,
+    token_hash,
 )
 from app.modules.booking_engine.config_service import price_slots
 from app.modules.booking_engine.dto import (
@@ -72,10 +72,6 @@ ONLINE_ACTOR = Actor(type="web", id=None, label="Khách đặt online")
 PENDING_PHONE_INDEX = "uq_checkout_pending_phone"
 
 
-def token_hash(token: str) -> bytes:
-    return hashlib.sha256(token.encode()).digest()
-
-
 def _web_error(code: str, message: str, status: int, **extra) -> AppError:
     return AppError(code, message, status, **extra)
 
@@ -119,7 +115,11 @@ async def public_calendar(session: AsyncSession, tenant_id: int, day: date) -> P
             for h in range(b.start_hour, b.end_hour):
                 if b.type == "session":
                     occupied[(code, h)] = PublicSlot(
-                        start_hour=h, state="event", taken=b.taken, capacity=b.capacity
+                        start_hour=h,
+                        state="event",
+                        taken=b.taken,
+                        capacity=b.capacity,
+                        event_code=b.code,
                     )
                 else:  # booking mọi trạng thái + giữ chỗ của người khác
                     occupied.setdefault((code, h), PublicSlot(start_hour=h, state="booked"))
@@ -331,6 +331,8 @@ async def create_checkout(
 
 
 async def checkout_view(session: AsyncSession, ctx: Ctx, checkout: Checkout) -> CheckoutView:
+    if checkout.kind == "ticket":
+        return await ticket_online.ticket_checkout_view(session, ctx, checkout)
     holds = list(
         await session.scalars(
             select(Hold).where(Hold.checkout_id == checkout.id).order_by(Hold.code)
@@ -533,6 +535,15 @@ async def lookup(session: AsyncSession, tenant_id: int, code: str, phone: str) -
         if not _same_phone(order.customer_phone, phone):
             raise _not_found_booking()
         return await _lookup_order(session, ctx, order, code)
+    # Mã vé {mã sự kiện}-Vnn (T-023 AC21): vé mua online -> cả đơn vé; vé tại quầy -> một vé
+    ticket = await ticket_online.find_ticket(session, tenant_id, code)
+    if ticket is not None:
+        if not _same_phone(ticket.customer_phone, phone):
+            raise _not_found_booking()
+        if ticket.checkout_id is None:
+            return await ticket_online.lookup_counter_ticket(session, ctx, ticket)
+        checkout = await session.get(Checkout, ticket.checkout_id)
+        return await ticket_online.lookup_ticket_checkout(session, ctx, checkout)
     # Chưa thành đơn: lượt chờ thanh toán / hết hạn, theo mã đơn của lượt hoặc mã con của giữ chỗ
     order_code = order_of_child(code) or code
     checkout = await session.scalar(
@@ -540,6 +551,10 @@ async def lookup(session: AsyncSession, tenant_id: int, code: str, phone: str) -
     )
     if checkout is None or not _same_phone(checkout.customer_phone, phone):
         raise _not_found_booking()
+    if checkout.kind == "ticket":  # đơn vé: chỉ mã đơn (mã vé tra ở trên)
+        if code != checkout.order_code:
+            raise _not_found_booking()
+        return await ticket_online.lookup_ticket_checkout(session, ctx, checkout)
     if code != checkout.order_code:  # mã con phải là một khối của lượt này
         hold = await session.scalar(
             select(Hold.id).where(Hold.checkout_id == checkout.id, Hold.code == code)
@@ -582,6 +597,8 @@ async def apply_online_payment(
     if checkout.paid_amount < checkout.amount:
         await session.flush()
         return OnlinePaymentResult(outcome="partial")
+    if checkout.kind == "ticket":  # T-023: ghế đã giữ -> vé
+        return await ticket_online.apply_ticket_payment(session, checkout, data)
 
     holds = list(
         await session.scalars(

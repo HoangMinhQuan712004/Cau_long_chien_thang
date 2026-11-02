@@ -262,8 +262,10 @@ def _payment_checks() -> tuple[CheckConstraint, ...]:
 class Checkout(_CustomerSnapshot, Base):
     """Một lần khách bấm "Xác nhận & thanh toán" (ADR-007): giữ chỗ 5 phút, chung một QR.
 
-    ``pending -> paid | expired``. Mỗi dải giờ liền nhau trên một sân = một ``hold`` mang sẵn mã
-    booking + giá; tiền về đủ -> mỗi hold thành một booking cùng mã. Token truy cập chỉ lưu SHA-256.
+    ``pending -> paid | expired``. ``court``: mỗi dải giờ liền nhau trên một sân = một ``hold``
+    mang sẵn mã booking + giá; tiền về đủ -> mỗi hold thành một booking cùng mã. ``ticket`` (T-023):
+    một hold ``seat`` (``seats`` = số vé) trong một sự kiện; tiền về đủ -> ``seats`` vé.
+    Token truy cập chỉ lưu SHA-256.
     """
 
     __tablename__ = "checkout"
@@ -271,6 +273,7 @@ class Checkout(_CustomerSnapshot, Base):
         UniqueConstraint("tenant_id", "pay_ref"),
         UniqueConstraint("tenant_id", "order_code", name="uq_checkout_tenant_id_order_code"),
         CheckConstraint("status IN ('pending', 'paid', 'expired')", name="status"),
+        CheckConstraint("kind IN ('court', 'ticket')", name="kind"),
         CheckConstraint("amount >= 0 AND paid_amount >= 0", name="amounts"),
         CheckConstraint("customer_kind IN ('member', 'temp')", name="customer_kind"),
         Index("ix_checkout_status_expires_at", "status", "expires_at"),
@@ -288,6 +291,7 @@ class Checkout(_CustomerSnapshot, Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
     token_hash: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True)
+    kind: Mapped[str] = mapped_column(String(10), server_default=text("'court'"))
     pay_ref: Mapped[str] = mapped_column(String(20))
     # Mã đơn cấp lúc giữ chỗ (ADR-010); pay_ref = mã này bỏ dấu gạch. Hết hạn -> mã bỏ luôn
     order_code: Mapped[str] = mapped_column(String(30))
@@ -308,7 +312,8 @@ class Hold(Base):
     """Giữ chỗ online 5 phút (BR-002; người dùng đổi 7 -> 5 ngày 28/10).
 
     ``court``: giữ khung sân (có allocation ``kind='hold'``); hold của checkout mang mã booking,
-    giá, bảng giá chi tiết. ``seat``: giữ chỗ trong sự kiện (chưa bán vé online).
+    giá, bảng giá chi tiết. ``seat``: giữ ``seats`` chỗ trong sự kiện (không allocation); hold seat
+    của checkout vé (T-023) mang mã đơn + tổng tiền chốt.
     """
 
     __tablename__ = "hold"
@@ -467,6 +472,10 @@ class Ticket(_CustomerSnapshot, _Payment, Base):
     seq: Mapped[int] = mapped_column(SmallInteger)
     code: Mapped[str] = mapped_column(String(40))
     source: Mapped[str] = mapped_column(String(10))
+    # Vé mua online (T-023): lượt thanh toán đã tạo ra vé này
+    checkout_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.checkout.id", ondelete="RESTRICT"), index=True
+    )
 
 
 class Allocation(Base):

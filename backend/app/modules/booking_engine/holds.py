@@ -60,6 +60,18 @@ def hold_visible(now: datetime):
     )
 
 
+def seat_hold_counted(now: datetime):
+    """Điều kiện SQL: ghế giữ trong sự kiện còn chiếm chỗ lúc ``now``.
+
+    Ghế của lượt mua vé (T-023) còn tính tới khi ``expire_holds`` nhả (checkout hết hạn sau ân
+    hạn): tiền về hợp lệ cho lượt còn ``pending`` luôn có ghế, quầy không bán chồng lên.
+    """
+    return and_(
+        Hold.status == "active",
+        or_(Hold.checkout_id.isnot(None), Hold.expires_at > now),
+    )
+
+
 async def expire_holds(session: AsyncSession) -> int:
     """Hết hạn giữ chỗ / checkout quá giờ (không commit). Trả số giữ chỗ vừa hết hạn.
 

@@ -4,7 +4,13 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.core.schemas import StrictIn
-from app.modules.booking_engine.dto import OnlineSlotIn, PublicCalendarResource
+from app.modules.booking_engine.dto import (
+    CheckoutEvent,
+    EventInfo,
+    LookupEvent,
+    OnlineSlotIn,
+    PublicCalendarResource,
+)
 from app.modules.payments.api import BankInfo
 
 
@@ -94,6 +100,7 @@ class WebCheckoutItem(BaseModel):
 
 
 class CheckoutOut(BaseModel):
+    kind: Literal["court", "ticket"] = Field(description="court: đặt sân · ticket: mua vé (T-023)")
     status: Literal["pending", "paid", "expired"]
     expires_at: dt.datetime
     server_now: dt.datetime
@@ -104,7 +111,10 @@ class CheckoutOut(BaseModel):
     pay_ref: str = Field(description="Nội dung chuyển khoản = mã đơn bỏ dấu gạch")
     bank: BankInfo | None = Field(description="Chỉ có khi đang chờ thanh toán")
     customer: WebCustomer
-    items: list[WebCheckoutItem]
+    items: list[WebCheckoutItem] = Field(description="Khung sân – rỗng khi kind = ticket")
+    event: CheckoutEvent | None = Field(
+        description="Chỉ khi kind = ticket: sự kiện, số vé, mã vé (có khi đã thanh toán)"
+    )
 
 
 class CheckoutCreatedOut(CheckoutOut):
@@ -135,9 +145,11 @@ class LookupItemOut(BaseModel):
 
 
 class LookupOut(BaseModel):
-    """Tra cứu bằng mã đơn **hoặc** mã con + SĐT -> cả đơn (T-019 AC3)."""
+    """Tra cứu bằng mã đơn **hoặc** mã con + SĐT -> cả đơn (T-019 AC3). Đơn vé (T-023 AC21): mã
+    đơn vé hoặc mã vé ``{mã sự kiện}-Vnn`` -> ``kind = ticket`` + khối ``event``."""
 
-    order_code: str
+    kind: Literal["court", "ticket"]
+    order_code: str = Field(description="Mã đơn; vé đăng ký tại quầy tra theo mã vé -> mã vé")
     status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
     play_date: dt.date
     hours: int = Field(description="Tổng giờ của đơn")
@@ -146,5 +158,34 @@ class LookupOut(BaseModel):
     amount: int = Field(description="Tổng tiền của đơn")
     payment_method_label: str | None
     paid_at: dt.datetime | None
-    items: list[LookupItemOut]
+    items: list[LookupItemOut] = Field(description="Khối sân – rỗng khi kind = ticket")
     pending: LookupPendingOut | None = None
+    event: LookupEvent | None = Field(
+        default=None, description="Chỉ khi kind = ticket: sự kiện, số vé, mã vé + trạng thái"
+    )
+
+
+# ------------------------------------------------------------------ vé sự kiện online (T-023)
+
+
+class WebEventOut(EventInfo):
+    """Chi tiết sự kiện công khai – không tên / SĐT người mua. ``my_tickets`` chỉ khi có cookie
+    hội viên liên kết (null với khách)."""
+
+    reason: Literal["started", "full", "free", "deleted", "online_off"] | None = Field(
+        description="Lý do can_buy = false: started (đã bắt đầu), full (hết chỗ), free (giá 0 – "
+        "đăng ký tại quầy), deleted (đã hủy), online_off (đặt online tạm ngưng)"
+    )
+    hold_minutes: int
+
+
+class EventCheckoutIn(StrictIn):
+    event_code: str = Field(max_length=40)
+    seats: int = Field(description="1..min(còn lại, 10) – sai -> 422 E-WEB-1")
+    full_name: str = Field(default="", max_length=500)
+    phone: str = Field(default="", max_length=50)
+    phone_token: str | None = Field(default=None, max_length=128)
+    as_member: bool = Field(
+        default=False,
+        description="Hội viên liên kết: Họ tên + SĐT lấy từ hồ sơ, không cần phone_token",
+    )

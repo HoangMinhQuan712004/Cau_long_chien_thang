@@ -10,8 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 @events.subscribe("booking.online_paid")
+@events.subscribe("ticket.online_paid")  # T-023 AC19: vé mua online gắn khách như booking online
 async def create_temp_profile(payload: dict) -> None:
-    """Tiền về cho booking online -> tạo hồ sơ tạm theo SĐT nếu chưa có (ADR-007 §7, T-008 AC24).
+    """Tiền về cho booking / vé online -> tạo hồ sơ tạm theo SĐT nếu chưa có (ADR-007 §7,
+    T-008 AC24).
 
     Đã có hồ sơ (hội viên hoặc hồ sơ tạm) -> giữ nguyên, kể cả tên. Lỗi ở đây không ảnh hưởng
     booking (đã commit trước khi phát sự kiện).

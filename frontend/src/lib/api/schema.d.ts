@@ -1094,6 +1094,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/booking-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Booking Calendar
+         * @description Lịch /hoi-vien/dat-san (AC1, AC6). Ngày đã qua -> 422 E-WEB-2; chưa là hội viên -> 403.
+         */
+        get: operations["booking_calendar_api_v1_member_area_booking_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/bookings/{order_code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Booking
+         * @description Đơn đặt sân của chính mình (AC2). ``items[].code`` dùng gọi ``/member-area/payments/{code}``
+         *     (hóa đơn – khối đã thanh toán). Không có / của người khác -> 404 E-NOT-FOUND (AC4).
+         */
+        get: operations["my_booking_api_v1_member_area_bookings__order_code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/member-area/rooms": {
         parameters: {
             query?: never;
@@ -1724,6 +1765,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/web/booking/events/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Event Detail
+         * @description Chi tiết sự kiện cho popup mua vé (AC5, AC17) – không tên / SĐT người mua.
+         *
+         *     ``my_tickets`` chỉ khi có cookie hội viên liên kết (khách: null). Không có -> 404 E-NOT-FOUND.
+         */
+        get: operations["event_detail_api_v1_web_booking_events__code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/event-checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Event Checkout
+         * @description Mua vé sự kiện online (T-023): giữ ``seats`` ghế 5 phút, cấp mã đơn, trả ``token`` (một
+         *     lần) để mở trang thanh toán QR. Dùng chung cho /dat-san (khách: ``phone_token``) và
+         *     /hoi-vien/dat-san (``as_member``).
+         *
+         *     Lỗi: E-WEB-1 (dữ liệu / số vé), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (online tạm ngưng),
+         *     E-WEB-8 (chưa xác minh SĐT), E-WEB-9 (sự kiện đã bắt đầu / đã hủy), E-WEB-10 (hết chỗ /
+         *     không đủ chỗ, kèm ``remaining``), E-WEB-11 (giá 0 – đăng ký tại quầy), E-HV-8, E-NOT-FOUND.
+         */
+        post: operations["create_event_checkout_api_v1_web_booking_event_checkouts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/web/booking/phone/request": {
         parameters: {
             query?: never;
@@ -2311,6 +2400,12 @@ export interface components {
         /** CheckoutCreatedOut */
         CheckoutCreatedOut: {
             /**
+             * Kind
+             * @description court: đặt sân · ticket: mua vé (T-023)
+             * @enum {string}
+             */
+            kind: "court" | "ticket";
+            /**
              * Status
              * @enum {string}
              */
@@ -2344,13 +2439,57 @@ export interface components {
             /** @description Chỉ có khi đang chờ thanh toán */
             bank: components["schemas"]["BankInfo"] | null;
             customer: components["schemas"]["WebCustomer"];
-            /** Items */
+            /**
+             * Items
+             * @description Khung sân – rỗng khi kind = ticket
+             */
             items: components["schemas"]["WebCheckoutItem"][];
+            /** @description Chỉ khi kind = ticket: sự kiện, số vé, mã vé (có khi đã thanh toán) */
+            event: components["schemas"]["CheckoutEvent"] | null;
             /**
              * Token
              * @description Chìa khóa trang /thanh-toan/{token} – chỉ trả ở lần tạo
              */
             token: string;
+        };
+        /**
+         * CheckoutEvent
+         * @description Lượt thanh toán mua vé (T-023): sự kiện + số vé; mã vé có khi đã thanh toán.
+         */
+        CheckoutEvent: {
+            /**
+             * Code
+             * @description Mã sự kiện
+             */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Names */
+            resource_names: string[];
+            /**
+             * Seats
+             * @description Số vé của lượt
+             */
+            seats: number;
+            /**
+             * Ticket Price
+             * @description Giá một vé, chốt lúc giữ chỗ
+             */
+            ticket_price: number;
+            /**
+             * Ticket Codes
+             * @description Mã vé ``{mã sự kiện}-Vnn`` – rỗng khi chưa trả
+             */
+            ticket_codes: string[];
         };
         /** CheckoutIn */
         CheckoutIn: {
@@ -2385,6 +2524,12 @@ export interface components {
         /** CheckoutOut */
         CheckoutOut: {
             /**
+             * Kind
+             * @description court: đặt sân · ticket: mua vé (T-023)
+             * @enum {string}
+             */
+            kind: "court" | "ticket";
+            /**
              * Status
              * @enum {string}
              */
@@ -2418,8 +2563,13 @@ export interface components {
             /** @description Chỉ có khi đang chờ thanh toán */
             bank: components["schemas"]["BankInfo"] | null;
             customer: components["schemas"]["WebCustomer"];
-            /** Items */
+            /**
+             * Items
+             * @description Khung sân – rỗng khi kind = ticket
+             */
             items: components["schemas"]["WebCheckoutItem"][];
+            /** @description Chỉ khi kind = ticket: sự kiện, số vé, mã vé (có khi đã thanh toán) */
+            event: components["schemas"]["CheckoutEvent"] | null;
         };
         /** CollectIn */
         CollectIn: {
@@ -2509,6 +2659,34 @@ export interface components {
             date: string;
             /** Revenue */
             revenue: number;
+        };
+        /** EventCheckoutIn */
+        EventCheckoutIn: {
+            /** Event Code */
+            event_code: string;
+            /**
+             * Seats
+             * @description 1..min(còn lại, 10) – sai -> 422 E-WEB-1
+             */
+            seats: number;
+            /**
+             * Full Name
+             * @default
+             */
+            full_name: string;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+            /** Phone Token */
+            phone_token?: string | null;
+            /**
+             * As Member
+             * @description Hội viên liên kết: Họ tên + SĐT lấy từ hồ sơ, không cần phone_token
+             * @default false
+             */
+            as_member: boolean;
         };
         /** FormatIn */
         FormatIn: {
@@ -2722,6 +2900,28 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * LookupEvent
+         * @description Tra cứu đơn vé (T-023 AC21): sự kiện + vé (rỗng khi chưa thanh toán).
+         */
+        LookupEvent: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Names */
+            resource_names: string[];
+            /** Seats */
+            seats: number;
+            /** Ticket Price */
+            ticket_price: number;
+            /** Tickets */
+            tickets: components["schemas"]["LookupTicket"][];
+        };
         /** LookupIn */
         LookupIn: {
             /**
@@ -2760,10 +2960,19 @@ export interface components {
         };
         /**
          * LookupOut
-         * @description Tra cứu bằng mã đơn **hoặc** mã con + SĐT -> cả đơn (T-019 AC3).
+         * @description Tra cứu bằng mã đơn **hoặc** mã con + SĐT -> cả đơn (T-019 AC3). Đơn vé (T-023 AC21): mã
+         *     đơn vé hoặc mã vé ``{mã sự kiện}-Vnn`` -> ``kind = ticket`` + khối ``event``.
          */
         LookupOut: {
-            /** Order Code */
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "court" | "ticket";
+            /**
+             * Order Code
+             * @description Mã đơn; vé đăng ký tại quầy tra theo mã vé -> mã vé
+             */
             order_code: string;
             /**
              * Status
@@ -2793,9 +3002,14 @@ export interface components {
             payment_method_label: string | null;
             /** Paid At */
             paid_at: string | null;
-            /** Items */
+            /**
+             * Items
+             * @description Khối sân – rỗng khi kind = ticket
+             */
             items: components["schemas"]["LookupItemOut"][];
             pending?: components["schemas"]["LookupPendingOut"] | null;
+            /** @description Chỉ khi kind = ticket: sự kiện, số vé, mã vé + trạng thái */
+            event?: components["schemas"]["LookupEvent"] | null;
         };
         /** LookupPendingOut */
         LookupPendingOut: {
@@ -2814,6 +3028,16 @@ export interface components {
             /** Amount */
             amount: number;
             bank: components["schemas"]["BankInfo"] | null;
+        };
+        /** LookupTicket */
+        LookupTicket: {
+            /** Code */
+            code: string;
+            /**
+             * Pay Status
+             * @enum {string}
+             */
+            pay_status: "unpaid" | "paid" | "uncollectible";
         };
         /** MatchList */
         MatchList: {
@@ -2890,6 +3114,43 @@ export interface components {
             resource_name: string;
             /** Amount */
             amount: number;
+        };
+        /**
+         * MemberCalendarOut
+         * @description Như ``WebCalendarOut``; mỗi ô thêm ``mine`` / ``order_code`` (chỉ ô của mình) /
+         *     ``has_ticket``. Ô của người khác vẫn chỉ ``state = booked``.
+         */
+        MemberCalendarOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /**
+             * Online Enabled
+             * @description Cùng điều kiện với /web/booking/calendar
+             */
+            online_enabled: boolean;
+            /** Hold Minutes */
+            hold_minutes: number;
+            /** Columns */
+            columns: number[];
+            /** Resources */
+            resources: components["schemas"]["MemberCalendarResource"][];
+        };
+        /** MemberCalendarResource */
+        MemberCalendarResource: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Slots */
+            slots: components["schemas"]["MemberSlot"][];
         };
         /**
          * MemberCan
@@ -3082,6 +3343,57 @@ export interface components {
             version: number;
         };
         /**
+         * MemberOrder
+         * @description Đơn đặt sân của chính hội viên (T-023 AC2) – không SĐT.
+         */
+        MemberOrder: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "online";
+            /**
+             * Pay Status
+             * @description Chung của đơn: còn khối chưa thu -> unpaid; tất cả đã thu -> paid; còn lại -> uncollectible
+             * @enum {string}
+             */
+            pay_status: "unpaid" | "paid" | "uncollectible";
+            /** Amount */
+            amount: number;
+            /** Items */
+            items: components["schemas"]["MemberOrderItem"][];
+        };
+        /** MemberOrderItem */
+        MemberOrderItem: {
+            /**
+             * Code
+             * @description Mã con – không hiện; dùng gọi /member-area/payments/{code}
+             */
+            code: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Hours */
+            hours: number;
+            /** Amount */
+            amount: number;
+            /**
+             * Pay Status
+             * @enum {string}
+             */
+            pay_status: "unpaid" | "paid" | "uncollectible";
+        };
+        /**
          * MemberRow
          * @description Một dòng danh sách – SĐT đầy đủ; ``ref`` = mã HV hoặc mã tham chiếu hồ sơ tạm.
          */
@@ -3146,6 +3458,49 @@ export interface components {
             tier: string | null;
             /** Is Active */
             is_active: boolean;
+        };
+        /**
+         * MemberSlot
+         * @description Ô lịch hội viên: thêm đánh dấu của chính mình. Không có thông tin của người khác.
+         */
+        MemberSlot: {
+            /** Start Hour */
+            start_hour: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "free" | "booked" | "event" | "closed";
+            /** Price */
+            price?: number | null;
+            /** Band */
+            band?: ("offpeak" | "partial" | "peak") | null;
+            /** Taken */
+            taken?: number | null;
+            /** Capacity */
+            capacity?: number | null;
+            /**
+             * Event Code
+             * @description Ô sự kiện: mã sự kiện (mở chi tiết / mua vé, T-023)
+             */
+            event_code?: string | null;
+            /**
+             * Mine
+             * @description Ô thuộc booking của chính hội viên
+             * @default false
+             */
+            mine: boolean;
+            /**
+             * Order Code
+             * @description Mã đơn – chỉ khi ``mine``
+             */
+            order_code?: string | null;
+            /**
+             * Has Ticket
+             * @description Ô sự kiện mà hội viên đã có vé
+             * @default false
+             */
+            has_ticket: boolean;
         };
         /**
          * MemberUpdateIn
@@ -3214,6 +3569,16 @@ export interface components {
             bookings: number;
             /** Total Minutes */
             total_minutes: number;
+        };
+        /** MyTicket */
+        MyTicket: {
+            /** Code */
+            code: string;
+            /**
+             * Pay Status
+             * @enum {string}
+             */
+            pay_status: "unpaid" | "paid" | "uncollectible";
         };
         /** NextCodeOut */
         NextCodeOut: {
@@ -3874,6 +4239,11 @@ export interface components {
             taken?: number | null;
             /** Capacity */
             capacity?: number | null;
+            /**
+             * Event Code
+             * @description Ô sự kiện: mã sự kiện (mở chi tiết / mua vé, T-023)
+             */
+            event_code?: string | null;
         };
         /** PublicSpecialDay */
         PublicSpecialDay: {
@@ -4972,6 +5342,56 @@ export interface components {
             full_name: string;
             /** Phone Masked */
             phone_masked: string | null;
+        };
+        /**
+         * WebEventOut
+         * @description Chi tiết sự kiện công khai – không tên / SĐT người mua. ``my_tickets`` chỉ khi có cookie
+         *     hội viên liên kết (null với khách).
+         */
+        WebEventOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Names */
+            resource_names: string[];
+            /** Ticket Price */
+            ticket_price: number;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Taken
+             * @description Vé đã có + ghế đang giữ online
+             */
+            taken: number;
+            /**
+             * Max Seats
+             * @description Số vé tối đa mua được lúc này: min(còn lại, 10)
+             */
+            max_seats: number;
+            /** Can Buy */
+            can_buy: boolean;
+            /**
+             * Reason
+             * @description Lý do can_buy = false: started (đã bắt đầu), full (hết chỗ), free (giá 0 – đăng ký tại quầy), deleted (đã hủy), online_off (đặt online tạm ngưng)
+             */
+            reason: ("started" | "full" | "free" | "deleted" | "online_off") | null;
+            /**
+             * My Tickets
+             * @description Vé của tôi – chỉ khi lớp gọi truyền refs của hội viên
+             */
+            my_tickets?: components["schemas"]["MyTicket"][] | null;
+            /** Hold Minutes */
+            hold_minutes: number;
         };
     };
     responses: never;
@@ -6878,6 +7298,68 @@ export interface operations {
             };
         };
     };
+    booking_calendar_api_v1_member_area_booking_calendar_get: {
+        parameters: {
+            query: {
+                date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_booking_api_v1_member_area_bookings__order_code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberOrder"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_rooms_api_v1_member_area_rooms_get: {
         parameters: {
             query?: {
@@ -7982,6 +8464,73 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CheckoutIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    event_detail_api_v1_web_booking_events__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebEventOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_event_checkout_api_v1_web_booking_event_checkouts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventCheckoutIn"];
             };
         };
         responses: {

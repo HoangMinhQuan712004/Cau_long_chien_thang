@@ -563,6 +563,9 @@ class PublicSlot(BaseModel):
     band: Literal["offpeak", "partial", "peak"] | None = None
     taken: int | None = None
     capacity: int | None = None
+    event_code: str | None = Field(
+        default=None, description="Ô sự kiện: mã sự kiện (mở chi tiết / mua vé, T-023)"
+    )
 
 
 class PublicCalendarResource(BaseModel):
@@ -606,9 +609,24 @@ class CheckoutItem(BaseModel):
     amount: int
 
 
+class CheckoutEvent(BaseModel):
+    """Lượt thanh toán mua vé (T-023): sự kiện + số vé; mã vé có khi đã thanh toán."""
+
+    code: str = Field(description="Mã sự kiện")
+    name: str
+    play_date: dt.date
+    start_time: str
+    end_time: str
+    resource_names: list[str]
+    seats: int = Field(description="Số vé của lượt")
+    ticket_price: int = Field(description="Giá một vé, chốt lúc giữ chỗ")
+    ticket_codes: list[str] = Field(description="Mã vé ``{mã sự kiện}-Vnn`` – rỗng khi chưa trả")
+
+
 class CheckoutView(BaseModel):
     """Trạng thái lượt thanh toán (engine) – lớp gọi che SĐT và thêm thông tin ngân hàng."""
 
+    kind: Literal["court", "ticket"] = "court"
     status: Literal["pending", "paid", "expired"]
     expires_at: dt.datetime
     server_now: dt.datetime
@@ -620,7 +638,8 @@ class CheckoutView(BaseModel):
     customer_name: str
     customer_phone: str
     play_date: dt.date
-    items: list[CheckoutItem]
+    items: list[CheckoutItem] = Field(description="Khung sân – rỗng với lượt mua vé")
+    event: CheckoutEvent | None = Field(default=None, description="Chỉ có với lượt mua vé")
 
 
 class CheckoutCreated(CheckoutView):
@@ -645,9 +664,29 @@ class LookupItem(BaseModel):
     matched: bool = Field(description="Khối có mã con đúng mã khách nhập")
 
 
-class LookupResult(BaseModel):
-    """Tra cứu theo mã đơn **hoặc** mã con + SĐT -> cả đơn (T-019 AC3)."""
+class LookupTicket(BaseModel):
+    code: str
+    pay_status: PaymentStatus
 
+
+class LookupEvent(BaseModel):
+    """Tra cứu đơn vé (T-023 AC21): sự kiện + vé (rỗng khi chưa thanh toán)."""
+
+    code: str
+    name: str
+    start_time: str
+    end_time: str
+    resource_names: list[str]
+    seats: int
+    ticket_price: int
+    tickets: list[LookupTicket]
+
+
+class LookupResult(BaseModel):
+    """Tra cứu theo mã đơn **hoặc** mã con + SĐT -> cả đơn (T-019 AC3); đơn vé: mã đơn vé hoặc
+    mã vé (T-023 AC21)."""
+
+    kind: Literal["court", "ticket"] = "court"
     order_code: str
     status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
     play_date: dt.date
@@ -657,8 +696,9 @@ class LookupResult(BaseModel):
     amount: int
     payment_method: PaymentMethod | None
     paid_at: dt.datetime | None
-    items: list[LookupItem]
+    items: list[LookupItem] = Field(description="Khối sân – rỗng với đơn vé")
     pending: LookupPending | None = None
+    event: LookupEvent | None = Field(default=None, description="Chỉ có với đơn vé")
 
 
 class OnlinePaymentIn(BaseModel):
@@ -695,3 +735,79 @@ class OrderCollectOut(BaseModel):
     collected: list[str] = Field(description="Mã con vừa thu")
     amount: int = Field(description="Tổng tiền vừa thu")
     bookings: list[ItemOut] = Field(description="Mọi khối của đơn sau khi thu")
+
+
+# ---------- Khu hội viên: lịch, đơn của mình, sự kiện + mua vé (T-023) ----------
+
+
+class MemberSlot(PublicSlot):
+    """Ô lịch hội viên: thêm đánh dấu của chính mình. Không có thông tin của người khác."""
+
+    mine: bool = Field(default=False, description="Ô thuộc booking của chính hội viên")
+    order_code: str | None = Field(default=None, description="Mã đơn – chỉ khi ``mine``")
+    has_ticket: bool = Field(default=False, description="Ô sự kiện mà hội viên đã có vé")
+
+
+class MemberCalendarResource(BaseModel):
+    code: str
+    name: str
+    slots: list[MemberSlot]
+
+
+class MemberCalendar(BaseModel):
+    date: dt.date
+    server_now: dt.datetime
+    columns: list[int]
+    resources: list[MemberCalendarResource]
+
+
+class MemberOrderItem(BaseModel):
+    code: str = Field(description="Mã con – không hiện; dùng gọi /member-area/payments/{code}")
+    resource_name: str
+    start_time: str
+    end_time: str
+    hours: int
+    amount: int
+    pay_status: PaymentStatus
+
+
+class MemberOrder(BaseModel):
+    """Đơn đặt sân của chính hội viên (T-023 AC2) – không SĐT."""
+
+    order_code: str
+    play_date: dt.date
+    source: Source
+    pay_status: PaymentStatus = Field(
+        description="Chung của đơn: còn khối chưa thu -> unpaid; tất cả đã thu -> paid; "
+        "còn lại -> uncollectible"
+    )
+    amount: int
+    items: list[MemberOrderItem]
+
+
+class MyTicket(BaseModel):
+    code: str
+    pay_status: PaymentStatus
+
+
+EventBuyBlock = Literal["started", "full", "free", "deleted"]
+
+
+class EventInfo(BaseModel):
+    """Sự kiện cho hội viên (T-023 AC5) – không có danh sách người mua."""
+
+    code: str
+    name: str
+    play_date: dt.date
+    start_time: str
+    end_time: str
+    resource_names: list[str]
+    ticket_price: int
+    capacity: int
+    taken: int = Field(description="Vé đã có + ghế đang giữ online")
+    max_seats: int = Field(description="Số vé tối đa mua được lúc này: min(còn lại, 10)")
+    can_buy: bool
+    reason: EventBuyBlock | None = Field(description="Lý do không mua được (engine)")
+    my_tickets: list[MyTicket] | None = Field(
+        default=None, description="Vé của tôi – chỉ khi lớp gọi truyền refs của hội viên"
+    )

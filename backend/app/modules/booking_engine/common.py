@@ -1,5 +1,6 @@
 """Tiện ích dùng chung cho các dịch vụ đặt chỗ của engine (T-006)."""
 
+import hashlib
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -73,3 +74,8 @@ def profile_label(kind: str, member_code: str | None, tier: str | None) -> str:
     if kind == "member":
         return f"Hội viên ({member_code} · Hạng {tier})" if tier else f"Hội viên ({member_code})"
     return "Hồ sơ tạm"
+
+
+def token_hash(token: str) -> bytes:
+    """SHA-256 của token trang thanh toán – DB chỉ lưu giá trị này (ADR-007)."""
+    return hashlib.sha256(token.encode()).digest()
