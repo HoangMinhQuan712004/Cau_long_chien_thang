@@ -21,7 +21,7 @@ from app.core.idempotency import IdempotencyDep
 from app.core.middleware import require_origin
 from app.modules.auth import api as auth
 from app.modules.member_inbox import api as inbox
-from app.modules.play_rooms import actions, matches, views
+from app.modules.play_rooms import actions, history, matches, views
 from app.modules.play_rooms import api as rooms_api
 from app.modules.play_rooms import errors as room_errors
 from app.modules.play_rooms.common import Me
@@ -32,6 +32,7 @@ from app.modules.play_rooms.schemas import (
     InviteIn,
     LineupIn,
     MatchList,
+    PlayHistory,
     Ranking,
     ResultIn,
     RoomDetail,
@@ -408,6 +409,21 @@ async def match_list(
 ):
     """Lịch sử trận đấu (AC19): đã lưu, mới nhất trên cùng; số đếm tính mọi thể thức."""
     body = await matches.match_list(session, _me(member), room_id, format)
+    return _etag_response(body, if_none_match)
+
+
+@router.get("/play-history", response_model=PlayHistory, responses=NOT_MODIFIED)
+async def play_history(
+    member: auth.CurrentMember,
+    session: SessionDep,
+    month: Annotated[
+        str | None, Query(pattern=r"^\d{4}-\d{2}$", description="YYYY-MM, mặc định tháng này")
+    ] = None,
+    if_none_match: IfNoneMatch = None,
+):
+    """Lịch sử chơi của mình theo tháng ngày chơi, giờ VN (T-029): buổi = phòng có ≥ 1 trận đã lưu
+    mà mình ở đội A/B, kể cả phòng đã rời. Tháng sai -> 422; tháng tương lai -> rỗng."""
+    body = await history.play_history(session, member.customer_id, month)
     return _etag_response(body, if_none_match)
 
 
