@@ -119,7 +119,7 @@ export function EventDialog({
 
   const data = detail && detail.code === eventCode ? detail.data : null;
   const remaining = data ? Math.max(data.capacity - data.taken, 0) : 0;
-  const maxSeats = Math.min(remaining, MAX_SEATS);
+  const maxSeats = data ? Math.min(data.max_seats, remaining, MAX_SEATS) : 0;
   const reason: EventReason | null = !data ? null : (data.reason ?? (data.ticket_price <= 0 ? "free" : remaining <= 0 ? "full" : null));
   const canBuy = Boolean(data?.can_buy) && !reason && maxSeats > 0;
   const count = Math.min(Math.max(seats, 1), Math.max(maxSeats, 1));
@@ -409,7 +409,7 @@ export function EventDialog({
               </section>
 
               {banner ? <Alert variant="error">{banner}</Alert> : null}
-              <p className="text-center text-xs text-muted">Giữ chỗ 5 phút để chuyển khoản QR. Tiền về là có vé.</p>
+              <p className="text-center text-xs text-muted">Giữ chỗ {data.hold_minutes} phút để chuyển khoản QR. Tiền về là có vé.</p>
             </>
           ) : (
             <p role="status" className="rounded-lg border border-border bg-background p-3 text-sm">

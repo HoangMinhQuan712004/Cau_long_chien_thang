@@ -23,39 +23,14 @@ export const MAX_CELLS = 16;
 /** Khóa sessionStorage do màn "Hết thời gian giữ chỗ" ghi để "Đặt lại" chọn sẵn các ô cũ nếu còn trống: `{date, items:[{code,hour}]}`. */
 export const RESTORE_KEY = "wk-restore-v1";
 
-// ---- Vé sự kiện (T-023): kiểu viết tay theo spec cho tới khi merge `be/T-023-ve-online` ----
+// ---- Vé sự kiện (T-023) ----
 
 export type PayStatus = "unpaid" | "paid" | "uncollectible";
-
-/** Ô lịch có thêm các trường riêng của hội viên (chỉ có ở `/member-area/booking-calendar`) và `event_code` (cả lịch công khai). */
-export type SlotExtra = { mine?: boolean; order_code?: string | null; event_code?: string | null; has_ticket?: boolean };
-
-export type EventReason = "started" | "full" | "free" | "online_off" | "deleted";
-
-export type EventDetail = {
-  code: string;
-  name: string;
-  play_date: string;
-  start_time: string;
-  end_time: string;
-  resource_names: string[];
-  ticket_price: number;
-  capacity: number;
-  taken: number;
-  can_buy: boolean;
-  reason: EventReason | null;
-  /** Chỉ có khi gọi với cookie hội viên liên kết */
-  my_tickets?: { code: string; pay_status: PayStatus }[];
-};
-
-export type EventCheckoutBody = {
-  event_code: string;
-  seats: number;
-  full_name: string;
-  phone: string;
-  phone_token?: string;
-  as_member?: boolean;
-};
-
+export type MemberCalendar = S["MemberCalendarOut"];
+/** Trường riêng của ô lịch hội viên + `event_code` (lịch công khai cũng có) */
+export type SlotExtra = Partial<Pick<S["MemberSlot"], "mine" | "order_code" | "has_ticket" | "event_code">>;
+export type EventDetail = S["WebEventOut"];
+export type EventReason = NonNullable<EventDetail["reason"]>;
+export type EventCheckoutBody = S["EventCheckoutIn"];
 /** Khối `event` của CheckoutOut (kind='ticket') */
-export type TicketInfo = { name: string; play_date: string; start_time: string; end_time: string; seats: number; ticket_codes?: string[] };
+export type TicketInfo = S["CheckoutEvent"];

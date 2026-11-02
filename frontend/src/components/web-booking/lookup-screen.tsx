@@ -140,19 +140,8 @@ export function LookupScreen({ hotline }: { hotline: string }) {
   );
 }
 
-// T-023 AC21: tra cứu mã đơn vé / mã vé trả `kind:"ticket"` + khối `event`. TODO(T-023): kiểu viết tay tới khi merge `be/T-023-ve-online`.
-type TicketLookup = {
-  name: string;
-  start_time: string;
-  end_time: string;
-  resource_names: string[];
-  seats: number;
-  tickets: { code: string; pay_status: "unpaid" | "paid" | "uncollectible" }[];
-};
-const ticketOf = (r: Lookup): TicketLookup | null => {
-  const x = r as Lookup & { kind?: string; event?: TicketLookup | null };
-  return x.kind === "ticket" && x.event ? x.event : null;
-};
+// T-023 AC21: tra cứu mã đơn vé / mã vé trả `kind:"ticket"` + khối `event`.
+const ticketOf = (r: Lookup) => (r.kind === "ticket" ? r.event : null);
 const TICKET_STATUS = { paid: "Đã thanh toán", unpaid: "Chưa thanh toán", uncollectible: "Không thu được" } as const;
 
 function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string }) {

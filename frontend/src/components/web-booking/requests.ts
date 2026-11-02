@@ -1,6 +1,6 @@
 import "client-only";
 import { callOtpApi } from "@/lib/api/auth";
-import { api, looseApi } from "@/lib/api/client";
+import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { toApiError, type ApiError } from "@/lib/api/write";
 import type { Checkout, EventCheckoutBody, EventDetail, Lookup, WebCalendar } from "./types";
@@ -42,10 +42,9 @@ export const verifyBookingPhone = (phone: string, otp: string) =>
   callOtpApi(() => api.POST("/api/v1/web/booking/phone/verify", { body: { phone, otp } }));
 
 // ---- Vé sự kiện (T-023) ----
-// TODO(T-023): BE chưa handoff ⇒ gọi qua `looseApi` với kiểu viết tay (types.ts); sau khi merge `be/T-023-ve-online` chuyển sang `api` + schema.d.ts.
 export const getEventDetail = (code: string) =>
-  read<EventDetail>(() => looseApi.GET("/api/v1/web/booking/events/{event_code}", { params: { path: { event_code: code } } }));
+  read<EventDetail>(() => api.GET("/api/v1/web/booking/events/{code}", { params: { path: { code } } }));
 
 /** Gọi qua `write((key) => sendEventCheckout(key, body))`; response như CheckoutCreatedOut (có `token`). */
 export const sendEventCheckout = (key: string, body: EventCheckoutBody) =>
-  looseApi.POST("/api/v1/web/booking/event-checkouts", { body, headers: { "Idempotency-Key": key } });
+  api.POST("/api/v1/web/booking/event-checkouts", { body, headers: { "Idempotency-Key": key } });

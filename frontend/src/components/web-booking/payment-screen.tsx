@@ -14,11 +14,7 @@ import { RESTORE_KEY, type Checkout, type TicketInfo } from "./types";
 type View = "pending" | "paid" | "expired";
 
 // T-023: checkout vé sự kiện (`kind='ticket'`) – không có danh sách sân/giờ đặt sân, thay bằng khối `event`.
-// TODO(T-023): BE chưa handoff ⇒ kiểu viết tay; sau khi merge `be/T-023-ve-online` lấy từ schema.d.ts.
-const ticketOf = (c: Checkout): TicketInfo | null => {
-  const x = c as Checkout & { kind?: string; event?: TicketInfo | null };
-  return x.kind === "ticket" && x.event ? x.event : null;
-};
+const ticketOf = (c: Checkout): TicketInfo | null => (c.kind === "ticket" ? c.event : null);
 
 const hhmm = (t: string) => t.slice(0, 5);
 
