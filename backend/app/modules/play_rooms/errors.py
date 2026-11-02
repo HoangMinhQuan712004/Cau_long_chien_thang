@@ -41,6 +41,11 @@ def host_only() -> AppError:
     return AppError("E-ROOM-7", "Chỉ Host được làm thao tác này.", 403)
 
 
+def bad_lineup() -> AppError:
+    """Đội hình Host xếp tay (T-027): người không ở phòng, trùng người, sai số người."""
+    return AppError("E-ROOM-12", "Đội hình không hợp lệ.", 422)
+
+
 def not_enough_players() -> AppError:
     return AppError("E-ROOM-8", "Chưa đủ người để bốc.", 409)
 
