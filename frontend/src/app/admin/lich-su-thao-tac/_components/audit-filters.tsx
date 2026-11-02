@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { type FilterDef, FilterBar } from "@/components/ui/filter-bar";
-import { Input } from "@/components/ui/input";
+import { DateRange } from "@/components/ui/date-range";
 import type { Dictionary } from "@/i18n/dictionaries";
 import type { AuditCatalog } from "@/lib/api/server";
-import { cn } from "@/lib/cn";
 import { type AuditFilter, type AuditPatch, CLEAR_FILTERS } from "./audit-params";
 
 type Props = {
@@ -53,7 +51,8 @@ export function AuditFilters({ catalog, filter, hasDateRange, onChange, t }: Pro
         to={filter.to}
         min={catalog.min_date}
         max={catalog.max_date}
-        onChange={(range) => onChange(range)}
+        // Gõ tay ra ngày đầu sau ngày cuối ⇒ không gửi (tránh 422)
+        onChange={(range) => range.from <= range.to && onChange(range)}
         t={f}
       />
       <div className="min-w-0 xl:flex-1">
@@ -64,67 +63,6 @@ export function AuditFilters({ catalog, filter, hasDateRange, onChange, t }: Pro
           t={f.filterBar}
         />
       </div>
-    </div>
-  );
-}
-
-type Range = { from: string; to: string };
-
-type DateRangeProps = Range & {
-  /** Giới hạn lịch: 12 tháng gần nhất (BR-012). */
-  min: string;
-  max: string;
-  /** Gọi khi khoảng ngày hợp lệ (đủ 2 ngày, trong giới hạn, từ ≤ đến). */
-  onChange: (range: Range) => void;
-  t: Range;
-};
-
-/**
- * Từ ngày – Đến ngày: đổi là áp ngay. Giữ chữ đang gõ riêng, chỉ áp khi hợp lệ
- * (gõ tay năm từng số ra ngày lạ ⇒ không gửi, tránh 422).
- */
-function DateRange({ from, to, min, max, onChange, t }: DateRangeProps) {
-  const [draft, setDraft] = useState<Range>({ from, to });
-  const [synced, setSynced] = useState<Range>({ from, to });
-  // URL đổi từ ngoài (Xóa lọc, Back) ⇒ ô theo
-  if (from !== synced.from || to !== synced.to) {
-    setSynced({ from, to });
-    setDraft({ from, to });
-  }
-
-  const update = (patch: Partial<Range>) => {
-    const next = { ...draft, ...patch };
-    setDraft(next);
-    const isValid = next.from >= min && next.to <= max && next.from !== "" && next.from <= next.to;
-    if (isValid && (next.from !== from || next.to !== to)) onChange(next);
-  };
-  // Lịch không cho chọn ngoài giới hạn, ngày đầu không sau ngày cuối
-  const limits = {
-    from: { min, max: draft.to || max },
-    to: { min: draft.from || min, max },
-  };
-
-  return (
-    <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3 xl:gap-2">
-      {(["from", "to"] as const).map((key) => (
-        <label key={key} className={cn(`
-          flex min-w-0 flex-col gap-1
-          sm:flex-row sm:items-center sm:gap-2
-          xl:gap-1.5
-        `)}>
-          <span className="shrink-0 text-xs text-muted sm:text-ui">{t[key]}</span>
-          <Input
-            compact
-            type="date"
-            required
-            value={draft[key]}
-            {...limits[key]}
-            onChange={(e) => update({ [key]: e.target.value })}
-            // Máy tính hẹp lại để cả 5 phần vừa một hàng ở 1280px
-            className="tabular-nums sm:w-40 xl:w-34"
-          />
-        </label>
-      ))}
     </div>
   );
 }
