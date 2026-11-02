@@ -4,7 +4,7 @@ Module Kỷ lục: bảng ``speed_record`` (số đo tốc độ cú đập, 50�
 ``customer_id`` không FK chéo module. Giai đoạn A không có dữ liệu thật – không backfill.
 
 Revision ID: ee7aaa89b694
-Revises: 0cbf30ad5193
+Revises: 9f73fd765c58
 Create Date: 2026-11-02 17:40:24.970496
 
 """
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "ee7aaa89b694"
-down_revision: str | None = "0cbf30ad5193"
+down_revision: str | None = "9f73fd765c58"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
