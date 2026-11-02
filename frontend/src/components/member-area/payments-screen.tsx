@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageBanner } from "@/components/member-area/page-banner";
-import { hourRange } from "@/components/play-rooms/utils";
+import { PaymentDetailBody } from "@/components/member-area/payment-detail";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { cn } from "@/lib/cn";
-import { formatDayMonth, formatDayMonthYear, formatDateTime, formatNumber, formatTime, formatVnd, vnDate } from "@/lib/format";
+import { formatDayMonth, formatDayMonthYear, formatNumber, formatTime, formatVnd, vnDate } from "@/lib/format";
 
 // /hoi-vien/lich-su-thanh-toan (T-018 AC7–AC10): chỉ khoản đã thanh toán; chọn tháng; 3 thẻ; lọc; nhóm theo ngày; bấm dòng xem chi tiết.
 
@@ -182,18 +182,7 @@ export function PaymentsScreen() {
           </Button>
         }
       >
-        {detail ? (
-          <dl className="space-y-2.5 text-sm">
-            <Line label="Mã" value={detail.display_code} />
-            <Line label="Nội dung" value={detail.title} />
-            <Line label="Ngày chơi" value={formatDayMonthYear(detail.play_date)} />
-            {detail.resource_names.length > 0 ? <Line label="Sân" value={detail.resource_names.join(", ")} /> : null}
-            <Line label="Giờ" value={hourRange(detail.start_at, detail.end_at)} />
-            <Line label="Số tiền" value={formatVnd(detail.amount)} />
-            <Line label="Thanh toán lúc" value={formatDateTime(detail.paid_at)} />
-            <Line label="Hình thức" value={`${detail.method} · ${detail.channel === "counter" ? "tại quầy" : "online"}`} />
-          </dl>
-        ) : null}
+        {detail ? <PaymentDetailBody item={detail} /> : null}
       </Modal>
     </>
   );
@@ -205,15 +194,6 @@ function Stat({ label, value, sub }: { label: string; value: string; sub: string
       <p className="text-xs text-muted sm:text-sm">{label}</p>
       <p className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">{value}</p>
       <p className="text-xs text-muted sm:text-sm">{sub}</p>
-    </div>
-  );
-}
-
-function Line({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[7.5rem_1fr] gap-3">
-      <dt className="text-muted">{label}</dt>
-      <dd className="min-w-0 font-medium break-words">{value}</dd>
     </div>
   );
 }

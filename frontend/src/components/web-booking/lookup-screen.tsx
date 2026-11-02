@@ -80,8 +80,8 @@ export function LookupScreen({ hotline }: { hotline: string }) {
   return (
     <div className="mx-auto w-full max-w-xl space-y-5">
       <form onSubmit={submit} noValidate className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
-        <h1 className="text-2xl font-bold">Tra cứu booking</h1>
-        <p className="mt-1 text-sm text-muted">Nhập mã booking và số điện thoại đã dùng khi đặt sân.</p>
+        <h1 className="text-2xl font-bold">Tra cứu booking / vé</h1>
+        <p className="mt-1 text-sm text-muted">Nhập mã booking (hoặc mã vé sự kiện) và số điện thoại đã dùng khi đặt.</p>
         <div className="mt-4 space-y-4">
           <div>
             <label htmlFor={ids.code} className="mb-1 block text-sm font-medium">
@@ -140,7 +140,23 @@ export function LookupScreen({ hotline }: { hotline: string }) {
   );
 }
 
+// T-023 AC21: tra cứu mã đơn vé / mã vé trả `kind:"ticket"` + khối `event`. TODO(T-023): kiểu viết tay tới khi merge `be/T-023-ve-online`.
+type TicketLookup = {
+  name: string;
+  start_time: string;
+  end_time: string;
+  resource_names: string[];
+  seats: number;
+  tickets: { code: string; pay_status: "unpaid" | "paid" | "uncollectible" }[];
+};
+const ticketOf = (r: Lookup): TicketLookup | null => {
+  const x = r as Lookup & { kind?: string; event?: TicketLookup | null };
+  return x.kind === "ticket" && x.event ? x.event : null;
+};
+const TICKET_STATUS = { paid: "Đã thanh toán", unpaid: "Chưa thanh toán", uncollectible: "Không thu được" } as const;
+
 function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string }) {
+  const ticket = ticketOf(r);
   const left = useCountdown(r.pending?.expires_at ?? null, r.pending?.server_now ?? null);
   const badge = BADGE[r.status];
   // Giữ chỗ về 0 nhưng server chưa báo hết hạn (ân hạn nhận tiền): hiện nhãn hết giờ, vẫn hỏi tiếp.
@@ -174,12 +190,39 @@ function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string })
       <dl className="mt-4 space-y-2.5 text-sm">
         <Row label="Ngày" value={formatLongDate(r.play_date)} />
         <Row label="Người đặt" value={`${r.customer_name} · ${r.phone_masked ?? "—"}`} />
-        <Row label="Tổng giờ" value={`${r.hours} giờ`} />
+        {ticket ? (
+          <>
+            <Row label="Sự kiện" value={ticket.name} />
+            <Row label="Giờ" value={`${hhmm(ticket.start_time)} – ${hhmm(ticket.end_time)}`} />
+            <Row label="Sân" value={ticket.resource_names.join(", ")} />
+            <Row label="Số vé" value={String(ticket.seats)} />
+          </>
+        ) : (
+          <Row label="Tổng giờ" value={`${r.hours} giờ`} />
+        )}
         <Row label="Số tiền" value={money} />
         {r.status === "paid" && r.paid_at ? <Row label="Thời gian TT" value={formatDateTime(r.paid_at)} /> : null}
       </dl>
 
-      {/* Danh sách sân / giờ của đơn; khách chỉ thấy MÃ ĐƠN, không thấy mã khối (T-019 AC2, AC7) */}
+      {ticket ? (
+        <>
+          <h3 className="mt-4 text-xs font-semibold tracking-wide text-muted uppercase">Mã vé</h3>
+          {ticket.tickets.length > 0 ? (
+            <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+              {ticket.tickets.map((t) => (
+                <li key={t.code} className="flex flex-wrap items-baseline justify-between gap-x-4 px-3 py-2.5 text-sm">
+                  <span className="font-medium">{t.code}</span>
+                  <span>{TICKET_STATUS[t.pay_status]}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-muted">Vé sẽ có khi nhận được tiền.</p>
+          )}
+        </>
+      ) : (
+        <>
+        {/* Danh sách sân / giờ của đơn; khách chỉ thấy MÃ ĐƠN, không thấy mã khối (T-019 AC2, AC7) */}
       <h3 className="mt-4 text-xs font-semibold tracking-wide text-muted uppercase">Sân và khung giờ</h3>
       <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
         {r.items.map((it) => (
@@ -192,6 +235,9 @@ function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string })
           </li>
         ))}
       </ul>
+
+        </>
+      )}
 
       <p className="mt-4 border-t border-border pt-3 text-sm text-muted">
         {r.status === "expired"

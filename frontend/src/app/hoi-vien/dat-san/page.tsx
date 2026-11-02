@@ -21,7 +21,10 @@ async function Loader({ searchParams }: Pick<PageProps<"/hoi-vien/dat-san">, "se
   await connection();
   const sp = await searchParams;
   const today = todayVn();
-  const wanted = typeof sp.ngay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.ngay) ? sp.ngay : today;
+  // `ngay` (cũ) hoặc `date` (liên kết đăng nhập quay về, T-023 AC18)
+  const rawDate = typeof sp.date === "string" ? sp.date : sp.ngay;
+  const wanted = typeof rawDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : today;
+  const initialEvent = typeof sp.event === "string" && /^BK-\d{8}-\d{3}$/.test(sp.event) ? sp.event : null;
   const { phoneVerify } = await getDictionary();
-  return <MemberBooking initialDate={wanted < today ? today : wanted} today={today} hotline={site.phone} texts={phoneVerify} />;
+  return <MemberBooking initialDate={wanted < today ? today : wanted} today={today} hotline={site.phone} texts={phoneVerify} initialEvent={initialEvent} />;
 }
