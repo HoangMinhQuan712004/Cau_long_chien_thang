@@ -3,7 +3,7 @@ import { callOtpApi } from "@/lib/api/auth";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { toApiError, type ApiError } from "@/lib/api/write";
-import type { BankTransaction, Checkout, Lookup, WebCalendar } from "./types";
+import type { Checkout, Lookup, WebCalendar } from "./types";
 
 // Lời gọi API công khai của web khách (không cần đăng nhập). Ghi: dùng `write()` (Idempotency-Key) ở nơi gọi.
 
@@ -33,17 +33,6 @@ export const sendCheckout = (key: string, body: CheckoutBody) =>
 
 export const lookupBooking = (code: string, phone: string) =>
   read<Lookup>(() => api.POST("/api/v1/web/booking/lookup", { body: { code, phone } }));
-
-// ---- Quản trị: Tiền về cần xử lý ----
-export const getBankTransactions = (needsAction: boolean) =>
-  read<BankTransaction[]>(() => api.GET("/api/v1/payments/bank-transactions", { params: { query: { needs_action: needsAction, limit: 100 } } }));
-
-export const sendResolve = (key: string, id: number, note: string) =>
-  api.POST("/api/v1/payments/bank-transactions/{txn_id}/resolve", {
-    params: { path: { txn_id: id } },
-    body: { note },
-    headers: { "Idempotency-Key": key },
-  });
 
 // ---- Xác minh SĐT bằng OTP trước khi giữ chỗ (T-013 AC25) ----
 export const requestBookingPhone = (phone: string) =>

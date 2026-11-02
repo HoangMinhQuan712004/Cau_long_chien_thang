@@ -13,13 +13,11 @@ from datetime import datetime
 from typing import Any
 from urllib.parse import urlencode
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import AuditActor, audit
 from app.core.config import settings
-from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
 from app.modules.booking_engine.dto import OnlinePaymentIn
 from app.modules.payments import config
@@ -30,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 PROVIDER = "sepay"
 CODE_RE = re.compile(r"BK\d{11}", re.IGNORECASE)
-NOTE_MAX = 500
 
 
 class WebhookError(Exception):
@@ -232,16 +229,6 @@ async def mark_expired_partials(session: AsyncSession, pay_ref: str) -> int:
     return result.rowcount or 0
 
 
-# ------------------------------------------------------------------ Tiền về cần xử lý (AC32)
-
-
-def _needs_action():
-    return (BankTransaction.resolved_at.is_(None)) & or_(
-        BankTransaction.outcome.in_(("unmatched", "refund_needed")),
-        (BankTransaction.outcome == "applied") & (BankTransaction.refund_amount > 0),
-    )
-
-
 def _out(t: BankTransaction) -> BankTransactionOut:
     return BankTransactionOut(
         id=t.id,
@@ -255,54 +242,4 @@ def _out(t: BankTransaction) -> BankTransactionOut:
         outcome=t.outcome,
         refund_amount=t.refund_amount,
         booking_codes=list(t.booking_codes or []),
-        resolved_at=t.resolved_at,
-        resolved_by_label=t.resolved_by_label,
-        note=t.note,
     )
-
-
-async def list_transactions(
-    session: AsyncSession, needs_action: bool, limit: int
-) -> list[BankTransactionOut]:
-    stmt = select(BankTransaction).order_by(
-        BankTransaction.received_at.desc(), BankTransaction.id.desc()
-    )
-    if needs_action:
-        stmt = stmt.where(_needs_action())
-    return [_out(t) for t in await session.scalars(stmt.limit(limit))]
-
-
-async def count_needs_action(session: AsyncSession) -> int:
-    return await session.scalar(
-        select(func.count()).select_from(BankTransaction).where(_needs_action())
-    )
-
-
-async def resolve(
-    session: AsyncSession, txn_id: int, note: str, actor: AuditActor
-) -> BankTransactionOut:
-    note = note.strip()
-    if not note:
-        raise AppError("E-001", "Vui lòng nhập Ghi chú.", 422)
-    if len(note) > NOTE_MAX:
-        raise AppError("E-001", f"Ghi chú tối đa {NOTE_MAX} ký tự.", 422)
-    txn = await session.scalar(
-        select(BankTransaction).where(BankTransaction.id == txn_id).with_for_update()
-    )
-    if txn is None:
-        raise AppError("E-NOT-FOUND", "Không tìm thấy giao dịch.", 404)
-    if txn.resolved_at is not None:
-        raise AppError("E-PAY-2", "Giao dịch đã được xử lý.", 409)
-    txn.resolved_at = datetime.now(settings.tz)
-    txn.resolved_by_id, txn.resolved_by_label = actor.id, actor.label
-    txn.note = note
-    audit(
-        session,
-        actor,
-        "payment.bank_txn.resolve",
-        "bank_transaction",
-        str(txn.id),
-        {"outcome": txn.outcome, "amount": txn.amount, "refund_amount": txn.refund_amount},
-    )
-    await session.flush()
-    return _out(txn)

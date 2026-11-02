@@ -125,8 +125,7 @@ Quyền khai báo tập trung ở `backend/app/core/permissions.py`. Router dùn
 | `member.manage` (PR #21) | ✔ | ✔ | Màn Hội viên: danh sách, chi tiết, thêm, sửa, hồ sơ tạm; đọc danh mục vợt (mục 12) |
 | `member.status` (PR #21) | ✔ | | Đổi Trạng thái Hoạt động / Ngừng của hội viên |
 | `racket.manage` (PR #21) | ✔ | | Thêm, sửa, ẩn, xóa vợt trong danh mục |
-| `payments.view` | ✔ | | `GET /payments/bank-transactions` (Tiền về cần xử lý) |
-| `payments.resolve` | ✔ | | `POST /payments/bank-transactions/{id}/resolve`, `POST /payments/dev/simulate` |
+| `payments.simulate` | ✔ | | `POST /payments/dev/simulate` (chỉ link dev) |
 | `payments.settings` | ✔ | | `GET/PUT /payments/settings`, `GET /payments/banks` (T-012) |
 | `staff.manage` (T-013) | ✔ | | `/admin/staff*`: danh sách, tạo, khóa, đặt lại mật khẩu, phiên của nhân viên (mục 11.3) |
 | `content.manage` (T-013) | ✔ | | Quản lý tin tức / trang nội dung |
@@ -459,7 +458,6 @@ Sai mã, mã con không thuộc SĐT, **hay** sai SĐT đều trả cùng 404 `E
 | E-WEB-8 | 403 | **(T-013)** "Vui lòng xác minh số điện thoại trước khi đặt sân." Thiếu/sai/hết hạn `phone_token`, hoặc token của SĐT khác |
 | E-019 | 422 | Thiếu giá cho một khung |
 | E-SEC-1 | 403 | Thiếu hoặc sai `Origin`/`Referer` (`POST /checkouts`, `POST /lookup`) |
-| E-PAY-2 | 409 | "Giao dịch đã được xử lý." (đánh dấu Đã xử lý lần hai) |
 
 `E-PAY-1` vẫn là lỗi Không thu được của T-006 (mục 5), không phải lỗi thanh toán online.
 
@@ -489,15 +487,15 @@ Kết quả ghi vào `payments.bank_transaction.outcome`:
 Hạn nhận tiền: giờ giao dịch (`transactionDate`, giờ VN) ≤ `expires_at` + 60 giây. Trả đủ tiền ở hai webhook gần nhau cho cùng lượt → chỉ tạo booking một lần.
 Khi booking online được tạo, module `members` tạo hồ sơ tạm theo SĐT nếu chưa có (giữ tên cũ nếu đã có); lỗi bước này không làm mất booking.
 
-### 10.5 Tiền về cần xử lý và giả lập (Admin)
+### 10.5 Giả lập tiền về (chỉ link dev)
+
+Màn "Tiền về cần xử lý" (`/admin/tien-ve`, `GET /payments/bank-transactions`, `POST …/resolve`) **đã gỡ** theo yêu cầu chủ sân (02/11/2026): hai route trả 404. Webhook vẫn ghi mọi giao dịch vào `payments.bank_transaction` (kể cả không khớp mã, trả thừa, cần hoàn); tiền cần hoàn đối soát trên SePay hoặc ngân hàng.
 
 | Method | Path | Quyền | Ghi chú |
 |---|---|---|---|
-| GET | `/payments/bank-transactions?needs_action=true&limit=100` | `payments.view` | Mới nhất trước, `limit` 1–500. `needs_action=true` = chưa xử lý và là `unmatched`, `refund_needed`, hoặc `applied` có `refund_amount > 0` |
-| POST | `/payments/bank-transactions/{id}/resolve` | `payments.resolve` | Body `{"note": "…"}` (1–500 ký tự, trống → 422 `E-001`); `Idempotency-Key`. Đã xử lý → 409 `E-PAY-2`; id không có → 404 `E-NOT-FOUND` |
-| POST | `/payments/dev/simulate` | `payments.resolve` + `PAYMENTS_SIMULATE=true` | Body `{"pay_ref": "BK20261020023", "amount": 288000}`; `Idempotency-Key`. Cờ tắt → **404 với mọi người**. Đi đúng đường xử lý của webhook (id giả `sim-<uuid>`, bỏ qua kiểm chữ ký) |
+| POST | `/payments/dev/simulate` | `payments.simulate` + `PAYMENTS_SIMULATE=true` | Body `{"pay_ref": "BK20261020023", "amount": 288000}`; `Idempotency-Key`. Cờ tắt → **404 với mọi người**. Đi đúng đường xử lý của webhook (id giả `sim-<uuid>`, bỏ qua kiểm chữ ký) |
 
-`BankTransactionOut`: `{id, provider, provider_txn_id, received_at, transaction_at, amount, content, code, outcome, refund_amount, booking_codes[], resolved_at, resolved_by_label, note}`.
+`BankTransactionOut`: `{id, provider, provider_txn_id, received_at, transaction_at, amount, content, code, outcome, refund_amount, booking_codes[]}`.
 Staff gọi → 403 `E-AUTH-2`; khách → 401/403.
 
 ### 10.6 Thử trên máy dev (không cần tài khoản SePay)

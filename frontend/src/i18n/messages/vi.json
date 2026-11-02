@@ -226,14 +226,12 @@
     "logout": "Đăng xuất",
     "auditLog": "Lịch sử thao tác",
     "forbidden": "Bạn không có quyền vào trang này.",
-    "pendingMoney": "{n} giao dịch chưa xử lý",
     "items": {
       "baoCao": "Báo cáo & phân tích",
       "datSan": "Đặt sân",
       "lichSu": "Lịch sử giao dịch",
       "hoiVien": "Hội viên",
       "san": "Sân & bảng giá",
-      "tienVe": "Tiền về",
       "thanhToan": "Cài đặt thanh toán",
       "nhanVien": "Nhân viên"
     },

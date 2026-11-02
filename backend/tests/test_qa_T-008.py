@@ -1168,68 +1168,11 @@ async def test_ac31_online_booking_visible_to_counter_and_history(anon, admin, s
     assert only_transfer["total"] == 1, "'Chuyển khoản' filter includes online transfers"
 
 
-async def test_ac32_bank_transactions_queue_and_resolve(anon, admin, sepay):
-    c = await court(admin)
-    co = await make_checkout(anon, slots(c["code"], 10))
-    over = payload(co["pay_ref"], co["amount"] + 7000)
-    lost = payload(None, 12345, content=f"khong ma {uuid.uuid4().hex[:8]}")
-    ok_only = payload("BK00000000000", 1)
-    for p in (over, lost, ok_only):
-        assert (await webhook(anon, p)).status_code == 200
-    r = await admin.get(f"{PAY}/bank-transactions", params={"needs_action": "true", "limit": 500})
-    assert r.status_code == 200, r.text
-    rows = {x["provider_txn_id"]: x for x in r.json()}
-    assert str(over["id"]) in rows and rows[str(over["id"])]["refund_amount"] == 7000
-    assert str(lost["id"]) in rows and rows[str(lost["id"])]["outcome"] == "unmatched"
-    row = rows[str(over["id"])]
-    for k in (
-        "id",
-        "provider",
-        "received_at",
-        "transaction_at",
-        "amount",
-        "content",
-        "outcome",
-        "booking_codes",
-    ):
-        assert k in row, k
-    rid = row["id"]
-    for bad in ("", "x" * 501):
-        err_r = await admin.post(
-            f"{PAY}/bank-transactions/{rid}/resolve", json={"note": bad}, headers=idem()
-        )
-        assert err_r.status_code == 422, (len(bad), err_r.text)
-    ok = await admin.post(
-        f"{PAY}/bank-transactions/{rid}/resolve",
-        json={"note": "Đã hoàn 7.000 <b>x</b>"},
-        headers=idem(),
-    )
-    assert ok.status_code == 200, ok.text
-    assert ok.json()["resolved_at"] and ok.json()["resolved_by_label"] == "Admin"
-    again = await admin.post(
-        f"{PAY}/bank-transactions/{rid}/resolve", json={"note": "lần hai"}, headers=idem()
-    )
-    err(again, 409, "E-PAY-2")
-    after = (
-        await admin.get(f"{PAY}/bank-transactions", params={"needs_action": "true", "limit": 500})
-    ).json()
-    assert str(over["id"]) not in {x["provider_txn_id"] for x in after}
-
-
-async def test_sec8_bank_transactions_admin_only(anon, customer, staff, admin):
-    cases = [
-        ("GET", f"{PAY}/bank-transactions?needs_action=true"),
-        ("POST", f"{PAY}/bank-transactions/1/resolve"),
-    ]
-    for method, path in cases:
-        for name, client, want in (
-            ("anon", anon, 401),
-            ("customer", customer, 403),
-            ("staff", staff, 403),
-        ):
-            r = await client.request(method, path, json={"note": "x"}, headers=idem())
-            assert r.status_code == want, (name, method, path, r.status_code, r.text)
-    assert (await admin.get(f"{PAY}/bank-transactions")).status_code == 200
+async def test_ac32_bank_transactions_screen_removed(admin):
+    # AC32 (Tiền về cần xử lý) bỏ theo yêu cầu người dùng 02/11/2026
+    assert (await admin.get(f"{PAY}/bank-transactions")).status_code == 404
+    r = await admin.post(f"{PAY}/bank-transactions/1/resolve", json={"note": "x"}, headers=idem())
+    assert r.status_code == 404
 
 
 async def test_sec7_simulate_off_is_404_for_everyone(anon, customer, staff, admin, sepay):

@@ -1,4 +1,4 @@
-"""Webhook SePay, Tiền về cần xử lý, giả lập tiền về (dev).
+"""Webhook SePay, giả lập tiền về (dev), cài đặt thanh toán.
 
 Webhook là ngoại lệ có chủ đích của ADR-004: **không** cookie, **không** Origin, **không**
 Idempotency-Key – xác thực bằng HMAC; chống trùng bằng UNIQUE(provider, id SePay).
@@ -8,7 +8,7 @@ import json
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query, Request, status
+from fastapi import APIRouter, Depends, Header, Request, status
 from fastapi.responses import JSONResponse
 
 from app.core.audit import AuditActor
@@ -24,7 +24,6 @@ from app.modules.payments.schemas import (
     BankTransactionOut,
     PaymentSettingsIn,
     PaymentSettingsOut,
-    ResolveIn,
     SimulateIn,
 )
 
@@ -32,8 +31,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
-PaymentsViewer = Annotated[Principal, Depends(require(Perm.PAYMENTS_VIEW))]
-PaymentsResolver = Annotated[Principal, Depends(require(Perm.PAYMENTS_RESOLVE))]
+PaymentsSimulator = Annotated[Principal, Depends(require(Perm.PAYMENTS_SIMULATE))]
 SettingsManager = Annotated[Principal, Depends(require(Perm.PAYMENTS_SETTINGS))]
 
 
@@ -71,33 +69,6 @@ async def sepay_webhook(
     return _result(True)
 
 
-@router.get("/bank-transactions", response_model=list[BankTransactionOut])
-async def list_bank_transactions(
-    _: PaymentsViewer,
-    session: SessionDep,
-    needs_action: bool = True,
-    limit: Annotated[int, Query(ge=1, le=500)] = 100,
-):
-    """Tiền về (mới nhất trước). ``needs_action=true``: chưa xử lý và cần Admin xem
-    (``unmatched``, ``refund_needed``, ``applied`` có tiền thừa)."""
-    return await service.list_transactions(session, needs_action, limit)
-
-
-@router.post("/bank-transactions/{txn_id}/resolve", response_model=BankTransactionOut)
-async def resolve_bank_transaction(
-    txn_id: int,
-    data: ResolveIn,
-    principal: PaymentsResolver,
-    idem: IdempotencyDep,
-    session: SessionDep,
-):
-    """Đánh dấu Đã xử lý (ghi chú 1–500 ký tự, E-001); đã xử lý rồi -> 409 ``E-PAY-2``."""
-    actor = AuditActor(type=principal.actor_type, id=principal.actor_id, label=principal.label)
-    return await idem.run(
-        session, principal.key, lambda: service.resolve(session, txn_id, data.note, actor)
-    )
-
-
 async def simulate_enabled() -> None:
     # Production không bao giờ bật được (Settings từ chối khởi động); cờ tắt -> như không có route
     if not settings.PAYMENTS_SIMULATE or settings.is_production:
@@ -110,7 +81,7 @@ async def simulate_enabled() -> None:
     dependencies=[Depends(simulate_enabled)],
 )
 async def simulate_payment(
-    data: SimulateIn, principal: PaymentsResolver, idem: IdempotencyDep, session: SessionDep
+    data: SimulateIn, principal: PaymentsSimulator, idem: IdempotencyDep, session: SessionDep
 ):
     """Giả lập tiền về cho ``pay_ref`` (chỉ dev/staging, ``PAYMENTS_SIMULATE=true``).
 

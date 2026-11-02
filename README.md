@@ -22,7 +22,7 @@ project_caulong/
 ├── frontend/                Next.js App Router (Cache Components)
 │   └── src/
 │       ├── app/(public)/    trang khách: /, /dat-san, /thanh-toan/[token], /tra-cuu, /bang-gia, /tin-tuc, tài khoản (T-013: /dang-nhap, /dang-ky, /quen-mat-khau → /quen-mat-khau/xac-minh → /quen-mat-khau/dat-lai, /tai-khoan)
-│       ├── app/admin/       chủ sân / nhân viên (noindex): dat-san (lịch quầy), san, san/bang-gia, lich-su-giao-dich, tien-ve, hoi-vien, cai-dat/thanh-toan (chỉ Admin; T-013 thêm nhan-vien)
+│       ├── app/admin/       chủ sân / nhân viên (noindex): dat-san (lịch quầy), san, san/bang-gia, lich-su-giao-dich, hoi-vien, cai-dat/thanh-toan (chỉ Admin; T-013 thêm nhan-vien)
 │       ├── app/sitemap.ts, robots.ts
 │       ├── components/      booking-engine/ (màn quản trị), web-booking/ (đặt online, thanh toán, tra cứu), admin/, ui/
 │       ├── lib/api/         client sinh từ OpenAPI (server.ts / client.ts)
@@ -206,7 +206,7 @@ Admin vào **`/admin/cai-dat/thanh-toan`** (menu "Cài đặt thanh toán", ch�
 
    Kết quả là `BankTransactionOut` (`outcome`, `refund_amount`, `booking_codes`). Lần sau nhớ đổi `Idempotency-Key`. Đổi `localhost:3000` nếu bạn chạy `WEB_PORT` khác (và thêm origin đó vào `ALLOWED_ORIGINS`).
 5. Trang thanh toán tự chuyển sang "Đặt sân thành công". Thử `amount` nhỏ hơn → `partial` (vẫn chờ); lớn hơn → `applied` kèm `refund_amount`.
-6. Admin xem tiền cần hoàn / không khớp mã ở trang `/admin/tien-ve` (menu "Tiền về", kèm số giao dịch chưa xử lý); bấm **Đã xử lý** phải ghi chú. Cùng dữ liệu ở `GET /api/v1/payments/bank-transactions`.
+6. Tiền không khớp mã, trả thừa hoặc cần hoàn chỉ được ghi vào bảng `payments.bank_transaction` (không còn màn "Tiền về" trong quản trị); đối soát trên SePay hoặc ngân hàng.
 
 Các trang khách của T-008: `/dat-san` (lưới chọn giờ, `?ngay=YYYY-MM-DD`), `/thanh-toan/{token}` (QR + đếm ngược, tự chuyển khi tiền về; `noindex`, `no-store`, chặn trong `robots.txt`, không vào sitemap), `/tra-cuu` (mã đặt + SĐT; từ T-019 nhận mã đơn hoặc mã con và hiện cả đơn). Header: Đặt sân · Tra cứu booking · Hotline (Đăng nhập/Đăng ký đang ẩn; T-013 hiện lại). Số hotline vẫn là số mẫu trong `frontend/src/lib/site.ts` cho tới khi chủ dự án cung cấp số thật.
 

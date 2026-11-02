@@ -257,7 +257,9 @@ async def test_ac16_start_rules_numbering_and_membership_states(admin, people, s
 async def test_ac16_player_in_a_running_match_cannot_leave_but_a_waiting_one_can(
     admin, people, seats
 ):
-    host, rid, extra, _ = await room_with(admin, people, seats, 4)
+    # 6 người, bốc 4: luôn còn ít nhất một người không phải chủ phòng ở Hàng chờ
+    # (5 người thì 1/5 số lần chủ phòng là người duy nhất còn chờ -> next() hết phần tử)
+    host, rid, extra, _ = await room_with(admin, people, seats, 5)
     assert (await draw(host.client, rid)).status_code == 200
     d = (await start(host.client, rid)).json()
     me_playing = next(m for m in d["members"] if m["is_me"])["queue_state"] == "playing"
