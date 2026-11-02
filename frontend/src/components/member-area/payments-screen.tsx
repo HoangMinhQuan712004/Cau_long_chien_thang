@@ -110,69 +110,86 @@ export function PaymentsScreen() {
             Đang tải…
           </p>
         ) : (
-          <>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Stat label={`Đã thanh toán tháng ${monthNo}`} value={formatVnd(s.total)} sub={`${formatNumber(s.count)} giao dịch`} />
-              <Stat label="Lượt đặt sân" value={`${formatNumber(s.bookings.count)} lượt`} sub={`${formatNumber(s.bookings.hours)} giờ chơi`} />
-              <Stat label="Vé sự kiện" value={`${formatNumber(s.tickets.count)} vé`} sub={formatVnd(s.tickets.total)} />
-            </div>
+          <div className="grid gap-5 lg:grid-cols-[1fr_20rem] lg:items-start">
+            {/* Tổng kết tháng: thẻ xanh có số tiền vàng + 2 thẻ phụ. Desktop: cột phải, điện thoại: ở trên */}
+            <aside aria-label="Tổng kết tháng" className="space-y-3 lg:sticky lg:top-20 lg:order-2">
+              <div className="relative overflow-hidden rounded-xl bg-appbar p-5 text-surface shadow-card">
+                <svg aria-hidden viewBox="0 0 200 100" preserveAspectRatio="xMidYMid slice" className="pointer-events-none absolute inset-0 size-full text-surface opacity-[0.08]" fill="none" stroke="currentColor" strokeWidth="1.4">
+                  <rect x="10" y="8" width="180" height="84" />
+                  <path d="M100 8v84M10 50h180M10 24h180M10 76h180M40 8v84M160 8v84" />
+                </svg>
+                <p className="relative text-sm text-surface/85">Đã thanh toán tháng {monthNo}</p>
+                <p className="relative mt-1 text-3xl font-bold tracking-tight text-cta tabular-nums">{formatVnd(s.total)}</p>
+                <p className="relative mt-0.5 text-sm text-surface/85">{formatNumber(s.count)} giao dịch</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+                <Stat label="Lượt đặt sân" value={`${formatNumber(s.bookings.count)} lượt`} sub={`${formatNumber(s.bookings.hours)} giờ chơi`} />
+                <Stat label="Vé sự kiện" value={`${formatNumber(s.tickets.count)} vé`} sub={formatVnd(s.tickets.total)} />
+              </div>
+            </aside>
 
-            <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Lọc khoản thanh toán">
-              {(
-                [
-                  ["all", `Tất cả (${s.count})`],
-                  ["booking", `Đặt sân (${s.bookings.count})`],
-                  ["ticket", `Vé sự kiện (${s.tickets.count})`],
-                ] as const
-              ).map(([k, label]) => (
-                <button
-                  key={k}
-                  type="button"
-                  aria-pressed={kind === k}
-                  onClick={() => setKind(k)}
-                  className={cn("h-9 rounded-full border px-4 text-sm font-medium focus-ring", kind === k ? "border-primary-hover bg-primary-hover text-surface" : "border-border-strong bg-surface hover:bg-primary-softer")}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <div className="min-w-0 lg:order-1">
+              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" role="group" aria-label="Lọc khoản thanh toán">
+                {(
+                  [
+                    ["all", `Tất cả (${s.count})`],
+                    ["booking", `Đặt sân (${s.bookings.count})`],
+                    ["ticket", `Vé sự kiện (${s.tickets.count})`],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={kind === k}
+                    onClick={() => setKind(k)}
+                    className={cn(
+                      "h-11 shrink-0 rounded-full border px-5 text-sm font-semibold whitespace-nowrap focus-ring sm:h-10",
+                      kind === k ? "border-primary-hover bg-primary-hover text-surface" : "border-border-strong bg-surface hover:bg-primary-softer",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-            {groups.length === 0 ? (
-              <p className="mt-6 rounded-card bg-surface p-8 text-center text-muted shadow-card">Chưa có khoản thanh toán nào trong tháng này.</p>
-            ) : (
-              groups.map((g) => (
-                <section key={g.day} className="mt-6" aria-label={formatDayMonthYear(g.day)}>
-                  <h2 className="flex items-center gap-2 text-xs font-semibold tracking-wide text-muted uppercase">
-                    {g.day === today ? "Hôm nay" : weekday(g.day)} · {formatDayMonth(g.day)}
-                    <span aria-hidden className="h-px flex-1 bg-border" />
-                  </h2>
-                  <ul className="mt-2 divide-y divide-border overflow-hidden rounded-card bg-surface shadow-card">
-                    {g.items.map((it) => (
-                      <li key={`${it.kind}-${it.code}`}>
-                        <button type="button" onClick={() => setDetail(it)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-primary-softer focus-ring">
-                          <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-primary-softer text-primary">
-                            {it.kind === "ticket" ? "🎫" : "🏸"}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold">{it.title}</span>
-                            <span className="block truncate text-xs text-muted">
-                              Mã {it.display_code} · {formatTime(it.paid_at)}
+              {groups.length === 0 ? (
+                <p className="mt-5 rounded-card bg-surface p-8 text-center text-muted shadow-card">Chưa có khoản thanh toán nào trong tháng này.</p>
+              ) : (
+                groups.map((g) => (
+                  <section key={g.day} className="mt-5" aria-label={formatDayMonthYear(g.day)}>
+                    <h2 className="flex items-center gap-2 text-sm font-semibold text-muted">
+                      {g.day === today ? "Hôm nay" : weekday(g.day)} · {formatDayMonth(g.day)}
+                      <span aria-hidden className="h-px flex-1 bg-border" />
+                    </h2>
+                    <ul className="mt-2 divide-y divide-border overflow-hidden rounded-xl bg-surface shadow-card">
+                      {g.items.map((it) => (
+                        <li key={`${it.kind}-${it.code}`}>
+                          <button type="button" onClick={() => setDetail(it)} className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left hover:bg-primary-softer focus-ring">
+                            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-primary-softer text-primary">
+                              {it.kind === "ticket" ? "🎫" : "🏸"}
                             </span>
-                          </span>
-                          <span className="rounded-full bg-background px-2.5 py-0.5 text-xs font-semibold ring-1 ring-border">{it.method}</span>
-                          <span className="text-sm font-bold whitespace-nowrap tabular-nums">{formatVnd(it.amount)}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ))
-            )}
-          </>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-semibold">{it.title}</span>
+                              <span className="block truncate text-xs text-muted">
+                                Mã {it.display_code} · {formatTime(it.paid_at)}
+                              </span>
+                            </span>
+                            <span className="hidden rounded-full bg-background px-2.5 py-0.5 text-xs font-semibold ring-1 ring-border sm:inline">{it.method}</span>
+                            <span className="text-sm font-bold whitespace-nowrap tabular-nums">{formatVnd(it.amount)}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ))
+              )}
+            </div>
+          </div>
         )}
       </div>
 
       <Modal
+        sheet
         open={detail !== null}
         onClose={() => setDetail(null)}
         title="Chi tiết thanh toán"
@@ -190,7 +207,7 @@ export function PaymentsScreen() {
 
 function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-card bg-surface p-4 shadow-card">
+    <div className="rounded-xl bg-surface p-4 shadow-card">
       <p className="text-xs text-muted sm:text-sm">{label}</p>
       <p className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">{value}</p>
       <p className="text-xs text-muted sm:text-sm">{sub}</p>

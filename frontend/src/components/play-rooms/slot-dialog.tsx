@@ -37,7 +37,7 @@ export function SlotDialog({ state, draft, members, onClose, onPlace, onSwitchTe
   if (state.kind === "member") {
     const m = byId.get(state.id);
     return (
-      <Modal open onClose={onClose} title={`Xếp ${m?.display_name ?? "người chơi"} vào sân`} footer={<Button variant="secondary" onClick={onClose}>Đóng</Button>}>
+      <Modal sheet open onClose={onClose} title={`Xếp ${m?.display_name ?? "người chơi"} vào sân`} footer={<Button variant="secondary" onClick={onClose}>Đóng</Button>}>
         <ul className="flex flex-col gap-2" aria-label="Chọn ô trên sân">
           {slotsOf(draft).map(({ ref, id }) => {
             const who = id === null ? null : byId.get(id);
@@ -63,7 +63,7 @@ export function SlotDialog({ state, draft, members, onClose, onPlace, onSwitchTe
   // --- Ô có người: menu
   if (current && !picking) {
     return (
-      <Modal open onClose={onClose} title={`${slotName(ref)}: ${current.display_name}`} footer={<Button variant="secondary" onClick={onClose}>Đóng</Button>}>
+      <Modal sheet open onClose={onClose} title={`${slotName(ref)}: ${current.display_name}`} footer={<Button variant="secondary" onClick={onClose}>Đóng</Button>}>
         <div role="group" aria-label="Thao tác" className="flex flex-col gap-2">
           <Button variant="secondary" onClick={() => setPicking(true)} disabled={free.length === 0} title={free.length === 0 ? "Không còn ai chờ để đổi." : undefined}>
             Đổi người
@@ -81,7 +81,7 @@ export function SlotDialog({ state, draft, members, onClose, onPlace, onSwitchTe
 
   // --- Ô trống (hoặc "Đổi người"): chọn người chưa được xếp
   return (
-    <Modal open onClose={onClose} title={`${slotName(ref)}: chọn người`} footer={<Button variant="secondary" onClick={onClose}>Đóng</Button>}>
+    <Modal sheet open onClose={onClose} title={`${slotName(ref)}: chọn người`} footer={<Button variant="secondary" onClick={onClose}>Đóng</Button>}>
       {free.length === 0 ? (
         <p className="text-sm text-muted">Không còn ai chưa được xếp trong phòng.</p>
       ) : (

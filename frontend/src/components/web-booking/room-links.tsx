@@ -57,7 +57,7 @@ function RoomButton({ item, many }: { item: CheckoutItem; many: boolean }) {
   }
   if (state === "gave-up") return null;
   return (
-    <Link href={`/hoi-vien/phong/${state.roomId}`} className={`${btn} bg-primary text-white hover:bg-primary-hover`}>
+    <Link href={`/hoi-vien/phong/${state.roomId}`} className={`${btn} bg-cta font-bold tracking-wide text-cta-fg uppercase hover:bg-cta-hover`}>
       {label}
     </Link>
   );

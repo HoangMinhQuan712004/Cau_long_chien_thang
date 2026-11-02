@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
-import { formatVnd } from "@/lib/format";
+import { formatVnd, vnMinutes } from "@/lib/format";
 
 // CourtGrid (T-025 AC1): MỘT lưới đặt sân dùng chung cho /dat-san, /hoi-vien/dat-san và /admin/dat-san.
 // Hàng = sân, cột = khung 1 giờ, cột "Sân" dính bên trái, cuộn ngang. Bấm ô trống để chọn / bỏ chọn (nhiều sân, nhiều giờ).
 // Component không biết API nào: mỗi màn dựng `rows` bằng adapter của mình và quyết định bấm ô nào thì làm gì.
 
-export type GridTone = "paid" | "unpaid" | "bad" | "mine" | "session" | "hold";
+export type GridTone = "paid" | "unpaid" | "bad" | "mine" | "session" | "hold" | "booked";
 
 export type GridBlock = {
   kind: "block";
@@ -49,6 +49,8 @@ export const cellKey = (code: string, hour: number) => `${code}|${hour}`;
 
 const TONE: Record<GridTone, string> = {
   paid: "bg-blk-paid text-blk-paid-fg border-transparent",
+  // Lưới khách: ô người khác đã đặt = đỏ san hô
+  booked: "bg-cell-booked text-cell-booked-fg border-transparent",
   unpaid: "bg-blk-unpaid text-blk-unpaid-fg border-transparent",
   bad: "bg-blk-bad text-blk-bad-fg border-transparent bg-[repeating-linear-gradient(135deg,transparent_0_6px,rgb(0_0_0/0.08)_6px_8px)]",
   mine: "bg-blk-mine text-blk-mine-fg border-transparent",
@@ -81,6 +83,8 @@ type Props = {
   nowAt?: number | null;
   /** Cuộn ngang tới cột giờ này khi `scrollKey` đổi (ví dụ đổi ngày). */
   scrollToHour?: number | null;
+  /** Lưới khách: cuộn tới (giờ hiện tại − 1) khi `scrollKey` đổi và `true` (chỉ hôm nay). */
+  scrollToNow?: boolean;
   scrollKey?: string;
 };
 
@@ -98,6 +102,7 @@ export function CourtGrid({
   hourLabel = (h) => `${h}h`,
   nowAt = null,
   scrollToHour = null,
+  scrollToNow = false,
   scrollKey,
 }: Props) {
   const roomy = size === "roomy";
@@ -109,7 +114,8 @@ export function CourtGrid({
   useEffect(() => {
     const sc = scrollRef.current;
     if (!sc) return;
-    const el = scrollToHour == null ? null : sc.querySelector<HTMLElement>(`[data-col="${Math.max(first, scrollToHour)}"]`);
+    const target = scrollToNow ? Math.floor(vnMinutes(new Date().toISOString()) / 60) - 1 : scrollToHour;
+    const el = target == null ? null : sc.querySelector<HTMLElement>(`[data-col="${Math.max(first, target)}"]`);
     const lab = sc.querySelector<HTMLElement>("[data-label]");
     sc.scrollLeft = el ? el.offsetLeft - (lab?.offsetWidth ?? 0) : 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ cuộn khi đổi ngày, không giật mỗi lần tải lại lịch
@@ -137,7 +143,7 @@ export function CourtGrid({
   const colW = "w-(--col)";
   const cellBase = `m-0.5 flex ${rowH} shrink-0 flex-col items-center justify-center rounded-md border text-[11px] leading-tight`;
   const vars = roomy ? "[--c0:8.5rem] [--col:5rem] sm:[--c0:10rem] sm:[--col:6rem]" : "[--c0:5.5rem] [--col:3.25rem] sm:[--c0:6.5rem] sm:[--col:3.5rem]";
-  const headH = roomy ? "h-9" : "h-6";
+  const headH = roomy ? "h-9" : "h-8";
 
   return (
     <div
@@ -148,19 +154,19 @@ export function CourtGrid({
           onClear();
         }
       }}
-      className={`relative overflow-x-auto ${roomy ? "rounded-lg border border-border bg-surface" : ""} ${busy ? "opacity-60" : ""}`}
+      className={`relative ${roomy ? "overflow-x-auto rounded-lg border border-border bg-surface" : "max-h-[70dvh] overflow-auto rounded-xl border border-border bg-surface"} ${busy ? "opacity-60" : ""}`}
       aria-busy={busy}
     >
       <div ref={gridRef} role="group" aria-label={label} className={`relative min-w-max ${vars}`}>
-        <div className={`flex ${headH} text-xs text-muted ${roomy ? "border-b border-border" : ""}`}>
-          <div data-label className={`sticky left-0 z-20 flex w-(--c0) shrink-0 items-center bg-surface ${roomy ? "border-r border-border px-3 font-medium" : "pr-2"}`}>
+        <div className={`flex ${headH} text-xs text-muted ${roomy ? "border-b border-border" : "sticky top-0 z-30 border-b border-border bg-surface"}`}>
+          <div data-label className={`sticky left-0 z-40 flex w-(--c0) shrink-0 items-center bg-surface ${roomy ? "border-r border-border px-3 font-medium" : "pl-2 font-semibold"}`}>
             Sân
           </div>
           {columns.map((h) => (
             <div
               key={h}
               data-col={h}
-              className={`flex ${colW} shrink-0 items-center justify-center ${roomy ? "border-r border-border" : "pb-1"} ${nowAt != null && Math.floor(nowAt) === h ? "font-bold text-primary" : ""}`}
+              className={`flex ${colW} shrink-0 items-center justify-center ${roomy ? "border-r border-border" : "font-medium"} ${nowAt != null && Math.floor(nowAt) === h ? "font-bold text-primary" : ""}`}
             >
               {hourLabel(h)}
             </div>
@@ -199,7 +205,7 @@ export function CourtGrid({
               } ${roomy ? "items-start px-2 text-left text-xs" : "font-medium"} min-w-0 overflow-hidden`;
               const aria = `${row.name}, ${pad2(h)}:00 đến ${pad2(h + span)}:00, ${cell.aria}`;
               const body = cell.lines.map((l, k) => (
-                <span key={k} className={k === 0 && roomy ? "line-clamp-2 max-w-full leading-tight font-bold break-words" : "max-w-full truncate"}>
+                <span key={k} className={roomy ? (k === 0 ? "line-clamp-2 max-w-full leading-tight font-bold break-words" : "max-w-full truncate") : "line-clamp-2 max-w-full text-center leading-tight break-words"}>
                   {l}
                 </span>
               ));
@@ -244,10 +250,10 @@ export function CourtGrid({
                 aria-label={`${slot}, trống${cell.price != null ? `, ${formatVnd(cell.price)}` : ""}`}
                 title={cell.price != null ? formatVnd(cell.price) : undefined}
                 className={`${cellBase} touch-manipulation select-none w-[calc(var(--col)-0.25rem)] font-medium ${
-                  on ? "border-primary bg-primary text-white" : `border-border bg-surface ${lock ? "" : "hover:bg-primary-softer"}`
+                  on ? (roomy ? "border-primary bg-primary text-white" : "border-2 border-sel-edge bg-sel font-bold text-sel-edge") : `border-border bg-surface ${lock ? "" : "hover:bg-primary-softer"}`
                 } ${lock ? "cursor-default" : ""} ${focusRing}`}
               >
-                {on ? (roomy ? <span aria-hidden>✓</span> : `${h}h–${h + 1}h`) : null}
+                {on ? <span aria-hidden>✓</span> : null}
                 {roomy && cell.price != null ? <span className={`text-[10px] tabular-nums ${on ? "" : "text-muted"}`}>{Math.round(cell.price / 1000)}k</span> : null}
               </button>,
             );
@@ -255,7 +261,7 @@ export function CourtGrid({
           }
           return (
             <div key={row.code} className={`flex border-t border-border/60 ${row.muted ? "opacity-70" : ""}`}>
-              <div className={`sticky left-0 z-10 flex w-(--c0) shrink-0 ${roomy ? "flex-col justify-center border-r border-border px-3 text-sm" : "items-center pr-2 text-sm"} bg-surface font-medium`}>
+              <div className={`sticky left-0 z-20 flex w-(--c0) shrink-0 ${roomy ? "flex-col justify-center border-r border-border px-3 text-sm" : "items-center overflow-hidden pr-2 pl-2 text-sm shadow-[3px_0_5px_-3px_rgb(20_40_30/0.18)]"} bg-surface font-medium`}>
                 <span className="truncate">{row.name}</span>
                 {roomy && row.sub ? <span className="truncate text-xs font-normal text-muted">{row.sub}</span> : null}
               </div>

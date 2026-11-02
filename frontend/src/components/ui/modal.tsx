@@ -12,10 +12,14 @@ type Props = {
   children: React.ReactNode;
   footer?: React.ReactNode;
   size?: "narrow" | "wide";
+  /** Ghi đè kiểu của chân hộp thoại (ví dụ thanh dưới màu xanh ở popup sự kiện, T-028). */
+  footerClassName?: string;
+  /** Điện thoại: trượt từ đáy, bo góc trên 20 px (khu hội viên). Từ sm: hộp giữa màn như thường. */
+  sheet?: boolean;
 };
 
 /** Hộp thoại dùng <dialog> gốc: tự khóa nền, bẫy phím Tab, đóng bằng Esc. */
-export function Modal({ open, onClose, title, children, footer, size = "narrow" }: Props) {
+export function Modal({ open, onClose, title, children, footer, size = "narrow", footerClassName, sheet = false }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -35,13 +39,20 @@ export function Modal({ open, onClose, title, children, footer, size = "narrow" 
         if (e.target === ref.current) ref.current?.close(); // bấm vùng tối bên ngoài
       }}
       className={cn(
-        `
-          m-auto max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border
-          border-border bg-surface p-0 text-foreground shadow-xl
-        `,
+        sheet
+          ? `
+            m-0 mt-auto max-h-[calc(100dvh-2rem)] w-full overflow-hidden rounded-t-[20px] border-0
+            bg-surface p-0 text-foreground shadow-xl
+            sm:m-auto sm:w-[calc(100vw-1.5rem)] sm:rounded-xl sm:border sm:border-border
+          `
+          : `
+            m-auto max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl
+            border border-border bg-surface p-0 text-foreground shadow-xl
+          `,
         // Mỗi lần showModal phần tử đổi từ display:none ⇒ animation chạy lại
         "animate-scale-in backdrop:animate-fade-in backdrop:bg-black/45",
         size === "wide" ? "max-w-2xl" : "max-w-md",
+        sheet && "max-w-none sm:max-w-md",
       )}
     >
       {open ? (
@@ -67,7 +78,7 @@ export function Modal({ open, onClose, title, children, footer, size = "narrow" 
             <div className={cn(`
               flex shrink-0 flex-wrap justify-end gap-2 border-t border-border bg-surface px-5 pt-3
               pb-[max(0.75rem,env(safe-area-inset-bottom))]
-            `)}>
+            `, footerClassName)}>
               {footer}
             </div>
           ) : null}

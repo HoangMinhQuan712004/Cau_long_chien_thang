@@ -101,21 +101,7 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
   }
 
   return (
-    <Card wide>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted">Bước 3/3</p>
-          <h1 className="text-2xl font-bold">{ticket ? "Thanh toán vé sự kiện" : "Thanh toán chuyển khoản"}</h1>
-        </div>
-        {view === "expired" ? (
-          <span className="rounded-full border border-danger/40 bg-danger/10 px-3 py-1.5 text-sm font-semibold text-danger">Hết thời gian giữ chỗ</span>
-        ) : (
-          <span className="rounded-full border border-blk-unpaid-fg/30 bg-blk-unpaid px-3 py-1.5 text-sm text-blk-unpaid-fg" role="timer" aria-live="off">
-            Giữ chỗ còn <b className="tabular-nums">{left == null ? "--:--" : mmss(left)}</b>
-          </span>
-        )}
-      </div>
-
+    <Card wide banner={<PayBanner title={ticket ? "Thanh toán vé sự kiện" : "Thanh toán chuyển khoản"} left={left} expired={view === "expired"} />}>
       {checkout.bank ? (
         <div className="mt-5">
           <BankBox bank={checkout.bank} amount={checkout.amount} payRef={checkout.pay_ref} dim={view === "expired"} />
@@ -133,7 +119,7 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
             Đã hết thời gian giữ chỗ nhưng chưa nhận được tiền. {ticket ? "Chỗ đã được nhả lại cho người khác." : "Khung giờ đã được mở lại cho người khác đặt."}
           </p>
           <p className="text-sm text-muted">Nếu bạn đã chuyển khoản, vui lòng gọi hotline {hotline} kèm mã booking để được hỗ trợ.</p>
-          <button type="button" onClick={rebook} className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white">
+          <button type="button" onClick={rebook} className="h-12 rounded-lg px-6 text-sm bg-cta font-bold tracking-wide text-cta-fg uppercase hover:bg-cta-hover">
             {ticket ? "Về lịch đặt sân" : "Đặt lại"}
           </button>
         </div>
@@ -175,13 +161,9 @@ function PaidView({ checkout, member, bookPath }: { checkout: Checkout; member: 
   const names = [...new Set(checkout.items.map((i) => i.resource_name))].join(", ");
   const date = checkout.items[0]?.play_date;
   return (
-    <Card>
+    <Card banner={<PaidBanner title="Đặt sân thành công" />}>
       <div className="flex flex-col items-center text-center">
-        <span aria-hidden className="grid size-16 place-items-center rounded-full bg-primary-softer text-3xl text-primary">
-          ✓
-        </span>
-        <h1 className="mt-4 text-2xl font-bold">Đặt sân thành công</h1>
-        <p className="mt-4 flex flex-wrap items-center justify-center gap-2">
+        <p className="flex flex-wrap items-center justify-center gap-2">
           <span className="text-sm text-muted">Mã booking</span>
           <b className="text-lg text-primary">{checkout.order_code}</b>
           <CopyButton text={checkout.order_code} label={`mã booking ${checkout.order_code}`} />
@@ -205,9 +187,15 @@ function PaidView({ checkout, member, bookPath }: { checkout: Checkout; member: 
         <Link href={member ? "/hoi-vien/lich-su-thanh-toan" : "/tra-cuu"} className="rounded-lg border border-border px-4 py-3 text-center text-sm font-semibold hover:bg-primary-softer">
           {member ? "Lịch sử thanh toán" : "Tra cứu booking"}
         </Link>
-        <Link href={bookPath} className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white">
-          Đặt thêm sân
-        </Link>
+        {member ? (
+          <Link href="/hoi-vien" className="rounded-lg border border-border px-4 py-3 text-center text-sm font-semibold hover:bg-primary-softer">
+            Về tổng quan
+          </Link>
+        ) : (
+          <Link href={bookPath} className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white">
+            Đặt thêm sân
+          </Link>
+        )}
       </div>
     </Card>
   );
@@ -216,13 +204,9 @@ function PaidView({ checkout, member, bookPath }: { checkout: Checkout; member: 
 function PaidTicketView({ checkout, ticket, member, bookPath }: { checkout: Checkout; ticket: TicketInfo; member: boolean; bookPath: string }) {
   const codes = ticket.ticket_codes ?? [];
   return (
-    <Card>
+    <Card banner={<PaidBanner title="Mua vé thành công" />}>
       <div className="flex flex-col items-center text-center">
-        <span aria-hidden className="grid size-16 place-items-center rounded-full bg-primary-softer text-3xl text-primary">
-          ✓
-        </span>
-        <h1 className="mt-4 text-2xl font-bold">Mua vé thành công</h1>
-        <p className="mt-4 flex flex-wrap items-center justify-center gap-2">
+        <p className="flex flex-wrap items-center justify-center gap-2">
           <span className="text-sm text-muted">Mã đơn</span>
           <b className="text-lg text-primary">{checkout.order_code}</b>
           <CopyButton text={checkout.order_code} label={`mã đơn ${checkout.order_code}`} />
@@ -244,9 +228,15 @@ function PaidTicketView({ checkout, ticket, member, bookPath }: { checkout: Chec
         <Link href={member ? "/hoi-vien/lich-su-thanh-toan" : "/tra-cuu"} className="rounded-lg border border-border px-4 py-3 text-center text-sm font-semibold hover:bg-primary-softer">
           {member ? "Lịch sử thanh toán" : "Tra cứu vé"}
         </Link>
-        <Link href={`${bookPath}?ngay=${ticket.play_date}`} className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white">
-          Về lịch đặt sân
-        </Link>
+        {member ? (
+          <Link href="/hoi-vien" className="rounded-lg px-4 py-3 text-center text-sm bg-cta font-bold tracking-wide text-cta-fg uppercase hover:bg-cta-hover">
+            Về tổng quan
+          </Link>
+        ) : (
+          <Link href={`${bookPath}?ngay=${ticket.play_date}`} className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white">
+            Về lịch đặt sân
+          </Link>
+        )}
       </div>
     </Card>
   );
@@ -261,6 +251,44 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Card({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
-  return <div className={`mx-auto w-full rounded-2xl border border-border bg-surface p-5 sm:p-6 ${wide ? "max-w-3xl" : "max-w-xl"}`}>{children}</div>;
+/** Thẻ trắng bo 16 px; `banner` = dải xanh trên cùng (đồng hồ đếm ngược / dấu ✓ thành công). */
+function Card({ children, wide = false, banner }: { children: React.ReactNode; wide?: boolean; banner?: React.ReactNode }) {
+  return (
+    <div className={`mx-auto w-full overflow-hidden rounded-2xl bg-surface shadow-card ${wide ? "max-w-3xl" : "max-w-xl"}`}>
+      {banner}
+      <div className="p-5 sm:p-6">{children}</div>
+    </div>
+  );
+}
+
+/** Dải xanh đầu trang thanh toán: đồng hồ đếm ngược nổi bật (hoặc "Hết thời gian giữ chỗ"). */
+function PayBanner({ title, left, expired }: { title: string; left: number | null; expired: boolean }) {
+  return (
+    <div className="bg-appbar px-5 py-6 text-center text-surface">
+      <h1 className="text-sm font-semibold text-surface/85">{title}</h1>
+      {expired ? (
+        <p role="alert" className="mt-1 text-2xl font-bold text-accent-soft">
+          Hết thời gian giữ chỗ
+        </p>
+      ) : (
+        <>
+          <p role="timer" aria-live="off" className="mt-1 text-5xl font-bold tracking-tight text-accent-soft tabular-nums">
+            {left == null ? "--:--" : mmss(left)}
+          </p>
+          <p className="mt-1 text-xs text-surface/80">Thời gian giữ chỗ còn lại để chuyển khoản</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PaidBanner({ title }: { title: string }) {
+  return (
+    <div className="bg-appbar px-5 py-7 text-center text-surface">
+      <span aria-hidden className="mx-auto grid size-14 place-items-center rounded-full bg-accent-soft text-3xl font-bold text-primary-hover">
+        ✓
+      </span>
+      <h1 className="mt-3 text-2xl font-bold">{title}</h1>
+    </div>
+  );
 }

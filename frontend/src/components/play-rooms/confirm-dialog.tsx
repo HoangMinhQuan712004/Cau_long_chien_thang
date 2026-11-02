@@ -39,6 +39,7 @@ export function ConfirmDialog({
 
   return (
     <Modal
+      sheet
       open
       onClose={onClose}
       title={title}

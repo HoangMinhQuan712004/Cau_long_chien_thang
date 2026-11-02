@@ -155,7 +155,7 @@ export function PlayHistoryScreen() {
               <div className="py-10 text-center">
                 <p className="font-semibold">Tháng này bạn chưa có trận nào</p>
                 <p className="mt-1 text-sm text-muted">Các trận đã lưu kết quả trong Phòng chơi sẽ hiện ở đây.</p>
-                <Link href="/hoi-vien/dat-san" className="mt-4 inline-flex h-11 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-surface focus-ring sm:h-9.5">
+                <Link href="/hoi-vien/dat-san" className="mt-4 inline-flex h-11 items-center rounded-lg bg-cta px-6 text-sm font-bold tracking-wide text-cta-fg uppercase hover:bg-cta-hover focus-ring">
                   Đặt sân
                 </Link>
               </div>

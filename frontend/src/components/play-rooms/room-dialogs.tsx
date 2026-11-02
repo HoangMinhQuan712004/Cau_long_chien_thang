@@ -37,6 +37,7 @@ export function InviteDialog({ onClose, onSend }: { onClose: () => void; onSend:
 
   return (
     <Modal
+      sheet
       open
       onClose={onClose}
       title="Mời người chơi"
@@ -112,6 +113,7 @@ export function ResultDialog({
   return (
     <>
       <Modal
+        sheet
         open
         onClose={onClose}
         title={`Nhập kết quả trận #${match.no}`}
