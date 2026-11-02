@@ -107,9 +107,9 @@ async def test_month_boundary_vn_time_future_and_errors(anon, customer, staff, a
         )
         await s.commit()
 
-    feb, mar, apr = (
+    feb, mar, apr = [
         (await history(host.client, m)).json() for m in ("2025-02", "2025-03", "2025-04")
-    )
+    ]
     assert feb["items"] == []
     assert [i["room_id"] for i in mar["items"]] == [early.id]
     assert mar["items"][0]["date"] == "2025-03-01"
