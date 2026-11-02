@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { CourtGrid, type GridCell, type GridRow } from "@/components/court-grid/court-grid";
 import { MyBookingModal } from "@/components/member-area/cell-dialogs";
 import { getMemberCalendar } from "@/components/member-area/cell-requests";
 import { Modal } from "@/components/ui/modal";
@@ -212,6 +213,54 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
   const total = groups.reduce((s, g) => s + g.amount, 0);
   const totalHours = cells.length;
   const selected = useMemo(() => new Set(cells.map(cellKey)), [cells]);
+  // Lưới dùng chung (T-025): dữ liệu lịch khách / hội viên → hàng + ô. Hội viên: ô của mình mở thông tin + hóa đơn, ô người khác chỉ báo đã có người đặt (T-023 AC1–AC3).
+  const gridRows = useMemo<GridRow[]>(
+    () =>
+      (calendar?.resources ?? []).map((r) => {
+        const byHour = new Map(r.slots.map((s) => [s.start_hour, s as (typeof r.slots)[number] & SlotExtra]));
+        const out: Record<number, GridCell> = {};
+        for (const h of calendar?.columns ?? []) {
+          const s = byHour.get(h);
+          const key = `${r.code}|${h}`;
+          if (!s || s.state === "closed") out[h] = { kind: "off" };
+          else if (s.state === "booked") {
+            const orderCode = s.order_code;
+            out[h] =
+              member && s.mine && orderCode
+                ? {
+                    kind: "block",
+                    key,
+                    tone: "mine",
+                    lines: ["Sân của bạn"],
+                    aria: "sân của bạn, xem chi tiết",
+                    onClick: (el) => {
+                      openerRef.current = el;
+                      setCellDialog({ kind: "mine", code: orderCode });
+                    },
+                  }
+                : { kind: "block", key, tone: "paid", lines: ["Đã đặt"], aria: "đã có người đặt", onClick: () => toast("Khung giờ này đã có người đặt", undefined, "info") };
+          } else if (s.state === "event") {
+            const eventCode = s.event_code;
+            out[h] = {
+              kind: "block",
+              key,
+              tone: "session",
+              lines: [s.has_ticket ? "Có vé" : "Sự kiện", <b key="n" className="text-xs">{s.taken}/{s.capacity}</b>],
+              aria: `sự kiện ${s.taken ?? 0} trên ${s.capacity ?? 0} người${s.has_ticket ? ", bạn đã có vé" : ""}${eventCode ? ", xem chi tiết" : ""}`,
+              ring: Boolean(s.has_ticket),
+              onClick: eventCode
+                ? (el) => {
+                    openerRef.current = el;
+                    setCellDialog({ kind: "event", code: eventCode });
+                  }
+                : undefined,
+            };
+          } else out[h] = { kind: "free", price: s.price ?? null };
+        }
+        return { code: r.code, name: r.name, cells: out };
+      }),
+    [calendar, member],
+  );
   const onlineOff = calendar ? !calendar.online_enabled : false;
   const holdMinutes = calendar?.hold_minutes ?? 5;
 
@@ -579,115 +628,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
         ) : calendar.resources.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted">Chưa có sân nào mở cho ngày này.</p>
         ) : (
-          <div className={`relative overflow-x-auto ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
-            <div className="min-w-max [--c0:5.5rem] [--col:3.25rem] sm:[--c0:6.5rem] sm:[--col:3.5rem]">
-              <div className="flex text-xs text-muted">
-                <div className="sticky left-0 z-10 flex w-(--c0) shrink-0 items-center bg-surface pr-2">Sân</div>
-                {hours.map((h) => (
-                  <div key={h} className="w-(--col) shrink-0 pb-1 text-center">
-                    {h}h
-                  </div>
-                ))}
-              </div>
-              {calendar.resources.map((r) => {
-                const byHour = new Map(r.slots.map((s) => [s.start_hour, s]));
-                return (
-                  <div key={r.code} className="flex border-t border-border/60">
-                    <div className="sticky left-0 z-10 flex w-(--c0) shrink-0 items-center bg-surface pr-2 text-sm font-medium">{r.name}</div>
-                    {hours.map((h) => {
-                      const s = byHour.get(h) as (typeof r.slots[number] & SlotExtra) | undefined;
-                      const base = "m-0.5 flex h-11 w-[calc(var(--col)-0.25rem)] shrink-0 flex-col items-center justify-center rounded-md text-[11px] leading-tight";
-                      const label = `${r.name}, ${pad2(h)}:00 đến ${pad2(h + 1)}:00`;
-                      const ring = "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary";
-                      if (!s || s.state === "closed") {
-                        return <div key={h} role="img" aria-label={`${label}, không bán`} className={`${base} bg-cell-off`} />;
-                      }
-                      if (s.state === "booked") {
-                        // Hội viên: ô của mình mở thông tin + hóa đơn; ô người khác chỉ báo đã có người đặt (T-023 AC1–AC3)
-                        if (member && s.mine && s.order_code) {
-                          const orderCode = s.order_code;
-                          return (
-                            <button
-                              key={h}
-                              type="button"
-                              aria-label={`${label}, sân của bạn, xem chi tiết`}
-                              onClick={(e) => {
-                                openerRef.current = e.currentTarget;
-                                setCellDialog({ kind: "mine", code: orderCode });
-                              }}
-                              className={`${base} bg-blk-mine font-medium text-blk-mine-fg ${ring}`}
-                            >
-                              Sân của bạn
-                            </button>
-                          );
-                        }
-                        // Ô của người khác (cả khách chưa đăng nhập): chỉ báo, không gọi API, không lộ thông tin (AC3)
-                        return (
-                          <button
-                            key={h}
-                            type="button"
-                            aria-label={`${label}, đã có người đặt`}
-                            onClick={() => toast("Khung giờ này đã có người đặt", undefined, "info")}
-                            className={`${base} bg-blk-paid font-medium text-blk-paid-fg ${ring}`}
-                          >
-                            Đã đặt
-                          </button>
-                        );
-                      }
-                      if (s.state === "event") {
-                        const info = `sự kiện ${s.taken ?? 0} trên ${s.capacity ?? 0} người${s.has_ticket ? ", bạn đã có vé" : ""}`;
-                        const inner = (
-                          <>
-                            <span>{s.has_ticket ? "Có vé" : "Sự kiện"}</span>
-                            <b className="text-xs">
-                              {s.taken}/{s.capacity}
-                            </b>
-                          </>
-                        );
-                        if (s.event_code) {
-                          const eventCode = s.event_code;
-                          return (
-                            <button
-                              key={h}
-                              type="button"
-                              aria-label={`${label}, ${info}, xem chi tiết`}
-                              onClick={(e) => {
-                                openerRef.current = e.currentTarget;
-                                setCellDialog({ kind: "event", code: eventCode });
-                              }}
-                              className={`${base} bg-blk-session text-blk-session-fg ${s.has_ticket ? "ring-2 ring-blk-session-fg ring-inset" : ""} ${ring}`}
-                            >
-                              {inner}
-                            </button>
-                          );
-                        }
-                        return (
-                          <div key={h} role="img" aria-label={`${label}, ${info}`} className={`${base} bg-blk-session text-blk-session-fg`}>
-                            {inner}
-                          </div>
-                        );
-                      }
-                      const on = selected.has(`${r.code}|${h}`);
-                      return (
-                        <button
-                          key={h}
-                          type="button"
-                          onClick={() => toggle(r.code, h)}
-                          disabled={loading}
-                          aria-pressed={on}
-                          aria-label={`${label}, trống${s.price != null ? `, ${formatVnd(s.price)}` : ""}`}
-                          title={s.price != null ? formatVnd(s.price) : undefined}
-                          className={`${base} border font-medium ${on ? "border-primary bg-primary text-white" : "border-border bg-surface hover:bg-primary-softer"} focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary`}
-                        >
-                          {on ? `${h}h–${h + 1}h` : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <CourtGrid label="Lịch sân" columns={hours} rows={gridRows} selected={selected} selectable busy={loading} onToggle={toggle} onClear={() => applyCells([])} />
         )}
       </section>
 
