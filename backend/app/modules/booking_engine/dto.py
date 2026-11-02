@@ -11,6 +11,14 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.core.schemas import StrictIn
+from app.modules.booking_engine.report_dto import (  # noqa: F401 – mặt tiền DTO báo cáo
+    CourtRevenue,
+    DailyRevenue,
+    OccupancyCell,
+    OccupancyGrid,
+    ReportFigures,
+    RevenueTotals,
+)
 
 # "HH:MM", bội 30 phút; "24:00" = nửa đêm cuối ngày (chỉ có nghĩa với giờ đóng cửa)
 HHMM = Annotated[str, StringConstraints(pattern=r"^(([01]\d|2[0-3]):(00|30)|24:00)$")]

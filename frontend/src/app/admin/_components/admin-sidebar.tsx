@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarPlusIcon,
+  ChartIcon,
   CloseIcon,
   PanelLeftIcon,
   CreditCardIcon,
@@ -19,8 +20,10 @@ import { cn } from "@/lib/cn";
 
 type AdminRole = "admin" | "staff";
 
-// Thứ tự theo Figma; Tiền về / Cài đặt thanh toán / Nhân viên (chưa có trong Figma) xếp sau. Quyền thật do backend kiểm.
+// Thứ tự theo Figma (Báo cáo đầu tiên – màn đầu của Admin); Tiền về / Cài đặt thanh toán / Nhân viên (chưa có trong Figma) xếp sau.
+// Quyền thật do backend kiểm.
 const NAV = [
+  { href: "/admin/bao-cao", key: "baoCao", Icon: ChartIcon, roles: ["admin"] },
   { href: "/admin/dat-san", key: "datSan", Icon: CalendarPlusIcon, roles: ["admin", "staff"] },
   { href: "/admin/lich-su-giao-dich", key: "lichSu", Icon: ReceiptIcon, roles: ["admin"] },
   { href: "/admin/hoi-vien", key: "hoiVien", Icon: UsersIcon, roles: ["admin", "staff"] },

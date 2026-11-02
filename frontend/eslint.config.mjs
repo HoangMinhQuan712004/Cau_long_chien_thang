@@ -8,6 +8,7 @@ const TAILWIND_CHECKED = [
   "src/components/ui/**/*.tsx",
   "src/app/(auth)/**/*.tsx",
   "src/app/admin/_components/**/*.tsx",
+  "src/app/admin/bao-cao/**/*.tsx",
   "src/app/admin/hoi-vien/**/*.tsx",
   "src/app/admin/lich-su-thao-tac/**/*.tsx",
 ];

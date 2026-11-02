@@ -27,6 +27,7 @@ from app.modules.members import racket_router
 from app.modules.members import router as members
 from app.modules.payments import router as payments
 from app.modules.play_rooms import router as play_rooms
+from app.modules.reports import router as reports
 from app.modules.web_booking import router as web_booking
 
 setup_logging()
@@ -72,6 +73,7 @@ for r in (
     web_booking.router,
     payments.router,
     audit_log.router,
+    reports.router,
 ):
     app.include_router(r, prefix=settings.API_PREFIX)
 

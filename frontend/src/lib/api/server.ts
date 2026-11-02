@@ -25,6 +25,9 @@ export type AuditLogPage = components["schemas"]["AuditLogPageOut"];
 export type AuditEntry = components["schemas"]["AuditEntryOut"];
 export type AuditCatalog = components["schemas"]["AuditCatalogOut"];
 export type AuditActorKind = AuditEntry["actor"];
+export type ReportOverview = components["schemas"]["ReportOverviewOut"];
+export type HeatColumn = components["schemas"]["HeatColumnOut"];
+export type HeatCell = components["schemas"]["HeatCellOut"];
 export type MemberTier = NonNullable<components["schemas"]["MemberRow"]["tier"]>;
 /** Giá trị `tier` khi lọc danh sách (8 hạng + "chưa xếp hạng"). */
 export type MemberTierFilter = NonNullable<NonNullable<paths["/api/v1/members"]["get"]["parameters"]["query"]>["tier"]>;

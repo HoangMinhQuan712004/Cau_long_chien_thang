@@ -22,6 +22,7 @@ from app.modules.booking_engine import (
     orders,
     outbox,
     payment_service,
+    report_figures,
     rooms_feed,
     session_service,
     transactions,
@@ -51,6 +52,7 @@ from app.modules.booking_engine.dto import (
     PublicPrices,
     QuoteIn,
     QuoteOut,
+    ReportFigures,
     ResourceCreate,
     ResourceList,
     ResourceOut,
@@ -357,6 +359,25 @@ async def list_transactions(
     session: AsyncSession, query: TransactionsQuery, *, tenant_id: int | None = None
 ) -> TransactionsOut:
     return await transactions.list_transactions(session, _tid(tenant_id), query)
+
+
+# ---- Báo cáo & phân tích (chỉ đọc)
+
+
+async def report(
+    session: AsyncSession,
+    period: tuple[dt.date, dt.date],
+    previous: tuple[dt.date, dt.date],
+    previous_until: dt.datetime | None = None,
+    *,
+    tenant_id: int | None = None,
+) -> ReportFigures:
+    """Doanh thu, lượt đặt, theo ngày / sân, công suất của kỳ; kỳ trước chỉ tính tổng.
+
+    ``previous_until``: so cùng mốc – kỳ trước chỉ tính booking / sự kiện bắt đầu trước mốc này.
+    Không commit; người gọi đặt REPEATABLE READ để các số khớp nhau (NFR-002).
+    """
+    return await report_figures.figures(session, _tid(tenant_id), period, previous, previous_until)
 
 
 # ---- Đặt online (T-008, ADR-007)

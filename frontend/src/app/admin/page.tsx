@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
+import { getAdminSession } from "@/lib/api/server";
 
-// Màn Đặt sân (booking engine) là trang vào mặc định của khu quản trị; tài khoản quầy vào thẳng đây.
-export default function AdminIndexPage() {
-  redirect("/admin/dat-san");
+// Trang vào khu quản trị (cả sau đăng nhập): Admin ⇒ Báo cáo & phân tích (BR-002); tài khoản quầy ⇒ Đặt sân.
+// Phiên lỗi đã được layout chuyển về đăng nhập.
+export default async function AdminIndexPage() {
+  const session = await getAdminSession().catch(() => null);
+  redirect(session?.ok && session.session.account.kind === "admin" ? "/admin/bao-cao" : "/admin/dat-san");
 }
