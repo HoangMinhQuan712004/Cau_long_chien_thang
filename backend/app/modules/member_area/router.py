@@ -18,6 +18,7 @@ from app.core.ratelimit import rate_limit
 from app.modules.auth import api as auth
 from app.modules.member_area.schemas import AvatarOut, MemberMeIn, MemberMeOut
 from app.modules.members import api as members
+from app.modules.records import api as records
 
 router = APIRouter(prefix="/member-area", tags=["member-area"])
 
@@ -39,7 +40,7 @@ def short_name(full_name: str) -> str:
     return words[-1] if words else full_name
 
 
-def to_out(p: members.SelfProfile) -> MemberMeOut:
+def to_out(p: members.SelfProfile, record_kmh: int | None = None) -> MemberMeOut:
     return MemberMeOut(
         member_code=p.member_code,
         full_name=p.full_name,
@@ -52,6 +53,7 @@ def to_out(p: members.SelfProfile) -> MemberMeOut:
         racket=p.racket,
         show_on_records=p.show_on_records,
         avatar_url=avatar_url(p.customer_id, p.avatar_etag),
+        record_kmh=record_kmh,
         version=p.version,
     )
 
@@ -72,7 +74,8 @@ def _actor(member: auth.LinkedMember, member_code: str) -> AuditActor:
 @router.get("/me", response_model=MemberMeOut, dependencies=[Depends(no_store)])
 async def get_me(member: auth.CurrentMember, session: SessionDep):
     """Hồ sơ của tôi (mỗi lần mở đọc bản mới nhất). 401 E-AUTH-1 · 403 E-HV-8 (chưa là hội viên)."""
-    return to_out(await _profile(session, member))
+    profile = await _profile(session, member)
+    return to_out(profile, await records.record_kmh(session, profile.customer_id))
 
 
 @router.put(
@@ -101,7 +104,7 @@ async def update_me(data: MemberMeIn, member: auth.CurrentMember, session: Sessi
     if changed:
         await auth.set_full_name(session, member.user_id, profile.full_name)
         await session.commit()
-    return to_out(profile)
+    return to_out(profile, await records.record_kmh(session, profile.customer_id))
 
 
 @router.put(
