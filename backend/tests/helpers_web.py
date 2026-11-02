@@ -5,8 +5,9 @@ import hmac
 import json
 import time
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
+from app.core.config import settings
 from app.modules.members.api import normalize_phone
 from tests.conftest import API, SEPAY_SECRET, idem
 from tests.helpers_booking import random_phone, today
@@ -82,7 +83,7 @@ def sepay_payload(code: str | None, amount: int, **overrides) -> dict:
     return {
         "id": uuid.uuid4().int % 10**12,
         "gateway": "Vietcombank",
-        "transactionDate": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+        "transactionDate": datetime.now(settings.tz).strftime("%Y-%m-%d %H:%M:%S"),
         "accountNumber": "0123456789",
         "code": code,
         "content": f"{code or ''} thanh toan san",

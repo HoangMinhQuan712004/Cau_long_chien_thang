@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.auth.models import User
 from app.modules.members.models import Customer
-from tests.conftest import API, STAFF_NAME, idem
+from tests.conftest import API, STAFF_NAME, idem, vn_today
 from tests.helpers_booking import new_court, random_phone
 from tests.helpers_web import checkout, sepay_payload, webhook
 
@@ -80,7 +80,7 @@ async def test_default_range_is_last_7_days(admin):
     "params",
     [
         {"from": "2026-10-10", "to": "2026-10-01"},  # đến trước từ
-        {"to": (dt.date.today() + dt.timedelta(days=2)).isoformat()},  # sau hôm nay
+        {"to": (vn_today() + dt.timedelta(days=2)).isoformat()},  # sau hôm nay
         {"from": "2020-01-01"},  # ngoài 12 tháng
     ],
 )

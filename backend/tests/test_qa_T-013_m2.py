@@ -10,7 +10,7 @@ import hmac
 import re
 import time
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import jwt
 import pytest
@@ -31,7 +31,9 @@ from tests.conftest import (
     idem,
     sign_in,
     unique_phone,
+    vn_today,
 )
+from tests.helpers_booking import safe_hour
 from tests.qa_accounts import db_account
 
 WEB = f"{API}/web/booking"
@@ -816,7 +818,7 @@ async def make_court(admin: AsyncClient) -> str:
 
 def body_for(code: str, phone: str, hour: int = 10, **extra) -> dict:
     return {
-        "date": (date.today() + timedelta(days=23)).isoformat(),
+        "date": (vn_today() + timedelta(days=23)).isoformat(),
         "slots": [{"resource_code": code, "start_hour": hour}],
         "full_name": "QA Phone Token",
         "phone": phone,
@@ -997,7 +999,7 @@ async def test_ac26_phone_token_is_checked_before_slots_are_held(anon, admin):
 
 async def test_ac27_online_is_off_without_an_otp_channel(anon, admin, monkeypatch):
     code = await make_court(admin)
-    day = (date.today() + timedelta(days=23)).isoformat()
+    day = (vn_today() + timedelta(days=23)).isoformat()
     assert (await anon.get(f"{WEB}/calendar", params={"date": day})).json()[
         "online_enabled"
     ] is True
@@ -1024,7 +1026,7 @@ async def test_ac27_zalo_configured_turns_online_back_on(anon, monkeypatch):
     monkeypatch.setattr(settings, "OTP_TEST_MODE", False)
     for name in ("ZALO_APP_ID", "ZALO_SECRET_KEY", "ZALO_REFRESH_TOKEN", "ZALO_TEMPLATE_OTP"):
         monkeypatch.setattr(settings, name, "qa-zalo")
-    day = (date.today() + timedelta(days=23)).isoformat()
+    day = (vn_today() + timedelta(days=23)).isoformat()
     assert (await anon.get(f"{WEB}/calendar", params={"date": day})).json()[
         "online_enabled"
     ] is True
@@ -1036,8 +1038,10 @@ async def test_ac27_zalo_configured_turns_online_back_on(anon, monkeypatch):
 
 async def test_ac28_counter_booking_needs_no_otp(admin, staff):
     code = await make_court(admin)
+    # Khung đang diễn ra luôn đặt được; min(giờ, 22) lúc 23h thành khung 22h đã qua -> E-004.
+    # Lấy ngày SAU safe_hour (23:59 nó chờ sang ngày mới)
+    hour = await safe_hour()
     today = datetime.now(settings.tz)
-    hour = min(today.hour, 22)
     r = await staff.post(
         f"{API}/front-desk/bookings",
         json={

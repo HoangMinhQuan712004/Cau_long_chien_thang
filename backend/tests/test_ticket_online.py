@@ -14,7 +14,7 @@ from app.modules.booking_engine.models import Checkout, Hold, Ticket
 from app.modules.members.models import Customer
 from tests import test_play_rooms as base
 from tests.conftest import API, idem, unique_phone
-from tests.helpers_booking import BK, book, member, new_court, now, random_phone, today
+from tests.helpers_booking import BK, book, member, new_court, random_phone, safe_hour, today
 from tests.helpers_web import WEB, checkout, phone_token, simulate, tomorrow, web_calendar
 from tests.test_online_payments import drain_outbox, shift_expiry
 
@@ -252,7 +252,7 @@ async def test_last_seat_concurrent_only_one_wins(anon, admin):
 
 
 async def test_counter_cannot_take_held_seat(anon, admin, staff):
-    hour = now().hour + 1
+    hour = await safe_hour() + 1
     if hour >= 23:
         pytest.skip("Cần sự kiện hôm nay chưa bắt đầu")
     ev = await new_event(admin, day=today(), hours=(hour, hour + 1), capacity=2)
@@ -319,7 +319,7 @@ async def test_free_and_deleted_events_not_sold(anon, admin):
 
 
 async def test_started_event_not_sold(anon, admin):
-    hour = now().hour
+    hour = await safe_hour()
     if hour >= 23:
         pytest.skip("Cần khung giờ đang diễn ra trong ngày")
     ev = await new_event(admin, day=today(), hours=(hour, hour + 1))
@@ -415,7 +415,7 @@ async def test_lookup_ticket_order_and_ticket_code(anon, admin, staff):
 async def test_member_calendar_marks_own_booking_and_order_detail(anon, staff, admin, people):
     host, other = await people("Hội Viên Có Sân"), await people()
     court = await new_court(admin)
-    hour = now().hour
+    hour = await safe_hour()  # now().hour hỏng ở phút :59 (sang giờ mới -> khung đã qua)
     if hour >= 23:
         pytest.skip("Cần khung giờ trong ngày")
     mine = await book(staff, court["code"], hour, hour + 1, member(host.code))

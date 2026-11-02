@@ -41,7 +41,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.members.api import normalize_phone
-from tests.conftest import API, ORIGIN, idem
+from tests.conftest import API, ORIGIN, idem, vn_today
 from tests.helpers_web import phone_token
 
 W = f"{API}/web/booking"
@@ -85,7 +85,7 @@ def sepay():
 
 
 def day(offset: int = FAR) -> date:
-    return date.today() + timedelta(days=offset)
+    return vn_today() + timedelta(days=offset)
 
 
 def phone() -> str:
@@ -268,9 +268,9 @@ async def test_ac1_calendar_is_public_and_shaped(anon, admin, sepay):
 
 
 async def test_ac1_past_date_rejected_and_far_future_allowed(anon, sepay):
-    r = await calendar(anon, date.today() - timedelta(days=1))
+    r = await calendar(anon, vn_today() - timedelta(days=1))
     err(r, 422, "E-WEB-2")
-    assert (await calendar(anon, date.today() + timedelta(days=900))).status_code == 200
+    assert (await calendar(anon, vn_today() + timedelta(days=900))).status_code == 200
     assert (await anon.get(f"{W}/calendar", params={"date": "not-a-date"})).status_code == 422
 
 
@@ -508,7 +508,7 @@ async def test_ac10_past_and_closed_slots_rejected(anon, admin, sepay):
     err(await checkout(anon, slots(c["code"], 5)), 422, "E-WEB-2")  # before opening
     err(await checkout(anon, slots(c["code"], 22)), 422, "E-WEB-2")  # at closing
     past_body = {
-        "date": (date.today() - timedelta(days=1)).isoformat(),
+        "date": (vn_today() - timedelta(days=1)).isoformat(),
         "slots": slots(c["code"], 10),
         "full_name": "QA Quá Khứ",
         "phone": phone(),
@@ -518,7 +518,7 @@ async def test_ac10_past_and_closed_slots_rejected(anon, admin, sepay):
     # today: only hours that start in the future may be booked
     h = datetime.now(settings.tz).hour
     started_body = {
-        "date": date.today().isoformat(),
+        "date": vn_today().isoformat(),
         "slots": slots(c["code"], h),
         "full_name": "QA Đang Chơi",
         "phone": phone(),
@@ -1045,7 +1045,7 @@ async def test_ac26_lookup_counter_booking_unpaid_and_uncollectible(anon, admin)
         f"{FD}/bookings",
         json={
             "resource_code": c["code"],
-            "date": date.today().isoformat(),
+            "date": vn_today().isoformat(),
             "start_hour": h,
             "end_hour": h + 1,
             "customer": {"temp": {"full_name": "QA Quầy Tra Cứu", "phone": ph}},

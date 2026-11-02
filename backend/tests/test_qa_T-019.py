@@ -12,7 +12,7 @@ from datetime import date
 
 import pytest
 
-from tests.conftest import API, idem
+from tests.conftest import API, idem, vn_today
 
 t6 = importlib.import_module("tests.test_qa_T-006")
 t8 = importlib.import_module("tests.test_qa_T-008")
@@ -26,7 +26,7 @@ CHILD = re.compile(r"BK-\d{8}-\d{3}-\d{2}")
 
 def counter_day() -> date:
     """Đặt quầy chỉ cho ngày hôm nay (E-AUTH-2 nếu ngày khác)."""
-    return date.today()
+    return vn_today()
 
 
 def h(n: int) -> int:
