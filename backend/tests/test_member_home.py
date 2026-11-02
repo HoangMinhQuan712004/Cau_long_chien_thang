@@ -226,8 +226,10 @@ async def test_payment_history(staff, admin, people):
     court = await new_court(admin)
     hour = await safe_hour()
     paid = await book(staff, court["code"], hour, hour + 1, member(host.code))
-    unpaid_hour = hour + 1 if hour < 23 else hour - 1
-    unpaid = await book(staff, court["code"], unpaid_hour, unpaid_hour + 1, member(host.code))
+    # Khoản chưa trả: sân khác, cùng khung đang diễn ra – khung kế/trước có thể không đặt được
+    # (sau 23h không còn khung sau, khung trước đã qua -> E-004)
+    unpaid_court = await new_court(admin)
+    unpaid = await book(staff, unpaid_court["code"], hour, hour + 1, member(host.code))
     assert paid.status_code == unpaid.status_code == 201
     await collect(staff, paid.json()["code"])
 

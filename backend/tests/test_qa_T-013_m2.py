@@ -32,6 +32,7 @@ from tests.conftest import (
     sign_in,
     unique_phone,
 )
+from tests.helpers_booking import safe_hour
 from tests.qa_accounts import db_account
 
 WEB = f"{API}/web/booking"
@@ -1036,8 +1037,10 @@ async def test_ac27_zalo_configured_turns_online_back_on(anon, monkeypatch):
 
 async def test_ac28_counter_booking_needs_no_otp(admin, staff):
     code = await make_court(admin)
+    # Khung đang diễn ra luôn đặt được; min(giờ, 22) lúc 23h thành khung 22h đã qua -> E-004.
+    # Lấy ngày SAU safe_hour (23:59 nó chờ sang ngày mới)
+    hour = await safe_hour()
     today = datetime.now(settings.tz)
-    hour = min(today.hour, 22)
     r = await staff.post(
         f"{API}/front-desk/bookings",
         json={
