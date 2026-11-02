@@ -221,7 +221,7 @@ export function EventDialog({
               </p>
               <p className="text-lg font-bold text-primary tabular-nums">{formatVnd(total)}</p>
             </div>
-            <Button onClick={() => void submit()} loading={busy} disabled={otp !== null} className="min-h-11 px-6">
+            <Button onClick={() => void submit()} loading={busy} disabled={otp !== null || Boolean(errors.name || errors.phone)} className="min-h-11 px-6">
               {busy ? "Đang xử lý…" : needsOtp ? "Gửi mã xác minh" : "Xác nhận"}
             </Button>
           </div>
