@@ -1,17 +1,17 @@
 # API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
-Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, và PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020); mục đánh dấu **(T-021)** đối chiếu với `be/T-021-dang-ky-hoi-vien` @ `6ab2ad3` (cục bộ, **chưa vào `dev`**; giao diện chưa bàn giao); spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
+Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
 Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa. OpenAPI sống: `/docs` của API (tắt ở link dev và production).
 
 > Phạm vi: cấu hình sân và bảng giá (T-005); lịch, đặt sân tại quầy, sự kiện và vé, thu tiền mặt, Không thu được, Lịch sử giao dịch (T-006);
-> **khách đặt online, thanh toán QR SePay, tra cứu booking, Tiền về cần xử lý (T-008), Admin tự cài tài khoản nhận tiền và khóa SePay (T-012) – mục 10**.
+> **khách đặt online, thanh toán QR SePay, tra cứu booking, tiền về không khớp chỉ ghi vào DB, không có màn xử lý (T-008, bỏ màn ngày 02/11), Admin tự cài tài khoản nhận tiền và khóa SePay (T-012) – mục 10**.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
-> **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, chưa vào `dev`) – mục 11.2 và 12.11.**
+> **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, đã vào `dev`) – mục 11.2 và 12.11.**
 > **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007), bán vé sự kiện online, báo cáo, các màn khu hội viên ngoài "Hồ sơ của tôi".
 > **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (đã vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
-> Mục 5.1, 10, 11 và 12.1–12.10 đã có trong `dev`. Phần đánh dấu **(T-021)** (đăng ký 2 bước, 410 cho `/auth/register`, `became_member`, `source`, mục 12.11) chưa vào `dev`. Chưa có gì trong `main`/production.
+> Mục 5.1, 10, 11 và 12 (kể cả phần đánh dấu **(T-021)** và mục 12.11) đã có trong `dev`. Chưa có gì trong `main`/production.
 
 ## 1. Quy tắc chung cho mọi request ghi
 
@@ -367,7 +367,7 @@ Migration quay lui được (`alembic downgrade`), không xóa dữ liệu bản
 2. Chọn ô, nhập họ tên + SĐT. **(T-013)** Khách bấm "Gửi mã" (`POST /web/booking/phone/request`), nhập OTP (`POST /web/booking/phone/verify` → `phone_token`); khách đã đăng nhập với SĐT đã xác minh thì bỏ qua bước này. Rồi `POST /web/booking/checkouts` → server giữ chỗ **5 phút**, cấp **một mã đơn** `BK-YYYYMMDD-NNN` (T-019; trước đó mỗi dải giờ liền nhau của từng sân một mã) và mã con `{mã đơn}-NN` cho từng dải giờ liền nhau của từng sân, trả `token` (chỉ trả **một lần**) và thông tin chuyển khoản.
 3. Khách quét QR, chuyển khoản với **nội dung = `pay_ref`**. Trang hỏi `GET /web/booking/checkouts/{token}` (mỗi 3 giây).
 4. SePay báo tiền về qua webhook → server đủ tiền thì **trong cùng transaction** tạo booking (`source=online`, cùng mã đã cấp, gắn vào đơn, `payment_status=paid`, `payment_method=online_transfer`) và đóng lượt thanh toán `paid`.
-5. Quá `expires_at` + 60 giây mà chưa đủ tiền → worker đóng lượt `expired`, nhả khung. Tiền về sau đó **không** tạo booking: ghi thành "cần hoàn" cho Admin xử lý.
+5. Quá `expires_at` + 60 giây mà chưa đủ tiền → worker đóng lượt `expired`, nhả khung. Tiền về sau đó **không** tạo booking: giao dịch ghi `outcome = refund_needed` vào `payments.bank_transaction`; không có màn xử lý, chủ sân đối soát và hoàn tiền ngoài hệ thống (SePay hoặc ngân hàng).
 
 `pay_ref` = **mã đơn** bỏ gạch (`BK-20261020-023` → `BK20261020023`; T-019, trước đó là mã booking đầu tiên). Booking online hiện trên lịch quầy như T-006 (Đỏ, nguồn Online).
 
@@ -378,7 +378,7 @@ Migration quay lui được (`alembic downgrade`), không xóa dữ liệu bản
 | GET | `/calendar?date=YYYY-MM-DD` | 60/phút/IP | `Cache-Control: no-store`. Ngày đã qua → 422 `E-WEB-2` |
 | POST | `/checkouts` → 201 | 6 lần/10 phút/IP (tính cả lần lỗi) | Cần `Origin` hợp lệ và `Idempotency-Key`. Thiếu cấu hình SePay → 503 `E-WEB-5` |
 | POST | `/phone/request` → 202 **(T-013)** | theo mục 11.4 | Body `{phone}` → `{resend_after}`; chế độ thử thêm `test_otp`. Cần `Origin`, không cần đăng nhập |
-| POST | `/phone/verify` **(T-013)** | theo mục 11.4 | Body `{phone, otp}` → `{phone_token, expires_at, account_verified}`. Khách đang đăng nhập có SĐT tài khoản trùng SĐT vừa xác minh → `account_verified: true` và tài khoản được đánh dấu đã xác minh, lần đặt sau bỏ qua OTP. Không gắn SĐT cho tài khoản chưa có SĐT, không gộp (việc đó qua `/auth/phone/*`). **(T-021)** Có đổi: xem mục 12.11 (khách đăng nhập xác minh xong là hội viên; thêm `became_member`, `member_code`, `account_merged` vào phản hồi; tài khoản Google chưa có SĐT được gắn SĐT) |
+| POST | `/phone/verify` **(T-013)** | theo mục 11.4 | Body `{phone, otp}` → `{phone_token, expires_at, account_verified}`. Khách đang đăng nhập có SĐT tài khoản trùng SĐT vừa xác minh → `account_verified: true` và tài khoản được đánh dấu đã xác minh, lần đặt sau bỏ qua OTP. Không gắn SĐT cho tài khoản chưa có SĐT, không gộp (việc đó qua `/auth/phone/*`). **(T-021)** Có đổi: xem mục 12.11 (khách đăng nhập xác minh xong là hội viên; thêm `became_member`, `member_code`, `account_merged`, `reason` vào phản hồi; tài khoản Google chưa có SĐT được gắn SĐT) |
 | GET | `/checkouts/{token}` | 120/phút/IP | `no-store`. Token sai → 404 `E-WEB-6` |
 | POST | `/lookup` | 10/phút/IP | Cần `Origin`; **không** cần `Idempotency-Key` |
 
@@ -702,7 +702,7 @@ Mật khẩu và SĐT đã có của Admin **không bao giờ bị ghi đè** b�
 
 ## 12. Hội viên, tài khoản hội viên, khu hội viên (T-015, T-016, T-020, T-021)
 
-> **Nguồn:** code `dev` sau PR #23 (`993b27c`): quản trị và tài khoản hội viên (PR #21, chỉnh theo quyết định 31/10 ở T-020), khu hội viên (T-016). Người dùng chốt 30/10: "cứ bám theo PR mới" (ADR-009 mục "Sửa đổi 30/10"). Mục 12.11 (T-021) đối chiếu với `be/T-021-dang-ky-hoi-vien` @ `6ab2ad3` (cục bộ, **chưa vào `dev`**). Giao diện khu hội viên và đăng ký chưa đối chiếu. Nếu code lệch tài liệu này, code đúng.
+> **Nguồn:** code `dev` sau PR #24 (gồm PR #23 `993b27c`): quản trị và tài khoản hội viên (PR #21, chỉnh theo quyết định 31/10 ở T-020), khu hội viên (T-016). Người dùng chốt 30/10: "cứ bám theo PR mới" (ADR-009 mục "Sửa đổi 30/10"). Mục 12.11 (T-021) đối chiếu với code backend `dev`. Giao diện khu hội viên và đăng ký chưa đối chiếu. Nếu code lệch tài liệu này, code đúng.
 > Chỗ PR #21 khác SRS Hội viên v0.2 được liệt kê ở `board/ref/lech-SRS-hoi-vien.md` (để BA sửa SRS), không sửa code.
 
 ### 12.1 Khái niệm
@@ -885,7 +885,7 @@ Mã `E-HV-2…7, 9` của spec T-015 **không có trong code** (PR #21 dùng `E-
 | `member.auto_upgrade_temp` (T-021) | Hồ sơ tạm được nâng lên hội viên vì chủ SĐT xác minh OTP (cùng dòng, giữ lịch sử) |
 | `auth.phone_released` (T-021) | Tài khoản đời cũ chưa xác minh bị gỡ SĐT vì người khác xác minh OTP số đó (người làm: Hệ thống; kèm `disabled` nếu tài khoản bị vô hiệu) |
 
-Các dòng T-021 chưa nằm trong danh mục màn Lịch sử thao tác; ARCHITECT quyết có hiện hay không.
+Màn Lịch sử thao tác (danh mục `audit_log/catalog.py`) hiện hai trong bốn dòng này: `member.auto_upgrade_temp` ("Tự nâng hồ sơ tạm thành hội viên", nhóm Hội viên) và `auth.phone_released` ("Gỡ SĐT khỏi tài khoản chưa xác minh", nhóm Tài khoản), cả hai do Hệ thống làm. `auth.register` và `member.self_register` do khách làm nên không hiện (quy ước PR #22).
 
 ### 12.9 Biến môi trường và gói mới
 
@@ -901,11 +901,11 @@ T-016 thêm gói Python `pillow` và `python-multipart`: phải **build lại im
 - `a3d81f5c2b6e` (PR #21, trên `dev`): đổi vai `customer` → `member` trong `users`; thêm `must_change_password`, `member_account_at`; bảng `racket`; cột `customer.gender`, `racket` (chuỗi), `public_id`; hạng 8 bậc: hạng ưu đãi cũ Vàng / Bạc / Đồng đổi hết thành `NULL` (chưa xếp hạng); cột `member_tier` ở các bảng ảnh chụp của booking engine nới 20 ký tự; index đếm lượt theo `customer_ref`. Script `python -m app.scripts.backfill_member_accounts` tạo tài khoản cho hội viên đã có.
 - `dad220bfc992` (T-016, đã vào `dev`): `customer.nickname` (≤ 20), `email` (≤ 254, duy nhất theo `lower(email)`), `show_on_records` (mặc định `false`), `version`; bảng `customer_avatar`. Đảo ngược được.
 - `5b98d354dd77` (T-019, đã vào `dev`): đơn đặt sân và mã con, mục 5.1. Ba migration `a3d81f5c2b6e` → `dad220bfc992` → `5b98d354dd77` nối thẳng, một head.
-- `9738bbfe2eb7` (T-021, **chưa vào `dev`**, nối sau `5b98d354dd77`): thêm giá trị `register` cho kiểu `otp_purpose`; bảng `registration_requests`; cột `customer.source` (`counter` mặc định); ràng buộc `ck_users_login_id` nay cho phép tài khoản **vô hiệu** không còn cách đăng nhập; **backfill dữ liệu tự chạy khi deploy** (mục 12.11). Đảo ngược được: hội viên đã được backfill tạo hoặc nâng **giữ nguyên**; ràng buộc `login_id` cũ được dựng lại ở dạng `NOT VALID` để không xóa tài khoản đã vô hiệu; mã OTP đăng ký chờ bị xóa.
+- `9738bbfe2eb7` (T-021, đã vào `dev`, nối sau `5b98d354dd77`): thêm giá trị `register` cho kiểu `otp_purpose`; bảng `registration_requests`; cột `customer.source` (`counter` mặc định); ràng buộc `ck_users_login_id` nay cho phép tài khoản **vô hiệu** không còn cách đăng nhập; **backfill dữ liệu tự chạy khi deploy** (mục 12.11). Đảo ngược được: hội viên đã được backfill tạo hoặc nâng **giữ nguyên**; ràng buộc `login_id` cũ được dựng lại ở dạng `NOT VALID` để không xóa tài khoản đã vô hiệu; mã OTP đăng ký chờ bị xóa.
 
-### 12.11 Tài khoản web đã xác minh SĐT = hội viên (T-021, chưa vào `dev`)
+### 12.11 Tài khoản web đã xác minh SĐT = hội viên (T-021, đã vào `dev`)
 
-> Đối chiếu với `be/T-021-dang-ky-hoi-vien` @ `6ab2ad3` (cục bộ). Nhánh này nối trên `int/T-022-lich-su-thao-tac` (`85895fc`), nên gộp T-022 trước T-021. Giao diện chưa bàn giao.
+> Đã vào `dev` (PR #24). Đối chiếu với code backend `dev` và handoff BE T-021 (gồm commit bổ sung `9bdcbf3`). Giao diện chưa kiểm.
 
 **Quy tắc (R1).** Khi SĐT của một tài khoản khách vừa được xác minh bằng OTP, hệ thống bảo đảm có hồ sơ hội viên cùng SĐT (hàm `members.api.ensure_member_for_phone`, phía auth gọi qua `auth/enroll.py`):
 
@@ -922,7 +922,7 @@ R1 chạy ở **4 chỗ**, luôn sau khi chính chủ SĐT nhập đúng OTP: (1
 
 **Tài khoản đời cũ chưa xác minh.** Nếu SĐT đang thuộc một tài khoản khách đời cũ (đăng ký không OTP, SĐT chưa xác minh, không do sân tạo) thì **người xác minh OTP thắng**: tài khoản cũ bị gỡ SĐT và phiên cũ bị hủy; nếu nó không còn tên đăng nhập hay Google thì bị **vô hiệu**. Ghi `auth.phone_released`. SĐT thuộc tài khoản đã xác minh, do sân tạo, Admin hoặc nhân viên → `E-AUTH-22`.
 
-**Đặt online khi đã đăng nhập** (`POST /web/booking/phone/verify`): SĐT trùng SĐT tài khoản → xác minh tài khoản, rồi R1. Tài khoản Google chưa có SĐT → **gắn SĐT** theo đúng luật `/auth/phone/verify` (SĐT thuộc khách khác thì gộp; cookie đã đổi, phản hồi có `account_merged: true`, giao diện tải lại `/auth/me`). Gặp `E-AUTH-17` / `E-AUTH-18` thì **không gắn nhưng vẫn cấp `phone_token`**: lượt đặt không bị chặn. Phản hồi thêm `became_member`, `member_code`.
+**Đặt online khi đã đăng nhập** (`POST /web/booking/phone/verify`): SĐT trùng SĐT tài khoản → xác minh tài khoản, rồi R1. Tài khoản Google chưa có SĐT → **gắn SĐT** theo đúng luật `/auth/phone/verify` (SĐT thuộc khách khác thì gộp; cookie đã đổi, phản hồi có `account_merged: true`, giao diện tải lại `/auth/me`). Gặp `E-AUTH-17` / `E-AUTH-18` thì **không gắn nhưng vẫn cấp `phone_token`**: lượt đặt không bị chặn. Phản hồi thêm `became_member`, `member_code`, và `reason` khi khách đang đăng nhập mà tài khoản không được gắn SĐT hoặc không thành hội viên: `E-AUTH-17` (tài khoản có SĐT khác), `E-AUTH-18` (SĐT không dùng được), `E-AUTH-31` (hội viên Ngừng, tài khoản bị khóa). Cả ba trường hợp `phone_token` vẫn dùng được để đặt.
 
 **Backfill tự chạy khi deploy** (migration `9738bbfe2eb7`): mọi tài khoản `member` đang hoạt động, có SĐT đã xác minh và chưa có hồ sơ hội viên, theo thứ tự xác minh, được tạo hội viên mới hoặc nâng hồ sơ tạm. Nhật ký ghi người làm Hệ thống, `backfill: true`. Khác với `backfill_member_accounts` (12.10) là script tay tạo **tài khoản** cho hội viên cũ.
 

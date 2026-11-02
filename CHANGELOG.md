@@ -4,10 +4,10 @@ Ghi các thay đổi người dùng hoặc người vận hành nhìn thấy đ�
 
 ## Chưa phát hành
 
-Các mục T-005, T-006, T-008, T-012 đã có ở link dev; T-013, T-015 (PR #21), và T-016, T-019, T-020 (PR #23) cũng đã lên dev; T-021 mới làm cục bộ. Tất cả chưa lên production (cần người dùng duyệt).
+Các mục T-005, T-006, T-008, T-012 đã có ở link dev; T-013, T-015 (PR #21), và T-016, T-019, T-020 (PR #23), T-021 (PR #24) và T-024 (PR #27) cũng đã lên dev. Tất cả chưa lên production (cần người dùng duyệt).
 
-- **Bỏ màn "Tiền về" (02/11/2026, chưa lên dev):** gỡ trang `/admin/tien-ve`, mục menu "Tiền về" và số đỏ đếm giao dịch chưa xử lý. API `GET /payments/bank-transactions` và `POST /payments/bank-transactions/{id}/resolve` trả 404. Webhook SePay vẫn ghi mọi giao dịch (kể cả không khớp mã, trả thừa) vào DB; tiền cần hoàn đối soát trên SePay hoặc ngân hàng. Quyền `payments.view`/`payments.resolve` thay bằng `payments.simulate` (chỉ giả lập tiền về ở link dev). Không đổi DB.
-- **Đăng ký là thành hội viên (T-021, chưa lên dev):**
+- **Bỏ màn "Tiền về" (T-024, PR #27, 02/11/2026):** gỡ trang `/admin/tien-ve`, mục menu "Tiền về" và số đỏ đếm giao dịch chưa xử lý. API `GET /payments/bank-transactions` và `POST /payments/bank-transactions/{id}/resolve` trả 404. Webhook SePay vẫn ghi mọi giao dịch (kể cả không khớp mã, trả thừa) vào DB; tiền cần hoàn đối soát trên SePay hoặc ngân hàng. Quyền `payments.view`/`payments.resolve` thay bằng `payments.simulate` (chỉ giả lập tiền về ở link dev). Không đổi DB.
+- **Đăng ký là thành hội viên (T-021):**
   - Khách đăng ký ở `/dang-ky` theo **hai bước**: nhập họ tên, SĐT, mật khẩu → nhập mã OTP. Mã đúng thì tạo tài khoản **và** hội viên (Mã HV, chưa xếp hạng), đăng nhập luôn. SĐT đã có hồ sơ tạm thì hồ sơ đó được nâng lên hội viên, giữ lịch sử đặt sân.
   - Tài khoản web có SĐT **đã xác minh OTP** là hội viên, dù xác minh khi đăng ký, ở `/tai-khoan`, khi đặt online hay khi Quên mật khẩu. Hội viên Ngừng thì tài khoản bị khóa. Màn Hội viên ghi nguồn "Tự đăng ký online".
   - Tài khoản đời cũ đăng ký không OTP: người xác minh OTP số đó thắng, tài khoản cũ bị gỡ SĐT. Đặt online bằng tài khoản Google chưa có SĐT thì SĐT được gắn vào tài khoản.

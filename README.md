@@ -13,7 +13,7 @@ project_caulong/
 │   │   ├── members/         hội viên, hồ sơ tạm, danh mục vợt, thẻ hội viên `/me/member` (PR #21)
 │   │   ├── member_area/     khu hội viên: Hồ sơ của tôi + ảnh đại diện (T-016)
 │   │   ├── web_booking/     API public cho khách: lịch, lượt thanh toán (checkout), tra cứu (T-008)
-│   │   ├── payments/        webhook SePay, bảng `payments.bank_transaction`, Tiền về cần xử lý (T-008)
+│   │   ├── payments/        webhook SePay, bảng `payments.bank_transaction` (T-008; không có màn xử lý tay)
 │   │   ├── notifications/   lắng nghe event (email/Zalo: TODO)
 │   │   └── content/         bài viết phục vụ SEO
 │   ├── app/workers/         ARQ: outbox, nhả giữ chỗ quá hạn, dọn nhật ký/idempotency
@@ -224,7 +224,7 @@ Thử không tốn tiền: bật **Test Mode** trên SePay → menu Giao dịch 
 
 Khóa webhook là secret: chỉ dán vào trang Cài đặt, không gửi qua board hay tin nhắn. Nghi lộ khóa → tạo khóa mới trên SePay rồi dán lại trên trang (khóa cũ ngừng được chấp nhận ngay khi Lưu).
 
-Giao dịch không tự khớp (sai nội dung, tiền về sau khi hết hạn, trả thừa) không bị mất: nằm ở "Tiền về cần xử lý" để Admin hoàn tiền thủ công rồi bấm Đã xử lý.
+Giao dịch không tự khớp (sai nội dung, tiền về sau khi hết hạn, trả thừa) không bị mất: webhook ghi vào `payments.bank_transaction` (cột `outcome`). Không có màn xử lý tay; chủ sân đối soát và hoàn tiền trên SePay hoặc ngân hàng.
 
 ## Đăng nhập, nhân viên và OTP (T-013)
 
@@ -238,7 +238,7 @@ Mục này dùng để biết ai đăng nhập bằng gì, cấu hình biến m�
 |---|---|---|
 | Admin (chủ sân) | Số điện thoại + mật khẩu | `/dang-nhap` → `/admin` |
 | Nhân viên | Tên đăng nhập + mật khẩu. **Mỗi nhân viên một tài khoản** (mã `NV001`…), đăng nhập ở máy nào cũng được | `/dang-nhap` → `/admin` |
-| Khách | SĐT hoặc tên đăng nhập + mật khẩu, hoặc Google. Tự đăng ký tại `/dang-ky` (từ T-021, chưa vào dev: phải xác minh SĐT bằng OTP và đăng ký xong là hội viên) | `/dang-nhap` → `/tai-khoan` (hội viên: `/hoi-vien`) |
+| Khách | SĐT hoặc tên đăng nhập + mật khẩu, hoặc Google. Tự đăng ký tại `/dang-ky` (từ T-021: phải xác minh SĐT bằng OTP và đăng ký xong là hội viên) | `/dang-nhap` → `/tai-khoan` (hội viên: `/hoi-vien`) |
 
 - Chỉ có **một** trang `/dang-nhap` với một ô "Số điện thoại hoặc tên đăng nhập".
 - Sai mật khẩu 5 lần liên tiếp → khóa 15 phút. Phiên Admin/nhân viên tồn tại tối đa 12 giờ, rồi phải đăng nhập lại.
@@ -324,7 +324,7 @@ API: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 5.1.
 
 ## Hội viên và khu hội viên (T-015, T-016, T-020)
 
-> Tất cả phần dưới đã có trong `dev` (PR #21 `c288d08`, rồi PR #23 `993b27c` gồm khu hội viên T-016 và chỉnh T-020), đối chiếu với code. Tên trang và nút của khu hội viên chưa kiểm trên giao diện. Phần "Đăng ký tài khoản = hội viên" (T-021) **chưa vào `dev`**. Chưa có gì trong `main`/production.
+> Tất cả phần dưới đã có trong `dev` (PR #21 `c288d08`, rồi PR #23 `993b27c` gồm khu hội viên T-016 và chỉnh T-020), đối chiếu với code. Tên trang và nút của khu hội viên chưa kiểm trên giao diện. Chưa có gì trong `main`/production.
 
 ### Màn Hội viên (quản trị)
 
@@ -386,9 +386,9 @@ Khu `/hoi-vien` dành cho khách đã đăng nhập **và là hội viên**. Đ�
 
 Biến mới: `AVATAR_MAX_BYTES` (mặc định 5242880 = 5 MB, đã có trong `backend/.env.example`). T-016 thêm gói `pillow` và `python-multipart`: **phải build lại image backend**. Ảnh lưu trong Postgres (khoảng vài chục KB mỗi hội viên), nên sao lưu DB lớn hơn một chút. Reverse proxy phía trước (Caddy, Next rewrite) phải cho thân request tới khoảng 5,06 MB trên đường tải ảnh.
 
-### Đăng ký tài khoản = hội viên (T-021, chưa vào dev)
+### Đăng ký tài khoản = hội viên (T-021)
 
-> Đối chiếu với code backend `be/T-021-dang-ky-hoi-vien` @ `6ab2ad3` (cục bộ, nối trên T-022). Giao diện `/dang-ky` mới chưa bàn giao nên chưa kiểm tên nút.
+> Đã vào `dev` (PR #24). Đối chiếu với code backend `dev`. Giao diện `/dang-ky` mới chưa bàn giao nên chưa kiểm tên nút.
 
 **Quy tắc:** tài khoản web có SĐT **đã xác minh bằng OTP** là hội viên. Quầy vẫn tạo hội viên (kèm tài khoản) như trên; hai đường cùng tồn tại.
 
