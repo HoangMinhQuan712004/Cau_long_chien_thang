@@ -174,7 +174,7 @@ export function RankingScreen() {
         ) : null}
       </PageBanner>
 
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-6 sm:py-8">
+      <div className="relative mx-auto max-w-6xl space-y-4 px-4 py-6 sm:py-8">
         {failed && !data ? (
           <div role="alert" className="rounded-card bg-surface p-8 text-center shadow-card">
             <p className="font-semibold">Không tải được bảng xếp hạng. Vui lòng thử lại.</p>
@@ -195,7 +195,7 @@ export function RankingScreen() {
           <>
             <section aria-label="Hạng của tôi" className="-mt-2 rounded-card border border-accent bg-accent-soft p-4 shadow-card sm:-mt-10 sm:p-5">
               {me ? (
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6">
                   <p>
                     <span className="block text-xs text-accent-fg">Hạng của tôi</span>
                     <b className="text-3xl tabular-nums">#{me.rank}</b>
@@ -206,7 +206,7 @@ export function RankingScreen() {
                     <b className="text-sm">{profile.short_name}</b>
                     <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span>
                   </span>
-                  <p className="min-w-0 flex-1">
+                  <p className="min-w-0 sm:flex-1">
                     <span className="block text-xs text-accent-fg">Kỷ lục trong {noun}</span>
                     <b className="tabular-nums">{me.speed_kmh} km/h</b>
                     <span className="ml-1 text-xs text-muted">đạt {formatDayMonthYear(vnDate(me.measured_at))}</span>

@@ -130,7 +130,7 @@ export function PlayHistoryScreen() {
         </div>
       </PageBanner>
 
-      <div className="mx-auto -mt-10 max-w-6xl px-4 pb-8 sm:-mt-12">
+      <div className="relative mx-auto -mt-10 max-w-6xl px-4 pb-8 sm:-mt-12">
         {failed && !data ? (
           <div role="alert" className="rounded-card bg-surface p-8 text-center shadow-card">
             <p className="font-semibold">Không tải được lịch sử chơi. Vui lòng thử lại.</p>
