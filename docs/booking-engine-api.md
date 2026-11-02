@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-029, T-030)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -1008,7 +1008,7 @@ R1 chạy ở **4 chỗ**, luôn sau khi chính chủ SĐT nhập đúng OTP: (1
 
 **Production chưa có Zalo.** Không có kênh OTP (`OTP_TEST_MODE` tắt, thiếu Zalo) thì `/auth/register/request` trả 503 `E-AUTH-23`: production tạm không cho khách tự đăng ký cho tới khi có Zalo. Đây là hành vi đúng.
 
-## 13. Khu hội viên: tổng quan, lịch sử thanh toán, phòng chơi, thông báo, lịch sử chơi, xếp hạng tốc độ (T-017, T-018, T-029, T-030)
+## 13. Khu hội viên: tổng quan, lịch sử thanh toán, phòng chơi, thông báo, lịch sử chơi, xếp hạng tốc độ (T-017, T-018, T-027, T-029, T-030)
 
 > Đã vào `dev` (PR #24). Đối chiếu với code `dev` (`member_area/home_router.py`, `play_rooms/`, `member_inbox/`) và handoff BE T-017 mốc 1, mốc 2, T-018. Tên trang đối chiếu theo thư mục `frontend/src/app/hoi-vien/`; nút và nội dung màn chưa kiểm trên giao diện. Nếu code lệch tài liệu này, code đúng.
 
@@ -1072,6 +1072,7 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
 | POST | `/rooms/{id}/members/{mid}/kick` · `/transfer-host` `{version}` | Chỉ Host. `mid` = `members[].id`. Tự mời ra, chuyển cho chính mình → 404 |
 | PUT | `/rooms/{id}/format` `{format: "2v2"\|"1v1", version}` | Chỉ Host. Đã bốc → xóa kết quả bốc. Đang chơi → `E-ROOM-11` |
 | POST | `/rooms/{id}/draw` `{version}` | Bốc ngẫu nhiên hoặc bốc lại (trận `drawn`, giữ nguyên số `#n`). `E-ROOM-8` nếu Hàng chờ chưa đủ 4 (2v2) hoặc 2 (1v1); `E-ROOM-11` nếu đang chơi |
+| PUT | `/rooms/{id}/lineup` `{team_a[], team_b[], version}` **(T-027, chưa vào `dev`)** | Chỉ Host tự xếp đội hình thay cho Bốc. Cần `Idempotency-Key`. `team_a` / `team_b` là `members[].id` (cùng loại id dùng để mời ra), mỗi đội đúng 2 người (2v2) hoặc 1 người (1v1). Lưu thành trận `drawn` như kết quả Bốc: `current_match.status = "drawn"`, `team_a` / `team_b` là `[{member_id, display_name, avatar_url}]`. Xem bên dưới |
 | POST | `/rooms/{id}/start` `{version}` | Trận `drawn` → `playing`, người được bốc sang "Đang chơi". `E-ROOM-10` nếu sớm hơn `can_start_from`; `E-ROOM-8` nếu chưa bốc |
 | POST | `/rooms/{id}/matches/{no}/result` `{score_a, score_b, version}` | Lưu **một lần**, không sửa: 0–99, không hòa, sai → 422 `E-ROOM-9`. Gửi lại **cùng** `Idempotency-Key` → đúng kết quả cũ; **khác** key → 409 `E-ROOM-6`. Người chơi về **cuối** Hàng chờ. Ghi nhật ký `room.match_saved` |
 | GET | `/rooms/{id}/matches?format=` | `MatchList = {total, count_2v2, count_1v1, items}`; số đếm tính mọi thể thức, `items` lọc theo `format`, mới nhất trên cùng. Mỗi item: `{no, format, started_at, ended_at, team_a[], team_b[] (tên lúc bốc), score_a, score_b, winner: a\|b}`. Chỉ trận đã lưu (không có trận bỏ dở) |
@@ -1110,9 +1111,33 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
 | E-ROOM-9 | 422 | "Tỉ số không hợp lệ (0–99, không hòa)." |
 | E-ROOM-10 | 409 | "Chưa tới giờ bắt đầu trận." |
 | E-ROOM-11 | 409 | "Trận #n đang diễn ra. Kết thúc trận trước." (bốc hoặc đổi thể thức lúc đang chơi; kèm `match_no`) |
+| E-ROOM-12 | 422 | **(T-027)** "Đội hình không hợp lệ." (người không ở phòng, trùng người, hoặc mỗi đội không đúng số người của thể thức) |
 | E-NOT-FOUND | 404 | "Không tìm thấy phòng." (không có, Host chưa đủ điều kiện, hoặc không phải của mình) |
 
-**Nhật ký:** `room.join_approved`, `room.kicked`, `room.host_transferred` (`reason`: `host_left` hoặc `transfer`), `room.match_saved` (tỉ số, đội). Người làm là khách.
+**Nhật ký:** `room.join_approved`, `room.kicked`, `room.host_transferred` (`reason`: `host_left` hoặc `transfer`), `room.match_saved` (tỉ số, đội), `room.lineup_set` (T-027). Người làm là khách.
+
+**Host tự xếp đội hình `PUT /rooms/{id}/lineup` (T-027, chưa vào `dev`):**
+
+> Đối chiếu với code backend `be/T-027-doi-hinh` @ `1ad3180` (cục bộ, tạo từ `dev` `d68161c`, độc lập với T-023, T-025, T-026). Giao diện chưa kiểm. **Không migration**: `play_match` đã có `team_a`, `team_b`, `names`. Không quyền hay cấu hình mới.
+
+- Body `{team_a: [member_id…], team_b: [member_id…], version}`, trả `RoomDetail` mới nhất. Cần `Origin` và `Idempotency-Key`; gửi lại cùng key → kết quả cũ, header `Idempotent-Replayed: true`. Chỉ Host.
+- Tạo hoặc **thay** trận `drawn` của phòng, dùng chung hàm với Bốc: xếp lại hoặc bốc lại giữ nguyên số trận `#n`; tên người chơi được chụp lúc xếp. Bốc sau khi xếp tay thì kết quả bốc thay cả đội hình.
+- **Không đổi `waiting_since`** của ai: thuật toán ưu tiên người chờ lâu chỉ áp khi Bốc.
+- Sau khi lưu, "Bắt đầu trận", đổi thể thức (xóa đội hình) và người trong đội hình rời phòng hoặc bị mời ra (xóa đội hình) chạy như T-017. Mọi thành viên thấy đội hình qua `version` / ETag như thường.
+- Bản nháp chưa đủ người **không** lưu lên server: giao diện chỉ gọi khi đủ người.
+
+| Lỗi | HTTP | Khi nào |
+|---|---|---|
+| `E-NOT-FOUND` | 404 | Không có phòng hoặc không xem được |
+| `E-ROOM-1` | 409 | Phòng đã đóng |
+| `E-ROOM-6` | 409 | `version` cũ |
+| `E-ROOM-7` | 403 | Không phải Host |
+| `E-ROOM-11` | 409 | Đang có trận `playing` (kèm `match_no`) |
+| `E-ROOM-12` | 422 | Người không ở phòng, trùng người, hoặc mỗi đội không đúng 2 (2v2) / 1 (1v1) |
+| (validation) | 422 | Một đội gửi hơn 2 phần tử |
+| `E-SEC-2` | 400 | Thiếu `Idempotency-Key` |
+
+Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no`, `format`, `team_a` / `team_b` (id khách) và dòng thay đổi "Trận #n: Đội A {tên} – Đội B {tên}". Không có SĐT. Như các audit `room.*` khác, action này không nằm trong danh mục lọc của màn Lịch sử thao tác.
 
 ### 13.3 Thông báo (module `member_inbox`)
 

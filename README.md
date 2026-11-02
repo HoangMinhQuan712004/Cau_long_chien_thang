@@ -404,7 +404,8 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 - **Thông báo** của hội viên (được mời, xin vào, được duyệt, bị mời ra, thành Host mới) nằm trong hộp thư của khu hội viên; chưa gửi Zalo.
 - **Lịch sử thanh toán:** chỉ khoản **Đã thanh toán**, tính theo tháng thanh toán (giờ Việt Nam); khách chỉ thấy **mã đơn**, không thấy mã con.
 - **Worker bắt buộc chạy bản mới:** hai job `play_rooms_tick` (mỗi phút: tạo phòng còn thiếu cho booking hôm nay và ngày mai, đóng phòng quá giờ) và `purge_member_notifications` (hằng ngày 03:40). Thiếu worker thì phòng không đóng đúng giờ. Không biến môi trường hay gói mới. Migration `0cbf30ad5193` tạo bảng phòng chơi và thông báo, không backfill dữ liệu.
-- Chi tiết endpoint, mã lỗi `E-ROOM-1…11`, quy tắc bốc: `docs/booking-engine-api.md` mục 13.
+- **Host tự xếp đội hình (T-027, backend xong, chưa vào `dev`):** thay cho Bốc, Host chọn tay đội A và đội B (đủ 2 người mỗi đội ở 2v2, 1 người ở 1v1) rồi lưu; trận vào trạng thái "đã bốc" như kết quả Bốc, và vẫn bắt đầu bằng "Bắt đầu trận". Không đổi thứ tự chờ của ai. API `PUT /member-area/rooms/{id}/lineup`, lỗi `E-ROOM-12`.
+- Chi tiết endpoint, mã lỗi `E-ROOM-1…12`, quy tắc bốc: `docs/booking-engine-api.md` mục 13.
 
 ### Lịch sử chơi và Bảng xếp hạng tốc độ (T-029, T-030)
 
