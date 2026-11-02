@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-023, T-025)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -8,7 +8,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 > **khách đặt online, thanh toán QR SePay, tra cứu booking, tiền về không khớp chỉ ghi vào DB, không có màn xử lý (T-008, bỏ màn ngày 02/11), Admin tự cài tài khoản nhận tiền và khóa SePay (T-012) – mục 10**.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
 > **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, đã vào `dev`) – mục 11.2 và 12.11.**
-> **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007), bán vé sự kiện online, báo cáo, các màn khu hội viên ngoài "Hồ sơ của tôi".
+> **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007). Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, chưa vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
 > **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (đã vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
 > Mục 5.1, 10, 11 và 12 (kể cả phần đánh dấu **(T-021)** và mục 12.11) đã có trong `dev`. Chưa có gì trong `main`/production.
@@ -203,7 +203,8 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 ### Lịch (`/booking/calendar`)
 
 - `columns[]`: các giờ bắt đầu (số nguyên) từ giờ mở sớm nhất đến đóng muộn nhất của các sân; tự nới khi có khối ngoài giờ.
-- `resources[]`: `{code, name, type, is_active, off_hours[]}`; `off_hours` là các giờ ô Xám (ngoài giờ mở hoặc sân Ngừng). Sân ngừng chỉ hiện khi còn chỗ chiếm trong ngày.
+- `resources[]`: `{code, name, type, is_active, off_hours[], hour_prices}`; `off_hours` là các giờ ô Xám (ngoài giờ mở hoặc sân Ngừng). Sân ngừng chỉ hiện khi còn chỗ chiếm trong ngày.
+  - **`hour_prices` (T-025, chưa vào `dev`):** `{"<giờ bắt đầu>": giá VND}`, khóa là chuỗi số giờ (`"6"`…`"21"`, do JSON; giao diện đổi sang số). Có giá cho **mọi ô bán được trong ngày** của sân đang hoạt động, kể cả ô đã đặt hoặc đã qua; ô nào chọn được vẫn do `blocks` / `off_hours` / `can` quyết. **Không có khóa** khi ô ngoài giờ mở cửa, sân ngừng hoạt động, hoặc bảng giá thiếu band cho ô đó (trang khách cũng coi ô này là không bán). Cách tính giống lịch khách (loại ngày × thấp điểm / cao điểm / một phần cao điểm; hàm dùng chung `pricing.prices_for_day`, `pricing.hour_price`). Chỉ để xem trước tổng tiền; giá cuối do engine chốt lúc đặt. Không migration, không quyền mới.
 - `blocks[]`: `{type: booking|session|hold, code, resource_codes[], start_time, end_time, start_hour, end_hour}` (**T-019:** booking thêm `order_code`; `code` vẫn là mã con, dùng để mở chi tiết), thêm:
   booking → `payment_status, customer_name, phone, source`; sự kiện → `name, taken, capacity, is_full, unpaid_tickets`; giữ chỗ → `expires_at` (`code` là `null`).
 - `unpaid_count`: số booking + vé Chưa thanh toán của **ngày đang xem**.
@@ -229,6 +230,7 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 - `tickets[]` (mới nhất trước): `{code, customer_name, phone, source, payment_status, amount, created_at}`. Mã vé `{mã sự kiện}-Vnn`.
 - `taken` = số vé (mọi trạng thái) + chỗ giữ online còn hạn. Đăng ký vé khóa dòng sự kiện nên 20 request tranh chỗ cuối chỉ 1 thành công, còn lại `E-024`.
 - `active_holds[]`: `{seats, expires_at}`. `can`: `{register, delete}`.
+- **(T-023, chưa vào `dev`) Vé bán online:** mỗi lượt mua giữ **một Hold `seat`** (`seats = n`, mã = mã đơn, tiền chốt = n × giá vé) gắn với `checkout` có `kind = 'ticket'`. Ghế của lượt còn `pending` tính vào `taken` **cho tới khi `expire_holds` nhả**, kể cả trong ân hạn 60 giây; nhờ vậy tiền về hợp lệ luôn còn ghế. Đăng ký vé tại quầy gọi `expire_holds` trước và không lấy được ghế đang giữ (`E-024`). Vé sinh ra khi tiền về mang `source = online`, `payment_method = online_transfer`, đã thanh toán, và cột `ticket.checkout_id`. Xem mục 10.8.
 - Xóa sự kiện chỉ khi chưa có vé và chưa có chỗ giữ (xóa mềm, nhả khung); ngược lại 409 `E-023`.
 
 ### Quy tắc cần nhớ
@@ -379,7 +381,9 @@ Migration quay lui được (`alembic downgrade`), không xóa dữ liệu bản
 | POST | `/checkouts` → 201 | 6 lần/10 phút/IP (tính cả lần lỗi) | Cần `Origin` hợp lệ và `Idempotency-Key`. Thiếu cấu hình SePay → 503 `E-WEB-5` |
 | POST | `/phone/request` → 202 **(T-013)** | theo mục 11.4 | Body `{phone}` → `{resend_after}`; chế độ thử thêm `test_otp`. Cần `Origin`, không cần đăng nhập |
 | POST | `/phone/verify` **(T-013)** | theo mục 11.4 | Body `{phone, otp}` → `{phone_token, expires_at, account_verified}`. Khách đang đăng nhập có SĐT tài khoản trùng SĐT vừa xác minh → `account_verified: true` và tài khoản được đánh dấu đã xác minh, lần đặt sau bỏ qua OTP. Không gắn SĐT cho tài khoản chưa có SĐT, không gộp (việc đó qua `/auth/phone/*`). **(T-021)** Có đổi: xem mục 12.11 (khách đăng nhập xác minh xong là hội viên; thêm `became_member`, `member_code`, `account_merged`, `reason` vào phản hồi; tài khoản Google chưa có SĐT được gắn SĐT) |
-| GET | `/checkouts/{token}` | 120/phút/IP | `no-store`. Token sai → 404 `E-WEB-6` |
+| GET | `/checkouts/{token}` | 120/phút/IP | `no-store`. Token sai → 404 `E-WEB-6`. **(T-023)** Thêm `kind` và `event`, xem mục 10.8 |
+| GET | `/events/{code}` **(T-023)** | 60/phút/IP (chung nhóm với `/calendar`) | Chi tiết sự kiện công khai, `no-store`. Mục 10.8 |
+| POST | `/event-checkouts` → 201 **(T-023)** | 6 lần/10 phút/IP (chung với `/checkouts`) | Mua vé sự kiện. Cần `Origin` và `Idempotency-Key`. Mục 10.8 |
 | POST | `/lookup` | 10/phút/IP | Cần `Origin`; **không** cần `Idempotency-Key` |
 
 Vượt rate limit → 429 `E-SEC-5`. Không cần cookie.
@@ -391,7 +395,7 @@ Vượt rate limit → 429 `E-SEC-5`. Không cần cookie.
 |---|---|---|
 | `free` | Trống, bán được | `price` (VND), `band` (`offpeak`/`peak`) |
 | `booked` | Đã có booking **hoặc** người khác đang giữ chỗ | – |
-| `event` | Sự kiện (chỉ hiển thị, chưa bán vé online) | `taken`, `capacity` |
+| `event` | Sự kiện | `taken`, `capacity`, **(T-023)** `event_code` (mở chi tiết và mua vé, mục 10.8); ô khác có `event_code = null` |
 | `closed` | Không bán: khung đã bắt đầu/đã qua, hoặc ngoài giờ mở của sân | – |
 
 Trường không dùng có giá trị `null`. Response **không** chứa tên, SĐT, mã hay ghi chú của ai. Sân ngừng hoạt động không có trong danh sách.
@@ -442,7 +446,7 @@ Trường không dùng có giá trị `null`. Response **không** chứa tên, S
 | `pending` | Giữ chỗ còn hạn; có `pending: {expires_at, server_now, pay_ref, amount, bank}` (`amount` là tổng cả lượt) |
 | `expired` | Giữ chỗ hết hạn |
 
-Sai mã, mã con không thuộc SĐT, **hay** sai SĐT đều trả cùng 404 `E-WEB-7`, kể cả khi mã là vé/sự kiện (chưa hỗ trợ). SĐT luôn che.
+Sai mã, mã con không thuộc SĐT, **hay** sai SĐT đều trả cùng 404 `E-WEB-7`. SĐT luôn che. **(T-023)** Mã đơn vé (`BK-…` của lượt mua vé) và mã vé `{mã sự kiện}-Vnn` cũng tra được, xem mục 10.8.
 
 ### 10.3 Mã lỗi
 
@@ -451,11 +455,14 @@ Sai mã, mã con không thuộc SĐT, **hay** sai SĐT đều trả cùng 404 `E
 | E-WEB-1 | 422 | Theo trường: "Vui lòng nhập họ tên." · "Số điện thoại không hợp lệ — cần đủ 10 số." · "Ghi chú tối đa 200 ký tự." · "Chọn ít nhất 1 khung giờ." · "Mỗi lần đặt tối đa 16 khung giờ." |
 | E-WEB-2 | 422 | "Không đặt được ngày đã qua." hoặc khung đã qua, ngoài giờ mở cửa, sân ngừng hoạt động |
 | E-WEB-3 | 409 | "Khung giờ vừa có người đặt. Vui lòng chọn khung khác." Kèm `detail.conflicts: [{resource_code, start_hour}]` |
-| E-WEB-4 | 409 | SĐT này đang có lượt giữ chỗ chưa thanh toán |
+| E-WEB-4 | 409 | SĐT này đang có lượt giữ chỗ chưa thanh toán (**T-023:** chung cho đặt sân và mua vé, ràng buộc `uq_checkout_pending_phone`) |
 | E-WEB-5 | 503 | Đặt online đang tạm ngưng (chưa đủ cấu hình SePay; từ T-013 còn thiếu cả kênh OTP). Gọi hotline |
 | E-WEB-6 | 404 | "Không tìm thấy lượt thanh toán." (token sai hoặc không có) |
 | E-WEB-7 | 404 | "Không tìm thấy booking. Kiểm tra lại mã và số điện thoại." |
-| E-WEB-8 | 403 | **(T-013)** "Vui lòng xác minh số điện thoại trước khi đặt sân." Thiếu/sai/hết hạn `phone_token`, hoặc token của SĐT khác |
+| E-WEB-8 | 403 | **(T-013)** "Vui lòng xác minh số điện thoại trước khi thanh toán." (T-023 đổi câu, dùng chung cho đặt sân và mua vé). Thiếu/sai/hết hạn `phone_token`, hoặc token của SĐT khác |
+| E-WEB-9 | 409 | **(T-023)** Sự kiện đã bắt đầu ("…đã bắt đầu, không mua vé online được.") hoặc đã hủy ("Sự kiện đã bị hủy.") |
+| E-WEB-10 | 409 | **(T-023)** "Sự kiện đã hết chỗ." hoặc "Sự kiện chỉ còn n chỗ.", kèm `detail.remaining` |
+| E-WEB-11 | 409 | **(T-023)** Giá vé 0: "…không bán vé online. Vui lòng đăng ký tại quầy." |
 | E-019 | 422 | Thiếu giá cho một khung |
 | E-SEC-1 | 403 | Thiếu hoặc sai `Origin`/`Referer` (`POST /checkouts`, `POST /lookup`) |
 
@@ -549,6 +556,74 @@ Thiếu trường bắt buộc hoặc trường lạ → 422 định dạng mặ
 - **Đã có dòng → DB là nguồn duy nhất**, không trộn từng trường với `.env`.
 - Tham số `bank` trong `qr_url` là `short_name` của ngân hàng (ví dụ `Vietcombank`).
 - Khóa webhook lưu bằng Fernet với `PAYMENTS_ENCRYPTION_KEY`. Không giải mã được (đổi/mất khóa) → coi như chưa có khóa: webhook 503, `online_enabled=false`, `missing` có `webhook_secret`.
+
+### 10.8 Mua vé sự kiện online (T-023, chưa vào `dev`)
+
+> Đối chiếu với code backend `be/T-023-ve-online` @ `f711b8c` (cục bộ). Giao diện chưa kiểm. Mua vé dùng cùng luồng QR SePay, `Hold`, `checkout` và `expire_holds` như đặt sân (mục 10.1). Exclusion constraint `ex_allocation_no_overlap` **không đổi**: ghế không chiếm allocation, sự kiện đã chiếm sân.
+
+**Luồng:** `GET /web/booking/events/{code}` xem sự kiện → (OTP như đặt sân, hoặc `as_member`) → `POST /web/booking/event-checkouts` → trang `/thanh-toan/{token}` (cùng `GET /checkouts/{token}`, `kind = "ticket"`) → tiền về đủ thì sinh vé.
+
+**Chi tiết sự kiện** `GET /web/booking/events/{code}` (công khai, `no-store`; không có sự kiện → 404 `E-NOT-FOUND`):
+
+`{code, name, play_date, start_time, end_time, resource_names[], ticket_price, capacity, taken, max_seats, can_buy, reason, my_tickets, hold_minutes}`
+
+- `taken` = vé đã có + ghế đang giữ online. `max_seats` = min(còn lại, 10), bằng 0 khi `can_buy = false`.
+- `reason` (khi `can_buy = false`), theo thứ tự ưu tiên: `deleted` > `started` > `free` (giá vé 0, đăng ký tại quầy) > `full` > `online_off`.
+- `my_tickets`: `null` khi không có cookie hội viên liên kết; có cookie thì `[{code, pay_status}]` (có thể rỗng).
+- **Không** trả tên hay SĐT người mua.
+
+**Mua vé** `POST /web/booking/event-checkouts` → 201. Cần `Origin` và `Idempotency-Key`. Body (trường lạ bị từ chối):
+
+```json
+{ "event_code": "BK-20261105-001", "seats": 2,
+  "full_name": "Phạm Quang Minh", "phone": "0935 240 123",
+  "phone_token": "…từ /phone/verify…", "as_member": false }
+```
+
+- `seats` từ 1 đến 10 và không quá số chỗ còn lại; sai → 422 `E-WEB-1`.
+- `as_member = true` (khu hội viên): họ tên và SĐT lấy từ hồ sơ, bỏ qua `full_name` và `phone`, không cần `phone_token`. Không phải hội viên liên kết đang Hoạt động → 403 `E-HV-8`.
+- Khách thường: cần `phone_token` như đặt sân (thiếu hoặc của SĐT khác → 403 `E-WEB-8`). Mỗi SĐT chỉ **một** lượt chờ thanh toán, chung với đặt sân (409 `E-WEB-4`).
+- Mua online được cho **ngày tương lai**, miễn sự kiện chưa bắt đầu. Quầy vẫn chỉ đăng ký vé trong ngày hôm nay.
+- Phản hồi như `CheckoutCreatedOut` (có `token`) với `kind = "ticket"`, `items = []`, `event` như bên dưới; `amount` = n × giá vé, chốt lúc giữ ghế.
+- Mã đơn `BK-YYYYMMDD-NNN` cấp theo **ngày diễn ra sự kiện**, cùng dãy số với booking và sự kiện (ADR-010). `pay_ref` = mã đơn bỏ gạch. Giữ ghế `hold_minutes` (5 phút) + 60 giây ân hạn.
+
+| Lỗi | HTTP | Khi nào |
+|---|---|---|
+| `E-WEB-1` | 422 | Số vé ngoài 1..10, họ tên hoặc SĐT sai |
+| `E-WEB-4` | 409 | SĐT đang có lượt chờ thanh toán |
+| `E-WEB-5` | 503 | Đặt online tạm ngưng |
+| `E-WEB-8` | 403 | Thiếu hoặc sai `phone_token` |
+| `E-WEB-9` | 409 | Sự kiện đã bắt đầu hoặc đã hủy |
+| `E-WEB-10` | 409 | Hết chỗ hoặc không đủ chỗ (`detail.remaining`) |
+| `E-WEB-11` | 409 | Giá vé 0 |
+| `E-HV-8` | 403 | `as_member` nhưng không phải hội viên liên kết đang Hoạt động |
+| `E-NOT-FOUND` | 404 | Không có sự kiện |
+
+**`CheckoutOut` (T-023)** thêm hai trường: `kind` (`court` hoặc `ticket`) và `event` (`null` khi `kind = court`). Khi `kind = ticket`: `items = []` và `event = {code, name, play_date, start_time, end_time, resource_names[], seats, ticket_price, ticket_codes[]}`; `ticket_codes` rỗng tới khi đã thanh toán. Giao diện dựa vào `kind` để vẽ trang thanh toán.
+
+**Tra cứu `POST /web/booking/lookup`:** nhận thêm mã đơn vé (`BK-…` của lượt mua vé) hoặc mã vé `{mã sự kiện}-Vnn` (viết liền cũng được), kèm SĐT. Phản hồi thêm `kind` (`court` hoặc `ticket`) và, khi `kind = ticket`, `event = {code, name, start_time, end_time, resource_names[], seats, ticket_price, tickets:[{code, pay_status}]}`. Khối `event` **không** có `play_date`; lấy `play_date` ở cấp ngoài. `status` như đơn sân (`pending` / `expired` / `paid` / `unpaid` / `uncollectible`), `items = []`, `hours = 0`. Vé đăng ký tại quầy tra bằng mã vé: trả một vé, `order_code` = mã vé, `seats = 1`. Sai mã hoặc sai SĐT → 404 `E-WEB-7`.
+
+**Tiền về:**
+
+| Tình huống | Kết quả |
+|---|---|
+| Đủ tiền | Trong cùng transaction: sinh n vé `{mã sự kiện}-Vnn` (`source = online`, `online_transfer`, đã thanh toán, `checkout_id`); checkout `paid`; hold `converted`. Outbox `ticket.online_paid` → `members` tạo hồ sơ tạm theo SĐT nếu chưa có (như booking online) |
+| Thiếu, trễ, thừa, hết hạn | Cùng đường với checkout sân (mục 10.4). Hết hạn thì nhả ghế; tiền về sau hạn → `refund_needed`, không sinh vé. Không có màn xử lý tay |
+
+Khóa dòng `session` `FOR UPDATE` khi giữ ghế và khi tiền về, nên hai người mua song song chỗ cuối: đúng một người giữ được, người kia nhận 409 `E-WEB-10`.
+
+**Nhật ký và sự kiện:** audit `ticket.online.paid` (người làm: Hệ thống; nằm trong loại "Thu tiền" của Lịch sử thao tác) mang mã đơn và mã vé; outbox `ticket.online_paid` và `ticket.created` cho từng vé. Vé online hiện ở màn sự kiện quản trị như vé thường (nguồn Online), trong Lịch sử giao dịch, Báo cáo doanh thu và Lịch sử thanh toán của hội viên (có hóa đơn).
+
+**Migration `9f73fd765c58`** (nối sau `0cbf30ad5193`): thêm `booking.checkout.kind` (`court` / `ticket`, dữ liệu cũ = `court`) và `booking.ticket.checkout_id`. Có downgrade; `alembic check` sạch. Không biến môi trường hay job mới.
+
+**Khu hội viên (`/api/v1/member-area`, cần đăng nhập, `no-store`):**
+
+| Method | Path | Ghi chú |
+|---|---|---|
+| GET | `/member-area/booking-calendar?date=` | Như `GET /web/booking/calendar` (có `online_enabled`, `hold_minutes`), mỗi ô thêm `mine` (ô thuộc booking của mình, theo hồ sơ), `order_code` (**chỉ** khi `mine`), `has_ticket` (ô sự kiện mình đã có vé, mọi trạng thái thanh toán), `event_code`. Ô của người khác vẫn chỉ `state = booked`, không lộ gì. 401 chưa đăng nhập · 403 `E-HV-8` chưa là hội viên · 422 `E-WEB-2` ngày đã qua |
+| GET | `/member-area/bookings/{order_code}` | Đơn của mình: `{order_code, play_date, source: online hoặc counter, pay_status, amount, items:[{code, resource_name, start_time, end_time, hours, amount, pay_status}]}`. Không có SĐT. `items[].code` là mã con, dùng gọi `GET /member-area/payments/{code}` lấy hóa đơn khi đã thanh toán. Không có hoặc của người khác → 404 `E-NOT-FOUND` |
+
+Endpoint công khai `/web/booking/calendar` **không bao giờ** trả `order_code` của ai. Không có `/member-area/events/...`: hội viên xem sự kiện và mua vé qua `/web/booking/events/{code}` và `/web/booking/event-checkouts` với `as_member`.
 
 ## 11. Đăng nhập, nhân viên, OTP, tài khoản khách (T-013)
 
@@ -668,7 +743,7 @@ Chỉ cho máy dev và link dev, khi chưa có Zalo.
 | E-AUTH-32 | 410 | **(T-021)** "Đăng ký cần xác minh số điện thoại. Vui lòng tải lại trang và đăng ký lại." (`POST /auth/register` cũ) |
 | E-STAFF-1 | 404 | "Không tìm thấy nhân viên." (id không phải nhân viên cũng báo vậy) |
 | E-STAFF-2 | 404 | "Không tìm thấy phiên đăng nhập." |
-| E-WEB-8 | 403 | "Vui lòng xác minh số điện thoại trước khi đặt sân." (mục 10.2) |
+| E-WEB-8 | 403 | "Vui lòng xác minh số điện thoại trước khi thanh toán." (mục 10.3; T-023 đổi từ "…trước khi đặt sân.") |
 
 Mật khẩu yếu → 422 `weak_password` với đúng câu "Mật khẩu cần … ." (không có tiền tố "Value error"; dạng `detail` mảng mặc định của FastAPI). Gửi mã đăng ký hàng loạt (T-021; trước đó là đăng ký): quá 10 lần/giờ/IP → `E-SEC-5`. `E-AUTH-3…6` để dành cho T-010; `E-AUTH-7` dùng ở T-012 (mục 10.7).
 
