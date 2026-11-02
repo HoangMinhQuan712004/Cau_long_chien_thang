@@ -6,7 +6,7 @@ constraint của ``allocation`` (BR-010): lỗi ``23P01`` -> ``E-003``.
 
 import math
 from collections import defaultdict
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import Range
@@ -45,7 +45,7 @@ from app.modules.booking_engine.dto import (
     QuoteItem,
     SearchResult,
 )
-from app.modules.booking_engine.holds import expire_holds, hold_visible
+from app.modules.booking_engine.holds import expire_holds, hold_visible, seat_hold_counted
 from app.modules.booking_engine.models import (
     Allocation,
     Booking,
@@ -98,7 +98,11 @@ async def session_resources(
 async def session_counts(
     session: AsyncSession, tenant_id: int, session_ids: list[int]
 ) -> dict[int, tuple[int, int, int]]:
-    """(số vé mọi trạng thái, số vé chưa trả, số chỗ đang giữ online còn hạn) theo sự kiện."""
+    """(số vé mọi trạng thái, số vé chưa trả, số chỗ đang giữ online còn hạn) theo sự kiện.
+
+    Ghế giữ của lượt mua vé online (T-023) tính tới khi lượt hết hạn được nhả (sau ân hạn nhận
+    tiền trễ): quầy và lượt mua khác không lấy được ghế mà tiền có thể vẫn đang về.
+    """
     if not session_ids:
         return {}
     counts: dict[int, list[int]] = {sid: [0, 0, 0] for sid in session_ids}
@@ -117,8 +121,7 @@ async def session_counts(
         .where(
             Hold.tenant_id == tenant_id,
             Hold.session_id.in_(session_ids),
-            Hold.status == "active",
-            Hold.expires_at > func.now(),
+            seat_hold_counted(datetime.now(UTC)),
         )
         .group_by(Hold.session_id)
     ):

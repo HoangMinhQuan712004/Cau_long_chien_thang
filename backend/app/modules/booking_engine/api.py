@@ -25,8 +25,10 @@ from app.modules.booking_engine import (
     report_figures,
     rooms_feed,
     session_service,
+    ticket_online,
     transactions,
 )
+from app.modules.booking_engine import member_calendar as member_cal
 from app.modules.booking_engine.dto import (
     Actor,
     CalendarOut,
@@ -39,8 +41,11 @@ from app.modules.booking_engine.dto import (
     CustomerBookingRow,
     CustomerSnapshot,
     CustomerStats,
+    EventInfo,
     ItemOut,
     LookupResult,
+    MemberCalendar,
+    MemberOrder,
     OnlinePaymentIn,
     OnlinePaymentResult,
     OrderCollectIn,
@@ -427,6 +432,52 @@ async def apply_online_payment(
 ) -> OnlinePaymentResult:
     """Áp giao dịch đã xác thực (module thanh toán gọi, cùng transaction ghi giao dịch)."""
     return await online_service.apply_online_payment(session, _tid(tenant_id), data)
+
+
+# ---- Vé sự kiện online + lịch hội viên (T-023)
+
+
+async def event_info(
+    session: AsyncSession,
+    code: str,
+    refs: list[str] | None = None,
+    *,
+    tenant_id: int | None = None,
+) -> EventInfo:
+    """Sự kiện cho khách (không danh sách người mua); ``refs`` của hội viên -> ``my_tickets``.
+    Không có -> 404 ``E-NOT-FOUND``."""
+    return await ticket_online.event_info(session, _tid(tenant_id), code, refs)
+
+
+async def create_ticket_checkout(
+    session: AsyncSession,
+    event_code: str,
+    seats: int,
+    customer: CustomerSnapshot,
+    hold_minutes: int,
+    *,
+    tenant_id: int | None = None,
+) -> CheckoutCreated:
+    """Giữ ``seats`` ghế + cấp mã đơn; ``token`` trả **một lần**. Lỗi: E-WEB-1 (số vé),
+    E-WEB-4 (SĐT đang có lượt chờ), E-WEB-9 (đã bắt đầu / đã hủy), E-WEB-10 (hết chỗ, kèm
+    ``remaining``), E-WEB-11 (giá 0 – đăng ký tại quầy), E-NOT-FOUND."""
+    return await ticket_online.create_ticket_checkout(
+        session, _tid(tenant_id), event_code, seats, customer, hold_minutes
+    )
+
+
+async def member_calendar(
+    session: AsyncSession, day: dt.date, refs: list[str], *, tenant_id: int | None = None
+) -> MemberCalendar:
+    """Lịch công khai + đánh dấu ô của mình (``mine`` + mã đơn) và sự kiện đã có vé."""
+    return await member_cal.member_calendar(session, _tid(tenant_id), day, refs)
+
+
+async def member_order(
+    session: AsyncSession, refs: list[str], order_code: str, *, tenant_id: int | None = None
+) -> MemberOrder:
+    """Đơn đặt sân của chính khách (theo ``refs``); khác -> 404 ``E-NOT-FOUND``."""
+    return await member_cal.member_order(session, _tid(tenant_id), refs, order_code)
 
 
 # ---- Vận hành
