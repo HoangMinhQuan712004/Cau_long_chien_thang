@@ -67,6 +67,7 @@ from app.modules.booking_engine.orders import (
     ranges_of,
     snapshot_values,
 )
+from app.modules.booking_engine.pricing import hour_price, prices_for_day
 from app.modules.booking_engine.schedules import Hours, effective_on, schedules_of, to_hhmm
 
 DEFAULT_COLUMNS = (5, 22)
@@ -286,9 +287,17 @@ async def calendar(
         span = [DEFAULT_COLUMNS[0] * 60, DEFAULT_COLUMNS[1] * 60]
     columns = list(range(span[0] // 60, math.ceil(span[1] / 60)))
 
+    prices = await prices_for_day(session, tenant_id, day)
     calendar_resources = []
     for r in shown:
         hours = hours_of[r.id]
+        type_prices = prices.get(r.resource_type_id, {})
+        hour_prices = {}
+        if r.is_active:
+            for h in columns:
+                priced = hour_price(hours, h, type_prices)
+                if priced is not None:
+                    hour_prices[h] = priced[1]
         off = [
             h
             for h in columns
@@ -301,6 +310,7 @@ async def calendar(
                 type=types.get(r.resource_type_id, ""),
                 is_active=r.is_active,
                 off_hours=off,
+                hour_prices=hour_prices,
             )
         )
 

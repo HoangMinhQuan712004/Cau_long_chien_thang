@@ -51,7 +51,6 @@ from app.modules.booking_engine.models import (
     BookingOrder,
     Checkout,
     Hold,
-    PriceRule,
     Resource,
 )
 from app.modules.booking_engine.orders import (
@@ -64,7 +63,7 @@ from app.modules.booking_engine.orders import (
     order_of_child,
     ranges_of,
 )
-from app.modules.booking_engine.pricing import day_type_of, slot_price, special_day_on
+from app.modules.booking_engine.pricing import hour_price, prices_for_day
 from app.modules.booking_engine.schedules import Hours, effective_on, schedules_of, to_hhmm
 
 MAX_SLOTS = 16
@@ -83,18 +82,6 @@ def _past_day() -> AppError:
 # ------------------------------------------------------------------ lịch cho khách (AC1–AC2)
 
 
-async def _prices_for_day(session: AsyncSession, tenant_id: int, day: date) -> dict[int, dict]:
-    """{resource_type_id: {"offpeak": giá, "peak": giá}} theo loại ngày."""
-    special = await special_day_on(session, tenant_id, day)
-    day_type = day_type_of(day, special is not None)
-    prices: dict[int, dict] = defaultdict(dict)
-    for p in await session.scalars(
-        select(PriceRule).where(PriceRule.tenant_id == tenant_id, PriceRule.day_type == day_type)
-    ):
-        prices[p.resource_type_id][p.band] = p.price_per_hour
-    return prices
-
-
 async def public_calendar(session: AsyncSession, tenant_id: int, day: date) -> PublicCalendar:
     ctx = await context(session, tenant_id)
     if day < ctx.today:
@@ -107,7 +94,7 @@ async def public_calendar(session: AsyncSession, tenant_id: int, day: date) -> P
         )
     }
     schedules = await schedules_of(session, tenant_id, [r.id for r in resources.values()])
-    prices = await _prices_for_day(session, tenant_id, day)
+    prices = await prices_for_day(session, tenant_id, day)
 
     occupied: dict[tuple[str, int], PublicSlot] = {}
     for b in cal.blocks:
@@ -138,15 +125,11 @@ async def public_calendar(session: AsyncSession, tenant_id: int, day: date) -> P
                 slots.append(occupied[(r.code, h)])
                 continue
             started = ctx.at(day, h * 60) <= ctx.now
-            needed = (
-                {"peak" if hours.is_peak(m) else "offpeak" for m in (h * 60, h * 60 + 30)}
-                if hours
-                else set()
-            )
-            if started or h in cr.off_hours or hours is None or not needed <= type_prices.keys():
+            priced = hour_price(hours, h, type_prices)
+            if started or h in cr.off_hours or priced is None:
                 slots.append(PublicSlot(start_hour=h, state="closed"))
                 continue
-            band, price = slot_price(hours, h * 60, type_prices)
+            band, price = priced
             slots.append(PublicSlot(start_hour=h, state="free", price=price, band=band))
         out.append(PublicCalendarResource(code=r.code, name=r.name, slots=slots))
     return PublicCalendar(date=day, server_now=ctx.now, columns=cal.columns, resources=out)
