@@ -31,8 +31,7 @@ def initial_password_expired(user: User, now: datetime | None = None) -> bool:
     """Còn mật khẩu ban đầu và đã quá ``MEMBER_INITIAL_PASSWORD_DAYS`` ngày kể từ lúc sân tạo."""
     if not user.must_change_password or user.member_account_at is None:
         return False
-    deadline = user.member_account_at + timedelta(days=settings.MEMBER_INITIAL_PASSWORD_DAYS)
-    return (now or datetime.now(UTC)) >= deadline
+    return (now or datetime.now(UTC)) >= initial_password_deadline(user.member_account_at)
 
 
 def expired_error() -> AppError:
@@ -47,16 +46,29 @@ def same_as_phone() -> AppError:
     return AppError("E-AUTH-26", "Mật khẩu không được trùng số điện thoại.", 422)
 
 
+def initial_password_deadline(created_at: datetime) -> datetime:
+    """Hạn đổi mật khẩu ban đầu của tài khoản sân tạo lúc ``created_at``."""
+    return created_at + timedelta(days=settings.MEMBER_INITIAL_PASSWORD_DAYS)
+
+
 async def ensure_customer_account(
     session: AsyncSession, phone: str, full_name: str, active: bool
 ) -> bool:
-    """Tạo tài khoản khách cho SĐT nếu chưa có; True nếu vừa tạo.
+    """Tạo tài khoản khách cho SĐT nếu chưa có; True nếu vừa tạo."""
+    return await create_customer_account(session, phone, full_name, active) is not None
+
+
+async def create_customer_account(
+    session: AsyncSession, phone: str, full_name: str, active: bool
+) -> datetime | None:
+    """Tạo tài khoản khách cho SĐT nếu chưa có -> hạn đổi mật khẩu ban đầu; đã có -> None.
 
     Đã có tài khoản (khách tự đăng ký, hoặc Admin / NV) -> không đụng (không đổi mật khẩu).
     ``ON CONFLICT DO NOTHING``: hai request cùng SĐT -> một dòng, không lỗi.
     """
     if await session.scalar(select(User.id).where(User.phone == phone)):
-        return False
+        return None
+    now = datetime.now(UTC)
     created = await session.scalar(
         insert(User)
         .values(
@@ -66,12 +78,12 @@ async def ensure_customer_account(
             role=Role.MEMBER,
             is_active=active,
             must_change_password=True,
-            member_account_at=datetime.now(UTC),
+            member_account_at=now,
         )
         .on_conflict_do_nothing(index_elements=[User.phone])
         .returning(User.id)
     )
-    return created is not None
+    return initial_password_deadline(now) if created is not None else None
 
 
 async def set_customer_account_active(session: AsyncSession, phone: str, active: bool) -> None:

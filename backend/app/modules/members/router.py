@@ -10,6 +10,7 @@ from app.core.ratelimit import rate_limit
 from app.modules.members import api, listing, manage, profiles
 from app.modules.members.schemas import (
     MemberCan,
+    MemberCreatedOut,
     MemberCreateIn,
     MemberDetail,
     MemberListOut,
@@ -95,7 +96,7 @@ async def next_code(_: MemberManager, session: SessionDep):
     return NextCodeOut(member_code=await profiles.next_code(session))
 
 
-@router.post("", response_model=MemberRow, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=MemberCreatedOut, status_code=status.HTTP_201_CREATED)
 async def create_member(
     data: MemberCreateIn, principal: MemberManager, idem: IdempotencyDep, session: SessionDep
 ):
@@ -104,9 +105,11 @@ async def create_member(
 
     Lỗi: E-001/E-002 · 409 E-018 (SĐT của hội viên) · 409 E-MEM-1 "Số điện thoại đã có hồ sơ
     tạm: {Họ tên} (tạo dd/mm/yyyy)" (SRS E-004 – không nâng hồ sơ tạm, T-020 AC1).
+    Response kèm ``account_created`` / ``initial_password_expires_at`` (T-026, không có mật
+    khẩu); gửi lại cùng key trả đúng như lần đầu.
     """
 
-    async def run() -> MemberRow:
+    async def run() -> MemberCreatedOut:
         return await manage.create_member(session, _actor(principal), data)
 
     return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
