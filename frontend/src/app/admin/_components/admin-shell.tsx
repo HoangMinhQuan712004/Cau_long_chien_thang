@@ -7,6 +7,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { MenuIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/cn";
 import { AccountMenu } from "./account-menu";
+import { FORBIDDEN_REPORT_VALUE, FORBIDDEN_VALUE } from "./forbidden";
 import { ForbiddenToast } from "./forbidden-toast";
 import { AdminSidebar, type SidebarProps } from "./admin-sidebar";
 import { useSidebarCollapsed } from "./use-sidebar-collapsed";
@@ -29,7 +30,7 @@ export function AdminShell({ children, initialCollapsed, ...sidebar }: Props) {
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <ForbiddenToast message={t.forbidden} />
+      <ForbiddenToast messages={{ [FORBIDDEN_VALUE]: t.forbidden, [FORBIDDEN_REPORT_VALUE]: t.forbiddenReport }} />
       {/* Header xanh đậm rộng hết màn, dính trên cùng: nút menu, logo + tên, tài khoản */}
       <header className={cn(`
         sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 bg-sidebar px-3

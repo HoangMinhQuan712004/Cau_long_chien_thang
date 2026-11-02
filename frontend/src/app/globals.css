@@ -42,6 +42,8 @@
   --accent-soft: color-mix(in srgb, var(--accent) 22%, white);
   --accent-fg: color-mix(in srgb, var(--accent) 40%, black);
   --info-soft: color-mix(in srgb, var(--info) 10%, white);
+  /* Heatmap công suất mức 40–69% (các mức khác dùng primary-soft / primary / primary-hover) */
+  --heat-mid: color-mix(in srgb, var(--primary) 42%, white);
 }
 
 @theme inline {
@@ -77,6 +79,7 @@
   --color-accent-fg: var(--accent-fg);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+  --color-heat-mid: var(--heat-mid);
   --shadow-card: var(--card-shadow);
   --radius-card: 14px;
   /* Cỡ theo prototype, viết bằng rem để phóng to cùng trang trên màn lớn */
