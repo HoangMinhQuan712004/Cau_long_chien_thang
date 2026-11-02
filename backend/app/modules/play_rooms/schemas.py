@@ -132,6 +132,14 @@ class FormatIn(_In):
     version: int
 
 
+class LineupIn(_In):
+    team_a: list[int] = Field(
+        max_length=2, description="Id dòng thành viên phòng – 2 người (2 vs 2) / 1 người (1 vs 1)"
+    )
+    team_b: list[int] = Field(max_length=2, description="Như team_a")
+    version: int
+
+
 class ResultIn(_In):
     score_a: int = Field(description="Điểm Đội A, 0–99")
     score_b: int = Field(description="Điểm Đội B, 0–99, không bằng Đội A")

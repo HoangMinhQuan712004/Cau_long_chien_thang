@@ -126,9 +126,21 @@ async def draw(session: AsyncSession, me: Me, room_id: int, version: int) -> Pla
         if m.queue_state == "waiting"
     ]
     chosen = pick(waiting, PLAYERS[room.format], fresh=not await _ever_started(session, room.id))
-    team_a, team_b = split_teams(chosen)
-    people = await members.room_people(session, chosen)
-    names = {str(cid): name_of(people, cid) for cid in chosen}
+    await _set_drawn(session, room, match, *split_teams(chosen), now)
+    return room
+
+
+async def _set_drawn(
+    session: AsyncSession,
+    room: PlayRoom,
+    match: PlayMatch | None,
+    team_a: list[int],
+    team_b: list[int],
+    now: datetime,
+) -> PlayMatch:
+    """Tạo / thay trận ``drawn`` của phòng (giữ số trận khi bốc lại / xếp lại), chụp tên lúc xếp."""
+    people = await members.room_people(session, [*team_a, *team_b])
+    names = {str(cid): name_of(people, cid) for cid in (*team_a, *team_b)}
     if match is None:
         match = PlayMatch(room_id=room.id, no=await _next_no(session, room.id))
         session.add(match)
@@ -136,7 +148,73 @@ async def draw(session: AsyncSession, me: Me, room_id: int, version: int) -> Pla
     match.status, match.drawn_at = "drawn", now
     touch(room)
     await session.flush()
+    return match
+
+
+async def set_lineup(
+    session: AsyncSession,
+    me: Me,
+    room_id: int,
+    team_a: list[int],
+    team_b: list[int],
+    version: int,
+) -> PlayRoom:
+    """Host tự xếp đội hình (T-027): lưu thành trận ``drawn`` như kết quả bốc.
+
+    ``team_a`` / ``team_b`` = id dòng thành viên phòng. Kiểm: đang ở phòng, không trùng, mỗi đội
+    đúng nửa số người của thể thức (E-ROOM-12); không có trận đang chơi (E-ROOM-11). Không đổi
+    ``waiting_since`` của ai – thuật toán chờ lâu chỉ áp khi bốc.
+    """
+    now = datetime.now(UTC)
+    room = await writable_room(session, room_id, version, now)
+    _require_host(room, me)
+    match = await active_match(session, room.id)
+    if match is not None and match.status == "playing":
+        raise errors.match_in_progress(match.no)
+    half = PLAYERS[room.format] // 2
+    by_id = {m.id: m.customer_id for m in await member_rows(session, room.id)}
+    chosen = [*team_a, *team_b]
+    if (
+        len(team_a) != half
+        or len(team_b) != half
+        or len(set(chosen)) != len(chosen)
+        or any(mid not in by_id for mid in chosen)
+    ):
+        raise errors.bad_lineup()
+    match = await _set_drawn(
+        session, room, match, [by_id[m] for m in team_a], [by_id[m] for m in team_b], now
+    )
+    people = await members.room_people(session, {me.customer_id})
+    audit(
+        session,
+        actor(me, people),
+        "room.lineup_set",
+        "play_room",
+        str(room.id),
+        audit_detail(
+            room.booking_code,
+            room_label(room),
+            [
+                audit_change(
+                    f"Trận #{match.no}",
+                    None,
+                    f"Đội A {_team_text(match, match.team_a)} – Đội B "
+                    f"{_team_text(match, match.team_b)}",
+                )
+            ],
+            room_id=room.id,
+            match_no=match.no,
+            format=match.format,
+            team_a=list(match.team_a),
+            team_b=list(match.team_b),
+        ),
+    )
+    await session.flush()
     return room
+
+
+def _team_text(match: PlayMatch, ids: list[int]) -> str:
+    return ", ".join(str(match.names.get(str(c), "Hội viên")) for c in ids)
 
 
 async def start(session: AsyncSession, me: Me, room_id: int, version: int) -> PlayRoom:
@@ -185,10 +263,6 @@ async def save_result(
             m.queue_state, m.waiting_since = "waiting", now  # về cuối Hàng chờ (AC17)
     touch(room)
     people = await members.room_people(session, {me.customer_id})
-
-    def team(ids: list[int]) -> str:
-        return ", ".join(str(match.names.get(str(c), "Hội viên")) for c in ids)
-
     audit(
         session,
         actor(me, people),
@@ -205,8 +279,8 @@ async def save_result(
             score_a=score_a,
             score_b=score_b,
             winner=match.winner,
-            team_a=team(match.team_a),
-            team_b=team(match.team_b),
+            team_a=_team_text(match, match.team_a),
+            team_b=_team_text(match, match.team_b),
         ),
     )
     await session.flush()

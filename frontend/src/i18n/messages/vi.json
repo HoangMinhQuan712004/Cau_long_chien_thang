@@ -351,6 +351,7 @@
     "form": {
       "codeLabel": "Mã hội viên",
       "codeHint": "Mã tự cấp khi lưu",
+      "accountNote": "Hội viên đăng nhập bằng số điện thoại. Nếu số này chưa có tài khoản, mật khẩu ban đầu là chính số điện thoại và phải đổi trong 3 ngày.",
       "nameLabel": "Họ tên *",
       "namePlaceholder": "Nhập họ tên",
       "genderLabel": "Giới tính",
@@ -392,7 +393,19 @@
       "saved": "Đã lưu thay đổi",
       "tempCreated": "Đã tạo hồ sơ tạm",
       "tempSub": "{name} · {phone}",
-      "memberSubNoTier": "{name} · {code}"
+      "memberSubNoTier": "{name} · {code}",
+      "addedExisting": "Đã thêm {code}",
+      "addedExistingSub": "Số điện thoại này đã có tài khoản – hội viên đăng nhập bằng mật khẩu hiện có (quên thì dùng Quên mật khẩu)."
+    },
+    "accountNotice": {
+      "title": "Đã tạo tài khoản",
+      "created": "Đã tạo tài khoản cho {code} – {name}",
+      "login": "Đăng nhập: {phone} · Mật khẩu ban đầu: {phone}",
+      "expires": "Hội viên phải đổi mật khẩu trước {at}. Quá hạn thì dùng Quên mật khẩu.",
+      "copy": "Sao chép",
+      "copied": "Đã sao chép",
+      "copyFailed": "Không sao chép được. Hãy chép tay nội dung ở trên.",
+      "close": "Đóng"
     },
     "errors": {
       "forbidden": "Bạn không có quyền thực hiện thao tác này.",

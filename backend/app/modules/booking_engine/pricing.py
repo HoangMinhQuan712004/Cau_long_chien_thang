@@ -7,12 +7,13 @@
   (``(a + b + 1) // 2``).
 """
 
+from collections import defaultdict
 from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.booking_engine.models import SpecialDay
+from app.modules.booking_engine.models import PriceRule, SpecialDay
 from app.modules.booking_engine.schedules import Hours
 
 HALF = 30
@@ -45,3 +46,26 @@ def slot_price(hours: Hours, start_minute: int, prices: dict[str, int]) -> tuple
     peak_count = sum(halves)
     band = "peak" if peak_count == 2 else "partial" if peak_count == 1 else "offpeak"
     return band, (total_half_prices + 1) // 2
+
+
+async def prices_for_day(session: AsyncSession, tenant_id: int, day: date) -> dict[int, dict]:
+    """{resource_type_id: {"offpeak": giá, "peak": giá}} theo loại ngày của ``day``."""
+    special = await special_day_on(session, tenant_id, day)
+    day_type = day_type_of(day, special is not None)
+    prices: dict[int, dict] = defaultdict(dict)
+    for p in await session.scalars(
+        select(PriceRule).where(PriceRule.tenant_id == tenant_id, PriceRule.day_type == day_type)
+    ):
+        prices[p.resource_type_id][p.band] = p.price_per_hour
+    return prices
+
+
+def hour_price(hours: Hours | None, hour: int, prices: dict[str, int]) -> tuple[str, int] | None:
+    """(band, giá) của ô 1 giờ bắt đầu lúc ``hour``; ``None`` khi sân không bán ô này hoặc bảng
+    giá thiếu band cần cho ô (ô không bán được)."""
+    if hours is None or not hours.sells(hour * 60, hour * 60 + 60):
+        return None
+    needed = {"peak" if hours.is_peak(m) else "offpeak" for m in (hour * 60, hour * 60 + HALF)}
+    if not needed <= prices.keys():
+        return None
+    return slot_price(hours, hour * 60, prices)

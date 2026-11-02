@@ -29,6 +29,7 @@ from app.modules.web_booking.schemas import (
     CheckoutCreatedOut,
     CheckoutIn,
     CheckoutOut,
+    EventCheckoutIn,
     LookupIn,
     LookupItemOut,
     LookupOut,
@@ -40,6 +41,7 @@ from app.modules.web_booking.schemas import (
     WebCalendarOut,
     WebCheckoutItem,
     WebCustomer,
+    WebEventOut,
 )
 
 router = APIRouter(prefix="/web/booking", tags=["web-booking"])
@@ -74,6 +76,7 @@ async def _require_online(session: AsyncSession) -> None:
 
 async def _checkout_out(session: AsyncSession, view: CheckoutView) -> dict:
     return {
+        "kind": view.kind,
         "status": view.status,
         "expires_at": view.expires_at,
         "server_now": view.server_now,
@@ -89,6 +92,7 @@ async def _checkout_out(session: AsyncSession, view: CheckoutView) -> dict:
             full_name=view.customer_name, phone_masked=mask_phone(view.customer_phone)
         ),
         "items": [WebCheckoutItem(**i.model_dump()) for i in view.items],
+        "event": view.event,
     }
 
 
@@ -120,14 +124,14 @@ def _valid_phone(raw: str) -> str:
     return phone
 
 
-def _validate_customer(data: CheckoutIn) -> tuple[str, str, str | None]:
+def _validate_customer(data: CheckoutIn | EventCheckoutIn) -> tuple[str, str, str | None]:
     full_name = " ".join(data.full_name.split())
     if not full_name:
         raise _web_error("Vui lòng nhập họ tên.")
     if len(full_name) > NAME_MAX:
         raise _web_error(f"Họ tên tối đa {NAME_MAX} ký tự.")
     phone = _valid_phone(data.phone)
-    note = (data.note or "").strip() or None
+    note = (getattr(data, "note", None) or "").strip() or None
     if note and len(note) > NOTE_MAX:
         raise _web_error(f"Ghi chú tối đa {NOTE_MAX} ký tự.")
     return full_name, phone, note
@@ -142,6 +146,50 @@ async def _member_identity(
     if profile is None or found is None or not found.is_active:
         raise AppError("E-HV-8", "Bạn chưa là hội viên.", 403)
     return profile.full_name, profile.phone
+
+
+async def _buyer[T: (CheckoutIn, EventCheckoutIn)](
+    session: AsyncSession,
+    data: T,
+    verified_phone: str | None,
+    member: auth.LinkedMember | None,
+) -> tuple[T, str, str, str | None]:
+    """Người mua đã kiểm: ``as_member`` -> Họ tên + SĐT của hồ sơ (403 E-HV-8 nếu không phải
+    hội viên liên kết đang Hoạt động); còn lại cần ``phone_token`` của đúng SĐT (403 E-WEB-8)."""
+    if data.as_member:
+        full_name, phone = await _member_identity(session, member)
+        data = data.model_copy(update={"full_name": full_name, "phone": phone})
+    full_name, phone, note = _validate_customer(data)
+    # as_member: SĐT của hồ sơ, tài khoản liên kết đã xác minh -> không cần phone_token
+    if (
+        not data.as_member
+        and verified_phone != phone
+        and not await auth.booking_phone_token_valid(session, data.phone_token, phone)
+    ):
+        raise AppError("E-WEB-8", "Vui lòng xác minh số điện thoại trước khi thanh toán.", 403)
+    return data, full_name, phone, note
+
+
+async def _snapshot(session: AsyncSession, full_name: str, phone: str) -> CustomerSnapshot:
+    """Khách của lượt đặt / mua theo SĐT đã xác minh: hội viên -> hồ sơ hội viên; còn lại -> hồ
+    sơ tạm (có sẵn, hoặc ``phone:<sđt>`` – tạo khi tiền về)."""
+    profile = await members.find_by_phone(session, phone)
+    # Hội viên Ngừng vẫn gắn vào hội viên khi đặt online (T-020 AC2 – Ngừng chỉ là nhãn)
+    if profile is not None and profile.kind == "member":
+        return CustomerSnapshot(
+            ref_id=profile.ref,
+            kind="member",
+            display_name=profile.full_name,
+            phone=phone,
+            member_code=profile.member_code,
+            tier=profile.tier,
+        )
+    return CustomerSnapshot(
+        ref_id=profile.ref if profile else f"phone:{phone}",
+        kind="temp",
+        display_name=full_name,
+        phone=phone,
+    )
 
 
 @router.post(
@@ -171,41 +219,80 @@ async def create_checkout(
     E-WEB-8 (chưa xác minh SĐT), E-019.
     """
     await _require_online(session)
-    if data.as_member:
-        full_name, phone = await _member_identity(session, member)
-        data = data.model_copy(update={"full_name": full_name, "phone": phone})
-    full_name, phone, note = _validate_customer(data)
-    # as_member: SĐT của hồ sơ, tài khoản liên kết đã xác minh -> không cần phone_token
-    if (
-        not data.as_member
-        and verified_phone != phone
-        and not await auth.booking_phone_token_valid(session, data.phone_token, phone)
-    ):
-        raise AppError("E-WEB-8", "Vui lòng xác minh số điện thoại trước khi đặt sân.", 403)
+    data, full_name, phone, note = await _buyer(session, data, verified_phone, member)
 
     async def run() -> CheckoutCreatedOut:
-        profile = await members.find_by_phone(session, phone)
-        # Hội viên Ngừng vẫn gắn vào hội viên khi đặt online (T-020 AC2 – Ngừng chỉ là nhãn)
-        if profile is not None and profile.kind == "member":
-            snapshot = CustomerSnapshot(
-                ref_id=profile.ref,
-                kind="member",
-                display_name=profile.full_name,
-                phone=phone,
-                member_code=profile.member_code,
-                tier=profile.tier,
-            )
-        else:
-            snapshot = CustomerSnapshot(
-                ref_id=profile.ref if profile else f"phone:{phone}",
-                kind="temp",
-                display_name=full_name,
-                phone=phone,
-            )
+        snapshot = await _snapshot(session, full_name, phone)
         created = await engine.create_checkout(
             session,
             CheckoutCreate(date=data.date, slots=data.slots, note=note),
             snapshot,
+            settings.ONLINE_HOLD_MINUTES,
+        )
+        return CheckoutCreatedOut(**await _checkout_out(session, created), token=created.token)
+
+    actor_key = f"web:{client_ip() or 'unknown'}"
+    return await idem.run(session, actor_key, run, status_code=status.HTTP_201_CREATED)
+
+
+# ------------------------------------------------------------------ vé sự kiện online (T-023)
+
+
+@router.get(
+    "/events/{code}",
+    response_model=WebEventOut,
+    dependencies=[Depends(rate_limit("web.calendar", 60)), Depends(no_store)],
+)
+async def event_detail(
+    code: Annotated[str, Path(max_length=40)],
+    session: SessionDep,
+    member: auth.OptionalMember,
+):
+    """Chi tiết sự kiện cho popup mua vé (AC5, AC17) – không tên / SĐT người mua.
+
+    ``my_tickets`` chỉ khi có cookie hội viên liên kết (khách: null). Không có -> 404 E-NOT-FOUND.
+    """
+    refs = await members.booking_refs_of(session, member.customer_id) if member else None
+    info = await engine.event_info(session, code, refs)
+    out = WebEventOut(**info.model_dump(), hold_minutes=settings.ONLINE_HOLD_MINUTES)
+    if out.can_buy and not await _online_enabled(session):
+        out.can_buy, out.reason, out.max_seats = False, "online_off", 0
+    return out
+
+
+@router.post(
+    "/event-checkouts",
+    response_model=CheckoutCreatedOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(require_origin),
+        Depends(rate_limit("web.checkout", 6, window_s=600)),
+    ],
+)
+async def create_event_checkout(
+    data: EventCheckoutIn,
+    idem: IdempotencyDep,
+    session: SessionDep,
+    verified_phone: auth.VerifiedCustomerPhone,
+    member: auth.OptionalMember,
+):
+    """Mua vé sự kiện online (T-023): giữ ``seats`` ghế 5 phút, cấp mã đơn, trả ``token`` (một
+    lần) để mở trang thanh toán QR. Dùng chung cho /dat-san (khách: ``phone_token``) và
+    /hoi-vien/dat-san (``as_member``).
+
+    Lỗi: E-WEB-1 (dữ liệu / số vé), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (online tạm ngưng),
+    E-WEB-8 (chưa xác minh SĐT), E-WEB-9 (sự kiện đã bắt đầu / đã hủy), E-WEB-10 (hết chỗ /
+    không đủ chỗ, kèm ``remaining``), E-WEB-11 (giá 0 – đăng ký tại quầy), E-HV-8, E-NOT-FOUND.
+    """
+    await _require_online(session)
+    data, full_name, phone, _ = await _buyer(session, data, verified_phone, member)
+
+    async def run() -> CheckoutCreatedOut:
+        created = await engine.create_ticket_checkout(
+            session,
+            data.event_code,
+            data.seats,
+            await _snapshot(session, full_name, phone),
             settings.ONLINE_HOLD_MINUTES,
         )
         return CheckoutCreatedOut(**await _checkout_out(session, created), token=created.token)
@@ -306,6 +393,7 @@ async def lookup(data: LookupIn, session: SessionDep):
             bank=await payments.bank_info(session, result.pending.amount, result.pending.pay_ref),
         )
     return LookupOut(
+        kind=result.kind,
         order_code=result.order_code,
         status=result.status,
         play_date=result.play_date,
@@ -317,4 +405,5 @@ async def lookup(data: LookupIn, session: SessionDep):
         paid_at=result.paid_at,
         items=[LookupItemOut(**i.model_dump(exclude={"matched"})) for i in result.items],
         pending=pending,
+        event=result.event,
     )

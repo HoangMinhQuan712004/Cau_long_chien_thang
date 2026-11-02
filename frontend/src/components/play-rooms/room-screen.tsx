@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/refs -- các hàm xử lý sự kiện (kéo thả, ghi lệnh) đọc `versionRef`; chỉ chạy khi có sự kiện, không chạy lúc render */
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,16 +15,36 @@ import { toast } from "@/lib/feedback";
 import { formatTime } from "@/lib/format";
 import { usePolling } from "@/hooks/use-polling";
 import { ConfirmDialog } from "./confirm-dialog";
-import { Court } from "./court";
+import { Court, type CourtEditor, type EditorPlayer } from "./court";
+import { type Draft, fromMatch, idsOf, isFull, place, remove, sameLineup, type SlotRef, swap, switchTeam } from "./lineup";
+import { type DragSource, type DropTarget, useLineupDrag } from "./lineup-drag";
 import { InviteDialog, ResultDialog } from "./room-dialogs";
 import { RoomHistory } from "./room-history";
 import { roomsApi } from "./requests";
+import { SlotDialog, type SlotDialogState } from "./slot-dialog";
 import { type Format, FORMAT_LABEL, FORMAT_NEED, MAX_MEMBERS, type RoomDetail, type RoomMember } from "./types";
 import { hourRange, MATCHES_READY } from "./utils";
 
 // /hoi-vien/phong/[id] (T-017 AC8–AC20): sân vẽ, hàng chờ, nút theo vai, popup xác nhận, Lịch sử trận / Xếp hạng.
 
 type Dialog = null | { kind: "kick" | "transfer"; m: RoomMember } | { kind: "invite" } | { kind: "result" } | { kind: "leave" };
+
+/** Đội hình đang hiển thị cho Host: bản nháp (nếu còn hợp lệ) hoặc đội hình đã lưu trên server (trận `drawn`). */
+function deriveLineup(room: RoomDetail | null, draft: Draft | null) {
+  if (!room) return null;
+  const cur = room.current_match;
+  const playing = cur?.status === "playing";
+  const memberIds = new Set(room.members.map((m) => m.id));
+  const server = fromMatch(room.format, cur);
+  // Bỏ bản nháp khi đổi thể thức, có người rời phòng hoặc trận đã bắt đầu
+  const valid = draft !== null && draft.format === room.format && !playing && idsOf(draft).every((id) => memberIds.has(id));
+  return {
+    server,
+    base: valid && draft ? draft : server,
+    hasDraft: valid,
+    editable: room.my_role === "host" && room.status === "open" && !playing && MATCHES_READY,
+  };
+}
 
 function Crown({ className }: { className?: string }) {
   return (
@@ -40,6 +62,9 @@ export function RoomScreen({ id }: { id: number }) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
   const versionRef = useRef(0);
+  // Đội hình Host đang xếp (T-027): bản nháp trên máy; đủ người mới gửi lên server
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [slotDlg, setSlotDlg] = useState<SlotDialogState | null>(null);
   // Mốc thời gian lúc tải gần nhất (để so với giờ cho phép bắt đầu trận, không đọc đồng hồ khi render)
   const [nowMs, setNowMs] = useState(0);
 
@@ -87,6 +112,37 @@ export function RoomScreen({ id }: { id: number }) {
     return { done: true, error: null };
   }
 
+  /** Sửa đội hình: đủ người thì gửi lên server (tạo / thay trận `drawn`), chưa đủ thì giữ bản nháp. */
+  function editLineup(fn: (d: Draft) => Draft) {
+    const lu = deriveLineup(room, draft);
+    if (!lu || !lu.editable || busy) return;
+    const next = fn(lu.base);
+    if (!isFull(next)) return setDraft(next);
+    if (!lu.hasDraft && sameLineup(next, lu.server)) return;
+    void sendLineup(next);
+  }
+
+  async function sendLineup(next: Draft) {
+    setDraft(next);
+    setBusy(true);
+    const a = next.a as number[];
+    const b = next.b as number[];
+    let r = await write((v) => roomsApi.setLineup(id, a, b, v));
+    // Phòng vừa đổi (E-ROOM-6): `write` đã tải lại, gửi lại đúng đội hình một lần với version mới
+    if (!r.done && !r.error) r = await write((v) => roomsApi.setLineup(id, a, b, v));
+    setBusy(false);
+    if (r.done) setDraft(null);
+    else if (r.error) toast(r.error, undefined, "error");
+  }
+
+  function handleDrop(src: DragSource, target: DropTarget, inCourt: boolean) {
+    if (src.kind === "member") {
+      if (target) editLineup((d) => place(d, src.id, target));
+    } else if (target) editLineup((d) => swap(d, src.ref, target));
+    else if (!inCourt) editLineup((d) => remove(d, src.ref)); // kéo ra ngoài sân = bỏ khỏi ô
+  }
+  const drag = useLineupDrag(handleDrop);
+
   /** Nút nằm ngoài hộp thoại: lỗi hiện bằng toast. */
   async function inline(fn: (version: number) => Promise<WriteResult<unknown>>, ok?: [string, string?]) {
     if (busy) return;
@@ -130,6 +186,27 @@ export function RoomScreen({ id }: { id: number }) {
   const waitingAll = room.members.filter((m) => m.queue_state === "waiting");
   const onCourt = new Set([...(cur?.team_a ?? []), ...(cur?.team_b ?? [])].map((p) => p.member_id));
   const waitingShown = waitingAll.filter((m) => !onCourt.has(m.id));
+  const lu = deriveLineup(room, draft);
+  const lineupIds = new Set(lu ? idsOf(lu.base) : []);
+  const editor: CourtEditor | undefined =
+    lu?.editable
+      ? (() => {
+          const person = (mid: number | null): EditorPlayer | null => {
+            const m = room.members.find((x) => x.id === mid);
+            return m ? { member_id: m.id, display_name: m.display_name, avatar_url: m.avatar_url } : null;
+          };
+          return {
+            a: lu.base.a.map(person),
+            b: lu.base.b.map(person),
+            over: drag.over,
+            onSlot: (ref: SlotRef) => setSlotDlg({ kind: "slot", ref }),
+            onRemove: (ref: SlotRef) => editLineup((d) => remove(d, ref)),
+            onDragStart: (e, ref, label) => drag.begin(e, { kind: "slot", ref }, label),
+          };
+        })()
+      : undefined;
+  const editWaiting = editor ? waitingAll.filter((m) => !lineupIds.has(m.id)) : waitingShown;
+  const placedCount = lu ? idsOf(lu.base).length : 0;
   const roomName = room.resource_name.replace(/^Sân (\d+)/, "Sân số $1");
   const beforeStart = nowMs < Date.parse(room.can_start_from);
 
@@ -249,8 +326,14 @@ export function RoomScreen({ id }: { id: number }) {
                       <span aria-hidden className="size-2 rounded-full bg-danger" />
                       Trận #{cur.no} đang chơi{cur.started_at ? ` · bắt đầu ${formatTime(cur.started_at)}` : ""}
                     </span>
+                  ) : isHost && lu?.hasDraft && placedCount < need ? (
+                    `Cần đủ ${need} người · đã xếp ${placedCount}/${need} · bản nháp trên máy bạn, chưa lưu`
+                  ) : isHost && drawn ? (
+                    "Đội hình đã lưu · bấm “Bắt đầu trận” khi sẵn sàng · đổi thể thức sẽ xóa đội hình"
                   ) : drawn ? (
                     "Đổi thể thức sẽ xóa kết quả bốc · chỉ chốt khi bấm “Bắt đầu trận”"
+                  ) : isHost && placedCount > 0 ? (
+                    `Cần đủ ${need} người · đã xếp ${placedCount}/${need} · bản nháp trên máy bạn, chưa lưu`
                   ) : waitingAll.length >= need ? (
                     `Đủ người · ${Math.min(waitingAll.length, need)}/${need} cho ${FORMAT_LABEL[room.format]}`
                   ) : (
@@ -261,19 +344,25 @@ export function RoomScreen({ id }: { id: number }) {
                   <div className="flex gap-2">
                     {playing ? (
                       <Button onClick={() => setDialog({ kind: "result" })}>Kết thúc trận</Button>
-                    ) : drawn ? (
+                    ) : (
                       <>
-                        <Button variant="secondary" onClick={() => void inline((v) => roomsApi.draw(id, v))} loading={busy}>
-                          Bốc lại
+                        <Button
+                          variant="secondary"
+                          onClick={() => void inline((v) => roomsApi.draw(id, v)).then(() => setDraft(null))}
+                          loading={busy}
+                          disabled={waitingAll.length < need}
+                        >
+                          {drawn ? "Bốc lại" : "Bốc ngẫu nhiên"}
                         </Button>
-                        <Button onClick={() => void inline((v) => roomsApi.start(id, v))} loading={busy} disabled={beforeStart} title={beforeStart ? "Chưa tới giờ bắt đầu trận." : undefined}>
+                        <Button
+                          onClick={() => void inline((v) => roomsApi.start(id, v))}
+                          loading={busy}
+                          disabled={!drawn || Boolean(lu?.hasDraft) || beforeStart}
+                          title={!drawn || lu?.hasDraft ? `Cần đủ ${need} người` : beforeStart ? "Chưa tới giờ bắt đầu trận." : undefined}
+                        >
                           Bắt đầu trận
                         </Button>
                       </>
-                    ) : (
-                      <Button variant="secondary" onClick={() => void inline((v) => roomsApi.draw(id, v))} loading={busy} disabled={waitingAll.length < need}>
-                        Bốc ngẫu nhiên
-                      </Button>
                     )}
                   </div>
                 ) : null}
@@ -283,10 +372,13 @@ export function RoomScreen({ id }: { id: number }) {
                 teamA={cur?.team_a ?? []}
                 teamB={cur?.team_b ?? []}
                 hostId={hostMemberId}
-                state={playing ? "playing" : drawn ? "drawn" : "idle"}
+                state={playing ? "playing" : drawn || (editor && placedCount > 0) ? "drawn" : "idle"}
                 matchNo={cur?.no}
-                hint={!MATCHES_READY ? "Bốc cặp và ghi kết quả trận sẽ có ở bản cập nhật sau" : isHost ? "Bấm “Bốc ngẫu nhiên” để xếp người chơi vào sân" : "Host sẽ bốc ngẫu nhiên để xếp người chơi vào sân"}
-                waiting={waitingShown}
+                hint={!MATCHES_READY ? "Bốc cặp và ghi kết quả trận sẽ có ở bản cập nhật sau" : isHost ? "Bấm “Bốc ngẫu nhiên” hoặc kéo / chọn người vào sân" : "Host sẽ bốc ngẫu nhiên để xếp người chơi vào sân"}
+                waiting={editWaiting}
+                editor={editor}
+                onWaitingDrag={editor ? (e, m) => drag.begin(e, { kind: "member", id: m.id }, m.display_name) : undefined}
+                onWaitingPick={editor ? (m) => setSlotDlg({ kind: "member", id: m.id }) : undefined}
               />
             </section>
 
@@ -345,7 +437,15 @@ export function RoomScreen({ id }: { id: number }) {
               </div>
               <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {room.members.map((m) => (
-                  <MemberTile key={m.id} m={m} isMe={m.is_me} canManage={isHost && !m.is_me} onKick={() => setDialog({ kind: "kick", m })} onTransfer={() => setDialog({ kind: "transfer", m })} />
+                  <MemberTile
+                    key={m.id}
+                    m={m}
+                    isMe={m.is_me}
+                    canManage={isHost && !m.is_me}
+                    onKick={() => setDialog({ kind: "kick", m })}
+                    onTransfer={() => setDialog({ kind: "transfer", m })}
+                    onDragStart={editor && !lineupIds.has(m.id) ? (e) => drag.begin(e, { kind: "member", id: m.id }, m.display_name) : undefined}
+                  />
                 ))}
                 {Array.from({ length: Math.max(0, MAX_MEMBERS - room.members.length) }, (_, i) => (
                   <li key={`empty-${i}`} className="flex h-14 items-center gap-2.5 rounded-lg border border-dashed border-border-strong px-3 text-sm text-subtle">
@@ -359,6 +459,28 @@ export function RoomScreen({ id }: { id: number }) {
         )}
       </div>
 
+      {drag.ghost}
+      {slotDlg && lu?.editable ? (
+        <SlotDialog
+          key={JSON.stringify(slotDlg)}
+          state={slotDlg}
+          draft={lu.base}
+          members={room.members}
+          onClose={() => setSlotDlg(null)}
+          onPlace={(mid, ref) => {
+            setSlotDlg(null);
+            editLineup((d) => place(d, mid, ref));
+          }}
+          onSwitchTeam={(ref) => {
+            setSlotDlg(null);
+            editLineup((d) => switchTeam(d, ref));
+          }}
+          onRemove={(ref) => {
+            setSlotDlg(null);
+            editLineup((d) => remove(d, ref));
+          }}
+        />
+      ) : null}
       {dialog?.kind === "leave" ? (
         <ConfirmDialog
           title="Rời phòng?"
@@ -434,10 +556,13 @@ export function RoomScreen({ id }: { id: number }) {
   );
 }
 
-function MemberTile({ m, isMe, canManage, onKick, onTransfer }: { m: RoomMember; isMe: boolean; canManage: boolean; onKick: () => void; onTransfer: () => void }) {
+function MemberTile({ m, isMe, canManage, onKick, onTransfer, onDragStart }: { m: RoomMember; isMe: boolean; canManage: boolean; onKick: () => void; onTransfer: () => void; onDragStart?: (e: React.PointerEvent) => void }) {
   const [menu, setMenu] = useState(false);
   return (
-    <li className={cn("relative flex h-14 items-center gap-2.5 rounded-lg border px-3", isMe ? "border-primary/25 bg-primary-softer" : "border-border")}>
+    <li
+      onPointerDown={onDragStart}
+      className={cn("relative flex h-14 items-center gap-2.5 rounded-lg border px-3", isMe ? "border-primary/25 bg-primary-softer" : "border-border", onDragStart && "cursor-grab select-none")}
+    >
       <Avatar url={m.avatar_url} name={m.display_name} size={32} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">

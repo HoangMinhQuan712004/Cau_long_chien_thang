@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { cellKey } from "@/components/court-grid/court-grid";
 import { errorText } from "@/lib/api/write";
 import { normalizeBookingCode } from "@/lib/booking-code";
 import { toast } from "@/lib/feedback";
-import { addDaysIso, formatLongDate, vnDate } from "@/lib/format";
+import { addDaysIso, formatLongDate, formatVnd, vnDate } from "@/lib/format";
+import { AdminGrid, EVENT_RECT_HINT, isSellable, selectionBlocks, selectionRect } from "./admin-grid";
+import { MAX_BLOCKS, type Block } from "./block-adder";
 import { BookingDialog, SessionFormDialog } from "./booking-dialogs";
 import { ItemFlow } from "./item-flow";
 import { OrderFlow } from "./order-flow";
 import { getCalendar, searchCode } from "./requests";
-import { ResourceTimeline, type RejectReason } from "./resource-timeline";
 import { SessionFlow } from "./session-flow";
 import type { Calendar, CalendarBlock, Selection } from "./types";
 import { inputCls } from "./ui";
@@ -18,7 +20,7 @@ import { inputCls } from "./ui";
 // mỗi 30 giây khi tab đang hiển thị (NFR-002) và ngay sau mỗi thao tác ghi.
 
 type Dialog =
-  | { kind: "booking"; selection: Selection }
+  | { kind: "booking"; selection: Selection; blocks: Block[] }
   | { kind: "order"; orderCode: string }
   | { kind: "sessionForm"; selection: Selection }
   | { kind: "item"; code: string }
@@ -34,6 +36,8 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [searchError, setSearchError] = useState("");
+  // Ô đang chọn trên lưới (bấm từng ô, T-025): khóa "mã sân|giờ"
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const dateRef = useRef(initial.date);
   const isAdmin = role === "admin";
 
@@ -56,6 +60,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
   const goto = useCallback(
     async (date: string) => {
       const prev = dateRef.current;
+      setSelected(new Set());
       dateRef.current = date;
       if (!(await load(date))) dateRef.current = prev;
       else window.history.replaceState(null, "", `?date=${date}`);
@@ -87,31 +92,58 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
 
   const names = Object.fromEntries(calendar.resources.map((r) => [r.code, r.name]));
 
-  function onSelect(sel: Selection) {
-    // Quyền đặt quầy / tạo sự kiện của NGÀY đang xem do server quyết (`calendar.can`), không tự suy ra từ ngày hay tháng ở client.
-    if (sel.resourceCodes.length === 1 && calendar.can.counter_book) {
-      setDialog({ kind: "booking", selection: sel });
-    } else if (isAdmin && calendar.can.create_session) {
-      setDialog({ kind: "sessionForm", selection: sel });
-    } else if (isAdmin) {
-      toast("Không đặt được ở ngày này", "Ngày hoặc khung đã qua không chọn được.", "info");
-    } else {
-      toast("Tài khoản tại máy chỉ đặt từng sân trong hôm nay", "Đặt nhiều sân hoặc ngày khác là Đặt sự kiện, do Admin làm.", "info");
-    }
-  }
+  // Lịch tải lại (30 giây / sau thao tác): bỏ khỏi vùng chọn các ô vừa có người đặt hoặc không còn bán
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- đồng bộ vùng chọn với lịch mới tải
+    setSelected((cur) => {
+      const kept = [...cur].filter((k) => {
+        const [code, h] = k.split("|");
+        return isSellable(calendar, code, Number(h));
+      });
+      return kept.length === cur.size ? cur : new Set(kept);
+    });
+  }, [calendar]);
 
-  function onReject(reason: RejectReason) {
-    if (reason === "past-day") toast("Ngày đã qua: chỉ xem, không chọn khung mới.", undefined, "info");
-    else if (reason === "not-today") toast("Tài khoản tại máy chỉ đặt từng sân trong hôm nay", "Đặt nhiều sân hoặc ngày khác là Đặt sự kiện, do Admin làm.", "info");
-    else toast("Vùng chọn có khung đã có người dùng, ngoài giờ mở cửa hoặc đã qua", "Chọn lại các ô trống liền nhau.", "info");
-  }
+  const toggle = useCallback((code: string, hour: number) => {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      const k = cellKey(code, hour);
+      if (!next.delete(k)) next.add(k);
+      return next;
+    });
+  }, []);
+  const clear = useCallback(() => setSelected(new Set()), []);
 
-  function onBlockClick(b: CalendarBlock) {
+  const onBlockClick = useCallback((b: CalendarBlock) => {
     if (b.type === "booking" && b.code) setDialog({ kind: "item", code: b.code });
     else if (b.type === "session" && b.code) setDialog({ kind: "session", code: b.code });
     else if (b.type === "hold") {
       toast("Khung đang được giữ cho khách đặt online", "Hết 5 phút giữ chỗ mà khách chưa đặt xong thì khung trống lại.", "info");
     }
+  }, []);
+
+  // Quyền đặt quầy / tạo sự kiện của NGÀY đang xem do server quyết (`calendar.can`), không tự suy ra từ ngày hay tháng ở client.
+  const canPick = !calendar.is_past && (calendar.can.counter_book || calendar.can.create_session);
+  const blocks = selectionBlocks(calendar, selected);
+  const rect = selectionRect(calendar, selected, calendar.date);
+  const total = calendar.resources.reduce(
+    (sum, r) => sum + calendar.columns.reduce((n, h) => n + (selected.has(cellKey(r.code, h)) ? (r.hour_prices?.[String(h)] ?? 0) : 0), 0),
+    0,
+  );
+  const bookReason = !calendar.can.counter_book
+    ? "Đặt sân tại quầy chỉ cho hôm nay."
+    : blocks.length > MAX_BLOCKS
+      ? `Một đơn tối đa ${MAX_BLOCKS} khối. Bỏ bớt ô hoặc nối các giờ liền nhau.`
+      : "";
+  const eventReason = !calendar.can.create_session ? "Không tạo được sự kiện ở ngày này." : !rect ? EVENT_RECT_HINT : "";
+
+  function openBooking() {
+    if (!blocks.length || bookReason) return;
+    const f = blocks[0];
+    setDialog({ kind: "booking", selection: { resourceCodes: [f.resource_code], date: calendar.date, startHour: f.start_hour, endHour: f.end_hour }, blocks });
+  }
+  function openSessionForm() {
+    if (rect && !eventReason) setDialog({ kind: "sessionForm", selection: rect });
   }
 
   async function onSearch(e: React.FormEvent) {
@@ -139,9 +171,11 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
   const isToday = calendar.date === today;
   const footText = calendar.is_past
     ? "Ngày đã qua: chỉ xem, không chọn khung mới. Bấm khối để xem Thông tin booking."
-    : isAdmin
-      ? "Kéo chọn ô trống trên 1 sân hôm nay để Đặt sân · kéo nhiều sân hoặc chọn ngày sau để Đặt sự kiện · bấm khối để xem chi tiết."
-      : "Kéo chọn ô trống trên 1 sân trong hôm nay để Đặt sân · bấm khối để xem Thông tin booking hoặc Sự kiện.";
+    : !canPick
+      ? "Tài khoản tại máy chỉ đặt sân trong hôm nay. Ngày khác do Admin đặt. Bấm khối để xem chi tiết."
+      : isAdmin
+        ? "Bấm từng ô trống để chọn (nhiều sân, nhiều giờ) rồi Đặt sân hoặc Tạo sự kiện · bấm khối để xem chi tiết · Esc bỏ chọn."
+        : "Bấm từng ô trống để chọn (nhiều sân, nhiều giờ) rồi Đặt sân · bấm khối để xem chi tiết · Esc bỏ chọn.";
 
   const chip = (active: boolean) =>
     `rounded-full border px-3 py-1.5 text-sm ${active ? "border-primary bg-primary text-white" : "border-border bg-surface hover:bg-primary-softer"}`;
@@ -185,6 +219,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
         <Legend swatch="bg-cell-off" label="Xám = ngoài giờ mở cửa hoặc sân ngừng hoạt động" text="Xám" />
         <Legend swatch="bg-blk-session" label="Tím" text="Tím = Sự kiện" />
         <Legend swatch="border border-border bg-surface" label="Trắng" text="Trắng = Trống" />
+        <Legend swatch="bg-primary" label="Xanh" text="Xanh = Đang chọn" />
         <Legend swatch="bg-blk-paid" label="Đỏ" text="Đỏ = Đã đặt" />
         <Legend swatch="bg-blk-unpaid" label="Vàng" text="Vàng = Chưa thanh toán" />
         <div className="ml-auto flex items-center gap-2">
@@ -241,30 +276,69 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
       </form>
 
       <div className={loading ? "opacity-60 transition-opacity" : "transition-opacity"} aria-busy={loading}>
-        <ResourceTimeline
+        <AdminGrid
           calendar={calendar}
-          selectionMode={isAdmin ? "multi-row" : "single-row-today"}
+          selected={selected}
+          selectable={canPick && dialog === null}
           unpaidOnly={unpaidOnly}
           highlightCode={highlight}
-          disabled={dialog !== null}
-          onSelect={onSelect}
-          onReject={onReject}
+          onToggle={toggle}
+          onClear={clear}
           onBlockClick={onBlockClick}
           onHoldExpired={refresh}
         />
       </div>
       <p className="text-sm text-muted">{footText}</p>
 
+      {selected.size > 0 ? (
+        <section data-bottom-bar className="sticky bottom-3 z-20 rounded-2xl border border-border bg-surface p-3 shadow-lg" aria-label="Khung đang chọn">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p className="min-w-0 flex-1 text-sm font-semibold tabular-nums" aria-live="polite">
+              {selected.size} khung · {formatVnd(total)}
+              <span className="ml-2 text-xs font-normal text-muted">Tạm tính theo bảng giá; giá chốt khi đặt.</span>
+            </p>
+            <button type="button" onClick={clear} className="min-h-10 rounded-lg border border-border px-4 text-sm hover:bg-primary-softer">
+              Bỏ chọn
+            </button>
+            <button
+              type="button"
+              onClick={openBooking}
+              disabled={Boolean(bookReason)}
+              title={bookReason || undefined}
+              className="min-h-10 rounded-lg bg-primary px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Đặt sân
+            </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={openSessionForm}
+                disabled={Boolean(eventReason)}
+                title={eventReason || undefined}
+                className="min-h-10 rounded-lg border border-primary px-5 text-sm font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Tạo sự kiện
+              </button>
+            ) : null}
+          </div>
+          {bookReason || (isAdmin && eventReason) ? (
+            <p className="mt-1.5 text-xs text-muted">{[bookReason, isAdmin ? eventReason : ""].filter(Boolean).join(" · ")}</p>
+          ) : null}
+        </section>
+      ) : null}
+
       {dialog?.kind === "booking" ? (
         <BookingDialog
           selection={dialog.selection}
+          initialBlocks={dialog.blocks}
           calendar={calendar}
           onRefresh={refresh}
           canSession={isAdmin}
           onClose={() => setDialog(null)}
-          onSwitchToSession={() => setDialog({ kind: "sessionForm", selection: dialog.selection })}
+          onSwitchToSession={() => setDialog({ kind: "sessionForm", selection: rect ?? dialog.selection })}
           onBooked={(order) => {
             setDialog(null);
+            clear();
             setHighlight(order.order_code);
             refresh();
           }}
@@ -281,6 +355,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
           onClose={() => setDialog(null)}
           onCreated={() => {
             setDialog(null);
+            clear();
             refresh();
           }}
           onStale={() => {

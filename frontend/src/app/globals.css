@@ -31,6 +31,9 @@
   --blk-session: #e9d5ff;
   --blk-session-fg: #6b21a8;
   --blk-hold-fg: #4f5d55;
+  /* Ô sân của chính hội viên (T-023) */
+  --blk-mine: #0e7490;
+  --blk-mine-fg: #ffffff;
   --cell-off: #e5e7eb;
   --cell-sel: #c9e7d6;
 
@@ -69,6 +72,8 @@
   --color-blk-session: var(--blk-session);
   --color-blk-session-fg: var(--blk-session-fg);
   --color-blk-hold-fg: var(--blk-hold-fg);
+  --color-blk-mine: var(--blk-mine);
+  --color-blk-mine-fg: var(--blk-mine-fg);
   --color-cell-off: var(--cell-off);
   --color-cell-sel: var(--cell-sel);
   --color-primary-soft: var(--primary-soft);

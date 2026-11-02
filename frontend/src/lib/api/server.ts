@@ -19,6 +19,7 @@ export type StaffSession = components["schemas"]["StaffSessionOut"];
 export type AdminSession = components["schemas"]["AdminSessionOut"];
 export type MemberList = components["schemas"]["MemberListOut"];
 export type MemberRow = components["schemas"]["MemberRow"];
+export type MemberCreated = components["schemas"]["MemberCreatedOut"];
 export type MemberDetail = components["schemas"]["MemberDetail"];
 export type Racket = components["schemas"]["RacketOut"];
 export type AuditLogPage = components["schemas"]["AuditLogPageOut"];
