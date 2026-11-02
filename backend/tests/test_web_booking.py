@@ -62,7 +62,10 @@ async def test_public_calendar_states_and_prices(anon, admin, staff):
     assert slots[13]["state"] == "free" and slots[13]["price"] > 0 and slots[13]["band"]
     # Không lộ tên / SĐT / mã của người khác; sân ngừng không hiện
     assert "Bí Mật" not in r.text and held.json()["order_code"] not in r.text
-    assert r.text.count("BK-") == r.text.count(event_code)  # mã duy nhất: mã sự kiện
+    # Mã duy nhất trên lịch công khai: mã sự kiện (dữ liệu test khác có thể có sự kiện cùng ngày)
+    event_codes = {s["event_code"] for x in cal["resources"] for s in x["slots"] if s["event_code"]}
+    assert event_code in event_codes
+    assert set(re.findall(r"BK-[0-9-]+", r.text)) <= event_codes
     assert "S06" not in [x["code"] for x in cal["resources"]]
 
 
