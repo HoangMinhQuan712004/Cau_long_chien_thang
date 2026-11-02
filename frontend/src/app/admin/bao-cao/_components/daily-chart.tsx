@@ -14,18 +14,25 @@ import {
 } from "recharts";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { formatDayMonth } from "@/lib/format";
-import { cn } from "@/lib/cn";
-import { CHART_HEIGHT, CHART_COLOR as C, ChartTip, millionAxisLabel, millionTicks } from "./chart-parts";
+import { CHART_COLOR as C, millionTicks } from "./chart-parts";
+import { TipBridge } from "./chart-tip-layer";
 import { fill, isWeekend, millions, money, WEEKDAY_SHORT, weekdayIndex } from "./report-format";
+import { ScrollChart } from "./scroll-chart";
 import type { ReportOverview } from "@/lib/api/server";
 
 /** Quá số ngày này ⇒ không ghi số trên điểm, chỉ hiện khi rê (BR-014). */
 const LABEL_MAX_DAYS = 14;
+/** Mỗi ngày tối thiểu 32px (vừa "27/10"; kỳ Tuần vừa khung 375px không phải kéo): kỳ dài ⇒ cuộn ngang, ghi đủ mọi ngày. */
+const MIN_STEP = 32;
+const PLOT_TOP = 22;
+const AXIS_HEIGHT = 36;
 
 type Props = {
   daily: ReportOverview["daily"];
   /** "07/10 – 13/10" cho tên biểu đồ (trình đọc màn hình). */
   range: string;
+  /** Tên vùng cuộn ngang. */
+  scrollLabel: string;
   t: Dictionary["report"]["daily"];
 };
 
@@ -44,7 +51,7 @@ function DayTick({ x = 0, y = 0, payload }: { x?: number; y?: number; payload?: 
 }
 
 /** Doanh thu theo ngày: đường + điểm, đường trung bình nét đứt, nền nhạt T7/CN, ngày cao nhất tô đặc (BR-014). */
-export function DailyChart({ daily, range, t }: Props) {
+export function DailyChart({ daily, range, scrollLabel, t }: Props) {
   const total = daily.reduce((sum, d) => sum + d.revenue, 0);
   const average = daily.length ? total / daily.length : 0;
   const ticks = millionTicks(Math.max(...daily.map((d) => d.revenue), average));
@@ -58,38 +65,35 @@ export function DailyChart({ daily, range, t }: Props) {
 
   return (
     <div className="flex flex-col gap-2.5">
-      <div role="img" aria-label={fill(t.chartLabel, { range })} className={cn("w-full", CHART_HEIGHT)}>
+      <ScrollChart
+        count={daily.length}
+        minStep={MIN_STEP}
+        ticks={ticks}
+        plotTop={PLOT_TOP}
+        axisHeight={AXIS_HEIGHT}
+        label={fill(t.chartLabel, { range })}
+        scrollLabel={scrollLabel}
+      >
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 22, right: 8, bottom: 0, left: 0 }} barCategoryGap={0}>
+          <ComposedChart data={rows} margin={{ top: PLOT_TOP, right: 8, bottom: 0, left: 0 }} barCategoryGap={0}>
             <CartesianGrid vertical={false} stroke={C.grid} />
             <XAxis
               dataKey="date"
               tick={<DayTick />}
               tickLine={false}
               axisLine={{ stroke: C.grid }}
-              height={36}
-              // ≤ 7 ngày ghi đủ mọi ngày; dài hơn thì tự bỏ bớt cho khỏi chồng chữ
-              interval={daily.length <= 7 ? 0 : "preserveStartEnd"}
-              minTickGap={8}
+              height={AXIS_HEIGHT}
+              // Mỗi ngày ≥ 40px ⇒ ghi đủ mọi ngày không chồng chữ
+              interval={0}
             />
-            <YAxis
-              ticks={ticks}
-              domain={[0, top]}
-              tickFormatter={millionAxisLabel}
-              tick={{ fontSize: 11, fill: C.axis }}
-              tickLine={false}
-              axisLine={false}
-              width={44}
-            />
+            {/* Trục dọc vẽ ở ScrollChart (đứng yên khi cuộn); trục ẩn ở đây chỉ để lưới theo đúng mốc */}
+            <YAxis hide ticks={ticks} domain={[0, top]} />
             <Bar dataKey="weekend" fill={C.soft} isAnimationActive={false} activeBar={false} />
             {total > 0 ? <ReferenceLine y={average} stroke={C.average} strokeDasharray="5 4" strokeWidth={1.5} /> : null}
-            <Tooltip
-              cursor={false}
-              isAnimationActive={false}
-              content={({ active, payload }) => {
-                const row = payload?.[0]?.payload as (typeof rows)[number] | undefined;
-                return active && row ? <ChartTip text={fill(t.point, { day: dayLabel(row.date), amount: money(row.revenue) })} /> : null;
-              }}
+            {/* Hộp chú thích vẽ ngoài khung cuộn (TipBridge) cho khỏi bị cắt ở mép */}
+            <Tooltip cursor={false} isAnimationActive={false} content={() => null} />
+            <TipBridge<(typeof rows)[number]>
+              text={(row) => fill(t.point, { day: dayLabel(row.date), amount: money(row.revenue) })}
             />
             <Line
               dataKey="revenue"
@@ -128,7 +132,7 @@ export function DailyChart({ daily, range, t }: Props) {
             </Line>
           </ComposedChart>
         </ResponsiveContainer>
-      </div>
+      </ScrollChart>
 
       {/* Chú giải bằng chữ + ký hiệu (không chỉ dựa vào màu) */}
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
@@ -145,11 +149,12 @@ export function DailyChart({ daily, range, t }: Props) {
           {t.legendWeekend}
         </span>
       </div>
-      <p className="text-xs sm:text-ui">
+      {/* Điện thoại: Tổng kỳ và Cao nhất 2 dòng; từ sm một dòng nối "·" */}
+      <p className="flex flex-col gap-0.5 text-xs sm:block sm:text-ui">
         <b className="font-semibold tabular-nums">{fill(t.total, { total: money(total) })}</b>
         {peak >= 0 ? (
           <span className="text-muted tabular-nums">
-            {" · "}
+            <span aria-hidden className="hidden sm:inline">{" · "}</span>
             {fill(t.peak, { day: dayLabel(daily[peak].date), amount: money(daily[peak].revenue) })}
           </span>
         ) : null}

@@ -41,6 +41,13 @@ export function ChartTip({ text }: { text: string }) {
   );
 }
 
+/** Vùng cuộn kéo được: con trỏ bàn tay; đang kéo ⇒ không chọn chữ, ẩn hộp chú thích khi rê. */
+export const dragScrollClass = (isScrollable: boolean, isDragging: boolean) =>
+  cn(isScrollable && "cursor-grab", isDragging && `
+    cursor-grabbing select-none
+    [&_.recharts-tooltip-wrapper]:invisible
+  `);
+
 /** Chiều cao vùng vẽ theo cỡ màn (biểu đồ và khung chờ dùng chung ⇒ tải xong không nhảy). */
 export const CHART_HEIGHT = "h-56 sm:h-64 2xl:h-72";
 
