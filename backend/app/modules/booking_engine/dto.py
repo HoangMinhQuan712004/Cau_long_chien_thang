@@ -269,6 +269,11 @@ class CalendarResource(BaseModel):
     type: str
     is_active: bool
     off_hours: list[int] = Field(description="Giờ bắt đầu các ô Xám (không bán) của sân này")
+    hour_prices: dict[int, int] = Field(
+        default_factory=dict,
+        description="Giá/giờ từng ô bán được theo bảng giá của ngày (giờ bắt đầu -> VND), cùng "
+        "cách tính với lịch khách – chỉ để xem trước, giá chốt lúc đặt (T-025 AC9)",
+    )
 
 
 class CalendarBlock(BaseModel):

@@ -2396,6 +2396,13 @@ export interface components {
              * @description Giờ bắt đầu các ô Xám (không bán) của sân này
              */
             off_hours: number[];
+            /**
+             * Hour Prices
+             * @description Giá/giờ từng ô bán được theo bảng giá của ngày (giờ bắt đầu -> VND), cùng cách tính với lịch khách – chỉ để xem trước, giá chốt lúc đặt (T-025 AC9)
+             */
+            hour_prices?: {
+                [key: string]: number;
+            };
         };
         /** CheckoutCreatedOut */
         CheckoutCreatedOut: {
