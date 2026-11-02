@@ -36,6 +36,7 @@ export type RoomsApi = {
   transferHost(id: number, memberId: number, version: number): Promise<WriteResult<unknown>>;
   setFormat(id: number, format: Format, version: number): Promise<WriteResult<unknown>>;
   draw(id: number, version: number): Promise<WriteResult<unknown>>;
+  setLineup(id: number, teamA: number[], teamB: number[], version: number): Promise<WriteResult<unknown>>;
   start(id: number, version: number): Promise<WriteResult<unknown>>;
   saveResult(id: number, no: number, scoreA: number, scoreB: number, version: number): Promise<WriteResult<unknown>>;
   listNotifications(): Promise<Read<NotificationList>>;
@@ -61,6 +62,8 @@ const real: RoomsApi = {
   setFormat: (id, format, version) =>
     write((key) => looseApi.PUT(`${P}/rooms/${id}/format`, { body: { format, version }, headers: { "Idempotency-Key": key } })),
   draw: (id, version) => post(`/rooms/${id}/draw`, { version }),
+  setLineup: (id, a, b, version) =>
+    write((key) => looseApi.PUT(`${P}/rooms/${id}/lineup`, { body: { team_a: a, team_b: b, version }, headers: { "Idempotency-Key": key } })),
   start: (id, version) => post(`/rooms/${id}/start`, { version }),
   saveResult: (id, no, a, b, version) => post(`/rooms/${id}/matches/${no}/result`, { score_a: a, score_b: b, version }),
   listNotifications: () => read(() => looseApi.GET(`${P}/notifications`, {})),
