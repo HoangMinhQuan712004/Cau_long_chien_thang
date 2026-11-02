@@ -1523,6 +1523,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/play-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Play History
+         * @description Lịch sử chơi của mình theo tháng ngày chơi, giờ VN (T-029): buổi = phòng có ≥ 1 trận đã lưu
+         *     mà mình ở đội A/B, kể cả phòng đã rời. Tháng sai -> 422; tháng tương lai -> rỗng.
+         */
+        get: operations["play_history_api_v1_member_area_play_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/member-area/rooms/{room_id}/ranking": {
         parameters: {
             query?: never;
@@ -4109,6 +4130,69 @@ export interface components {
              * @description Mã HV của tài khoản (nếu có)
              */
             member_code?: string | null;
+        };
+        /** PlayHistory */
+        PlayHistory: {
+            /**
+             * Month
+             * @description YYYY-MM
+             */
+            month: string;
+            summary: components["schemas"]["PlayHistorySummary"];
+            /**
+             * Items
+             * @description Mới nhất trước
+             */
+            items: components["schemas"]["PlayHistoryItem"][];
+        };
+        /** PlayHistoryItem */
+        PlayHistoryItem: {
+            /**
+             * Room Id
+             * @description Mở /hoi-vien/phong/{room_id} (404 nếu phòng đã ẩn)
+             */
+            room_id: number;
+            /**
+             * Date
+             * Format: date
+             * @description Ngày chơi (giờ VN)
+             */
+            date: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Resource Type Name */
+            resource_type_name: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** Matches */
+            matches: number;
+            /** Wins */
+            wins: number;
+            /** Losses */
+            losses: number;
+        };
+        /** PlayHistorySummary */
+        PlayHistorySummary: {
+            /**
+             * Sessions
+             * @description Số buổi (phòng) có ≥ 1 trận đã lưu mà mình ở đội A/B
+             */
+            sessions: number;
+            /** Matches */
+            matches: number;
+            /**
+             * Wins
+             * @description 2 vs 2: cả 2 người đội thắng đều được tính
+             */
+            wins: number;
         };
         /** PlayerOut */
         PlayerOut: {
@@ -8164,6 +8248,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MatchList"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    play_history_api_v1_member_area_play_history_get: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM, mặc định tháng này */
+                month?: string | null;
+            };
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayHistory"];
                 };
             };
             /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
