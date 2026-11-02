@@ -1812,47 +1812,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/payments/bank-transactions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Bank Transactions
-         * @description Tiền về (mới nhất trước). ``needs_action=true``: chưa xử lý và cần Admin xem
-         *     (``unmatched``, ``refund_needed``, ``applied`` có tiền thừa).
-         */
-        get: operations["list_bank_transactions_api_v1_payments_bank_transactions_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/payments/bank-transactions/{txn_id}/resolve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Resolve Bank Transaction
-         * @description Đánh dấu Đã xử lý (ghi chú 1–500 ký tự, E-001); đã xử lý rồi -> 409 ``E-PAY-2``.
-         */
-        post: operations["resolve_bank_transaction_api_v1_payments_bank_transactions__txn_id__resolve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/payments/dev/simulate": {
         parameters: {
             query?: never;
@@ -2211,12 +2170,6 @@ export interface components {
             refund_amount: number;
             /** Booking Codes */
             booking_codes: string[];
-            /** Resolved At */
-            resolved_at: string | null;
-            /** Resolved By Label */
-            resolved_by_label: string | null;
-            /** Note */
-            note: string | null;
         };
         /** Body_upload_avatar_api_v1_member_area_me_avatar_put */
         Body_upload_avatar_api_v1_member_area_me_avatar_put: {
@@ -4131,14 +4084,6 @@ export interface components {
         ResetTokenOut: {
             /** Reset Token */
             reset_token: string;
-        };
-        /** ResolveIn */
-        ResolveIn: {
-            /**
-             * Note
-             * @default
-             */
-            note: string;
         };
         /** ResourceCreate */
         ResourceCreate: {
@@ -8177,76 +8122,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LookupOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_bank_transactions_api_v1_payments_bank_transactions_get: {
-        parameters: {
-            query?: {
-                needs_action?: boolean;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BankTransactionOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    resolve_bank_transaction_api_v1_payments_bank_transactions__txn_id__resolve_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
-                "Idempotency-Key"?: string | null;
-            };
-            path: {
-                txn_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResolveIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BankTransactionOut"];
                 };
             };
             /** @description Validation Error */

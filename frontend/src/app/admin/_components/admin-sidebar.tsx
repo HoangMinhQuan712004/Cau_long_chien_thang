@@ -12,7 +12,6 @@ import {
   ReceiptIcon,
   SettingsIcon,
   UsersIcon,
-  WalletIcon,
 } from "@/components/ui/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import type { Dictionary } from "@/i18n/dictionaries";
@@ -20,7 +19,7 @@ import { cn } from "@/lib/cn";
 
 type AdminRole = "admin" | "staff";
 
-// Thứ tự theo Figma (Báo cáo đầu tiên – màn đầu của Admin); Tiền về / Cài đặt thanh toán / Nhân viên (chưa có trong Figma) xếp sau.
+// Thứ tự theo Figma (Báo cáo đầu tiên – màn đầu của Admin); Cài đặt thanh toán / Nhân viên (chưa có trong Figma) xếp sau.
 // Quyền thật do backend kiểm.
 const NAV = [
   { href: "/admin/bao-cao", key: "baoCao", Icon: ChartIcon, roles: ["admin"] },
@@ -28,7 +27,6 @@ const NAV = [
   { href: "/admin/lich-su-giao-dich", key: "lichSu", Icon: ReceiptIcon, roles: ["admin"] },
   { href: "/admin/hoi-vien", key: "hoiVien", Icon: UsersIcon, roles: ["admin", "staff"] },
   { href: "/admin/san", key: "san", Icon: SettingsIcon, roles: ["admin"] },
-  { href: "/admin/tien-ve", key: "tienVe", Icon: WalletIcon, roles: ["admin"] },
   { href: "/admin/cai-dat/thanh-toan", key: "thanhToan", Icon: CreditCardIcon, roles: ["admin"] },
   { href: "/admin/nhan-vien", key: "nhanVien", Icon: IdCardIcon, roles: ["admin"] },
 ] as const;
@@ -37,8 +35,6 @@ export type SidebarProps = {
   role: AdminRole;
   name: string;
   roleLabel: string;
-  /** Số giao dịch tiền về chưa xử lý (badge ở mục Tiền về). */
-  moneyCount: number;
   t: Dictionary["adminNav"];
   /** Bấm một mục (điện thoại: đóng ngăn kéo). */
   onNavigate?: () => void;
@@ -51,7 +47,7 @@ export type SidebarProps = {
 };
 
 /** Nội dung sidebar nền trắng: menu có icon (mục đang mở nền xanh nhạt chữ xanh đậm). Logo + tài khoản nằm trên header (ngăn kéo điện thoại vẫn có logo + ✕). */
-export function AdminSidebar({ role, moneyCount, t, onNavigate, onClose, isCollapsed, onToggleCollapse }: SidebarProps) {
+export function AdminSidebar({ role, t, onNavigate, onClose, isCollapsed, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname();
   return (
     <div className={cn(
@@ -99,7 +95,6 @@ export function AdminSidebar({ role, moneyCount, t, onNavigate, onClose, isColla
         ) : null}
         {NAV.filter((n) => (n.roles as readonly AdminRole[]).includes(role)).map(({ href, key, Icon }) => {
           const isActive = pathname === href || pathname.startsWith(`${href}/`);
-          const badge = key === "tienVe" && moneyCount > 0 ? moneyCount : 0;
           return (
             <Link
               key={href}
@@ -108,10 +103,7 @@ export function AdminSidebar({ role, moneyCount, t, onNavigate, onClose, isColla
               aria-current={isActive ? "page" : undefined}
               title={isCollapsed ? t.items[key] : undefined}
               className={cn(
-                `
-                  relative flex h-11 items-center gap-3 rounded-lg text-sm focus-ring
-                  transition-colors
-                `,
+                `flex h-11 items-center gap-3 rounded-lg text-sm focus-ring transition-colors`,
                 isCollapsed ? "justify-center" : "px-3",
                 isActive ? "bg-sidebar-active font-semibold text-sidebar" : `
                   text-muted
@@ -122,21 +114,6 @@ export function AdminSidebar({ role, moneyCount, t, onNavigate, onClose, isColla
               {/* Icon nhỏ, cỡ theo rem (phóng to cùng màn lớn) */}
               <Icon className="size-4 shrink-0 xl:size-4.5" />
               <span className={cn("min-w-0 flex-1 truncate", isCollapsed && `sr-only`)}>{t.items[key]}</span>
-              {badge ? (
-                <>
-                  {/* Thu gọn: chấm đỏ ở góc icon thay cho số */}
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "rounded-full bg-danger font-semibold text-surface tabular-nums",
-                      isCollapsed ? "absolute top-2 right-2.5 size-2" : "px-1.5 py-0.5 text-xs",
-                    )}
-                  >
-                    {isCollapsed ? null : badge}
-                  </span>
-                  <span className="sr-only">{`, ${t.pendingMoney.replace("{n}", String(badge))}`}</span>
-                </>
-              ) : null}
             </Link>
           );
         })}

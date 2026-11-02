@@ -303,32 +303,15 @@ async def test_lookup_requires_origin(anon):
     assert r.status_code == 403 and r.json()["detail"]["code"] == "E-SEC-1"
 
 
-# ---------------------------------------------- Tiền về cần xử lý (AC32, SEC7–SEC8)
+# ---------------------------------------------- Tiền về cần xử lý: đã gỡ (người dùng 02/11/2026)
 
 
-async def test_bank_transactions_admin_only_and_resolve(anon, admin, staff, customer):
-    await webhook(anon, sepay_payload(None, 77_000, id=950001, content="khong ro"))
-    for client in (staff, customer):
-        assert (await client.get(f"{PAY}/bank-transactions")).status_code == 403
-    assert (await anon.get(f"{PAY}/bank-transactions")).status_code == 401
-    rows = (await admin.get(f"{PAY}/bank-transactions")).json()
-    row = next(x for x in rows if x["provider_txn_id"] == "950001")
-    assert row["outcome"] == "unmatched" and row["resolved_at"] is None
-    path = f"{PAY}/bank-transactions/{row['id']}/resolve"
-    r = await admin.post(path, json={"note": "  "}, headers=idem())
-    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-001"
-    r = await staff.post(path, json={"note": "x"}, headers=idem())
-    assert r.status_code == 403
-    r = await admin.post(path, json={"note": "Đã gọi khách, hoàn tiền tay"}, headers=idem())
-    assert r.status_code == 200 and r.json()["resolved_by_label"] == "Admin"
-    r = await admin.post(path, json={"note": "lần hai"}, headers=idem())
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "E-PAY-2"
-    pending = (await admin.get(f"{PAY}/bank-transactions")).json()
-    assert row["id"] not in [x["id"] for x in pending]
-    everything = (
-        await admin.get(f"{PAY}/bank-transactions", params={"needs_action": False})
-    ).json()
-    assert row["id"] in [x["id"] for x in everything]
+async def test_bank_transactions_screen_removed(anon, admin):
+    # Webhook vẫn ghi giao dịch không khớp mã; chỉ màn / API xử lý tay bị bỏ
+    assert (await webhook(anon, sepay_payload(None, 77_000, id=950001))).status_code == 200
+    assert (await admin.get(f"{PAY}/bank-transactions")).status_code == 404
+    r = await admin.post(f"{PAY}/bank-transactions/1/resolve", json={"note": "x"}, headers=idem())
+    assert r.status_code == 404
 
 
 async def test_simulate_guard(admin, staff, monkeypatch):

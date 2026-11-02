@@ -458,7 +458,6 @@ async def test_ac8_staff_keeps_the_previous_permission_table(admin):
     assert (await c.get(f"{API}/booking/calendar?date={today}")).status_code == 200
     for path in (
         "/payments/settings",
-        "/payments/bank-transactions",
         "/booking/transactions",
         "/admin/staff",
     ):

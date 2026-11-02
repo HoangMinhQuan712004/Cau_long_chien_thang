@@ -29,13 +29,6 @@ class BankTransactionOut(BaseModel):
     outcome: Outcome
     refund_amount: int
     booking_codes: list[str]
-    resolved_at: datetime | None
-    resolved_by_label: str | None
-    note: str | None
-
-
-class ResolveIn(StrictIn):
-    note: str = Field(default="", max_length=1000)
 
 
 class SimulateIn(StrictIn):

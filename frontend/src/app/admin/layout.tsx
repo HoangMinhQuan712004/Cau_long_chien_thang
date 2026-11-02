@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { FeedbackHost } from "@/components/feedback/feedback-host";
 import { getDictionary } from "@/i18n/dictionaries";
-import { type AdminSessionError, authedGetJson, getAdminSession } from "@/lib/api/server";
+import { type AdminSessionError, getAdminSession } from "@/lib/api/server";
 import { site } from "@/lib/site";
 import { AdminShell } from "./_components/admin-shell";
 import { MENU_COLLAPSED, MENU_COOKIE } from "./_components/menu-cookie";
@@ -55,12 +55,8 @@ async function Shell({ children }: { children: React.ReactNode }) {
     redirect(`/dang-nhap?next=/admin${reason ? `&ly-do=${reason}` : ""}`);
   }
   const { account } = result.session;
-  // Số giao dịch tiền về chưa xử lý (chỉ Admin); lỗi / chưa có API → không hiện số.
-  const [t, pendingMoney, cookieStore] = await Promise.all([
+  const [t, cookieStore] = await Promise.all([
     getDictionary(),
-    account.kind === "admin"
-      ? authedGetJson<unknown[]>("/api/v1/payments/bank-transactions", { needs_action: "true", limit: "100" })
-      : null,
     // Lựa chọn thu gọn menu (đọc trong phần động đã nằm trong Suspense)
     cookies(),
   ]);
@@ -70,7 +66,6 @@ async function Shell({ children }: { children: React.ReactNode }) {
       role={account.kind}
       name={account.display_name}
       roleLabel={account.role_label}
-      moneyCount={pendingMoney?.ok ? pendingMoney.data.length : 0}
       initialCollapsed={cookieStore.get(MENU_COOKIE)?.value === MENU_COLLAPSED}
       t={t.adminNav}
     >

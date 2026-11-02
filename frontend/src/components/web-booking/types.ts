@@ -14,7 +14,6 @@ export type CheckoutCreated = S["CheckoutCreatedOut"];
 export type Checkout = S["CheckoutOut"];
 export type Lookup = S["LookupOut"];
 export type LookupStatus = Lookup["status"];
-export type BankTransaction = S["BankTransactionOut"];
 
 /** Ô đã chọn trên lưới: sân + giờ bắt đầu. */
 export type Cell = { code: string; hour: number };
