@@ -30,6 +30,7 @@ from app.modules.play_rooms.schemas import (
     Format,
     FormatIn,
     InviteIn,
+    LineupIn,
     MatchList,
     Ranking,
     ResultIn,
@@ -341,6 +342,26 @@ async def draw(
     """Bốc ngẫu nhiên / Bốc lại từ Hàng chờ (Host, AC15). 409 E-ROOM-8 (chưa đủ) / E-ROOM-11."""
     me = _me(member)
     return await _run(session, idem, me, lambda: matches.draw(session, me, room_id, data.version))
+
+
+@router.put("/rooms/{room_id}/lineup", response_model=RoomDetail, dependencies=WRITE)
+async def set_lineup(
+    room_id: RoomId,
+    data: LineupIn,
+    member: auth.CurrentMember,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Host tự xếp đội hình (T-027) -> trận ``drawn`` như kết quả bốc; ``team_a`` / ``team_b`` =
+    id dòng thành viên phòng (``members[].id``). Lỗi: 422 E-ROOM-12 (không ở phòng, trùng, sai
+    số người) · 403 E-ROOM-7 · 409 E-ROOM-11 (đang chơi) / E-ROOM-6 (version cũ) / E-ROOM-1."""
+    me = _me(member)
+    return await _run(
+        session,
+        idem,
+        me,
+        lambda: matches.set_lineup(session, me, room_id, data.team_a, data.team_b, data.version),
+    )
 
 
 @router.post("/rooms/{room_id}/start", response_model=RoomDetail, dependencies=WRITE)

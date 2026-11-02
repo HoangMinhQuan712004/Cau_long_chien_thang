@@ -1398,6 +1398,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/rooms/{room_id}/lineup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Lineup
+         * @description Host tự xếp đội hình (T-027) -> trận ``drawn`` như kết quả bốc; ``team_a`` / ``team_b`` =
+         *     id dòng thành viên phòng (``members[].id``). Lỗi: 422 E-ROOM-12 (không ở phòng, trùng, sai
+         *     số người) · 403 E-ROOM-7 · 409 E-ROOM-11 (đang chơi) / E-ROOM-6 (version cũ) / E-ROOM-1.
+         */
+        put: operations["set_lineup_api_v1_member_area_rooms__room_id__lineup_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/member-area/rooms/{room_id}/start": {
         parameters: {
             query?: never;
@@ -2721,6 +2743,21 @@ export interface components {
             code: string;
             /** Name */
             name: string;
+        };
+        /** LineupIn */
+        LineupIn: {
+            /**
+             * Team A
+             * @description Id dòng thành viên phòng – 2 người (2 vs 2) / 1 người (1 vs 1)
+             */
+            team_a: number[];
+            /**
+             * Team B
+             * @description Như team_a
+             */
+            team_b: number[];
+            /** Version */
+            version: number;
         };
         /** LookupIn */
         LookupIn: {
@@ -7420,6 +7457,44 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_lineup_api_v1_member_area_rooms__room_id__lineup_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineupIn"];
             };
         };
         responses: {
