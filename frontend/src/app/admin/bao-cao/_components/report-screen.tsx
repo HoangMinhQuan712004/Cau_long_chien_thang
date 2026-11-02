@@ -110,15 +110,15 @@ export function ReportScreen({ initial, today, t }: Props) {
         <>
           <KpiCards data={shown} t={t.kpi} />
           {shown && shown.revenue.current === 0 ? <Alert variant="info">{t.errors.empty}</Alert> : null}
-          <div className="grid gap-3 lg:grid-cols-[3fr_2fr] lg:gap-4">
+          <div className="grid gap-3 lg:grid-cols-2 lg:gap-4">
             <ChartCard
               title={t.daily.title}
               subtitle={shown ? fill(t.daily.subtitle, { range, n: shown.active_courts }) : null}
             >
-              {shown ? <DailyChart daily={shown.daily} range={range} t={t.daily} /> : <ChartSkeleton />}
+              {shown ? <DailyChart daily={shown.daily} range={range} scrollLabel={t.scrollChart} t={t.daily} /> : <ChartSkeleton />}
             </ChartCard>
             <ChartCard title={t.courts.title} subtitle={shown ? fill(t.courts.subtitle, { range }) : null}>
-              {shown ? <CourtChart courts={shown.courts} range={range} t={t.courts} /> : <ChartSkeleton />}
+              {shown ? <CourtChart courts={shown.courts} range={range} scrollLabel={t.scrollChart} t={t.courts} /> : <ChartSkeleton />}
             </ChartCard>
           </div>
           <ChartCard
@@ -132,7 +132,7 @@ export function ReportScreen({ initial, today, t }: Props) {
                 : null
             }
           >
-            {shown ? <CapacityHeatmap heatmap={shown.heatmap} t={t.heatmap} /> : <ChartSkeleton className={cn(`
+            {shown ? <CapacityHeatmap key={range} heatmap={shown.heatmap} scrollLabel={t.scrollChart} t={t.heatmap} /> : <ChartSkeleton className={cn(`
               h-96
               sm:h-112
             `)} />}
