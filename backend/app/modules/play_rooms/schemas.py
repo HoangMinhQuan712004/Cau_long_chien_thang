@@ -182,3 +182,30 @@ class Ranking(BaseModel):
 
 class RoomRef(BaseModel):
     room_id: int
+
+
+# ------------------------------------------------------------------ Lịch sử chơi (T-029)
+
+
+class PlayHistorySummary(BaseModel):
+    sessions: int = Field(description="Số buổi (phòng) có ≥ 1 trận đã lưu mà mình ở đội A/B")
+    matches: int
+    wins: int = Field(description="2 vs 2: cả 2 người đội thắng đều được tính")
+
+
+class PlayHistoryItem(BaseModel):
+    room_id: int = Field(description="Mở /hoi-vien/phong/{room_id} (404 nếu phòng đã ẩn)")
+    date: dt.date = Field(description="Ngày chơi (giờ VN)")
+    resource_name: str
+    resource_type_name: str
+    start_at: dt.datetime
+    end_at: dt.datetime
+    matches: int
+    wins: int
+    losses: int
+
+
+class PlayHistory(BaseModel):
+    month: str = Field(description="YYYY-MM")
+    summary: PlayHistorySummary
+    items: list[PlayHistoryItem] = Field(description="Mới nhất trước")

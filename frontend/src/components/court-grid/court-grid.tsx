@@ -136,7 +136,7 @@ export function CourtGrid({
   const rowH = roomy ? "h-16" : "h-11";
   const colW = "w-(--col)";
   const cellBase = `m-0.5 flex ${rowH} shrink-0 flex-col items-center justify-center rounded-md border text-[11px] leading-tight`;
-  const vars = roomy ? "[--c0:8.5rem] [--col:5rem] sm:[--c0:10rem] sm:[--col:5.5rem]" : "[--c0:5.5rem] [--col:3.25rem] sm:[--c0:6.5rem] sm:[--col:3.5rem]";
+  const vars = roomy ? "[--c0:8.5rem] [--col:5rem] sm:[--c0:10rem] sm:[--col:6rem]" : "[--c0:5.5rem] [--col:3.25rem] sm:[--c0:6.5rem] sm:[--col:3.5rem]";
   const headH = roomy ? "h-9" : "h-6";
 
   return (
@@ -199,7 +199,7 @@ export function CourtGrid({
               } ${roomy ? "items-start px-2 text-left text-xs" : "font-medium"} min-w-0 overflow-hidden`;
               const aria = `${row.name}, ${pad2(h)}:00 đến ${pad2(h + span)}:00, ${cell.aria}`;
               const body = cell.lines.map((l, k) => (
-                <span key={k} className={`max-w-full truncate ${k === 0 && roomy ? "font-bold" : ""}`}>
+                <span key={k} className={k === 0 && roomy ? "line-clamp-2 max-w-full leading-tight font-bold break-words" : "max-w-full truncate"}>
                   {l}
                 </span>
               ));
