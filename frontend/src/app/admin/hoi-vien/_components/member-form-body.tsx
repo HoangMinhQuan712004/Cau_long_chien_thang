@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
 import { type MemberFailure, callMemberApi, memberFailure } from "@/lib/api/members";
 import { newIdempotencyKey } from "@/lib/api/write";
-import type { MemberRow, MemberTier } from "@/lib/api/server";
+import type { MemberCreated, MemberRow, MemberTier } from "@/lib/api/server";
 import { toast } from "@/lib/feedback";
 import { formatPhone } from "@/lib/phone";
-import type { FormMode } from "./member-form";
+import type { AccountCreated, FormMode } from "./member-form";
 import { MemberFormFields, type MemberValues, RACKET_OTHER } from "./member-form-fields";
 import { useRackets } from "./use-rackets";
 
@@ -19,6 +19,8 @@ type BodyProps = {
   canEditStatus: boolean;
   onClose: () => void;
   onSaved: () => void;
+  /** Thêm hội viên mà SĐT chưa có tài khoản (T-026 AC2): cha hiện hộp thông báo thay cho form. */
+  onAccountCreated: (info: AccountCreated) => void;
   /** Hồ sơ đã đổi ở máy khác (409 E-MEM-9): tải lại bản mới nhất. */
   onReload: () => void;
   t: Dictionary["members"];
@@ -30,7 +32,7 @@ type BodyProps = {
   profile: MemberRow | null;
 };
 /** Nội dung form (state, gọi API, lỗi); nút Lưu ở chân popup nối bằng form={id}. */
-export function FormBody({ id, isPending, setIsPending, mode, initial, profile, canEditStatus, onClose, onSaved, onReload, t }: BodyProps) {
+export function FormBody({ id, isPending, setIsPending, mode, initial, profile, canEditStatus, onClose, onSaved, onAccountCreated, onReload, t }: BodyProps) {
   const f = t.form;
   const [values, setValues] = useState(initial);
   const [error, setError] = useState<MemberFailure | null>(null);
@@ -105,9 +107,14 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
   }
 
   // Toast ✓ (P5g / Thêm / Sửa) rồi đóng popup, tải lại danh sách
-  function done(row: MemberRow) {
-    toastSaved(mode.kind, row, t.toast);
+  function done(row: MemberRow | MemberCreated) {
     onSaved();
+    // T-026: SĐT chưa có tài khoản ⇒ hộp thông báo mật khẩu ban đầu (không tự tắt); mật khẩu = SĐT đã nhập, API không trả
+    if (mode.kind === "add" && "account_created" in row && row.account_created) {
+      onAccountCreated({ row, phone: values.phone.replace(/\s+/g, ""), expiresAt: row.initial_password_expires_at });
+      return;
+    }
+    toastSaved(mode.kind, row, t.toast);
     onClose();
   }
 
@@ -147,6 +154,7 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
           setValues((v) => ({ ...v, ...patch }));
         }}
         withMemberFields={isMemberForm}
+        phoneNote={mode.kind === "add" ? f.accountNote : undefined}
         withStatus={mode.kind === "edit" && isMemberForm}
         isStatusLocked={!canEditStatus}
         isPhoneLocked={mode.kind === "edit"}
@@ -170,7 +178,7 @@ function TempNote({ text }: { text: string }) {
 }
 
 /** Toast sau khi lưu: tạo hồ sơ tạm / sửa / thêm hội viên (chưa xếp hạng ⇒ bỏ phần "· Hạng …"). */
-function toastSaved(kind: "add" | "temp" | "edit", row: MemberRow, t: Dictionary["members"]["toast"]) {
+function toastSaved(kind: "add" | "temp" | "edit", row: MemberRow | MemberCreated, t: Dictionary["members"]["toast"]) {
   const memberSub = (row.tier ? t.memberSub : t.memberSubNoTier)
     .replace("{name}", row.full_name)
     .replace("{code}", row.member_code ?? "")
@@ -178,5 +186,6 @@ function toastSaved(kind: "add" | "temp" | "edit", row: MemberRow, t: Dictionary
   const tempSub = t.tempSub.replace("{name}", row.full_name).replace("{phone}", formatPhone(row.phone));
   if (kind === "temp") toast(t.tempCreated, tempSub);
   else if (kind === "edit") toast(t.saved, row.kind === "member" ? memberSub : tempSub);
+  else if ("account_created" in row && row.account_created === false) toast(t.addedExisting.replace("{code}", row.member_code ?? ""), t.addedExistingSub);
   else toast(t.added, memberSub);
 }

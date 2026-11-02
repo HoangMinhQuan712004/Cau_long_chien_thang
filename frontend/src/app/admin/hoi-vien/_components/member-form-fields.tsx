@@ -53,11 +53,13 @@ type Props = {
   error: MemberFailure | null;
   /** Hiện ngay dưới ô SĐT (khung đề nghị nâng hồ sơ tạm). */
   afterPhone?: React.ReactNode;
+  /** Ghi chú cố định dưới ô SĐT (Thêm hội viên – T-026 AC1). */
+  phoneNote?: string;
   t: Dictionary["members"];
 };
 
 /** Các ô của form hội viên / hồ sơ tạm (Figma P5a/b/f); lỗi E-001/002/018 hiện dưới đúng ô. */
-export function MemberFormFields({ id, values, onChange, withMemberFields, withStatus, isStatusLocked, isPhoneLocked, racketNames, error, afterPhone, t }: Props) {
+export function MemberFormFields({ id, values, onChange, withMemberFields, withStatus, isStatusLocked, isPhoneLocked, racketNames, error, afterPhone, phoneNote, t }: Props) {
   const f = t.form;
   const errorOf = (field: MemberFailure["field"]) => (error?.field === field ? error.message : undefined);
   const nameError = errorOf("full_name");
@@ -103,8 +105,13 @@ export function MemberFormFields({ id, values, onChange, withMemberFields, withS
             autoComplete="off"
             required
             aria-invalid={phoneError ? true : undefined}
-            aria-describedby={phoneError ? fieldErrorId(`${id}-phone`) : undefined}
+            aria-describedby={[phoneError ? fieldErrorId(`${id}-phone`) : null, phoneNote ? `${id}-phone-note` : null].filter(Boolean).join(" ") || undefined}
           />
+          {phoneNote ? (
+            <p id={`${id}-phone-note`} className="mt-1.5 text-xs text-muted">
+              {phoneNote}
+            </p>
+          ) : null}
         </Field>
         <div className="sm:col-span-2">
         <RadioGroup
