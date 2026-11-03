@@ -119,3 +119,85 @@ async def record_kmh(session: AsyncSession, customer_id: int) -> int | None:
     return await session.scalar(
         select(func.max(SpeedRecord.speed_kmh)).where(SpeedRecord.customer_id == customer_id)
     )
+
+
+async def month_best(session: AsyncSession, customer_id: int, day: date) -> int | None:
+    """Số đo cao nhất của hội viên trong tháng chứa ``day`` (giờ VN) – T-036."""
+    first, last = period_bounds("month", day)
+    return await session.scalar(
+        select(func.max(SpeedRecord.speed_kmh)).where(
+            SpeedRecord.customer_id == customer_id,
+            SpeedRecord.measured_at >= _at(first),
+            SpeedRecord.measured_at < _at(last + timedelta(days=1)),
+        )
+    )
+
+
+@dataclass(frozen=True)
+class RecordBreak:
+    """Một lần phá kỷ lục toàn cụm (T-036). ``customer_id`` chỉ dùng nội bộ, không trả ra API."""
+
+    customer_id: int
+    shown: bool  # người xem được thấy tên (mình, hoặc người đó bật Hiện trên kỷ lục)
+    display_name: str
+    avatar_url: str | None
+    speed_kmh: int
+    delta_kmh: int | None  # so với kỷ lục cụm trước đó; None = số đo đầu tiên của cụm
+    measured_at: datetime
+    court_code: str | None
+    is_current: bool
+
+
+async def club_record_breaks(
+    session: AsyncSession, viewer_id: int, limit: int
+) -> list[RecordBreak]:
+    """``limit`` lần phá kỷ lục cụm gần nhất (mới nhất trước).
+
+    Đi theo thời gian, mỗi số đo vượt mức cao nhất trước đó của cả cụm là một lần phá. Chỉ tính số
+    đo của hội viên đủ điều kiện như Bảng xếp hạng (Hoạt động, có liên kết). Ẩn danh như T-030.
+    """
+    ids = set(await session.scalars(select(SpeedRecord.customer_id).distinct()))
+    people = await eligible(session, ids)
+    if not people:
+        return []
+    previous = func.max(SpeedRecord.speed_kmh).over(
+        order_by=(SpeedRecord.measured_at, SpeedRecord.id), rows=(None, -1)
+    )
+    ranked = (
+        select(
+            SpeedRecord.customer_id,
+            SpeedRecord.speed_kmh,
+            SpeedRecord.measured_at,
+            SpeedRecord.court_code,
+            SpeedRecord.id,
+            previous.label("previous"),
+        )
+        .where(SpeedRecord.customer_id.in_(sorted(people)))
+        .subquery()
+    )
+    rows = (
+        await session.execute(
+            select(ranked)
+            .where((ranked.c.previous.is_(None)) | (ranked.c.speed_kmh > ranked.c.previous))
+            .order_by(ranked.c.measured_at.desc(), ranked.c.id.desc())
+            .limit(limit)
+        )
+    ).all()
+    out = []
+    for i, r in enumerate(rows):
+        p = people[r.customer_id]
+        shown = r.customer_id == viewer_id or p.show_on_records
+        out.append(
+            RecordBreak(
+                customer_id=r.customer_id,
+                shown=shown,
+                display_name=p.display_name if shown else ANONYMOUS,
+                avatar_url=_avatar_url(p) if shown else None,
+                speed_kmh=r.speed_kmh,
+                delta_kmh=None if r.previous is None else r.speed_kmh - r.previous,
+                measured_at=r.measured_at,
+                court_code=r.court_code,
+                is_current=i == 0,
+            )
+        )
+    return out

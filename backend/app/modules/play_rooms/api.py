@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.members import api as members
 from app.modules.play_rooms import errors as room_errors
-from app.modules.play_rooms import tiers
-from app.modules.play_rooms.common import CAPACITY, eligible, is_closed, person_out
+from app.modules.play_rooms import history, tiers, views
+from app.modules.play_rooms.common import CAPACITY, Me, eligible, is_closed, person_out
 from app.modules.play_rooms.models import PlayRoom, PlayRoomMember
-from app.modules.play_rooms.schemas import PersonOut
+from app.modules.play_rooms.schemas import PersonOut, PlayHistorySummary, RoomCard
 
 PREVIEW = 4  # số avatar xem trước
 
@@ -116,3 +116,25 @@ def bad_tier_range() -> Exception:
 def tier_range_members_only() -> Exception:
     """422 E-ROOM-14 "Khoảng hạng chỉ dùng khi đặt trong khu hội viên."."""
     return room_errors.tier_range_members_only()
+
+
+# ------------------------------------------------------------------ Tổng quan v2 (T-036)
+
+
+async def open_rooms_today(
+    session: AsyncSession, user_id: int, customer_id: int, limit: int = 3
+) -> list[RoomCard]:
+    """ "Phòng đang trống": phòng hôm nay còn mở, **còn chỗ**, mình chưa ở trong, theo giờ bắt đầu.
+
+    Cùng shape thẻ Danh sách sân (có ``tier_range``, ``my_join_block``, ``my_join_pending``).
+    """
+    rooms = await views.list_rooms(session, Me(user_id, customer_id), "all")
+    free = [c for c in rooms.items if not c.is_mine and c.member_count < c.capacity]
+    return free[:limit]
+
+
+async def month_stats(
+    session: AsyncSession, customer_id: int, month: str | None
+) -> PlayHistorySummary:
+    """Buổi chơi / số trận / trận thắng trong tháng – cùng định nghĩa Lịch sử chơi (T-029)."""
+    return (await history.play_history(session, customer_id, month)).summary
