@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.members.models import Customer
 from tests.conftest import API, CUSTOMER_PASSWORD, _client, idem, new_customer, sign_in
-from tests.helpers_booking import BK, book, new_court, random_phone, safe_hour
+from tests.helpers_booking import BK, book, new_court, patch_member, random_phone, safe_hour
 from tests.helpers_web import WEB
 
 ME = f"{API}/member-area/me"
@@ -191,7 +191,6 @@ async def test_update_profile_syncs_name_and_writes_audit(staff, admin):
                 full_name="  Trần Thị Lan Anh  ",
                 nickname="  Lan Smash ",
                 email=f" {email} ",
-                tier="Khá",
                 racket=f"  {racket} ",
                 show_on_records=True,
             ),
@@ -200,7 +199,7 @@ async def test_update_profile_syncs_name_and_writes_audit(staff, admin):
         out = r.json()
         assert out["full_name"] == "Trần Thị Lan Anh" and out["short_name"] == "Anh"
         assert out["nickname"] == "Lan Smash" and out["email"] == email
-        assert out["tier"] == "Khá" and out["racket"] == racket
+        assert out["tier"] == "Trung bình" and out["racket"] == racket  # hạng giữ nguyên (T-038)
         names = [r["name"] for r in (await c.get(RACKETS)).json()]
         assert racket not in names  # T-033: không tự thêm vào danh mục
         async with SessionLocal() as s:
@@ -245,9 +244,7 @@ async def test_update_reports_every_field_error_at_once(admin):
         me = (await c.get(ME)).json()
         r = await c.put(
             ME,
-            json=body_of(
-                me, full_name="   ", nickname="x" * 21, email="khong-phai-email", tier="Vàng"
-            ),
+            json=body_of(me, full_name="   ", nickname="x" * 21, email="khong-phai-email"),
         )
         assert r.status_code == 422
         detail = r.json()["detail"]
@@ -256,7 +253,6 @@ async def test_update_reports_every_field_error_at_once(admin):
             "full_name": "E-HV-1",
             "nickname": "E-HV-1",
             "email": "E-HV-10",
-            "tier": "E-HV-1",
         }
         assert detail["code"] == "E-HV-1"
         assert (await c.get(ME)).json() == me  # không lưu ô nào
@@ -447,21 +443,34 @@ async def test_member_reads_racket_catalog(customer, admin):
     assert (await customer.get(RACKETS)).status_code == 403
 
 
-async def test_tier_null_until_chosen(admin):
-    async with linked_member(admin, tier=None) as (c, *_):
+async def test_member_cannot_change_own_tier(admin):
+    """T-038: Hạng do quầy xếp – hội viên gửi khác -> 422 E-HV-14, hạng giữ nguyên; gửi cùng giá trị
+    hoặc không gửi -> bỏ qua."""
+    async with linked_member(admin, tier=None) as (c, customer_id, code, _):
         me = (await c.get(ME)).json()
         assert me["tier"] is None
         r = await c.put(ME, json=body_of(me, nickname="Chưa xếp"))
-        assert r.status_code == 200 and r.json()["tier"] is None  # giữ null được
-        r = await c.put(ME, json=body_of(r.json(), tier="Yếu"))
-        assert r.status_code == 200 and r.json()["tier"] == "Yếu"
-        r = await c.put(ME, json=body_of(r.json(), tier=None))
-        assert r.status_code == 422
-        assert r.json()["detail"]["fields"][0] == {
-            "field": "tier",
-            "code": "E-HV-1",
-            "message": "Vui lòng chọn Trình độ.",
-        }
+        assert r.status_code == 200 and r.json()["tier"] is None  # cùng giá trị (null)
+        me = r.json()
+        for tier in ("Yếu", "Chuyên nghiệp"):
+            r = await c.put(ME, json=body_of(me, tier=tier))
+            assert r.status_code == 422, r.text
+            assert r.json()["detail"]["code"] == "E-HV-14"
+            assert r.json()["detail"]["message"] == "Hạng do quầy xếp, bạn không tự đổi được."
+            assert r.json()["detail"]["fields"][0]["field"] == "tier"
+        assert (await c.get(ME)).json() == me  # không lưu gì
+
+        # Quầy xếp hạng -> hội viên không bỏ trống / không đổi được, không gửi thì vẫn lưu ô khác
+        r = await patch_member(admin, code, {"tier": "Khá"})  # NV / Admin đổi như cũ (AC10)
+        assert r.status_code == 200 and r.json()["tier"] == "Khá"
+        me = (await c.get(ME)).json()
+        r = await c.put(ME, json=body_of(me, tier=None))
+        assert r.status_code == 422 and r.json()["detail"]["code"] == "E-HV-14"
+        body = body_of(me, nickname="Có hạng")
+        body.pop("tier")
+        r = await c.put(ME, json=body)
+        assert r.status_code == 200 and r.json()["tier"] == "Khá"
+        assert r.json()["nickname"] == "Có hạng"
 
 
 async def test_racket_name_error_is_reported_with_fields(admin):
