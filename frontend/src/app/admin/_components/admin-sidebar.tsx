@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CalendarIcon,
   CalendarPlusIcon,
   ChartIcon,
   CloseIcon,
@@ -24,6 +25,7 @@ type AdminRole = "admin" | "staff";
 const NAV = [
   { href: "/admin/bao-cao", key: "baoCao", Icon: ChartIcon, roles: ["admin"] },
   { href: "/admin/dat-san", key: "datSan", Icon: CalendarPlusIcon, roles: ["admin", "staff"] },
+  { href: "/admin/don-dinh-ky", key: "dinhKy", Icon: CalendarIcon, roles: ["admin"] },
   { href: "/admin/lich-su-giao-dich", key: "lichSu", Icon: ReceiptIcon, roles: ["admin"] },
   { href: "/admin/hoi-vien", key: "hoiVien", Icon: UsersIcon, roles: ["admin", "staff"] },
   { href: "/admin/san", key: "san", Icon: SettingsIcon, roles: ["admin"] },

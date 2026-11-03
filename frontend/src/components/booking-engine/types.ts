@@ -218,3 +218,8 @@ export type RecurringPreview = Api["schemas"]["RecurringPreview"];
 export type RecurringResult = Api["schemas"]["RecurringCreated"];
 /** Buổi không đặt được trong lỗi 409 E-BOOK-5 (`extra.conflicts`). */
 export type RecurringConflict = { date: string; start: string; reason: string | null; reason_text?: string | null };
+
+// ---- Danh sách đơn định kỳ (T-039): kiểu sinh từ schema.d.ts ----
+export type RecurringOrderStatus = Api["schemas"]["RecurringOrderOut"]["status"];
+export type RecurringOrderRow = Api["schemas"]["RecurringOrderOut"];
+export type RecurringOrderList = Api["schemas"]["RecurringOrderListOut"];
