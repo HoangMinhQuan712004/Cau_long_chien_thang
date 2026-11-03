@@ -1818,7 +1818,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Recurring
+         * @description Màn "Đơn định kỳ" (chỉ Admin, T-039): mới nhất trước, lọc trạng thái, tìm theo mã đơn / tên
+         *     khách / SĐT. Thu cả đơn vẫn qua ``POST /booking/orders/{code}/collect`` (T-019).
+         */
+        get: operations["list_recurring_api_v1_front_desk_recurring_get"];
         put?: never;
         /**
          * Create Recurring
@@ -4793,6 +4798,17 @@ export interface components {
             discount_pct: number;
             customer: components["schemas"]["CustomerIn"];
         };
+        /** RecurringCounts */
+        RecurringCounts: {
+            /** All */
+            all: number;
+            /** Unpaid */
+            unpaid: number;
+            /** Paid */
+            paid: number;
+            /** Uncollectible */
+            uncollectible: number;
+        };
         /** RecurringCreated */
         RecurringCreated: {
             /** Order Code */
@@ -4807,6 +4823,81 @@ export interface components {
             discount_amount: number;
             /** Total */
             total: number;
+        };
+        /** RecurringOrderListOut */
+        RecurringOrderListOut: {
+            /** Items */
+            items: components["schemas"]["RecurringOrderOut"][];
+            /** @description Theo q, bỏ qua status */
+            counts: components["schemas"]["RecurringCounts"];
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * RecurringOrderOut
+         * @description Một đơn định kỳ (T-039) – SĐT đã che.
+         */
+        RecurringOrderOut: {
+            /** Order Code */
+            order_code: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Weekdays
+             * @description ISO 1 = T2 … 7 = CN (các thứ có buổi)
+             */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /**
+             * Date From
+             * Format: date
+             * @description Ngày buổi đầu
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             * @description Ngày buổi cuối
+             */
+            date_to: string;
+            /** Sessions */
+            sessions: number;
+            /** Original Amount */
+            original_amount: number;
+            /** Discount Pct */
+            discount_pct: number;
+            /** Discount Amount */
+            discount_amount: number;
+            /**
+             * Total
+             * @description Phải thu (sau giảm)
+             */
+            total: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unpaid" | "paid" | "uncollectible";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string;
         };
         /** RecurringPreview */
         RecurringPreview: {
@@ -9198,6 +9289,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecurringPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_recurring_api_v1_front_desk_recurring_get: {
+        parameters: {
+            query?: {
+                status?: ("unpaid" | "paid" | "uncollectible") | null;
+                q?: string | null;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringOrderListOut"];
                 };
             };
             /** @description Validation Error */
