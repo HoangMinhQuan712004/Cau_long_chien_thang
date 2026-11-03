@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import audit, audit_detail
 from app.core.errors import AppError
-from app.modules.booking_engine.audit_fields import customer_text, new_values, vnd
+from app.modules.booking_engine.audit_fields import customer_text_masked, new_values, vnd
 from app.modules.booking_engine.booking_service import booking_item
 from app.modules.booking_engine.codes import next_code
 from app.modules.booking_engine.common import (
@@ -307,7 +307,7 @@ async def create(
                 **{
                     "Sân": r.name,
                     "Lịch": schedule_text,
-                    "Khách": customer_text(customer),
+                    "Khách": customer_text_masked(customer),  # spec T-035: không SĐT đầy đủ
                     "Giảm giá": f"{data.discount_pct}% ({vnd(summary.discount_amount)})"
                     if data.discount_pct
                     else None,

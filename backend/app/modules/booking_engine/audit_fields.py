@@ -5,6 +5,7 @@ from datetime import datetime
 
 from app.core.audit import audit_change
 from app.core.config import settings
+from app.core.privacy import mask_phone
 from app.modules.booking_engine.dto import CustomerSnapshot
 from app.modules.booking_engine.pricing import BAND_LABELS
 from app.modules.booking_engine.schedules import Hours, to_hhmm
@@ -59,6 +60,13 @@ def customer_text(c: CustomerSnapshot) -> str:
     """Khách lúc đặt: "HV0031 · Nguyễn Văn An · 0901234567" (SĐT đầy đủ, BR-007)."""
     parts = [c.member_code] if c.kind == "member" and c.member_code else []
     return " · ".join([*parts, c.display_name, c.phone])
+
+
+def customer_text_masked(c: CustomerSnapshot) -> str:
+    """Như ``customer_text`` nhưng che SĐT: "HV0031 · Nguyễn Văn An · 0901 xxx 567"
+    (audit không được có SĐT đầy đủ, vd đặt định kỳ T-035)."""
+    parts = [c.member_code] if c.kind == "member" and c.member_code else []
+    return " · ".join([*parts, c.display_name, mask_phone(c.phone)])
 
 
 def paid_changes(method_label: str) -> list:

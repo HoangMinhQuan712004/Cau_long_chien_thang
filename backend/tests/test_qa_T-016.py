@@ -984,13 +984,17 @@ async def test_t038_ac7_other_rules_unchanged_when_tier_is_not_touched(admin, ma
     """Bỏ luật cũ 'đang có hạng thì không được bỏ trống' (AC8): hồ sơ có Hạng vẫn lưu được khi không gửi tier."""
     c, _ = await member_login(admin, made, tier="Khá")
     cur = await me(c)
+    # Không gửi tier; show_on_records là trường bắt buộc của PUT /me (có từ T-016)
+    keep = {"show_on_records": cur["show_on_records"]}
     r = await c.put(
-        f"{MA}/me", json={"full_name": cur["full_name"], "version": cur["version"]}, headers=idem()
+        f"{MA}/me",
+        json={"full_name": cur["full_name"], "version": cur["version"], **keep},
+        headers=idem(),
     )
     assert r.status_code == 200, r.text
     assert r.json()["tier"] == "Khá"
     bad = await c.put(
-        f"{MA}/me", json={"full_name": " ", "version": r.json()["version"]}, headers=idem()
+        f"{MA}/me", json={"full_name": " ", "version": r.json()["version"], **keep}, headers=idem()
     )
     assert bad.status_code == 422 and any(f["field"] == "full_name" for f in err(bad)["fields"])
 
