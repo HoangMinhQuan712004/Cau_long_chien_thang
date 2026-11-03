@@ -209,3 +209,12 @@ export type SchemaContract = [
   Accepts<Api["schemas"]["SearchResult"], SearchResult>,
   Accepts<Api["schemas"]["TransactionsOut"], Transactions>,
 ];
+
+// ---- Đặt sân định kỳ (T-035, Admin): kiểu sinh từ schema.d.ts ----
+export type RecurringBody = Api["schemas"]["RecurringBookingIn"];
+export type RecurringPreviewBody = Api["schemas"]["RecurringPreviewIn"];
+export type RecurringSession = Api["schemas"]["RecurringSession"];
+export type RecurringPreview = Api["schemas"]["RecurringPreview"];
+export type RecurringResult = Api["schemas"]["RecurringCreated"];
+/** Buổi không đặt được trong lỗi 409 E-BOOK-5 (`extra.conflicts`). */
+export type RecurringConflict = { date: string; start: string; reason: string | null; reason_text?: string | null };
