@@ -23,6 +23,7 @@ from app.modules.booking_engine import (
     outbox,
     payment_service,
     recurring,
+    recurring_list,
     report_figures,
     rooms_feed,
     session_service,
@@ -60,6 +61,7 @@ from app.modules.booking_engine.dto import (
     QuoteOut,
     RecurringCreated,
     RecurringIn,
+    RecurringOrderList,
     RecurringPreview,
     ReportFigures,
     ResourceCreate,
@@ -554,3 +556,17 @@ async def create_recurring(
     """Một đơn định kỳ + mọi buổi (Chưa thanh toán), tất cả hoặc không: buổi lỗi / trùng ->
     409 ``E-BOOK-5`` kèm ``conflicts``. Không commit."""
     return await recurring.create(session, _tid(tenant_id), actor, data, customer)
+
+
+async def list_recurring(
+    session: AsyncSession,
+    status: str | None = None,
+    q: str | None = None,
+    page: int = 1,
+    size: int = 20,
+    *,
+    tenant_id: int | None = None,
+) -> RecurringOrderList:
+    """Đơn định kỳ (T-039): lịch suy từ các buổi, trạng thái từ thanh toán các buổi, đếm theo
+    trạng thái. ``customer_phone`` đầy đủ – lớp gọi che trước khi trả ra API."""
+    return await recurring_list.list_orders(session, _tid(tenant_id), status, q, page, size)

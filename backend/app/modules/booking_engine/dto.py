@@ -871,3 +871,48 @@ class RecurringCreated(BaseModel):
     discount_pct: int
     discount_amount: int
     total: int
+
+
+RecurringStatus = Literal["unpaid", "paid", "uncollectible"]
+
+
+class RecurringOrderRow(BaseModel):
+    """Một đơn định kỳ (T-039). Lịch suy từ các buổi: giờ của buổi đầu, khoảng ngày buổi đầu –
+    buổi cuối, thứ = các thứ có buổi. ``customer_phone`` đầy đủ – lớp gọi phải che."""
+
+    order_code: str
+    customer_name: str
+    customer_phone: str
+    resource_code: str
+    resource_name: str
+    weekdays: list[int] = Field(description="ISO 1–7, các thứ có buổi")
+    start_hour: int
+    end_hour: int
+    date_from: dt.date = Field(description="Ngày buổi đầu")
+    date_to: dt.date = Field(description="Ngày buổi cuối")
+    sessions: int
+    original_amount: int
+    discount_pct: int
+    discount_amount: int
+    total: int = Field(description="Phải thu = tổng các buổi (sau giảm)")
+    status: RecurringStatus = Field(
+        description="unpaid: còn buổi chưa thu · paid: mọi buổi đã thu · uncollectible: không còn "
+        "buổi chưa thu và có buổi Không thu được"
+    )
+    created_at: dt.datetime
+    created_by: str
+
+
+class RecurringCounts(BaseModel):
+    all: int
+    unpaid: int
+    paid: int
+    uncollectible: int
+
+
+class RecurringOrderList(BaseModel):
+    items: list[RecurringOrderRow]
+    counts: RecurringCounts = Field(description="Theo ``q``, bỏ qua ``status``")
+    page: int
+    size: int
+    total: int = Field(description="Số đơn khớp ``status`` + ``q``")
