@@ -158,7 +158,7 @@ export function CourtGrid({
       aria-busy={busy}
     >
       <div ref={gridRef} role="group" aria-label={label} className={`relative min-w-max ${vars}`}>
-        <div className={`flex ${headH} text-xs text-muted ${roomy ? "border-b border-border" : "sticky top-0 z-30 border-b border-border bg-surface"}`}>
+        <div className={`flex ${headH} text-xs text-muted ${roomy ? "border-b border-border" : "sticky top-0 z-(--z-grid) border-b border-border bg-surface"}`}>
           <div data-label className={`sticky left-0 z-40 flex w-(--c0) shrink-0 items-center bg-surface ${roomy ? "border-r border-border px-3 font-medium" : "pl-2 font-semibold"}`}>
             Sân
           </div>

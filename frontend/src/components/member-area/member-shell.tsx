@@ -40,19 +40,19 @@ export const HOME_HREF = "/hoi-vien";
 
 type NavItem = { href: string; label: string; exact?: boolean; also?: string };
 
-/** Menu chính (desktop, T-032 AC1). "Danh sách sân" sáng cả ở /hoi-vien/phong/*. */
+/** Menu chính (desktop, T-032 AC1; T-037: thêm Lịch sử chơi ở cuối). "Danh sách sân" sáng cả ở /hoi-vien/phong/*. */
 const MAIN_NAV: readonly NavItem[] = [
   { href: "/hoi-vien", label: "Tổng quan", exact: true },
   { href: "/hoi-vien/danh-sach-san", label: "Danh sách sân", also: "/hoi-vien/phong" },
   { href: "/hoi-vien/bang-xep-hang", label: "Bảng xếp hạng" },
   { href: "/hoi-vien/video-ky-luc", label: "Video & kỷ lục" },
+  { href: "/hoi-vien/lich-su-choi", label: "Lịch sử chơi" },
 ];
 
-/** Dropdown tài khoản (desktop, T-032 AC2). */
+/** Dropdown tài khoản (desktop, T-032 AC2; T-037: bỏ Lịch sử chơi). */
 const ACCOUNT_MENU: readonly NavItem[] = [
   { href: "/hoi-vien/ho-so", label: "Hồ sơ của tôi" },
   { href: "/hoi-vien/dat-san", label: "Đặt sân" },
-  { href: "/hoi-vien/lich-su-choi", label: "Lịch sử chơi" },
   { href: "/hoi-vien/lich-su-thanh-toan", label: "Lịch sử thanh toán" },
 ];
 
@@ -193,8 +193,8 @@ function MemberHeader() {
       <MobileBar />
 
       {/* ===== Desktop: header ngang ===== */}
-      <header className="sticky top-0 z-30 hidden border-b border-border bg-surface lg:block">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-8 px-4">
+      <header className="sticky top-0 z-(--z-header) hidden border-b border-border bg-surface lg:block">
+        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 xl:gap-8">
           <Link href={HOME_HREF} onClick={go(HOME_HREF)} className="flex min-w-0 items-center gap-2 font-bold text-primary">
             <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-xs text-surface">
               CL
@@ -246,7 +246,7 @@ function MobileBar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 bg-appbar text-surface shadow-sm lg:hidden">
+    <header className="sticky top-0 z-(--z-header) bg-appbar text-surface shadow-sm lg:hidden">
       <div className="grid h-14 grid-cols-[3rem_1fr_3rem] items-center px-1">
         <Link
           href={screen?.back ?? HOME_HREF}
