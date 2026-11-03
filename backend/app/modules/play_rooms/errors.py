@@ -46,6 +46,18 @@ def bad_lineup() -> AppError:
     return AppError("E-ROOM-12", "Đội hình không hợp lệ.", 422)
 
 
+def tier_blocked(range_text: str, unranked: bool) -> AppError:
+    """Ngoài khoảng hạng của phòng (T-031) – không nói hạng của người được mời."""
+    message = f"Phòng chỉ dành cho hạng {range_text}."
+    if unranked:
+        message += " Liên hệ quầy để được xếp hạng."
+    return AppError("E-ROOM-13", message, 409)
+
+
+def bad_tier_range() -> AppError:
+    return AppError("E-ROOM-14", "Khoảng hạng không hợp lệ.", 422)
+
+
 def not_enough_players() -> AppError:
     return AppError("E-ROOM-8", "Chưa đủ người để bốc.", 409)
 

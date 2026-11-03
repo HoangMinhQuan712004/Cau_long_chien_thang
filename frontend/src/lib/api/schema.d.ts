@@ -2596,6 +2596,16 @@ export interface components {
              * @default false
              */
             as_member: boolean;
+            /**
+             * Min Tier
+             * @description Hạng thấp nhất được vào phòng (null = không giới hạn dưới)
+             */
+            min_tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
+            /**
+             * Max Tier
+             * @description Hạng cao nhất (null = không giới hạn trên); min ≤ max (E-ROOM-14)
+             */
+            max_tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
         };
         /** CheckoutOut */
         CheckoutOut: {
@@ -4032,6 +4042,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Tier
+             * @description Hạng của người xin / được mời (T-031); null = chưa xếp
+             */
+            tier: string | null;
         };
         /** PeriodOut */
         PeriodOut: {
@@ -4831,6 +4846,13 @@ export interface components {
              * @description Lời mời đang chờ mình ("Nhận lời mời")
              */
             my_invite_id: number | null;
+            /** @description Khoảng hạng của phòng (T-031); null = mở */
+            tier_range: components["schemas"]["TierRange"] | null;
+            /**
+             * My Join Block
+             * @description Mình không vào được vì hạng (nút Xin vào mờ): ngoài khoảng / chưa xếp hạng
+             */
+            my_join_block: ("out_of_range" | "unranked") | null;
             /** Version */
             version: number;
         };
@@ -4892,6 +4914,13 @@ export interface components {
             my_join_pending: boolean;
             /** My Invite Id */
             my_invite_id: number | null;
+            /** @description Khoảng hạng của phòng (T-031); null = mở */
+            tier_range: components["schemas"]["TierRange"] | null;
+            /**
+             * My Join Block
+             * @description Người ngoài phòng không vào được vì hạng; người trong phòng luôn null
+             */
+            my_join_block: ("out_of_range" | "unranked") | null;
             /**
              * Members
              * @description Host đầu tiên, rồi theo giờ vào
@@ -5372,6 +5401,19 @@ export interface components {
             count: number;
             /** Total */
             total: number;
+        };
+        /** TierRange */
+        TierRange: {
+            /**
+             * Min
+             * @description Hạng thấp nhất (null = không giới hạn dưới)
+             */
+            min: string | null;
+            /**
+             * Max
+             * @description Hạng cao nhất (null = không giới hạn trên)
+             */
+            max: string | null;
         };
         /** TransactionCard */
         TransactionCard: {

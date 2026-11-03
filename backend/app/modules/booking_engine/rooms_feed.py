@@ -10,7 +10,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.booking_engine.dto import RoomSource
-from app.modules.booking_engine.models import Booking, Resource, ResourceType
+from app.modules.booking_engine.models import Booking, BookingOrder, Resource, ResourceType
 
 
 def _query(tenant_id: int) -> Select:
@@ -23,7 +23,10 @@ def _query(tenant_id: int) -> Select:
             ResourceType.name,
             Booking.start_at,
             Booking.end_at,
+            BookingOrder.min_tier,
+            BookingOrder.max_tier,
         )
+        .join(BookingOrder, BookingOrder.id == Booking.order_id)
         .join(Resource, Resource.id == Booking.resource_id)
         .join(ResourceType, ResourceType.id == Resource.resource_type_id)
         .where(Booking.tenant_id == tenant_id)
@@ -40,6 +43,8 @@ def _row(r) -> RoomSource:
         resource_type_name=r[4],
         start_at=r[5],
         end_at=r[6],
+        min_tier=r[7],
+        max_tier=r[8],
     )
 
 

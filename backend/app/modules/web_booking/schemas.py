@@ -11,6 +11,7 @@ from app.modules.booking_engine.dto import (
     OnlineSlotIn,
     PublicCalendarResource,
 )
+from app.modules.members.api import Tier
 from app.modules.payments.api import BankInfo
 
 
@@ -37,6 +38,14 @@ class CheckoutIn(StrictIn):
         default=False,
         description="Đặt trong khu hội viên (/hoi-vien/dat-san): Họ tên + SĐT lấy từ hồ sơ, "
         "bỏ qua full_name/phone gửi lên, không cần phone_token (T-018 AC4)",
+    )
+    # T-031: khoảng hạng phòng chơi của đơn – chỉ áp khi ``as_member`` (đặt công khai: bỏ qua)
+    min_tier: Tier | None = Field(
+        default=None, description="Hạng thấp nhất được vào phòng (null = không giới hạn dưới)"
+    )
+    max_tier: Tier | None = Field(
+        default=None,
+        description="Hạng cao nhất (null = không giới hạn trên); min ≤ max (E-ROOM-14)",
     )
 
 
