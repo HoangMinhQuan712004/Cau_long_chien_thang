@@ -142,7 +142,7 @@ export function RecurringOrdersScreen() {
                     {o.resource_name} · {o.weekdays.map((d) => DOW[d - 1]).join(" ")} · {pad(o.start_hour)}:00–{pad(o.end_hour)}:00
                   </span>
                   <span className="block text-sm text-muted">
-                    Từ {dm(o.date_from)} đến {dm(o.date_to)}/{o.date_to.slice(0, 4)} · {o.sessions} buổi
+                    Từ buổi đầu {dm(o.date_from)} – buổi cuối {dm(o.date_to)}/{o.date_to.slice(0, 4)} · {o.sessions} buổi
                   </span>
                 </button>
                 <div className="text-right">
