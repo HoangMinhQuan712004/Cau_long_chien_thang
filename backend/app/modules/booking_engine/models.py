@@ -292,6 +292,10 @@ class Checkout(_CustomerSnapshot, Base):
     tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
     token_hash: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True)
     kind: Mapped[str] = mapped_column(String(10), server_default=text("'court'"))
+    # Khoảng hạng cho phòng chơi của đơn (T-031) – lớp gọi kiểm giá trị; engine chỉ lưu và chép sang
+    # đơn khi tiền về. Cả hai NULL = không giới hạn
+    min_tier: Mapped[str | None] = mapped_column(String(20))
+    max_tier: Mapped[str | None] = mapped_column(String(20))
     pay_ref: Mapped[str] = mapped_column(String(20))
     # Mã đơn cấp lúc giữ chỗ (ADR-010); pay_ref = mã này bỏ dấu gạch. Hết hạn -> mã bỏ luôn
     order_code: Mapped[str] = mapped_column(String(30))
@@ -368,6 +372,9 @@ class BookingOrder(_CustomerSnapshot, Base):
     code: Mapped[str] = mapped_column(String(30))
     play_date: Mapped[date] = mapped_column(Date)
     channel: Mapped[str] = mapped_column(String(10))
+    # Khoảng hạng cho phòng chơi (T-031) – chỉ đơn online đặt trong khu hội viên; quầy = NULL
+    min_tier: Mapped[str | None] = mapped_column(String(20))
+    max_tier: Mapped[str | None] = mapped_column(String(20))
     checkout_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey(f"{SCHEMA}.checkout.id", ondelete="RESTRICT"), unique=True
     )

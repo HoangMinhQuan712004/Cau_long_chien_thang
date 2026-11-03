@@ -17,6 +17,7 @@ class RoomPerson:
     is_active_member: bool  # hồ sơ hội viên, đang Hoạt động
     phone: str  # nội bộ – chỉ để xét liên kết tài khoản, không trả ra API
     show_on_records: bool = False  # T-030: Tắt -> "Hội viên ẩn danh" trên bảng xếp hạng
+    tier: str | None = None  # T-031: hạng (trình độ) – None = chưa xếp hạng
 
 
 async def people(session: AsyncSession, ids: set[int] | list[int]) -> dict[int, RoomPerson]:
@@ -36,6 +37,7 @@ async def people(session: AsyncSession, ids: set[int] | list[int]) -> dict[int, 
             is_active_member=c.kind == "member" and c.is_active,
             phone=c.phone,
             show_on_records=c.show_on_records,
+            tier=c.tier,
         )
         for c, etag in rows
     }

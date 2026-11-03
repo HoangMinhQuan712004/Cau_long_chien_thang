@@ -156,7 +156,11 @@ class MemberCreateIn(StrictIn):
     phone: str = Field(max_length=20)
     gender: Gender | None = None
     tier: Tier | None = Field(default=None, description="Trình độ; bỏ trống = chưa xếp hạng")
-    racket: str | None = Field(default=None, max_length=100)
+    racket: str | None = Field(
+        default=None,
+        max_length=300,
+        description="Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null",
+    )
 
 
 class MemberUpdateIn(StrictIn):
@@ -168,7 +172,11 @@ class MemberUpdateIn(StrictIn):
     full_name: str | None = Field(default=None, max_length=200)
     gender: Gender | None = None
     tier: Tier | None = None
-    racket: str | None = Field(default=None, max_length=100)
+    racket: str | None = Field(
+        default=None,
+        max_length=300,
+        description="Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null",
+    )
     is_active: bool | None = None
     version: int = Field(description="``version`` lúc mở hộp Sửa; lệch -> 409 E-MEM-9")
 

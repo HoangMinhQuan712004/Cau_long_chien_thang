@@ -1825,7 +1825,8 @@ export interface paths {
          *     Hoạt động -> 403 E-HV-8.
          *     Lỗi: E-WEB-1 (dữ liệu), E-WEB-2 (khung không đặt được), E-WEB-3 (vừa có người đặt, kèm
          *     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng),
-         *     E-WEB-8 (chưa xác minh SĐT), E-019.
+         *     E-WEB-8 (chưa xác minh SĐT), E-019, E-ROOM-14 (T-031: khoảng hạng sai thứ tự, hoặc gửi khi
+         *     không ``as_member``).
          */
         post: operations["create_checkout_api_v1_web_booking_checkouts_post"];
         delete?: never;
@@ -2596,6 +2597,16 @@ export interface components {
              * @default false
              */
             as_member: boolean;
+            /**
+             * Min Tier
+             * @description Chỉ với as_member (đặt công khai gửi -> 422 E-ROOM-14). Hạng thấp nhất được vào phòng (null = không giới hạn dưới)
+             */
+            min_tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
+            /**
+             * Max Tier
+             * @description Hạng cao nhất (null = không giới hạn trên); min ≤ max (E-ROOM-14)
+             */
+            max_tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
         };
         /** CheckoutOut */
         CheckoutOut: {
@@ -3281,7 +3292,10 @@ export interface components {
              * @description Trình độ; bỏ trống = chưa xếp hạng
              */
             tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
-            /** Racket */
+            /**
+             * Racket
+             * @description Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null
+             */
             racket?: string | null;
         };
         /**
@@ -3426,7 +3440,7 @@ export interface components {
             tier: string | null;
             /**
              * Racket
-             * @description Tên vợt; chưa có trong danh mục -> tự thêm (như màn Hội viên)
+             * @description Tên vợt tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự, rỗng = null; không dùng danh mục
              */
             racket?: string | null;
             /** Show On Records */
@@ -3470,7 +3484,7 @@ export interface components {
             tier: string | null;
             /**
              * Racket
-             * @description Tên vợt đang dùng (danh mục GET /rackets)
+             * @description Tên vợt đang dùng (tự nhập)
              */
             racket: string | null;
             /** Show On Records */
@@ -3661,7 +3675,10 @@ export interface components {
             gender?: ("male" | "female") | null;
             /** Tier */
             tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
-            /** Racket */
+            /**
+             * Racket
+             * @description Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null
+             */
             racket?: string | null;
             /** Is Active */
             is_active?: boolean | null;
@@ -4026,6 +4043,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Tier
+             * @description Hạng của người xin / được mời (T-031); null = chưa xếp
+             */
+            tier: string | null;
         };
         /** PeriodOut */
         PeriodOut: {
@@ -4825,6 +4847,13 @@ export interface components {
              * @description Lời mời đang chờ mình ("Nhận lời mời")
              */
             my_invite_id: number | null;
+            /** @description Khoảng hạng của phòng (T-031); null = mở */
+            tier_range: components["schemas"]["TierRange"] | null;
+            /**
+             * My Join Block
+             * @description Mình không vào được vì hạng (nút Xin vào mờ): ngoài khoảng / chưa xếp hạng
+             */
+            my_join_block: ("out_of_range" | "unranked") | null;
             /** Version */
             version: number;
         };
@@ -4886,6 +4915,13 @@ export interface components {
             my_join_pending: boolean;
             /** My Invite Id */
             my_invite_id: number | null;
+            /** @description Khoảng hạng của phòng (T-031); null = mở */
+            tier_range: components["schemas"]["TierRange"] | null;
+            /**
+             * My Join Block
+             * @description Người ngoài phòng không vào được vì hạng; người trong phòng luôn null
+             */
+            my_join_block: ("out_of_range" | "unranked") | null;
             /**
              * Members
              * @description Host đầu tiên, rồi theo giờ vào
@@ -5366,6 +5402,19 @@ export interface components {
             count: number;
             /** Total */
             total: number;
+        };
+        /** TierRange */
+        TierRange: {
+            /**
+             * Min
+             * @description Hạng thấp nhất (null = không giới hạn dưới)
+             */
+            min: string | null;
+            /**
+             * Max
+             * @description Hạng cao nhất (null = không giới hạn trên)
+             */
+            max: string | null;
         };
         /** TransactionCard */
         TransactionCard: {

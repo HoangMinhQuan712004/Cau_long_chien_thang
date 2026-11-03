@@ -7,20 +7,16 @@ import type { MemberFailure } from "@/lib/api/members";
 import type { MemberRow } from "@/lib/api/server";
 import { TIERS } from "./member-params";
 
-// Giá trị ô chọn "Khác…" ⇒ hiện ô gõ tên vợt mới (BE tự thêm vào danh mục khi lưu)
-export const RACKET_OTHER = "__other__";
-
 export type MemberValues = {
   fullName: string;
   gender: "" | "male" | "female";
   phone: string;
   tier: string;
   racket: string;
-  racketOther: string;
   isActive: boolean;
 };
 
-export const EMPTY_MEMBER: MemberValues = { fullName: "", gender: "", phone: "", tier: "", racket: "", racketOther: "", isActive: true };
+export const EMPTY_MEMBER: MemberValues = { fullName: "", gender: "", phone: "", tier: "", racket: "", isActive: true };
 
 // Hồ sơ (chi tiết hoặc dòng danh sách) ⇒ giá trị ban đầu của form; `phone`: số đầy đủ (Sửa) hoặc đã che (Chuyển)
 export function valuesOf(d: MemberRow, phone: string): MemberValues {
@@ -29,9 +25,8 @@ export function valuesOf(d: MemberRow, phone: string): MemberValues {
     gender: d.gender ?? "",
     phone,
     tier: d.tier ?? "",
-    // Giữ đúng tên đang lưu, kể cả vợt đã ẩn / không còn trong danh mục
+    // Giữ đúng chữ đang lưu (tự nhập, T-033)
     racket: d.racket ?? "",
-    racketOther: "",
     isActive: d.is_active,
   };
 }
@@ -46,8 +41,6 @@ type Props = {
   withStatus: boolean;
   /** Nhân viên quầy: khóa Trạng thái. */
   isStatusLocked: boolean;
-  /** Tên vợt đang dùng trong danh mục (`GET /rackets`). */
-  racketNames: readonly string[];
   /** Form Sửa: SĐT chỉ xem, không sửa. */
   isPhoneLocked?: boolean;
   error: MemberFailure | null;
@@ -59,14 +52,11 @@ type Props = {
 };
 
 /** Các ô của form hội viên / hồ sơ tạm (Figma P5a/b/f); lỗi E-001/002/018 hiện dưới đúng ô. */
-export function MemberFormFields({ id, values, onChange, withMemberFields, withStatus, isStatusLocked, isPhoneLocked, racketNames, error, afterPhone, phoneNote, t }: Props) {
+export function MemberFormFields({ id, values, onChange, withMemberFields, withStatus, isStatusLocked, isPhoneLocked, error, afterPhone, phoneNote, t }: Props) {
   const f = t.form;
   const errorOf = (field: MemberFailure["field"]) => (error?.field === field ? error.message : undefined);
   const nameError = errorOf("full_name");
   const phoneError = errorOf("phone");
-  // Vợt của hồ sơ không còn trong danh mục đang dùng (đã ẩn…) vẫn hiện đúng tên ở đầu danh sách
-  const isUnlisted = values.racket !== "" && values.racket !== RACKET_OTHER && !racketNames.includes(values.racket);
-  const racketOptions = (isUnlisted ? [values.racket, ...racketNames] : racketNames).map((r) => ({ value: r, label: r }));
 
   return (
     <>
@@ -139,27 +129,17 @@ export function MemberFormFields({ id, values, onChange, withMemberFields, withS
               />
             </Field>
             <Field label={f.racketLabel} htmlFor={`${id}-racket`}>
-              <Dropdown
-                id={`${id}-racket`}
-                value={values.racket}
-                onChange={(racket) => onChange({ racket })}
-                placeholder={f.racketPlaceholder}
-                options={[...racketOptions, { value: RACKET_OTHER, label: f.racketOther }]}
-              />
-            </Field>
-          </div>
-          {values.racket === RACKET_OTHER ? (
-            <Field label={f.racketOtherLabel} htmlFor={`${id}-racket-other`}>
               <Input
                 compact
-                id={`${id}-racket-other`}
-                value={values.racketOther}
-                onChange={(e) => onChange({ racketOther: e.target.value })}
+                id={`${id}-racket`}
+                value={values.racket}
+                onChange={(e) => onChange({ racket: e.target.value })}
+                placeholder={f.racketPlaceholder}
                 maxLength={100}
                 autoComplete="off"
               />
             </Field>
-          ) : null}
+          </div>
         </>
       ) : null}
       {withStatus ? (

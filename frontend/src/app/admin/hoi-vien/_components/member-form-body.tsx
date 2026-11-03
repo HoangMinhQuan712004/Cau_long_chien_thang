@@ -12,8 +12,7 @@ import type { MemberCreated, MemberRow, MemberTier } from "@/lib/api/server";
 import { toast } from "@/lib/feedback";
 import { formatPhone } from "@/lib/phone";
 import type { AccountCreated, FormMode } from "./member-form";
-import { MemberFormFields, type MemberValues, RACKET_OTHER } from "./member-form-fields";
-import { useRackets } from "./use-rackets";
+import { MemberFormFields, type MemberValues } from "./member-form-fields";
 
 type BodyProps = {
   canEditStatus: boolean;
@@ -42,7 +41,6 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
   const [nextCode, setNextCode] = useState<string | null>(null);
   // Form có Hạng / Vợt / Mã HV: Thêm hội viên và Sửa hội viên
   const isMemberForm = mode.kind === "add" || profile?.kind === "member";
-  const rackets = useRackets(false, isMemberForm).state;
 
   // Mã HV sẽ cấp – chỉ để hiển thị trong ô khóa (mã thật lấy từ kết quả lưu)
   useEffect(() => {
@@ -50,7 +48,8 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
     api.GET("/api/v1/members/next-code").then(({ data }) => data && setNextCode(data.member_code), () => {});
   }, [mode.kind]);
 
-  const racket = values.racket === RACKET_OTHER ? values.racketOther.trim() || null : values.racket || null;
+  // Vợt tự nhập (T-033): cắt 2 đầu, gộp khoảng trắng; rỗng ⇒ null (BE chuẩn hóa giống vậy)
+  const racket = values.racket.trim().replace(/\s+/g, " ") || null;
   const memberBody = {
     full_name: values.fullName,
     phone: values.phone,
@@ -158,7 +157,6 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
         withStatus={mode.kind === "edit" && isMemberForm}
         isStatusLocked={!canEditStatus}
         isPhoneLocked={mode.kind === "edit"}
-        racketNames={rackets.status === "ok" ? rackets.items.map((r) => r.name) : []}
         error={error}
         t={t}
       />

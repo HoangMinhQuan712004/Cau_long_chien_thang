@@ -42,6 +42,8 @@ async def ensure_rooms(session: AsyncSession, sources: list[engine.RoomSource]) 
                 start_at=src.start_at,
                 end_at=src.end_at,
                 host_customer_id=host,
+                min_tier=src.min_tier,
+                max_tier=src.max_tier,
             )
             .on_conflict_do_nothing(index_elements=[PlayRoom.booking_code])
             .returning(PlayRoom.id)

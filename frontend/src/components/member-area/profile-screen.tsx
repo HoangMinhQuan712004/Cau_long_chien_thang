@@ -2,8 +2,6 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { TIERS } from "@/app/admin/hoi-vien/_components/member-params";
-import { RACKET_OTHER } from "@/app/admin/hoi-vien/_components/member-form-fields";
-import { useRackets } from "@/app/admin/hoi-vien/_components/use-rackets";
 import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Input } from "@/components/ui/input";
@@ -211,8 +209,8 @@ function CourtLines() {
   );
 }
 
-// `tier` / `racket` rỗng = chưa chọn; `racket` = RACKET_OTHER ⇒ tên gõ ở `racketOther` (BE tự thêm vào danh mục)
-type Values = { full_name: string; nickname: string; email: string; tier: string; racket: string; racketOther: string; show_on_records: boolean };
+// `tier` rỗng = chưa chọn; `racket` là chữ tự nhập (T-033), rỗng = chưa khai báo
+type Values = { full_name: string; nickname: string; email: string; tier: string; racket: string; show_on_records: boolean };
 type Errors = { full_name?: string; nickname?: string; email?: string; tier?: string; racket?: string };
 
 const toValues = (m: MemberMe): Values => ({
@@ -221,15 +219,11 @@ const toValues = (m: MemberMe): Values => ({
   email: m.email ?? "",
   tier: m.tier ?? "",
   racket: m.racket ?? "",
-  racketOther: "",
   show_on_records: m.show_on_records,
 });
 
-/** Tên vợt sẽ lưu: vợt trong danh mục hoặc tên gõ ở ô "Khác…"; rỗng ⇒ null. */
-const racketName = (v: Values): string | null => (v.racket === RACKET_OTHER ? v.racketOther.trim() : v.racket) || null;
-
-/** Vợt đã lưu mà danh mục không còn (đã ẩn / đổi tên) ⇒ vẫn đưa vào ô chọn. */
-const v0Racket = (m: MemberMe, names: string[]) => Boolean(m.racket) && !names.includes(m.racket as string);
+/** Tên vợt sẽ lưu: cắt 2 đầu, gộp khoảng trắng (BE cũng chuẩn hóa như vậy); rỗng ⇒ null. */
+const racketName = (v: Values): string | null => v.racket.trim().replace(/\s+/g, " ") || null;
 
 function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promise<void> }) {
   const { setMe, setDirty } = useMember();
@@ -247,10 +241,6 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
   const set = <K extends keyof Values>(k: K, val: Values[K]) => setV((s) => ({ ...s, [k]: val }));
 
   const saved = toValues(base);
-  // Danh mục vợt đang dùng (GET /rackets, danh sách phẳng); vợt hiện tại không có trong danh mục vẫn hiện được
-  const rackets = useRackets(false);
-  const names = rackets.state.status === "ok" ? rackets.state.items.map((r) => r.name) : [];
-  const racketOptions = (v0Racket(base, names) ? [base.racket as string, ...names] : names).map((r) => ({ value: r, label: r }));
   const dirty =
     v.full_name.trim() !== saved.full_name.trim() ||
     v.nickname.trim() !== saved.nickname.trim() ||
@@ -278,7 +268,7 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
   function focusFirst(e: Errors) {
     const first = (["full_name", "nickname", "email", "tier", "racket"] as const).find((k) => e[k]);
     if (first === "tier") document.getElementById(ids.tier)?.focus();
-    else if (first === "racket") document.getElementById(v.racket === RACKET_OTHER ? `${ids.racket}-other` : ids.racket)?.focus();
+    else if (first === "racket") document.getElementById(ids.racket)?.focus();
     else if (first === "full_name") nameRef.current?.focus();
     else if (first === "nickname") nickRef.current?.focus();
     else if (first === "email") emailRef.current?.focus();
@@ -455,21 +445,9 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
               {showErr("tier")}
             </Row>
             <Row label="Vợt đang dùng" htmlFor={ids.racket}>
-              <Dropdown
-                id={ids.racket}
-                value={v.racket}
-                onChange={(r) => set("racket", r)}
-                placeholder="Chọn vợt"
-                options={[...racketOptions, { value: RACKET_OTHER, label: "Khác…" }]}
-              />
-              {v.racket === RACKET_OTHER ? null : showErr("racket")}
+              <Input id={ids.racket} value={v.racket} maxLength={100} autoComplete="off" placeholder="Ví dụ: Yonex Astrox 88D" onChange={(e) => set("racket", e.target.value)} {...err("racket")} />
+              {showErr("racket")}
             </Row>
-            {v.racket === RACKET_OTHER ? (
-              <Row label="Tên vợt khác" htmlFor={`${ids.racket}-other`}>
-                <Input id={`${ids.racket}-other`} value={v.racketOther} maxLength={100} autoComplete="off" onChange={(e) => set("racketOther", e.target.value)} {...err("racket")} />
-                {showErr("racket")}
-              </Row>
-            ) : null}
             <div className="flex items-start justify-between gap-4 border-t border-border pt-4">
               <div>
                 <label htmlFor={ids.show} className="text-sm font-semibold">

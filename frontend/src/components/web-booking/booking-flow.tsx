@@ -13,6 +13,7 @@ import { api } from "@/lib/api/client";
 import { errorText, write } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
 import { formatLongDate, formatVnd } from "@/lib/format";
+import { TIERS } from "@/app/admin/hoi-vien/_components/member-params";
 import { fullAddress, phoneHref, site } from "@/lib/site";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { DayStrip } from "./day-strip";
@@ -30,7 +31,7 @@ import { MAX_CELLS, RESTORE_KEY, type Cell, type SlotExtra, type WebCalendar } f
 const STORAGE_KEY = "wk-booking-v1";
 type Me = { full_name: string; phone: string | null; phone_verified: boolean };
 
-type Saved = { date: string; cells: Cell[]; name: string; phone: string; note: string; step: 1 | 2 };
+type Saved = { date: string; cells: Cell[]; name: string; phone: string; note: string; step: 1 | 2; minTier?: string; maxTier?: string };
 type Restore = { date: string; items: Cell[] };
 
 const cellKey = (c: Cell) => `${c.code}|${c.hour}`;
@@ -91,6 +92,8 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
   const [cells, setCells] = useState<Cell[]>([]);
   const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({ name: member?.name ?? "", phone: member?.phone ?? "", note: "" });
+  // Khoảng hạng của phòng (T-031): chỉ hội viên chọn, chỉ lúc đặt; "" = không giới hạn
+  const [tiers, setTiers] = useState({ min: "", max: "" });
   const [touched, setTouched] = useState<{ name?: boolean; phone?: boolean; note?: boolean }>({});
   const [submitted, setSubmitted] = useState(false);
   const [banner, setBanner] = useState("");
@@ -178,6 +181,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
       /* eslint-disable react-hooks/set-state-in-effect -- khôi phục từ sessionStorage sau khi hydrate */
       applyCells(saved.cells ?? []);
       setForm({ name: member?.name ?? saved.name ?? "", phone: member?.phone ?? saved.phone ?? "", note: saved.note ?? "" });
+      if (member) setTiers({ min: TIERS.some((t) => t === saved.minTier) ? (saved.minTier ?? "") : "", max: TIERS.some((t) => t === saved.maxTier) ? (saved.maxTier ?? "") : "" });
       if (saved.step === 2 && (saved.cells?.length ?? 0) > 0) applyStep(2);
       /* eslint-enable react-hooks/set-state-in-effect */
     }
@@ -193,8 +197,8 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
   // Lưu lựa chọn + thông tin đã nhập vào sessionStorage của tab.
   useEffect(() => {
     if (!ready.current) return;
-    writeJson(storageKey, { date, cells, name: form.name, phone: form.phone, note: form.note, step } satisfies Saved);
-  }, [date, cells, form, step, storageKey]);
+    writeJson(storageKey, { date, cells, name: form.name, phone: form.phone, note: form.note, step, minTier: tiers.min, maxTier: tiers.max } satisfies Saved);
+  }, [date, cells, form, step, storageKey, tiers]);
 
   // Tự tải lại mỗi 30 giây khi tab đang hiển thị, và ngay khi quay lại tab.
   useEffect(() => {
@@ -352,13 +356,15 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
     note: form.note.trim().length > 200 ? "Ghi chú tối đa 200 ký tự." : "",
   };
 
+  const tierOrderError = Boolean(member && tiers.min && tiers.max && TIERS.indexOf(tiers.min as (typeof TIERS)[number]) > TIERS.indexOf(tiers.max as (typeof TIERS)[number]));
+
   const skipOtp = Boolean(member) || Boolean(me?.phone_verified && me.phone && normalizePhone(me.phone) === phone);
 
   /** Bấm nút chính: kiểm form → (cần thì) gửi mã OTP → khi có phone_token mới tạo checkout. */
   async function submit(tokenOverride?: string) {
     setSubmitted(true);
     setBanner("");
-    if (errors.name || errors.phone || errors.note || !calendar || !cells.length) {
+    if (tierOrderError || errors.name || errors.phone || errors.note || !calendar || !cells.length) {
       const first = errors.name ? ids.name : errors.phone ? ids.phone : errors.note ? ids.note : null;
       if (first) document.getElementById(first)?.focus();
       return;
@@ -392,7 +398,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
     try {
       // Giới hạn 6 lượt tạo / 10 phút / IP: báo ngay khi bị chặn, không tự gửi lại (mỗi lần gửi lại cũng bị tính)
       const res = await write(
-        (key) => sendCheckout(key, { date, slots, full_name: cleanName, phone, as_member: Boolean(member), ...(note ? { note } : {}), ...(phoneToken ? { phone_token: phoneToken } : {}) }),
+        (key) => sendCheckout(key, { date, slots, full_name: cleanName, phone, as_member: Boolean(member), ...(member && tiers.min ? { min_tier: tiers.min as (typeof TIERS)[number] } : {}), ...(member && tiers.max ? { max_tier: tiers.max as (typeof TIERS)[number] } : {}), ...(note ? { note } : {}), ...(phoneToken ? { phone_token: phoneToken } : {}) }),
         { retryRateLimit: false },
       );
       if (res.ok) {
@@ -480,6 +486,8 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
             <span className="text-xl font-bold tabular-nums">{formatVnd(total)}</span>
           </div>
         </section>
+
+        {member ? <TierRangeBlock min={tiers.min} max={tiers.max} onChange={setTiers} /> : null}
 
         {isGuest && !member ? <MemberHint next={`/dat-san?ngay=${date}`} /> : null}
 
@@ -761,5 +769,56 @@ function Legend({ swatch, text }: { swatch: string; text: string }) {
       <span aria-hidden className={`inline-block size-4 shrink-0 rounded-[5px] ${swatch}`} />
       {text}
     </li>
+  );
+}
+
+/** "Khoảng hạng của phòng" (T-031 AC1): hai ô Hạng từ / đến, mặc định không giới hạn, báo ngay khi sai thứ tự. */
+function TierRangeBlock({ min, max, onChange }: { min: string; max: string; onChange: (v: { min: string; max: string }) => void }) {
+  const idMin = useId();
+  const idMax = useId();
+  const wrong = Boolean(min && max && TIERS.indexOf(min as (typeof TIERS)[number]) > TIERS.indexOf(max as (typeof TIERS)[number]));
+  const sel = "h-11 w-full rounded-lg border bg-surface px-3 text-sm focus-ring";
+  return (
+    <section className="rounded-xl bg-surface p-4 shadow-card sm:p-5" aria-labelledby="tier-title">
+      <h3 id="tier-title" className="text-sm font-bold text-primary">
+        Khoảng hạng của phòng
+      </h3>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor={idMin} className="mb-1 block text-sm font-medium">
+            Hạng từ
+          </label>
+          <select id={idMin} value={min} onChange={(e) => onChange({ min: e.target.value, max })} aria-invalid={wrong || undefined} aria-describedby="tier-note" className={`${sel} ${wrong ? "border-danger" : "border-border"}`}>
+            <option value="">Không giới hạn</option>
+            {TIERS.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor={idMax} className="mb-1 block text-sm font-medium">
+            Hạng đến
+          </label>
+          <select id={idMax} value={max} onChange={(e) => onChange({ min, max: e.target.value })} aria-invalid={wrong || undefined} aria-describedby="tier-note" className={`${sel} ${wrong ? "border-danger" : "border-border"}`}>
+            <option value="">Không giới hạn</option>
+            {TIERS.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      {wrong ? (
+        <p role="alert" className="mt-2 text-xs text-danger">
+          Hạng “từ” phải thấp hơn hoặc bằng hạng “đến”.
+        </p>
+      ) : null}
+      <p id="tier-note" className="mt-2 text-xs text-muted">
+        Chỉ hội viên trong khoảng này mới vào được phòng của bạn. Chỉ chọn được lúc đặt, không sửa sau.
+      </p>
+    </section>
   );
 }
