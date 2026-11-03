@@ -25,6 +25,9 @@ from app.modules.booking_engine.dto import (
     CounterOrderOut,
     CustomerSnapshot,
     ItemOut,
+    RecurringCreated,
+    RecurringIn,
+    RecurringPreview,
 )
 from app.modules.members import api as members
 from app.modules.members.api import CustomerIn
@@ -32,6 +35,7 @@ from app.modules.members.api import CustomerIn
 router = APIRouter(prefix="/front-desk", tags=["front-desk"])
 
 CounterBooker = Annotated[Principal, Depends(require(Perm.BOOKING_COUNTER_CREATE))]
+RecurringBooker = Annotated[Principal, Depends(require(Perm.BOOKING_RECURRING))]
 TicketSeller = Annotated[Principal, Depends(require(Perm.BOOKING_TICKET_CREATE))]
 
 
@@ -140,5 +144,57 @@ async def register_ticket(
     async def run() -> ItemOut:
         snapshot, note = await customer_snapshot(session, data.customer, principal)
         return await engine.register_ticket(session, actor_of(principal), code, snapshot, note)
+
+    return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
+
+
+# ------------------------------------------------------------------ đặt sân định kỳ (T-035)
+
+
+class RecurringPreviewIn(RecurringIn):
+    """Như lúc tạo; ``customer`` không bắt buộc (xem trước không dựng hồ sơ khách)."""
+
+    customer: CustomerIn | None = None
+
+
+class RecurringBookingIn(RecurringIn):
+    customer: CustomerIn
+
+
+def _recurring(data: RecurringIn) -> RecurringIn:
+    return RecurringIn(**data.model_dump(include=set(RecurringIn.model_fields)))
+
+
+@router.post("/recurring/preview", response_model=RecurringPreview)
+async def preview_recurring(
+    data: RecurringPreviewIn, _: RecurringBooker, session: SessionDep
+) -> RecurringPreview:
+    """Xem trước đặt sân định kỳ (chỉ Admin, không ghi): từng buổi (ngày, thứ, giờ, giá gốc, giá
+    sau giảm, ``ok`` / ``reason``) + tổng. ``reason``: booked · event · hold · closed · inactive ·
+    past · no_price. Lỗi 422: không chọn thứ, giờ sai, từ ngày < hôm nay, > 92 ngày, > 60 buổi,
+    % ngoài 0–100. 403 không phải Admin."""
+    return await engine.preview_recurring(session, _recurring(data))
+
+
+@router.post("/recurring", response_model=RecurringCreated, status_code=status.HTTP_201_CREATED)
+async def create_recurring(
+    data: RecurringBookingIn,
+    principal: RecurringBooker,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Đặt sân định kỳ (chỉ Admin): **một đơn** (mã theo ngày buổi đầu) + mỗi buổi một booking
+    Chưa thanh toán, giảm % phân bổ vào từng buổi. Thu tiền bằng "Thu cả đơn" (T-019).
+
+    Tất cả hoặc không: có buổi không đặt được (kể cả vừa bị người khác đặt) -> 409 ``E-BOOK-5``
+    "Có n buổi không đặt được." kèm ``conflicts: [{date, start, reason, reason_text}]``.
+    Lỗi khác như xem trước; khách: E-014 / E-018 / E-001 như đặt quầy.
+    """
+
+    async def run() -> RecurringCreated:
+        snapshot, _note = await customer_snapshot(session, data.customer, principal)
+        return await engine.create_recurring(
+            session, actor_of(principal), _recurring(data), snapshot
+        )
 
     return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
