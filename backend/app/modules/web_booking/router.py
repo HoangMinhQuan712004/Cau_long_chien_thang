@@ -25,6 +25,7 @@ from app.modules.booking_engine import api as engine
 from app.modules.booking_engine.dto import CheckoutCreate, CheckoutView, CustomerSnapshot
 from app.modules.members import api as members
 from app.modules.payments import api as payments
+from app.modules.play_rooms import api as rooms
 from app.modules.web_booking.schemas import (
     CheckoutCreatedOut,
     CheckoutIn,
@@ -220,12 +221,22 @@ async def create_checkout(
     """
     await _require_online(session)
     data, full_name, phone, note = await _buyer(session, data, verified_phone, member)
+    # T-031: khoảng hạng phòng chỉ chọn trong khu hội viên; đặt công khai -> không giới hạn
+    min_tier, max_tier = (data.min_tier, data.max_tier) if data.as_member else (None, None)
+    if not rooms.valid_tier_range(min_tier, max_tier):
+        raise rooms.bad_tier_range()
 
     async def run() -> CheckoutCreatedOut:
         snapshot = await _snapshot(session, full_name, phone)
         created = await engine.create_checkout(
             session,
-            CheckoutCreate(date=data.date, slots=data.slots, note=note),
+            CheckoutCreate(
+                date=data.date,
+                slots=data.slots,
+                note=note,
+                min_tier=min_tier,
+                max_tier=max_tier,
+            ),
             snapshot,
             settings.ONLINE_HOLD_MINUTES,
         )

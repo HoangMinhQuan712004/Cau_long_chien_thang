@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.modules.members import api as members
+from app.modules.play_rooms import tiers
 from app.modules.play_rooms.common import (
     CAPACITY,
     START_EARLY,
@@ -66,8 +67,10 @@ async def list_rooms(session: AsyncSession, me: Me, scope: Literal["all", "mine"
             by_room[m.room_id].append(m)
     mine_pending = await _my_pending(session, me, ids)
     people = await members.room_people(
-        session, {m.customer_id for ms in by_room.values() for m in ms} | ok_hosts
+        session,
+        {m.customer_id for ms in by_room.values() for m in ms} | ok_hosts | {me.customer_id},
     )
+    mine_person = people.get(me.customer_id)
 
     cards: list[RoomCard] = []
     for r in rooms:
@@ -87,6 +90,10 @@ async def list_rooms(session: AsyncSession, me: Me, scope: Literal["all", "mine"
                 is_mine=any(m.customer_id == me.customer_id for m in ms),
                 my_join_pending=(r.id, "join") in mine_pending,
                 my_invite_id=mine_pending.get((r.id, "invite")),
+                tier_range=tiers.range_out(r),
+                my_join_block=None
+                if any(m.customer_id == me.customer_id for m in ms)
+                else tiers.block_of(r, mine_person),
                 version=r.version,
             )
         )
@@ -138,7 +145,7 @@ async def detail_of(session: AsyncSession, me: Me, room: PlayRoom) -> RoomDetail
         )
     )
     match = await active_match(session, room.id)
-    ids = {m.customer_id for m in rows} | {p.customer_id for p in pending}
+    ids = {m.customer_id for m in rows} | {p.customer_id for p in pending} | {me.customer_id}
     if match is not None:
         ids |= {*match.team_a, *match.team_b}
     people = await members.room_people(session, ids)
@@ -152,6 +159,7 @@ async def detail_of(session: AsyncSession, me: Me, room: PlayRoom) -> RoomDetail
                 display_name=person_out(people.get(p.customer_id)).display_name,
                 avatar_url=avatar_url(people.get(p.customer_id)),
                 created_at=p.created_at,
+                tier=(people[p.customer_id].tier if p.customer_id in people else None),
             )
             for p in pending
             if p.kind == kind
@@ -175,6 +183,8 @@ async def detail_of(session: AsyncSession, me: Me, room: PlayRoom) -> RoomDetail
         my_role="host" if is_host else ("member" if in_room else "outsider"),
         my_join_pending="join" in mine,
         my_invite_id=mine.get("invite"),
+        tier_range=tiers.range_out(room),
+        my_join_block=None if in_room else tiers.block_of(room, people.get(me.customer_id)),
         members=[
             RoomMemberOut(
                 id=m.id,
