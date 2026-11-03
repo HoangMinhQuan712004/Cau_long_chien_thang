@@ -6,16 +6,17 @@ cùng commit hoặc cùng rollback.
 """
 
 import datetime as dt
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, status
-from pydantic import Field, model_validator
+from fastapi import APIRouter, Depends, Query, status
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
 from app.core.db import SessionDep
 from app.core.idempotency import IdempotencyDep
 from app.core.permissions import Perm, Principal, require
+from app.core.privacy import mask_phone
 from app.core.schemas import StrictIn
 from app.modules.booking_engine import api as engine
 from app.modules.booking_engine.dto import (
@@ -25,6 +26,7 @@ from app.modules.booking_engine.dto import (
     CounterOrderOut,
     CustomerSnapshot,
     ItemOut,
+    RecurringCounts,
     RecurringCreated,
     RecurringIn,
     RecurringPreview,
@@ -198,3 +200,63 @@ async def create_recurring(
         )
 
     return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
+
+
+class RecurringOrderOut(BaseModel):
+    """Một đơn định kỳ (T-039) – SĐT đã che."""
+
+    order_code: str
+    customer_name: str
+    phone_masked: str | None
+    resource_code: str
+    resource_name: str
+    weekdays: list[int] = Field(description="ISO 1 = T2 … 7 = CN (các thứ có buổi)")
+    start_hour: int
+    end_hour: int
+    date_from: dt.date = Field(description="Ngày buổi đầu")
+    date_to: dt.date = Field(description="Ngày buổi cuối")
+    sessions: int
+    original_amount: int
+    discount_pct: int
+    discount_amount: int
+    total: int = Field(description="Phải thu (sau giảm)")
+    status: Literal["unpaid", "paid", "uncollectible"]
+    created_at: dt.datetime
+    created_by: str
+
+
+class RecurringOrderListOut(BaseModel):
+    items: list[RecurringOrderOut]
+    counts: RecurringCounts = Field(description="Theo q, bỏ qua status")
+    page: int
+    size: int
+    total: int
+
+
+@router.get("/recurring", response_model=RecurringOrderListOut)
+async def list_recurring(
+    _: RecurringBooker,
+    session: SessionDep,
+    status_: Annotated[
+        Literal["unpaid", "paid", "uncollectible"] | None, Query(alias="status")
+    ] = None,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    page: Annotated[int, Query(ge=1, le=10_000)] = 1,
+    size: Annotated[int, Query(ge=1, le=50)] = 20,
+):
+    """Màn "Đơn định kỳ" (chỉ Admin, T-039): mới nhất trước, lọc trạng thái, tìm theo mã đơn / tên
+    khách / SĐT. Thu cả đơn vẫn qua ``POST /booking/orders/{code}/collect`` (T-019)."""
+    out = await engine.list_recurring(session, status_, q, page, size)
+    return RecurringOrderListOut(
+        items=[
+            RecurringOrderOut(
+                **row.model_dump(exclude={"customer_phone"}),
+                phone_masked=mask_phone(row.customer_phone),
+            )
+            for row in out.items
+        ],
+        counts=out.counts,
+        page=out.page,
+        size=out.size,
+        total=out.total,
+    )
