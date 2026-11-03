@@ -22,6 +22,7 @@ from app.modules.booking_engine import (
     orders,
     outbox,
     payment_service,
+    recurring,
     report_figures,
     rooms_feed,
     session_service,
@@ -57,6 +58,9 @@ from app.modules.booking_engine.dto import (
     PublicPrices,
     QuoteIn,
     QuoteOut,
+    RecurringCreated,
+    RecurringIn,
+    RecurringPreview,
     ReportFigures,
     ResourceCreate,
     ResourceList,
@@ -527,3 +531,26 @@ async def rename_customer(
 
     Không commit; trả số booking + vé đã đổi (ghi vào nhật ký ``member.self_update``)."""
     return await customer_history.rename_customer(session, _tid(tenant_id), refs, name)
+
+
+# ---- Đặt sân định kỳ (T-035)
+
+
+async def preview_recurring(
+    session: AsyncSession, data: RecurringIn, *, tenant_id: int | None = None
+) -> RecurringPreview:
+    """Xem trước các buổi + giá gốc / sau giảm + lý do buổi lỗi – không ghi."""
+    return await recurring.preview(session, _tid(tenant_id), data)
+
+
+async def create_recurring(
+    session: AsyncSession,
+    actor: Actor,
+    data: RecurringIn,
+    customer: CustomerSnapshot,
+    *,
+    tenant_id: int | None = None,
+) -> RecurringCreated:
+    """Một đơn định kỳ + mọi buổi (Chưa thanh toán), tất cả hoặc không: buổi lỗi / trùng ->
+    409 ``E-BOOK-5`` kèm ``conflicts``. Không commit."""
+    return await recurring.create(session, _tid(tenant_id), actor, data, customer)

@@ -821,3 +821,53 @@ class EventInfo(BaseModel):
     my_tickets: list[MyTicket] | None = Field(
         default=None, description="Vé của tôi – chỉ khi lớp gọi truyền refs của hội viên"
     )
+
+
+# ---------- Đặt sân định kỳ (T-035) ----------
+
+RecurringReason = Literal["booked", "event", "hold", "closed", "inactive", "past", "no_price"]
+
+
+class RecurringIn(StrictIn):
+    """Các thứ trong tuần + khung giờ, từ ngày -> đến ngày, một sân (khách do lớp gọi dựng)."""
+
+    resource_code: str = Field(max_length=10)
+    weekdays: list[int] = Field(max_length=7, description="ISO: 1 = Thứ 2 … 7 = Chủ nhật")
+    start_hour: int = Field(ge=0, le=23)
+    end_hour: int = Field(ge=1, le=24)
+    date_from: dt.date
+    date_to: dt.date
+    discount_pct: int = Field(default=0, ge=0, le=100, description="% giảm cho cả đơn, 0–100")
+
+
+class RecurringSession(BaseModel):
+    date: dt.date
+    weekday: int = Field(description="ISO 1–7")
+    start_time: str
+    end_time: str
+    start_at: dt.datetime
+    end_at: dt.datetime
+    price: int | None = Field(description="Giá gốc theo bảng giá ngày đó; null khi không định giá")
+    price_after_discount: int | None
+    ok: bool
+    reason: RecurringReason | None = None
+    reason_text: str | None = None
+
+
+class RecurringPreview(BaseModel):
+    sessions: list[RecurringSession]
+    count: int = Field(description="Số buổi")
+    original_amount: int = Field(description="Tổng giá gốc các buổi định giá được")
+    discount_pct: int
+    discount_amount: int
+    total: int = Field(description="Phải thu = gốc − giảm")
+    conflicts_count: int = Field(description="Số buổi không đặt được")
+
+
+class RecurringCreated(BaseModel):
+    order_code: str
+    bookings: list[ItemOut]
+    original_amount: int
+    discount_pct: int
+    discount_amount: int
+    total: int

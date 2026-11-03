@@ -77,6 +77,7 @@ GROUPS: tuple[ActionGroup, ...] = (
         "Đặt sân & thanh toán",
         (
             _t("booking.counter.create", "Đặt sân tại quầy"),
+            _t("booking.recurring.create", "Đặt sân định kỳ"),  # T-035, chỉ Admin
             _t("session.create", "Đặt sự kiện"),
             _t("session.delete", "Xóa buổi"),
             _t("ticket.create", "Đăng ký vé"),

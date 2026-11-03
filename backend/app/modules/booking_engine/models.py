@@ -363,6 +363,8 @@ class BookingOrder(_CustomerSnapshot, Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "code"),
         CheckConstraint("channel IN ('online', 'counter')", name="channel"),
+        CheckConstraint("kind IN ('single', 'recurring')", name="kind"),
+        CheckConstraint("discount_pct BETWEEN 0 AND 100", name="discount_pct"),
         CheckConstraint("customer_kind IN ('member', 'temp')", name="customer_kind"),
         {"schema": SCHEMA},
     )
@@ -372,6 +374,10 @@ class BookingOrder(_CustomerSnapshot, Base):
     code: Mapped[str] = mapped_column(String(30))
     play_date: Mapped[date] = mapped_column(Date)
     channel: Mapped[str] = mapped_column(String(10))
+    # T-035: ``recurring`` = đặt sân định kỳ (Admin) – giảm % cho cả đơn, phân bổ vào từng buổi
+    kind: Mapped[str] = mapped_column(String(10), server_default=text("'single'"))
+    discount_pct: Mapped[int | None] = mapped_column(SmallInteger)
+    discount_amount: Mapped[int | None] = mapped_column(Integer)
     # Khoảng hạng cho phòng chơi (T-031) – chỉ đơn online đặt trong khu hội viên; quầy = NULL
     min_tier: Mapped[str | None] = mapped_column(String(20))
     max_tier: Mapped[str | None] = mapped_column(String(20))
@@ -419,6 +425,8 @@ class Booking(_CustomerSnapshot, _Payment, Base):
     price_breakdown: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, server_default=text("'[]'::jsonb")
     )
+    # Giá gốc theo bảng giá khi có giảm (T-035); NULL = không giảm (``amount`` là giá gốc)
+    list_amount: Mapped[int | None] = mapped_column(Integer)
     # Booking online: lượt thanh toán đã tạo ra booking này (ADR-007)
     checkout_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey(f"{SCHEMA}.checkout.id", ondelete="RESTRICT"), index=True
