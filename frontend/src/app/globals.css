@@ -169,9 +169,17 @@
   }
 }
 
-/* T-028 AC1: thanh điều hướng dưới (điện thoại) tự ẩn khi màn có thanh hành động riêng, để không chồng hai thanh */
-body:has([data-bottom-bar]) [data-member-nav] {
-  display: none;
+/* Khu hội viên (điện thoại / máy tính bảng): thanh điều hướng dưới luôn ghim (người dùng 03/11, thay T-028 AC1 "tự ẩn").
+   Màn có thanh hành động riêng (`data-bottom-bar`, vd "Bạn đang chọn" ở Đặt sân) thì thanh đó nằm ngay trên menu,
+   chừa đáy 1.75rem cho nút tròn "Đặt sân" nhô lên. 3.5rem = chiều cao menu (min-h-14). */
+@media (width < 64rem) {
+  body:has([data-member-nav]) [data-bottom-bar] {
+    position: fixed;
+    inset-inline: 0;
+    bottom: calc(3.5rem + env(safe-area-inset-bottom));
+    border-radius: 20px 20px 0 0;
+    padding-bottom: 1.75rem;
+  }
 }
 
 body {

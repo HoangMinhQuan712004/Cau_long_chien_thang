@@ -118,7 +118,7 @@ export function MemberShell({ initial, children }: { initial: MemberMe; children
     <MemberCtx.Provider value={value}>
       <MemberHeader />
       {/* Chừa chỗ cho thanh điều hướng dưới (điện thoại); thanh tự ẩn khi màn có thanh hành động riêng */}
-      <main className="flex-1 pb-24 lg:pb-0 [body:has([data-bottom-bar])_&]:pb-32 lg:[body:has([data-bottom-bar])_&]:pb-0">{children}</main>
+      <main className="flex-1 pb-24 lg:pb-0 [body:has([data-bottom-bar])_&]:pb-52 lg:[body:has([data-bottom-bar])_&]:pb-0">{children}</main>
       <BottomNav />
       <Modal
         open={asking}
@@ -418,8 +418,6 @@ function BottomNav() {
   const go = useGo();
   const { me, leave } = useMember();
   const [sheet, setSheet] = useState(false);
-  // Trang thanh toán có thanh trên riêng và không cần thoát nửa chừng
-  if (pathname.startsWith("/hoi-vien/thanh-toan")) return null;
 
   const accountActive = ACCOUNT_LINKS.some((l) => pathname.startsWith(l.href));
   const item = (href: string, label: string, icon: React.ReactNode, active: boolean) => (
@@ -438,7 +436,7 @@ function BottomNav() {
 
   return (
     <>
-      {/* Ẩn khi màn có thanh hành động riêng (`data-bottom-bar`): xem globals.css */}
+      {/* Luôn ghim trên mọi màn khu hội viên; thanh hành động riêng (`data-bottom-bar`) nằm trên menu: xem globals.css */}
       <nav
         aria-label="Điều hướng chính"
         data-member-nav
