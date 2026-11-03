@@ -17,32 +17,10 @@ import { toast } from "@/lib/feedback";
 import { formatDayMonth, formatLongDate, vnDate, vnMinutes } from "@/lib/format";
 
 // /hoi-vien – Tổng quan v2 (T-036): banner + 3 thẻ số, Tiếp theo, Phòng đang trống, Hạng của tôi + Top 3, Kỷ lục mới.
-// Một lần gọi GET /member-area/overview; các trường mới của T-036 đều tùy chọn để màn vẫn chạy với bản API cũ (khối thiếu dữ liệu thì ẩn).
+// Một lần gọi GET /member-area/overview (kiểu sinh từ schema.d.ts). Khối không có dữ liệu thì ẩn hoặc hiện trạng thái trống.
 
 type Overview = components["schemas"]["Overview"];
 type Upcoming = components["schemas"]["UpcomingItem"];
-
-type RankRow = { rank: number; display_name: string; avatar_url: string | null; speed_kmh: number; is_me: boolean };
-type RecordBreak = {
-  speed_kmh: number;
-  delta_kmh: number;
-  display_name: string;
-  avatar_url: string | null;
-  racket: string | null;
-  resource_name: string | null;
-  measured_at: string;
-  is_current: boolean;
-};
-/** Phần thêm của T-036 vào `OverviewOut`. TODO(T-036): bỏ khi `schema.d.ts` có các trường này. */
-type OverviewV2 = Overview & {
-  month?: string;
-  month_stats?: { sessions: number; matches: number; wins: number };
-  month_record_kmh?: number | null;
-  record_kmh?: number | null;
-  open_rooms?: RoomCard[];
-  ranking?: { total_members: number; me: { rank: number; speed_kmh: number; gap_to_top10: number | null; top10_kmh: number | null } | null; top3: RankRow[] };
-  recent_records?: RecordBreak[];
-};
 
 const WEEKDAY = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 const shortDay = (iso: string) => {
@@ -67,7 +45,7 @@ const ArrowUpRight = ({ className }: { className?: string }) => (
 );
 
 export function OverviewScreen() {
-  const [data, setData] = useState<OverviewV2 | null>(null);
+  const [data, setData] = useState<Overview | null>(null);
   const [failed, setFailed] = useState(false);
   // Mốc lúc tải gần nhất: dùng cho lời chào và "Còn n phút" (không đọc đồng hồ khi render)
   const [nowMs, setNowMs] = useState(0);
@@ -81,7 +59,7 @@ export function OverviewScreen() {
         return;
       }
       if (ov.data) {
-        setData(ov.data as OverviewV2);
+        setData(ov.data);
         setNowMs(Date.now());
         setFailed(false);
       } else setFailed(true);
@@ -324,9 +302,7 @@ function Row({ item, today }: { item: Upcoming; today: string }) {
 
 // ------------------------------------------------------------------ Phòng đang trống
 
-function OpenRooms({ rooms, busyId, onJoin }: { rooms: RoomCard[] | undefined; busyId: number | null; onJoin: (r: RoomCard) => void }) {
-  // Bản API cũ chưa có `open_rooms` ⇒ ẩn khối
-  if (rooms === undefined) return null;
+function OpenRooms({ rooms, busyId, onJoin }: { rooms: RoomCard[]; busyId: number | null; onJoin: (r: RoomCard) => void }) {
   return (
     <section className={card} aria-labelledby="open-title">
       <div className="flex items-center justify-between gap-3">
@@ -383,8 +359,7 @@ function OpenRooms({ rooms, busyId, onJoin }: { rooms: RoomCard[] | undefined; b
 
 const MEDAL = ["bg-medal-gold", "bg-medal-silver", "bg-medal-bronze"];
 
-function RankCard({ ranking, month }: { ranking: OverviewV2["ranking"]; month: number }) {
-  if (!ranking) return null;
+function RankCard({ ranking, month }: { ranking: Overview["ranking"]; month: number }) {
   const { me, top3, total_members } = ranking;
   const bar = me ? (me.gap_to_top10 === null || !me.top10_kmh ? 100 : Math.min(100, Math.round((me.speed_kmh / me.top10_kmh) * 100))) : 0;
   const inTop3 = top3.some((r) => r.is_me);
@@ -446,7 +421,7 @@ function RankCard({ ranking, month }: { ranking: OverviewV2["ranking"]; month: n
                   <li className="mt-1 flex items-center gap-2.5 rounded-lg bg-surface/70 px-2 py-1.5">
                     <span className="grid size-6 shrink-0 place-items-center text-xs font-semibold text-muted">{me.rank}</span>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      Bạn <span className="ml-1 rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span>
+                      <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span>
                     </span>
                     <span className="text-sm font-bold tabular-nums">{me.speed_kmh} km/h</span>
                   </li>
@@ -462,9 +437,9 @@ function RankCard({ ranking, month }: { ranking: OverviewV2["ranking"]; month: n
 
 // ------------------------------------------------------------------ Kỷ lục mới
 
-function RecordCards({ records }: { records: RecordBreak[] | undefined }) {
-  // Không có lần phá kỷ lục nào (hoặc API cũ) ⇒ ẩn cả khối
-  if (!records || records.length === 0) return null;
+function RecordCards({ records }: { records: Overview["recent_records"] }) {
+  // Không có lần phá kỷ lục nào ⇒ ẩn cả khối
+  if (records.length === 0) return null;
   return (
     <section className={card} aria-labelledby="rec-title">
       <div className="flex items-center justify-between gap-3">
@@ -485,7 +460,7 @@ function RecordCards({ records }: { records: RecordBreak[] | undefined }) {
             {r.is_current ? <span className="absolute top-3 left-3 rounded-full bg-accent px-2.5 py-1 text-xs font-bold text-cta-fg">Đang giữ kỷ lục</span> : null}
             <p className="relative flex flex-wrap items-baseline gap-2">
               <b className="text-3xl leading-none tabular-nums">{r.speed_kmh} km/h</b>
-              <span className="rounded-md bg-surface/15 px-2 py-0.5 text-xs font-semibold text-accent-soft">+{r.delta_kmh} km/h</span>
+              {r.delta_kmh !== null ? <span className="rounded-md bg-surface/15 px-2 py-0.5 text-xs font-semibold text-accent-soft">+{r.delta_kmh} km/h</span> : null}
             </p>
             <p className="relative mt-1 flex items-center gap-2 text-sm font-semibold">
               <Avatar url={r.avatar_url} name={r.display_name} size={22} />
