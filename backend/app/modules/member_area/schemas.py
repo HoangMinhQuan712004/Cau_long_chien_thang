@@ -16,7 +16,7 @@ class MemberMeOut(BaseModel):
     phone: str = Field(description="Đầy đủ 0xxxxxxxxx – FE nhóm 4-3-3")
     joined_at: dt.date = Field(description="Ngày tạo hồ sơ hội viên (giờ VN)")
     tier: str | None = Field(description="Trình độ = Hạng (8 bậc); null = chưa xếp hạng")
-    racket: str | None = Field(description="Tên vợt đang dùng (danh mục GET /rackets)")
+    racket: str | None = Field(description="Tên vợt đang dùng (tự nhập)")
     show_on_records: bool
     avatar_url: str | None = Field(description="Đã gồm ?v={etag}; null -> hiện chữ cái")
     record_kmh: int | None = Field(
@@ -36,8 +36,9 @@ class MemberMeIn(StrictIn):
     )
     racket: str | None = Field(
         default=None,
-        max_length=200,
-        description="Tên vợt; chưa có trong danh mục -> tự thêm (như màn Hội viên)",
+        max_length=300,
+        description="Tên vợt tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự, rỗng = null; "
+        "không dùng danh mục",
     )
     show_on_records: bool
     version: int

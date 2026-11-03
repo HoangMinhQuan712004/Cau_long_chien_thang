@@ -3281,7 +3281,10 @@ export interface components {
              * @description Trình độ; bỏ trống = chưa xếp hạng
              */
             tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
-            /** Racket */
+            /**
+             * Racket
+             * @description Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null
+             */
             racket?: string | null;
         };
         /**
@@ -3426,7 +3429,7 @@ export interface components {
             tier: string | null;
             /**
              * Racket
-             * @description Tên vợt; chưa có trong danh mục -> tự thêm (như màn Hội viên)
+             * @description Tên vợt tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự, rỗng = null; không dùng danh mục
              */
             racket?: string | null;
             /** Show On Records */
@@ -3470,7 +3473,7 @@ export interface components {
             tier: string | null;
             /**
              * Racket
-             * @description Tên vợt đang dùng (danh mục GET /rackets)
+             * @description Tên vợt đang dùng (tự nhập)
              */
             racket: string | null;
             /** Show On Records */
@@ -3661,7 +3664,10 @@ export interface components {
             gender?: ("male" | "female") | null;
             /** Tier */
             tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
-            /** Racket */
+            /**
+             * Racket
+             * @description Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null
+             */
             racket?: string | null;
             /** Is Active */
             is_active?: boolean | null;
