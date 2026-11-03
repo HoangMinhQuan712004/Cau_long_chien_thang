@@ -155,12 +155,12 @@ export function Court({ format, teamA, teamB, hostId, state, matchNo, hint, wait
             : null}
           {editor ? null : teamA.map((p, i) => (pos.a[i] ? <Chip key={p.member_id ?? `a${i}`} p={p} host={p.member_id === hostId} left={pos.a[i][0]} top={pos.a[i][1]} /> : null))}
           {editor ? null : teamB.map((p, i) => (pos.b[i] ? <Chip key={p.member_id ?? `b${i}`} p={p} host={p.member_id === hostId} left={pos.b[i][0]} top={pos.b[i][1]} /> : null))}
-          {state === "idle" && !editor ? (
-            <span className="absolute top-1/2 left-1/2 w-[70%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-hover/85 px-3 py-1.5 text-center text-xs sm:text-sm">{hint}</span>
-          ) : null}
         </div>
         <TeamLabel letter="B" />
       </div>
+      {state === "idle" ? (
+        <p className="mx-auto mt-3 w-fit max-w-full rounded-full bg-primary-hover/85 px-4 py-1.5 text-center text-xs sm:text-sm">{hint}</p>
+      ) : null}
       <div className="mx-auto mt-3 flex max-w-4xl flex-wrap items-center gap-2 text-sm">
         <span className="text-xs font-semibold tracking-wide text-surface/70 uppercase">Chờ lượt</span>
         {waiting.length === 0 ? (

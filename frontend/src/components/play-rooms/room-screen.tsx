@@ -18,6 +18,7 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { Court, type CourtEditor, type EditorPlayer } from "./court";
 import { type Draft, fromMatch, idsOf, isFull, place, remove, sameLineup, type SlotRef, swap, switchTeam } from "./lineup";
 import { type DragSource, type DropTarget, useLineupDrag } from "./lineup-drag";
+import { JoinRequests } from "./join-requests";
 import { InviteDialog, ResultDialog } from "./room-dialogs";
 import { RoomHistory } from "./room-history";
 import { roomsApi } from "./requests";
@@ -65,6 +66,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
   // Đội hình Host đang xếp (T-027): bản nháp trên máy; đủ người mới gửi lên server
   const [draft, setDraft] = useState<Draft | null>(null);
   const [slotDlg, setSlotDlg] = useState<SlotDialogState | null>(null);
+  // Số trận đã lưu, hiện ở tab "Lịch sử trận đấu (n)" (T-032 AC5)
+  const [matchTotal, setMatchTotal] = useState<number | null>(null);
   // Mốc thời gian lúc tải gần nhất (để so với giờ cho phép bắt đầu trận, không đọc đồng hồ khi render)
   const [nowMs, setNowMs] = useState(0);
 
@@ -92,6 +95,14 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
     };
   }, [id, apply]);
   usePolling(() => void load(), 5000);
+  const roomVersion = room?.version;
+  useEffect(() => {
+    let off = false;
+    void roomsApi.listMatches(id, "all").then((r) => !off && r.ok && setMatchTotal(r.data.total));
+    return () => {
+      off = true;
+    };
+  }, [id, roomVersion]);
 
   /**
    * Gửi một lệnh ghi kèm version phòng. Phòng vừa đổi (E-ROOM-6) / đã đóng (E-ROOM-1): báo, tải lại, coi như xong.
@@ -239,7 +250,9 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
               ["play", "Phòng chơi"],
               ["history", "Lịch sử trận đấu"],
             ] as const
-          ).map(([k, label]) => (
+          ).map(([k, base]) => {
+            const label = k === "history" && matchTotal !== null ? `${base} (${matchTotal})` : base;
+            return (
             <button
               key={k}
               type="button"
@@ -250,7 +263,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
             >
               {label}
             </button>
-          ))}
+            );
+          })}
         </div>
       </PageBanner>
 
@@ -294,8 +308,7 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
         {tab === "history" ? (
           <RoomHistory roomId={id} />
         ) : (
-          <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr] lg:items-start">
-            <div className="min-w-0 space-y-4">
+          <div className="space-y-4">
             <section className="overflow-hidden rounded-card bg-surface shadow-card" aria-label="Điều khiển trận">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4" hidden={!MATCHES_READY}>
                 <div className="flex items-center gap-3">
@@ -388,34 +401,6 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
               />
             </section>
 
-            </div>
-            <div className="min-w-0 space-y-4">
-            {isHost && room.join_requests.length > 0 ? (
-              <section className="rounded-card bg-surface p-4 shadow-card sm:p-5" aria-labelledby="req-title">
-                <h2 id="req-title" className="text-base font-bold">
-                  Yêu cầu vào phòng · {room.join_requests.length}
-                </h2>
-                <ul className="mt-3 divide-y divide-border">
-                  {room.join_requests.map((q) => (
-                    <li key={q.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
-                      <span className="flex items-center gap-2.5 font-medium">
-                        <Avatar url={q.avatar_url} name={q.display_name} size={32} />
-                        {q.display_name}
-                      </span>
-                      <span className="flex gap-2">
-                        <Button onClick={() => void inline((v) => roomsApi.decide(id, q.id, true, v), ["Đã duyệt", q.display_name])} disabled={busy || room.members.length >= MAX_MEMBERS} title={room.members.length >= MAX_MEMBERS ? "Phòng đã đủ 8 người." : undefined}>
-                          Duyệt
-                        </Button>
-                        <Button variant="secondary" onClick={() => void inline((v) => roomsApi.decide(id, q.id, false, v))} disabled={busy}>
-                          Từ chối
-                        </Button>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-
             {isHost && room.invites.length > 0 ? (
               <section className="rounded-card bg-surface p-4 shadow-card sm:p-5" aria-labelledby="inv-title">
                 <h2 id="inv-title" className="text-base font-bold">
@@ -438,12 +423,21 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                   Thành viên · {room.members.length}/{MAX_MEMBERS}
                 </h2>
                 {isHost ? (
-                  <Button variant="secondary" onClick={() => setDialog({ kind: "invite" })} disabled={room.members.length >= MAX_MEMBERS}>
-                    + Mời người chơi
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <JoinRequests
+                      requests={room.join_requests}
+                      full={room.members.length >= MAX_MEMBERS}
+                      busy={busy}
+                      nowMs={nowMs}
+                      onDecide={(q, approve) => void inline((v) => roomsApi.decide(id, q.id, approve, v), approve ? ["Đã duyệt", q.display_name] : undefined)}
+                    />
+                    <Button variant="secondary" className="h-11 sm:h-10" onClick={() => setDialog({ kind: "invite" })} disabled={room.members.length >= MAX_MEMBERS}>
+                      + Mời người chơi
+                    </Button>
+                  </div>
                 ) : null}
               </div>
-              <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <ul className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {room.members.map((m) => (
                   <MemberTile
                     key={m.id}
@@ -456,14 +450,13 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                   />
                 ))}
                 {Array.from({ length: Math.max(0, MAX_MEMBERS - room.members.length) }, (_, i) => (
-                  <li key={`empty-${i}`} className="flex h-14 items-center gap-2.5 rounded-lg border border-dashed border-border-strong px-3 text-sm text-subtle">
+                  <li key={`empty-${i}`} className="flex min-h-14 items-center gap-2.5 rounded-lg border border-dashed border-border-strong px-3 text-sm text-subtle">
                     <span aria-hidden className="size-8 rounded-full border border-dashed border-border-strong" />
                     Chỗ trống
                   </li>
                 ))}
               </ul>
             </section>
-            </div>
           </div>
         )}
       </div>
@@ -570,12 +563,12 @@ function MemberTile({ m, isMe, canManage, onKick, onTransfer, onDragStart }: { m
   return (
     <li
       onPointerDown={onDragStart}
-      className={cn("relative flex h-14 items-center gap-2.5 rounded-lg border px-3", isMe ? "border-primary/25 bg-primary-softer" : "border-border", onDragStart && "cursor-grab select-none")}
+      className={cn("relative flex min-h-14 items-center gap-2.5 rounded-lg border px-3 py-1.5", isMe ? "border-primary/25 bg-primary-softer" : "border-border", onDragStart && "cursor-grab select-none")}
     >
       <Avatar url={m.avatar_url} name={m.display_name} size={32} />
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-semibold">{m.display_name}</span>
+        <span className="block truncate text-sm font-semibold">{m.display_name}</span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-1">
           {m.role === "host" ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-accent/25 px-2 py-0.5 text-xs font-semibold">
               <Crown className="size-3" />
@@ -583,8 +576,8 @@ function MemberTile({ m, isMe, canManage, onKick, onTransfer, onDragStart }: { m
             </span>
           ) : null}
           {isMe ? <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span> : null}
+          {m.queue_state === "playing" ? <span className="text-xs text-muted">Đang chơi</span> : null}
         </span>
-        {m.queue_state === "playing" ? <span className="text-xs text-muted">Đang chơi</span> : null}
       </span>
       {canManage ? (
         <div className="relative" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setMenu(false)}>

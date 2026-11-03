@@ -84,14 +84,14 @@ export function JoinRequests({ requests, full, busy, nowMs, onDecide }: Props) {
         Chờ duyệt
         <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1.5 text-xs leading-5 font-bold text-cta-fg">{requests.length}</span>
       </button>
-      {open && desktop ? (
+      {open && desktop && requests.length > 0 ? (
         <div role="dialog" aria-label={title} onKeyDown={(e) => e.key === "Escape" && setOpen(false)} className="absolute right-0 z-30 mt-2 w-[22rem] rounded-card bg-surface shadow-card ring-1 ring-border">
           <h3 className="px-4 pt-3 pb-1 text-sm font-bold">{title}</h3>
           {list}
         </div>
       ) : null}
       {!desktop ? (
-        <BottomSheet open={open} onClose={() => setOpen(false)} title={title}>
+        <BottomSheet open={open && requests.length > 0} onClose={() => setOpen(false)} title={title}>
           {list}
         </BottomSheet>
       ) : null}
