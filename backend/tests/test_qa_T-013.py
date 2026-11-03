@@ -84,8 +84,8 @@ async def test_ac1_phone_formats_find_the_same_admin(anon, style):
     assert body["kind"] == "admin"
     assert body["account"] == {
         "kind": "admin",
-        "display_name": "Admin",
-        "role_label": "Chủ sân",
+        "display_name": "Chủ sân",  # full_name của Admin trong seed
+        "role_label": "Admin",
         "staff_code": None,
     }
 

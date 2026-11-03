@@ -53,8 +53,8 @@ async def test_admin_signs_in_by_phone(login):
         assert body["kind"] == "admin"
         assert body["account"] == {
             "kind": "admin",
-            "display_name": "Admin",
-            "role_label": "Chủ sân",
+            "display_name": "Chủ sân",  # full_name của Admin trong seed
+            "role_label": "Admin",
             "staff_code": None,
         }
         cookie = r.headers.get("set-cookie", "")

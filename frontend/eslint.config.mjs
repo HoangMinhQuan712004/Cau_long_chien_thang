@@ -11,6 +11,7 @@ const TAILWIND_CHECKED = [
   "src/app/admin/bao-cao/**/*.tsx",
   "src/app/admin/hoi-vien/**/*.tsx",
   "src/app/admin/lich-su-thao-tac/**/*.tsx",
+  "src/app/admin/ho-so/**/*.tsx",
 ];
 
 const eslintConfig = defineConfig([

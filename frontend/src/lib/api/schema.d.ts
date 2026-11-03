@@ -296,6 +296,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Profile
+         * @description Hồ sơ của tôi: chỉ cần phiên quản trị (Admin hoặc NV), không cần quyền riêng.
+         */
+        get: operations["admin_profile_api_v1_admin_account_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Admin Rename
+         * @description Chỉ Admin tự sửa họ tên (NV -> 403 E-AUTH-2). Tên rỗng / quá 50 ký tự -> 422.
+         */
+        patch: operations["admin_rename_api_v1_admin_account_patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/account/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Change Password
+         * @description Tự đổi mật khẩu: thu hồi mọi phiên quản trị khác (``password_changed``), giữ phiên này.
+         *
+         *     Lỗi: 400 E-AUTH-28 (mật khẩu hiện tại sai) · 422 ``weak_password`` · 429 E-SEC-5.
+         */
+        post: operations["admin_change_password_api_v1_admin_account_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/account/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Sessions
+         * @description Nơi đang đăng nhập: thiết bị, hệ điều hành, trình duyệt, giờ đăng nhập (không trả IP).
+         */
+        get: operations["my_sessions_api_v1_admin_account_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/account/sessions/revoke-others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Other Sessions
+         * @description Đăng xuất mọi phiên khác của chính mình, giữ phiên này.
+         */
+        post: operations["revoke_other_sessions_api_v1_admin_account_sessions_revoke_others_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/account/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke My Session
+         * @description Đăng xuất một phiên khác. 400 E-AUTH-33 (phiên đang dùng) · 404 E-STAFF-2.
+         */
+        delete: operations["revoke_my_session_api_v1_admin_account_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/auth/me": {
         parameters: {
             query?: never;
@@ -2142,6 +2248,61 @@ export interface components {
             /** Staff Code */
             staff_code?: string | null;
         };
+        /**
+         * AdminPasswordChangeIn
+         * @description Admin / NV tự đổi mật khẩu; luôn cần mật khẩu hiện tại.
+         */
+        AdminPasswordChangeIn: {
+            /** Current Password */
+            current_password: string;
+            /**
+             * New Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            new_password: string;
+        };
+        /**
+         * AdminProfileIn
+         * @description Admin tự sửa họ tên: tối đa 50 ký tự sau khi gộp khoảng trắng.
+         */
+        AdminProfileIn: {
+            /**
+             * Full Name
+             * @description Tối đa 50 ký tự sau khi gộp khoảng trắng
+             */
+            full_name: string;
+        };
+        /**
+         * AdminProfileOut
+         * @description Hồ sơ của tôi (khu quản trị): SĐT chỉ trả cho chính người đó.
+         */
+        AdminProfileOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "admin" | "staff";
+            /** Full Name */
+            full_name: string;
+            /** Role Label */
+            role_label: string;
+            /** Staff Code */
+            staff_code?: string | null;
+            /** Username */
+            username?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Session Expires At
+             * Format: date-time
+             */
+            session_expires_at: string;
+        };
         /** AdminSessionOut */
         AdminSessionOut: {
             account: components["schemas"]["AdminAccountOut"];
@@ -3716,6 +3877,35 @@ export interface components {
             /** Total Minutes */
             total_minutes: number;
         };
+        /**
+         * MySessionOut
+         * @description Một nơi đang đăng nhập (Hồ sơ của tôi): không trả IP.
+         */
+        MySessionOut: {
+            /** Id */
+            id: number;
+            /**
+             * Device Type
+             * @enum {string}
+             */
+            device_type: "desktop" | "mobile" | "tablet" | "unknown";
+            /** Os */
+            os: string | null;
+            /** Browser */
+            browser: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Is Current */
+            is_current: boolean;
+        };
         /** MyTicket */
         MyTicket: {
             /** Code */
@@ -4759,6 +4949,11 @@ export interface components {
             score_b: number;
             /** Version */
             version: number;
+        };
+        /** RevokedOut */
+        RevokedOut: {
+            /** Revoked */
+            revoked: number;
         };
         /**
          * Role
@@ -6081,6 +6276,159 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UserOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_profile_api_v1_admin_account_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProfileOut"];
+                };
+            };
+        };
+    };
+    admin_rename_api_v1_admin_account_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminProfileIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_change_password_api_v1_admin_account_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPasswordChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_sessions_api_v1_admin_account_sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MySessionOut"][];
+                };
+            };
+        };
+    };
+    revoke_other_sessions_api_v1_admin_account_sessions_revoke_others_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedOut"];
+                };
+            };
+        };
+    };
+    revoke_my_session_api_v1_admin_account_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

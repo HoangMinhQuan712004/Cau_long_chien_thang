@@ -88,6 +88,67 @@ class AdminAccountOut(BaseModel):
     staff_code: str | None = None
 
 
+class AdminProfileOut(BaseModel):
+    """Hồ sơ của tôi (khu quản trị): SĐT chỉ trả cho chính người đó."""
+
+    kind: Literal["admin", "staff"]
+    full_name: str
+    role_label: str
+    staff_code: str | None = None
+    username: str | None = None
+    phone: str | None = None
+    created_at: datetime
+    session_expires_at: datetime
+
+
+ADMIN_NAME_MAX = 50
+
+
+def _admin_name(value: str) -> str:
+    name = _full_name(value)  # gộp khoảng trắng trước, rồi mới đếm ký tự
+    if len(name) > ADMIN_NAME_MAX:
+        raise PydanticCustomError("name_too_long", f"Họ tên tối đa {ADMIN_NAME_MAX} ký tự.")
+    return name
+
+
+class AdminProfileIn(_In):
+    """Admin tự sửa họ tên: tối đa 50 ký tự sau khi gộp khoảng trắng."""
+
+    # max_length chỉ chặn chuỗi thô quá dài; giới hạn 50 kiểm sau khi gộp khoảng trắng
+    full_name: Annotated[
+        str,
+        Field(
+            min_length=1,
+            max_length=255,
+            json_schema_extra={"description": "Tối đa 50 ký tự sau khi gộp khoảng trắng"},
+        ),
+        AfterValidator(_admin_name),
+    ]
+
+
+class AdminPasswordChangeIn(_In):
+    """Admin / NV tự đổi mật khẩu; luôn cần mật khẩu hiện tại."""
+
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: NewPassword
+
+
+class MySessionOut(BaseModel):
+    """Một nơi đang đăng nhập (Hồ sơ của tôi): không trả IP."""
+
+    id: int
+    device_type: Literal["desktop", "mobile", "tablet", "unknown"]
+    os: str | None
+    browser: str | None
+    created_at: datetime
+    expires_at: datetime
+    is_current: bool
+
+
+class RevokedOut(BaseModel):
+    revoked: int
+
+
 class AdminSessionOut(BaseModel):
     account: AdminAccountOut
     expires_at: datetime

@@ -26,6 +26,8 @@ def test_catalog_follows_srs_groups():
         "Đăng xuất do đổi mật khẩu",
     ]
     assert [t.label for t in catalog.GROUPS[1].types] == [
+        "Đổi mật khẩu",
+        "Sửa hồ sơ",
         "Đổi mật khẩu Tài khoản tại máy",
         "Đặt máy quầy",
         "Gỡ SĐT khỏi tài khoản chưa xác minh",

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { LogoutButton } from "@/components/logout-button";
+import { ConfirmDialog } from "@/components/play-rooms/confirm-dialog";
+import { adminLogout } from "@/lib/api/auth";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { cn } from "@/lib/cn";
-import { ChevronDownIcon, HistoryIcon, LogOutIcon } from "@/components/ui/icons";
+import { ChevronDownIcon, HistoryIcon, LogOutIcon, UserIcon } from "@/components/ui/icons";
 
 type Props = {
   role: "admin" | "staff";
@@ -21,9 +22,10 @@ function initials(name: string): string {
   return letters.join("").toLocaleUpperCase("vi");
 }
 
-/** Tài khoản trên header: bấm mở menu nhỏ (tên, vai trò, Lịch sử thao tác – chỉ Admin, Đăng xuất); đóng bằng Esc hoặc bấm ra ngoài. */
+/** Tài khoản trên header: bấm mở menu nhỏ (tên, vai trò, Hồ sơ của tôi, Lịch sử thao tác – chỉ Admin, Đăng xuất có hỏi xác nhận); đóng bằng Esc hoặc bấm ra ngoài. */
 export function AccountMenu({ role, name, roleLabel, t }: Props) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -94,6 +96,18 @@ export function AccountMenu({ role, name, roleLabel, t }: Props) {
             <p className="truncate text-sm font-semibold">{name}</p>
             <p className="truncate text-xs text-muted">{roleLabel}</p>
           </div>
+          <Link
+            href="/admin/ho-so"
+            onClick={() => setIsOpen(false)}
+            className={cn(`
+              mt-1 flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm font-medium
+              focus-ring
+              hover:bg-primary-soft/60 hover:text-primary
+            `)}
+          >
+            <UserIcon size={16} />
+            {t.profile}
+          </Link>
           {role === "admin" ? (
             <Link
               href="/admin/lich-su-thao-tac"
@@ -108,19 +122,43 @@ export function AccountMenu({ role, name, roleLabel, t }: Props) {
               {t.auditLog}
             </Link>
           ) : null}
-          <LogoutButton
-            area="admin"
+          {/* Đăng xuất: đóng menu, hỏi xác nhận trước (chỉ menu admin; LogoutButton dùng chung giữ nguyên) */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              setIsConfirming(true);
+            }}
             className={cn(`
               mt-1 flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm font-medium
               text-danger focus-ring
               hover:bg-danger-soft
-              disabled:opacity-50
             `)}
           >
             <LogOutIcon size={16} />
             {t.logout}
-          </LogoutButton>
+          </button>
         </div>
+      ) : null}
+      {isConfirming ? (
+        <ConfirmDialog
+          danger
+          title={t.logoutConfirmTitle}
+          body={t.logoutConfirmBody}
+          cancelLabel={t.cancel}
+          confirmLabel={t.logout}
+          onClose={() => {
+            setIsConfirming(false);
+            // Hộp bị gỡ khỏi DOM (không qua dialog.close) ⇒ tự trả focus về nút tài khoản
+            requestAnimationFrame(() => buttonRef.current?.focus());
+          }}
+          onConfirm={async () => {
+            // ConfirmDialog tự chặn bấm lặp + hiện trạng thái đang xử lý
+            await adminLogout();
+            window.location.replace("/dang-nhap");
+            return null;
+          }}
+        />
       ) : null}
     </div>
   );
