@@ -209,3 +209,46 @@ export type SchemaContract = [
   Accepts<Api["schemas"]["SearchResult"], SearchResult>,
   Accepts<Api["schemas"]["TransactionsOut"], Transactions>,
 ];
+
+// ---- Đặt sân định kỳ (T-035, Admin). TODO(T-035): đổi sang `components["schemas"]` khi BE handoff và `schema.d.ts` có kiểu.
+export type RecurringBody = {
+  customer: CustomerPayload;
+  resource_code: string;
+  /** Thứ ISO: 1 = T2 … 7 = CN. */
+  weekdays: number[];
+  start_hour: number;
+  end_hour: number;
+  date_from: string;
+  date_to: string;
+  /** Số nguyên 0–100. */
+  discount_pct: number;
+};
+
+export type RecurringSession = {
+  date: string;
+  start: string;
+  end: string;
+  price: number;
+  price_after_discount: number;
+  ok: boolean;
+  /** `booked | event | hold | closed | inactive | past | no_price` */
+  reason?: string | null;
+};
+
+export type RecurringPreview = {
+  sessions: RecurringSession[];
+  count: number;
+  original_amount: number;
+  discount_amount: number;
+  total: number;
+  conflicts_count: number;
+};
+
+export type RecurringResult = {
+  order_code: string;
+  bookings: Item[];
+  original_amount: number;
+  discount_pct: number;
+  discount_amount: number;
+  total: number;
+};

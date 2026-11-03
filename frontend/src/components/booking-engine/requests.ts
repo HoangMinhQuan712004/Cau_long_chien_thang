@@ -8,6 +8,8 @@ import type {
   MemberHit,
   PaymentMethod,
   Quote,
+  RecurringBody,
+  RecurringPreview,
   SearchResult,
   SessionDetail,
   Transactions,
@@ -98,3 +100,11 @@ export const sendUncollectible = (key: string, code: string, reason: string, ver
     body: { reason, version },
     headers: idem(key),
   });
+
+// ---- Đặt sân định kỳ (T-035, Admin) ----
+/** Xem trước các buổi + tiền (không ghi). Không có buổi nào thì `count = 0`. */
+export const getRecurringPreview = (body: RecurringBody) =>
+  read<RecurringPreview>(() => looseApi.POST(`${P}/front-desk/recurring/preview`, { body, headers: idem(crypto.randomUUID()) }));
+
+/** Đặt cả đợt trong một đơn (tất cả hoặc không). Buổi lỗi → 409 E-BOOK-5 + `conflicts[{date, start, reason}]`. */
+export const sendRecurring = (key: string, body: RecurringBody) => looseApi.POST(`${P}/front-desk/recurring`, { body, headers: idem(key) });
