@@ -111,3 +111,8 @@ def valid_tier_range(min_tier: str | None, max_tier: str | None) -> bool:
 def bad_tier_range() -> Exception:
     """422 E-ROOM-14 "Khoảng hạng không hợp lệ."."""
     return room_errors.bad_tier_range()
+
+
+def tier_range_members_only() -> Exception:
+    """422 E-ROOM-14 "Khoảng hạng chỉ dùng khi đặt trong khu hội viên."."""
+    return room_errors.tier_range_members_only()

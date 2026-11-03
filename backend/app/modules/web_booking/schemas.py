@@ -39,9 +39,11 @@ class CheckoutIn(StrictIn):
         description="Đặt trong khu hội viên (/hoi-vien/dat-san): Họ tên + SĐT lấy từ hồ sơ, "
         "bỏ qua full_name/phone gửi lên, không cần phone_token (T-018 AC4)",
     )
-    # T-031: khoảng hạng phòng chơi của đơn – chỉ áp khi ``as_member`` (đặt công khai: bỏ qua)
+    # T-031: khoảng hạng phòng chơi của đơn – chỉ khi ``as_member`` (đặt công khai gửi -> E-ROOM-14)
     min_tier: Tier | None = Field(
-        default=None, description="Hạng thấp nhất được vào phòng (null = không giới hạn dưới)"
+        default=None,
+        description="Chỉ với as_member (đặt công khai gửi -> 422 E-ROOM-14). Hạng thấp nhất được "
+        "vào phòng (null = không giới hạn dưới)",
     )
     max_tier: Tier | None = Field(
         default=None,

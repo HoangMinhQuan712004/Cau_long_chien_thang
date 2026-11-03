@@ -1825,7 +1825,8 @@ export interface paths {
          *     Hoạt động -> 403 E-HV-8.
          *     Lỗi: E-WEB-1 (dữ liệu), E-WEB-2 (khung không đặt được), E-WEB-3 (vừa có người đặt, kèm
          *     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng),
-         *     E-WEB-8 (chưa xác minh SĐT), E-019.
+         *     E-WEB-8 (chưa xác minh SĐT), E-019, E-ROOM-14 (T-031: khoảng hạng sai thứ tự, hoặc gửi khi
+         *     không ``as_member``).
          */
         post: operations["create_checkout_api_v1_web_booking_checkouts_post"];
         delete?: never;
@@ -2598,7 +2599,7 @@ export interface components {
             as_member: boolean;
             /**
              * Min Tier
-             * @description Hạng thấp nhất được vào phòng (null = không giới hạn dưới)
+             * @description Chỉ với as_member (đặt công khai gửi -> 422 E-ROOM-14). Hạng thấp nhất được vào phòng (null = không giới hạn dưới)
              */
             min_tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
             /**
