@@ -11,6 +11,7 @@ import { MAX_BLOCKS, type Block } from "./block-adder";
 import { BookingDialog, SessionFormDialog } from "./booking-dialogs";
 import { ItemFlow } from "./item-flow";
 import { OrderFlow } from "./order-flow";
+import { RecurringDialog } from "./recurring-dialog";
 import { getCalendar, searchCode } from "./requests";
 import { SessionFlow } from "./session-flow";
 import type { Calendar, CalendarBlock, Selection } from "./types";
@@ -23,6 +24,7 @@ type Dialog =
   | { kind: "booking"; selection: Selection; blocks: Block[] }
   | { kind: "order"; orderCode: string }
   | { kind: "sessionForm"; selection: Selection }
+  | { kind: "recurring" }
   | { kind: "item"; code: string }
   | { kind: "session"; code: string };
 
@@ -204,6 +206,11 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
           >
             ›
           </button>
+          {isAdmin ? (
+            <button type="button" onClick={() => setDialog({ kind: "recurring" })} className="rounded-lg border border-primary bg-surface px-3 py-2 text-sm font-semibold text-primary hover:bg-primary-softer">
+              Đặt sân định kỳ
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => goto(today)}
@@ -362,6 +369,18 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
             setDialog(null);
             refresh();
           }}
+        />
+      ) : null}
+      {dialog?.kind === "recurring" ? (
+        <RecurringDialog
+          calendar={calendar}
+          today={today}
+          onClose={() => setDialog(null)}
+          onChanged={(order) => {
+            setHighlight(order);
+            refresh();
+          }}
+          onOpenOrder={(orderCode) => setDialog({ kind: "order", orderCode })}
         />
       ) : null}
       {dialog?.kind === "item" ? (

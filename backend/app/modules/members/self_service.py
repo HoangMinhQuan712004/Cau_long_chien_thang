@@ -17,7 +17,7 @@ from app.core.audit import AuditActor, audit, audit_changes, audit_detail
 from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
 from app.modules.members import rackets
-from app.modules.members.models import TIERS, Customer, CustomerAvatar
+from app.modules.members.models import Customer, CustomerAvatar
 from app.modules.members.profiles import booking_refs
 
 NAME_MAX = 100
@@ -50,6 +50,16 @@ class SelfUpdate:
     racket: str | None
     show_on_records: bool
     version: int
+    # T-038: client có gửi ``tier`` không (không gửi -> bỏ qua; gửi khác hạng hiện tại -> E-HV-14)
+    tier_sent: bool = True
+
+
+def tier_locked() -> AppError:
+    """Hạng do quầy xếp (T-038): hội viên không tự đổi – khoảng hạng phòng (T-031) dựa vào đây."""
+    message = "Hạng do quầy xếp, bạn không tự đổi được."
+    return AppError(
+        "E-HV-14", message, 422, fields=[{"field": "tier", "code": "E-HV-14", "message": message}]
+    )
 
 
 @dataclass
@@ -138,11 +148,6 @@ async def _validate(
     nickname = (data.nickname or "").strip() or None
     if nickname is not None and len(nickname) > NICKNAME_MAX:
         errors.add("nickname", "E-HV-1", f"Biệt danh tối đa {NICKNAME_MAX} ký tự.")
-    if data.tier is None:
-        if c.tier is not None:  # đang có hạng thì không bỏ trống được (BR-008)
-            errors.add("tier", "E-HV-1", "Vui lòng chọn Trình độ.")
-    elif data.tier not in TIERS:
-        errors.add("tier", "E-HV-1", "Trình độ không hợp lệ.")
     email = (data.email or "").strip() or None
     if email is not None:
         try:
@@ -199,6 +204,8 @@ async def update_profile(
         raise not_member()
     if c.version != data.version:
         raise stale()
+    if data.tier_sent and data.tier != c.tier:
+        raise tier_locked()
     full_name, nickname, email = await _validate(session, c, data)
     # Vợt: ô chữ tự nhập (T-033) – không ép / không thêm vào danh mục
     racket = rackets.clean_racket(data.racket)
@@ -207,7 +214,7 @@ async def update_profile(
         "full_name": full_name,
         "nickname": nickname,
         "email": email,
-        "tier": data.tier,
+        "tier": c.tier,  # T-038: hội viên không đổi Hạng qua đường này
         "racket": racket,
         "show_on_records": data.show_on_records,
     }

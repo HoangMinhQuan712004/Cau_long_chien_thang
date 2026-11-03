@@ -1,8 +1,13 @@
 """Tổng quan + Lịch sử thanh toán khu hội viên (T-018) – theo phiên, ``no-store``."""
 
+import hashlib
+import json
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Path, Query, Response
+from fastapi import APIRouter, Depends, Header, Path, Query, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app.core.db import SessionDep
 from app.modules.auth import api as auth
@@ -16,11 +21,32 @@ def no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
 
 
-@router.get("/overview", response_model=Overview, dependencies=[Depends(no_store)])
-async def overview(member: auth.CurrentMember, session: SessionDep):
-    """Trang Tổng quan (AC1–AC3): tên chào, lịch hôm nay, lịch sắp tới, số thông báo chưa đọc.
+def _etag_response(body: BaseModel, if_none_match: str | None) -> Response:
+    """ETag theo nội dung (theo người xem): trùng -> 304 không thân (T-036, như phòng chơi)."""
+    payload = jsonable_encoder(body)
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    etag = f'W/"{hashlib.sha256(raw).hexdigest()[:32]}"'
+    headers = {"ETag": etag, "Cache-Control": "no-cache, private"}
+    if if_none_match is not None and etag in {t.strip() for t in if_none_match.split(",")}:
+        return Response(status_code=304, headers=headers)
+    return JSONResponse(payload, headers=headers)
+
+
+@router.get(
+    "/overview",
+    response_model=Overview,
+    responses={304: {"description": "Không đổi so với ETag gửi lên"}},
+)
+async def overview(
+    member: auth.CurrentMember,
+    session: SessionDep,
+    if_none_match: Annotated[str | None, Header()] = None,
+):
+    """Trang Tổng quan v2 (T-018 + T-036): chào, lịch hôm nay / sắp tới, thông báo chưa đọc, số
+    liệu tháng, kỷ lục, phòng đang trống, hạng tháng, kỷ lục mới của cụm. ETag / 304.
     403 E-HV-8 (chưa là hội viên)."""
-    return await home.overview(session, member.customer_id)
+    body = await home.overview(session, member.customer_id, member.user_id)
+    return _etag_response(body, if_none_match)
 
 
 @router.get("/payments", response_model=PaymentList, dependencies=[Depends(no_store)])

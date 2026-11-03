@@ -68,11 +68,13 @@ async def test_host_sets_lineup_replay_and_start(staff, admin, people):
 
     # Bắt đầu trận xếp tay như trận bốc; đang chơi -> khóa xếp
     r = await put_lineup(host.client, room.id, [m[0], m[1]], [m[2], m[3]], r.json()["version"])
+    # Dời cả end_at: chỉ dời start_at thì 5 phút cuối của giờ start > end (ck_play_room_range)
+    soon = datetime.now(UTC) + timedelta(minutes=5)
     async with SessionLocal() as s:
         await s.execute(
             update(PlayRoom)
             .where(PlayRoom.id == room.id)
-            .values(start_at=datetime.now(UTC) + timedelta(minutes=5))
+            .values(start_at=soon, end_at=soon + timedelta(hours=1))
         )
         await s.commit()
     r = await post(host.client, f"/{room.id}/start", {"version": r.json()["version"]})

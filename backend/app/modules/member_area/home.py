@@ -11,17 +11,24 @@ from app.modules.booking_engine import api as engine
 from app.modules.member_area.home_schemas import (
     BookingSummary,
     Overview,
+    OverviewRanking,
+    OverviewRankingMe,
     PaymentItem,
     PaymentList,
     PaymentSummary,
+    RecentRecord,
     TicketSummary,
     UpcomingItem,
 )
 from app.modules.member_inbox import api as inbox
 from app.modules.members import api as members
 from app.modules.play_rooms import api as rooms
+from app.modules.records import api as records
 
 UPCOMING_MAX = 4
+OPEN_ROOMS_MAX = 3
+RECENT_RECORDS_MAX = 3
+TOP = 10
 MONTHS_MAX = 12
 
 
@@ -46,7 +53,7 @@ def not_member() -> AppError:
 # ------------------------------------------------------------------ Tổng quan
 
 
-async def overview(session: AsyncSession, customer_id: int) -> Overview:
+async def overview(session: AsyncSession, customer_id: int, user_id: int) -> Overview:
     profile = await members.get_self_profile(session, customer_id)
     if profile is None:
         raise not_member()
@@ -104,13 +111,59 @@ async def overview(session: AsyncSession, customer_id: int) -> Overview:
         if item.order_code is None:
             item.order_code = order_of.get(item.booking_code)
     items.sort(key=lambda i: (i.start_at, i.resource_name, i.booking_code))
+    month = _ym(today)
     return Overview(
         greeting_name=profile.nickname or short_name(profile.full_name),
         today=today,
         today_count=sum(_local(i.start_at).date() == today for i in items),
         upcoming=items[:UPCOMING_MAX],
         unread_count=await inbox.unread_count(session, customer_id),
+        month=month,
+        month_stats=await rooms.month_stats(session, customer_id, month),
+        month_record_kmh=await records.month_best(session, customer_id, today),
+        record_kmh=await records.record_kmh(session, customer_id),
+        open_rooms=await rooms.open_rooms_today(session, user_id, customer_id, OPEN_ROOMS_MAX),
+        ranking=await _ranking(session, customer_id, today),
+        recent_records=await _recent_records(session, customer_id),
     )
+
+
+async def _ranking(session: AsyncSession, customer_id: int, today: dt.date) -> OverviewRanking:
+    r = await records.speed_ranking(session, customer_id, "month", today)
+    top10 = r.top[TOP - 1].speed_kmh if len(r.top) >= TOP else None
+    me = (
+        OverviewRankingMe(
+            rank=r.me.rank,
+            speed_kmh=r.me.speed_kmh,
+            gap_to_top10=r.me.gap_to_top10,
+            top10_kmh=top10,
+        )
+        if r.me
+        else None
+    )
+    return OverviewRanking(total_members=r.total_members, me=me, top3=r.top[:3])
+
+
+async def _recent_records(session: AsyncSession, customer_id: int) -> list[RecentRecord]:
+    """3 lần phá kỷ lục cụm gần nhất; sân đổi từ mã qua engine, vợt chỉ khi người đó hiện tên."""
+    breaks = await records.club_record_breaks(session, customer_id, RECENT_RECORDS_MAX)
+    if not breaks:
+        return []
+    names = {r.code: r.name for r in (await engine.list_resources(session)).items}
+    rackets = await members.rackets_of(session, {b.customer_id for b in breaks if b.shown})
+    return [
+        RecentRecord(
+            speed_kmh=b.speed_kmh,
+            delta_kmh=b.delta_kmh,
+            display_name=b.display_name,
+            avatar_url=b.avatar_url,
+            racket=rackets.get(b.customer_id) if b.shown else None,
+            resource_name=names.get(b.court_code) if b.court_code else None,
+            measured_at=b.measured_at,
+            is_current=b.is_current,
+        )
+        for b in breaks
+    ]
 
 
 # ------------------------------------------------------------------ Lịch sử thanh toán

@@ -25,7 +25,7 @@ MA = f"{API}/member-area"
 async def overview(client) -> dict:
     r = await client.get(f"{MA}/overview")
     assert r.status_code == 200, r.text
-    assert r.headers["cache-control"] == "no-store"
+    assert r.headers["cache-control"] == "no-cache, private" and r.headers["etag"]  # T-036
     return r.json()
 
 

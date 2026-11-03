@@ -182,3 +182,13 @@ async def count_new_members(session: AsyncSession, start: datetime, end: datetim
         Customer.kind == "member", Customer.created_at >= start, Customer.created_at < end
     )
     return int(await session.scalar(stmt) or 0)
+
+
+async def rackets_of(session: AsyncSession, ids: set[int] | list[int]) -> dict[int, str | None]:
+    """Vợt đang dùng (chuỗi tự nhập, T-033) của các hồ sơ – thẻ Kỷ lục mới (T-036)."""
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Customer.id, Customer.racket).where(Customer.id.in_(sorted(set(ids))))
+    )
+    return {cid: racket for cid, racket in rows}

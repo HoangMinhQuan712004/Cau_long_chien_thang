@@ -979,8 +979,9 @@ export interface paths {
         get: operations["get_me_api_v1_member_area_me_get"];
         /**
          * Update Me
-         * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier),
+         * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / racket),
          *     409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
+         *     Hạng (``tier``) do quầy xếp (T-038): gửi khác hạng hiện tại -> 422 E-HV-14.
          */
         put: operations["update_me_api_v1_member_area_me_put"];
         post?: never;
@@ -1044,7 +1045,8 @@ export interface paths {
         };
         /**
          * Overview
-         * @description Trang Tổng quan (AC1–AC3): tên chào, lịch hôm nay, lịch sắp tới, số thông báo chưa đọc.
+         * @description Trang Tổng quan v2 (T-018 + T-036): chào, lịch hôm nay / sắp tới, thông báo chưa đọc, số
+         *     liệu tháng, kỷ lục, phòng đang trống, hạng tháng, kỷ lục mới của cụm. ETag / 304.
          *     403 E-HV-8 (chưa là hội viên).
          */
         get: operations["overview_api_v1_member_area_overview_get"];
@@ -1780,6 +1782,54 @@ export interface paths {
          *     Lỗi: E-001/E-002/E-014/E-018 (khách), E-004 (không phải hôm nay / đã kết thúc), E-024 (đủ chỗ).
          */
         post: operations["register_ticket_api_v1_front_desk_sessions__code__tickets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/recurring/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Recurring
+         * @description Xem trước đặt sân định kỳ (chỉ Admin, không ghi): từng buổi (ngày, thứ, giờ, giá gốc, giá
+         *     sau giảm, ``ok`` / ``reason``) + tổng. ``reason``: booked · event · hold · closed · inactive ·
+         *     past · no_price. Lỗi 422: không chọn thứ, giờ sai, từ ngày < hôm nay, > 92 ngày, > 60 buổi,
+         *     % ngoài 0–100. 403 không phải Admin.
+         */
+        post: operations["preview_recurring_api_v1_front_desk_recurring_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/recurring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Recurring
+         * @description Đặt sân định kỳ (chỉ Admin): **một đơn** (mã theo ngày buổi đầu) + mỗi buổi một booking
+         *     Chưa thanh toán, giảm % phân bổ vào từng buổi. Thu tiền bằng "Thu cả đơn" (T-019).
+         *
+         *     Tất cả hoặc không: có buổi không đặt được (kể cả vừa bị người khác đặt) -> 409 ``E-BOOK-5``
+         *     "Có n buổi không đặt được." kèm ``conflicts: [{date, start, reason, reason_text}]``.
+         *     Lỗi khác như xem trước; khách: E-014 / E-018 / E-001 như đặt quầy.
+         */
+        post: operations["create_recurring_api_v1_front_desk_recurring_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3435,9 +3485,9 @@ export interface components {
             email?: string | null;
             /**
              * Tier
-             * @description 1 trong 8 bậc; null chỉ khi hồ sơ đang chưa xếp hạng
+             * @description Hạng do quầy xếp (T-038): không gửi = bỏ qua; gửi khác hạng hiện tại -> 422 E-HV-14. Hạng không bao giờ đổi qua đường này
              */
-            tier: string | null;
+            tier?: string | null;
             /**
              * Racket
              * @description Tên vợt tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự, rỗng = null; không dùng danh mục
@@ -3864,6 +3914,63 @@ export interface components {
              * @description Thông báo chưa đọc
              */
             unread_count: number;
+            /**
+             * Month
+             * @description Tháng hiện tại YYYY-MM (giờ VN)
+             */
+            month: string;
+            /** @description Buổi chơi / số trận / thắng trong tháng */
+            month_stats: components["schemas"]["PlayHistorySummary"];
+            /**
+             * Month Record Kmh
+             * @description Số đo cao nhất của mình trong tháng
+             */
+            month_record_kmh: number | null;
+            /**
+             * Record Kmh
+             * @description Kỷ lục mọi thời gian của mình
+             */
+            record_kmh: number | null;
+            /**
+             * Open Rooms
+             * @description Tối đa 3 phòng hôm nay còn mở, còn chỗ, mình chưa ở trong
+             */
+            open_rooms: components["schemas"]["RoomCard"][];
+            ranking: components["schemas"]["OverviewRanking"];
+            /**
+             * Recent Records
+             * @description Tối đa 3 lần phá kỷ lục cụm gần nhất (mới nhất trước); rỗng -> ẩn khối
+             */
+            recent_records: components["schemas"]["RecentRecord"][];
+        };
+        /**
+         * OverviewRanking
+         * @description Bảng xếp hạng tốc độ **tháng này** (như T-030).
+         */
+        OverviewRanking: {
+            /** Total Members */
+            total_members: number;
+            /** @description null: mình chưa có số đo trong tháng */
+            me: components["schemas"]["OverviewRankingMe"] | null;
+            /** Top3 */
+            top3: components["schemas"]["SpeedRankingRow"][];
+        };
+        /** OverviewRankingMe */
+        OverviewRankingMe: {
+            /** Rank */
+            rank: number;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Gap To Top10
+             * @description null khi đã trong top 10
+             */
+            gap_to_top10: number | null;
+            /**
+             * Top10 Kmh
+             * @description km/h của hạng 10 (null khi chưa đủ 10 người)
+             */
+            top10_kmh: number | null;
         };
         /**
          * PasswordChangeIn
@@ -4617,6 +4724,192 @@ export interface components {
             win_rate: number;
             /** Is Me */
             is_me: boolean;
+        };
+        /** RecentRecord */
+        RecentRecord: {
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Delta Kmh
+             * @description + so với kỷ lục cụm trước đó; null = lần đầu
+             */
+            delta_kmh: number | null;
+            /**
+             * Display Name
+             * @description 'Hội viên ẩn danh' khi người đó ẩn
+             */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Racket
+             * @description Vợt (T-033); null khi ẩn danh / chưa nhập
+             */
+            racket: string | null;
+            /**
+             * Resource Name
+             * @description Sân đo; null khi số đo không gắn sân
+             */
+            resource_name: string | null;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /**
+             * Is Current
+             * @description Đang giữ kỷ lục (thẻ viền vàng)
+             */
+            is_current: boolean;
+        };
+        /** RecurringBookingIn */
+        RecurringBookingIn: {
+            /** Resource Code */
+            resource_code: string;
+            /**
+             * Weekdays
+             * @description ISO: 1 = Thứ 2 … 7 = Chủ nhật
+             */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /**
+             * Discount Pct
+             * @description % giảm cho cả đơn, 0–100
+             * @default 0
+             */
+            discount_pct: number;
+            customer: components["schemas"]["CustomerIn"];
+        };
+        /** RecurringCreated */
+        RecurringCreated: {
+            /** Order Code */
+            order_code: string;
+            /** Bookings */
+            bookings: components["schemas"]["ItemOut"][];
+            /** Original Amount */
+            original_amount: number;
+            /** Discount Pct */
+            discount_pct: number;
+            /** Discount Amount */
+            discount_amount: number;
+            /** Total */
+            total: number;
+        };
+        /** RecurringPreview */
+        RecurringPreview: {
+            /** Sessions */
+            sessions: components["schemas"]["RecurringSession"][];
+            /**
+             * Count
+             * @description Số buổi
+             */
+            count: number;
+            /**
+             * Original Amount
+             * @description Tổng giá gốc các buổi định giá được
+             */
+            original_amount: number;
+            /** Discount Pct */
+            discount_pct: number;
+            /** Discount Amount */
+            discount_amount: number;
+            /**
+             * Total
+             * @description Phải thu = gốc − giảm
+             */
+            total: number;
+            /**
+             * Conflicts Count
+             * @description Số buổi không đặt được
+             */
+            conflicts_count: number;
+        };
+        /**
+         * RecurringPreviewIn
+         * @description Như lúc tạo; ``customer`` không bắt buộc (xem trước không dựng hồ sơ khách).
+         */
+        RecurringPreviewIn: {
+            /** Resource Code */
+            resource_code: string;
+            /**
+             * Weekdays
+             * @description ISO: 1 = Thứ 2 … 7 = Chủ nhật
+             */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /**
+             * Discount Pct
+             * @description % giảm cho cả đơn, 0–100
+             * @default 0
+             */
+            discount_pct: number;
+            customer?: components["schemas"]["CustomerIn"] | null;
+        };
+        /** RecurringSession */
+        RecurringSession: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Weekday
+             * @description ISO 1–7
+             */
+            weekday: number;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Price
+             * @description Giá gốc theo bảng giá ngày đó; null khi không định giá
+             */
+            price: number | null;
+            /** Price After Discount */
+            price_after_discount: number | null;
+            /** Ok */
+            ok: boolean;
+            /** Reason */
+            reason?: ("booked" | "event" | "hold" | "closed" | "inactive" | "past" | "no_price") | null;
+            /** Reason Text */
+            reason_text?: string | null;
         };
         /** RegisterOut */
         RegisterOut: {
@@ -7550,7 +7843,9 @@ export interface operations {
     overview_api_v1_member_area_overview_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "if-none-match"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -7563,6 +7858,22 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Overview"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -8854,6 +9165,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_recurring_api_v1_front_desk_recurring_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurringPreviewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_recurring_api_v1_front_desk_recurring_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurringBookingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringCreated"];
                 };
             };
             /** @description Validation Error */

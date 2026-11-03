@@ -22,6 +22,7 @@ class Perm(enum.StrEnum):
     BOOKING_CALENDAR_VIEW = "booking.calendar.view"
     BOOKING_SEARCH = "booking.search"
     BOOKING_COUNTER_CREATE = "booking.counter.create"
+    BOOKING_RECURRING = "booking.recurring"  # đặt sân định kỳ cho khách (chỉ Admin, T-035)
     BOOKING_ITEM_VIEW = "booking.item.view"  # Thông tin booking / vé
     BOOKING_TICKET_CREATE = "booking.ticket.create"  # đăng ký vé tại quầy
     BOOKING_SESSION_VIEW = "booking.session.view"

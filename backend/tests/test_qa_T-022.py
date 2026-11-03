@@ -488,7 +488,7 @@ async def test_t016_member_self_edit_and_avatar_are_not_shown_and_email_is_never
     mail = f"{t16.tag().lower()}@example.com"
     cur = await t16.me(c)
     assert (
-        await t16.save(c, cur, nickname="Gió", email=mail, tier="Bán chuyên")
+        await t16.save(c, cur, nickname="Gió", email=mail)  # T-038: hội viên không tự đổi Hạng
     ).status_code == 200
     assert (await t16.upload(c, t16.png(), size=200)).status_code == 200
     stored = await q(
