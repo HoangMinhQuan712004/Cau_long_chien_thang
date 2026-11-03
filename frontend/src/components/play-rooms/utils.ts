@@ -20,5 +20,16 @@ export const hourRange = (startIso: string, endIso: string) => `${hourLabel(star
 /** "YYYY-MM-DD" → "dd/mm/yyyy". */
 export const dmy = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
+/** "Hạng Khá – Bán chuyên" · "Hạng từ Khá" · "Hạng đến Trung bình"; không giới hạn ⇒ null (T-031). */
+export function tierRangeText(r: { min: string | null; max: string | null } | null | undefined): string | null {
+  if (!r || (!r.min && !r.max)) return null;
+  if (r.min && r.max) return r.min === r.max ? `Hạng ${r.min}` : `Hạng ${r.min} – ${r.max}`;
+  return r.min ? `Hạng từ ${r.min}` : `Hạng đến ${r.max}`;
+}
+
+/** Lý do ngắn khi nút "Xin vào" mờ vì hạng (T-031 AC5). */
+export const joinBlockText = (b: "out_of_range" | "unranked" | null | undefined): string | null =>
+  b === "out_of_range" ? "Hạng của bạn ngoài khoảng của phòng" : b === "unranked" ? "Bạn chưa được xếp hạng. Liên hệ quầy để được xếp hạng." : null;
+
 /** Còn mấy chỗ: "Còn 4 chỗ" / "Đã đủ người". */
 export const seatsText = (count: number, max = 8) => (count >= max ? "Đã đủ người" : `Còn ${max - count} chỗ`);

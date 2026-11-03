@@ -48,7 +48,10 @@ export function JoinRequests({ requests, full, busy, nowMs, onDecide }: Props) {
           <span className="flex min-w-0 items-center gap-2.5">
             <Avatar url={q.avatar_url} name={q.display_name} size={36} />
             <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold">{q.display_name}</span>
+              <span className="flex items-center gap-1.5">
+                <span className="truncate text-sm font-semibold">{q.display_name}</span>
+                <span className="shrink-0 rounded-full bg-primary-softer px-2 py-0.5 text-xs font-semibold text-primary ring-1 ring-primary/20">{q.tier ?? "Chưa xếp hạng"}</span>
+              </span>
               <span className="block text-xs text-muted">Xin vào {ago(q.created_at, nowMs)}</span>
             </span>
           </span>

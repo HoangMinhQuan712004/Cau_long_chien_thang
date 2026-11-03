@@ -12,7 +12,7 @@ import { toast } from "@/lib/feedback";
 import { usePolling } from "@/hooks/use-polling";
 import { roomsApi } from "./requests";
 import { type RoomCard, type RoomList, MAX_MEMBERS } from "./types";
-import { dmy, hourRange, seatsText } from "./utils";
+import { dmy, hourRange, joinBlockText, seatsText, tierRangeText } from "./utils";
 
 // /hoi-vien/danh-sach-san (T-017 AC4–AC6): banner 3 số, lọc Tất cả / Sân của tôi, nhóm theo khung giờ, thẻ phòng.
 
@@ -177,6 +177,7 @@ function RoomCardView({ r, busy, onAct }: { r: RoomCard; busy: boolean; onAct: (
           <div>
             <h3 className="text-lg leading-tight font-bold">{r.resource_name}</h3>
             <p className="text-xs text-muted">{r.resource_type_name}</p>
+            {tierRangeText(r.tier_range) ? <span className="mt-1.5 inline-block rounded-full bg-primary-softer px-2.5 py-0.5 text-xs font-semibold text-primary ring-1 ring-primary/25">{tierRangeText(r.tier_range)}</span> : null}
           </div>
           {mine ? <span className="rounded-full bg-primary-softer px-2.5 py-0.5 text-xs font-semibold text-primary ring-1 ring-primary/25">Bạn</span> : null}
         </div>
@@ -225,12 +226,17 @@ function RoomCardView({ r, busy, onAct }: { r: RoomCard; busy: boolean; onAct: (
               Đã đủ
             </Button>
           ) : (
-            <Button variant="secondary" block className="flex-1" onClick={() => onAct("request")} loading={busy}>
+            <Button variant="secondary" block className="flex-1" onClick={() => onAct("request")} loading={busy} disabled={Boolean(r.my_join_block)} title={joinBlockText(r.my_join_block) ?? undefined}>
               Xin vào
             </Button>
           )}
         </div>
       </div>
+      {!mine && r.my_invite_id === null && !r.my_join_pending && !full && r.my_join_block ? (
+        <p role="note" className="mt-2 text-xs text-muted">
+          {joinBlockText(r.my_join_block)}
+        </p>
+      ) : null}
     </article>
   );
 }

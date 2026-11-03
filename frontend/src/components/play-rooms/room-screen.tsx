@@ -24,7 +24,7 @@ import { RoomHistory } from "./room-history";
 import { roomsApi } from "./requests";
 import { SlotDialog, type SlotDialogState } from "./slot-dialog";
 import { type Format, FORMAT_LABEL, FORMAT_NEED, MAX_MEMBERS, type RoomDetail, type RoomMember } from "./types";
-import { hourRange, MATCHES_READY } from "./utils";
+import { hourRange, joinBlockText, MATCHES_READY, tierRangeText } from "./utils";
 
 // /hoi-vien/phong/[id] (T-017 AC8–AC20): sân vẽ, hàng chờ, nút theo vai, popup xác nhận, Lịch sử trận / Xếp hạng.
 
@@ -235,7 +235,7 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
     <>
       <PageBanner
         title={`Phòng: ${roomName}`}
-        subtitle={`${room.members.length}/${MAX_MEMBERS} thành viên · Host: ${hostName} · ${hourRange(room.start_at, room.end_at)}`}
+        subtitle={`${room.members.length}/${MAX_MEMBERS} thành viên · Host: ${hostName} · ${hourRange(room.start_at, room.end_at)}${tierRangeText(room.tier_range) ? ` · ${tierRangeText(room.tier_range)}` : ""}`}
         aside={
           isMember && open ? (
             <button type="button" onClick={() => setDialog({ kind: "leave" })} className="h-10 rounded-lg bg-surface px-4 text-sm font-semibold text-danger hover:bg-primary-softer focus-ring">
@@ -280,7 +280,7 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                   ? "Bạn đã gửi yêu cầu vào phòng. Chờ Host duyệt."
                   : room.members.length >= MAX_MEMBERS
                     ? "Phòng đã đủ 8 người."
-                    : "Bạn chưa ở trong phòng này."}
+                    : joinBlockText(room.my_join_block) ?? "Bạn chưa ở trong phòng này."}
             </p>
             <div className="flex gap-2">
               {room.my_invite_id !== null ? (
@@ -297,7 +297,13 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                   Hủy yêu cầu
                 </Button>
               ) : (
-                <Button variant="secondary" onClick={() => void inline((v) => roomsApi.requestJoin(id, v), ["Đã gửi yêu cầu vào phòng", "Host sẽ duyệt"])} loading={busy} disabled={room.members.length >= MAX_MEMBERS}>
+                <Button
+                  variant="secondary"
+                  onClick={() => void inline((v) => roomsApi.requestJoin(id, v), ["Đã gửi yêu cầu vào phòng", "Host sẽ duyệt"])}
+                  loading={busy}
+                  disabled={room.members.length >= MAX_MEMBERS || Boolean(room.my_join_block)}
+                  title={joinBlockText(room.my_join_block) ?? undefined}
+                >
                   Xin vào
                 </Button>
               )}
