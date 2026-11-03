@@ -8,10 +8,11 @@ from app.modules.booking_engine.models import Booking, BookingOrder, Checkout
 from app.modules.members.models import Customer
 from app.modules.play_rooms.models import PlayRoom
 from tests import test_play_rooms as base
+from tests.conftest import idem
 from tests.helpers_booking import new_court
 from tests.helpers_web import checkout, simulate
 from tests.test_member_home import member_checkout
-from tests.test_play_rooms import ROOMS, code_of, detail, post, room_for
+from tests.test_play_rooms import MA, ROOMS, code_of, detail, post, room_for
 
 people = base.people  # fixture dùng chung (hội viên có tài khoản liên kết)
 
@@ -182,11 +183,12 @@ async def test_join_invite_approve_accept_are_blocked_outside_range(staff, admin
     assert r.status_code == 200, r.text
     # Nhận lời sau khi hạng đổi ra ngoài -> chặn; về lại trong khoảng -> vào được
     invite_id = (await detail(invitee.client, room.id))["my_invite_id"]
+    accept = f"{MA}/invites/{invite_id}/accept"  # không nằm dưới /rooms (post() thêm ROOMS)
     await set_tier(invitee.customer_id, None)
-    r = await post(invitee.client, f"/invites/{invite_id}/accept")
+    r = await invitee.client.post(accept, json={}, headers=idem())
     assert r.status_code == 409 and code_of(r) == "E-ROOM-13"
     await set_tier(invitee.customer_id, "Khá")
-    r = await post(invitee.client, f"/invites/{invite_id}/accept")
+    r = await invitee.client.post(accept, json={}, headers=idem())
     assert r.status_code == 200, r.text
 
     # Người đã trong phòng đổi hạng ra ngoài: không bị đẩy ra (AC6)
