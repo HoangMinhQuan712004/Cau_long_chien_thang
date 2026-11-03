@@ -94,8 +94,13 @@ async def test_invalid_ranges_and_public_checkout_ignores_range(anon, admin, peo
     r = await member_checkout(host.client, court["code"], 10, min_tier="Siêu sao")
     assert r.status_code == 422  # tên hạng lạ (validation)
 
-    # Đặt công khai (không as_member): khoảng hạng bị bỏ qua -> phòng không giới hạn
-    r = await checkout(anon, [(court["code"], 11)], min_tier="Khá", max_tier="Khá")
+    # Đặt công khai (không as_member) gửi khoảng hạng -> 422 E-ROOM-14 (ARCHITECT 03/11)
+    for extra in ({"min_tier": "Khá"}, {"max_tier": "Khá"}):
+        r = await checkout(anon, [(court["code"], 11)], **extra)
+        assert r.status_code == 422 and code_of(r) == "E-ROOM-14", r.text
+        assert r.json()["detail"]["message"] == "Khoảng hạng chỉ dùng khi đặt trong khu hội viên."
+    # Không gửi -> đặt bình thường, đơn / phòng không giới hạn
+    r = await checkout(anon, [(court["code"], 11)])
     assert r.status_code == 201, r.text
     async with SessionLocal() as s:
         row = await s.scalar(select(Checkout).where(Checkout.pay_ref == r.json()["pay_ref"]))
