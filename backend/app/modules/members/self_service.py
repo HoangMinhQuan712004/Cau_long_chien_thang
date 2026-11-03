@@ -1,7 +1,7 @@
 """Hồ sơ của tôi – hội viên tự xem / sửa hồ sơ (T-016, ADR-009 sửa đổi 30/10, nền PR #21).
 
 Cùng bản ghi ``customer`` mà màn Hội viên quản trị sửa: Họ tên, Trình độ (= Hạng, NULL = chưa
-xếp), Vợt (tên vợt dạng chữ, ``rackets.ensure`` thêm vào danh mục). Riêng khu hội viên: biệt danh,
+xếp), Vợt (tên vợt dạng chữ, tự nhập, không dùng danh mục – T-033). Riêng khu hội viên: biệt danh,
 email liên hệ, công tắc "Hiện trên Video & kỷ lục", ``version`` (khóa lạc quan).
 Hàm ghi **không commit** – lớp gọi (BFF ``member_area``) gộp cùng việc đồng bộ ``users.full_name``.
 """
@@ -200,8 +200,8 @@ async def update_profile(
     if c.version != data.version:
         raise stale()
     full_name, nickname, email = await _validate(session, c, data)
-    # Vợt: tên chuẩn trong danh mục; chưa có -> thêm (như màn Hội viên quản trị)
-    racket = await rackets.ensure(session, data.racket, actor)
+    # Vợt: ô chữ tự nhập (T-033) – không ép / không thêm vào danh mục
+    racket = rackets.clean_racket(data.racket)
 
     after = {
         "full_name": full_name,

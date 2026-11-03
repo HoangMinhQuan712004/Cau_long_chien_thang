@@ -182,7 +182,7 @@ async def test_update_profile_syncs_name_and_writes_audit(staff, admin):
         booking_code = r.json()["code"]
 
         me = (await c.get(ME)).json()
-        racket = f"Vợt Riêng {uuid.uuid4().hex[:6]}"  # chưa có trong danh mục -> tự thêm
+        racket = f"Vợt Riêng {uuid.uuid4().hex[:6]}"  # tự nhập, không vào danh mục (T-033)
         email = f"Lan.{uuid.uuid4().hex[:6]}@Gmail.com"
         r = await c.put(
             ME,
@@ -202,14 +202,14 @@ async def test_update_profile_syncs_name_and_writes_audit(staff, admin):
         assert out["nickname"] == "Lan Smash" and out["email"] == email
         assert out["tier"] == "Khá" and out["racket"] == racket
         names = [r["name"] for r in (await c.get(RACKETS)).json()]
-        assert racket in names  # danh mục vợt chung (dev) – hội viên đọc được
+        assert racket not in names  # T-033: không tự thêm vào danh mục
         async with SessionLocal() as s:
             added = await s.scalar(
                 select(AuditLog).where(
                     AuditLog.action == "racket.create", AuditLog.detail["name"].astext == racket
                 )
             )
-        assert added is not None and added.actor_label == f"Hội viên (tự sửa) · {code}"
+        assert added is None
         assert out["show_on_records"] is True and out["version"] == me["version"] + 1
         assert out == (await c.get(ME)).json()
 
