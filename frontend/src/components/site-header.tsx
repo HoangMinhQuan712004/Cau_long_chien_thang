@@ -7,7 +7,7 @@ import { phoneHref, site } from "@/lib/site";
 // Header khách: logo, Đặt sân, Tra cứu booking, Hotline, Đăng nhập / Đăng ký (T-013 AC23). Ô "Bạn là hội viên?" vẫn ẩn.
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur">
+    <header className="sticky top-0 z-(--z-header) border-b border-border bg-surface/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:gap-6">
         <Link href="/" className="flex min-w-0 items-center gap-2 font-bold text-primary">
           <span aria-hidden className="grid size-8 place-items-center rounded-lg bg-primary text-xs text-white">
