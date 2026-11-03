@@ -297,13 +297,12 @@ async def test_ac12_all_invalid_fields_reported_once_and_nothing_saved(admin, ma
         full_name=" ",
         nickname="x" * 21,
         email="khong-hop-le",
-        tier=None,
         racket="Vợt mới không được thêm " + tag(),
     )
     assert r.status_code == 422, r.text
     fields = {f["field"]: f["code"] for f in err(r)["fields"]}
     assert fields.get("full_name") == "E-HV-1" and fields.get("nickname") == "E-HV-1"
-    assert fields.get("email") == "E-HV-10" and fields.get("tier") == "E-HV-1", fields
+    assert fields.get("email") == "E-HV-10" and "tier" not in fields, fields  # T-038
     again = await me(c)
     assert again == cur, "có lỗi thì không lưu ô nào"
     listed = (await c.get(f"{API}/rackets")).json()
@@ -319,8 +318,11 @@ async def test_ac12_all_invalid_fields_reported_once_and_nothing_saved(admin, ma
         ({"nickname": "y" * 21}, "nickname", "E-HV-1"),
         ({"email": "a" * 250 + "@x.vn"}, "email", "E-HV-10"),
         ({"email": "thieu-a-cong.com"}, "email", "E-HV-10"),
-        ({"tier": "Vàng"}, "tier", "E-HV-1"),
-        ({"tier": ""}, "tier", "E-HV-1"),
+        # T-038: hội viên gửi Hạng khác hạng hiện tại -> E-HV-14 (Hạng do quầy xếp)
+        ({"tier": "Vàng"}, "tier", "E-HV-14"),
+        ({"tier": ""}, "tier", "E-HV-14"),
+        ({"tier": None}, "tier", "E-HV-14"),
+        ({"tier": "Bán chuyên"}, "tier", "E-HV-14"),
     ],
 )
 async def test_ac12_field_rules(admin, made, over, field, code):
@@ -360,7 +362,7 @@ async def test_ac13_success_bumps_version_syncs_name_and_is_visible_elsewhere(ad
     c, m = await member_login(admin, made, tier="Trung bình")
     cur = await me(c)
     new_name = f"{tag()} Nguyễn Văn Mới"
-    r = await save(c, cur, full_name=new_name, nickname="Gió", tier="Khá", show_on_records=True)
+    r = await save(c, cur, full_name=new_name, nickname="Gió", show_on_records=True)
     assert r.status_code == 200, r.text
     d = r.json()
     assert (
@@ -368,7 +370,7 @@ async def test_ac13_success_bumps_version_syncs_name_and_is_visible_elsewhere(ad
         and d["short_name"] == "Mới"
         and d["version"] == cur["version"] + 1
     )
-    assert d["tier"] == "Khá" and d["show_on_records"] is True
+    assert d["tier"] == "Trung bình" and d["show_on_records"] is True  # T-038: Hạng giữ nguyên
     assert (await q("SELECT full_name FROM users WHERE phone=:p", p=m["phone"]))[0][
         "full_name"
     ] == new_name
@@ -376,7 +378,7 @@ async def test_ac13_success_bumps_version_syncs_name_and_is_visible_elsewhere(ad
         "header public dùng tên mới"
     )
     listed = (await admin.get(M, params={"q": m["member_code"]})).json()["items"][0]
-    assert listed["full_name"] == new_name and listed["tier"] == "Khá", (
+    assert listed["full_name"] == new_name and listed["tier"] == "Trung bình", (
         "màn quản trị thấy giá trị mới"
     )
 
@@ -515,7 +517,7 @@ async def test_ac17_audit_before_after_masked_email_and_actor(admin, made):
     c, m = await member_login(admin, made, tier="Trung bình")
     cur = await me(c)
     mail = f"{tag().lower()}@gmail.com"
-    r = await save(c, cur, email=mail, tier="Khá", racket=f"QA Vợt {tag()}")
+    r = await save(c, cur, email=mail, nickname="Gió", racket=f"QA Vợt {tag()}")
     assert r.status_code == 200, r.text
     row = (
         await q(
@@ -524,7 +526,7 @@ async def test_ac17_audit_before_after_masked_email_and_actor(admin, made):
         )
     )[0]
     assert row["actor_label"] == f"Hội viên (tự sửa) · {m['member_code']}", row["actor_label"]
-    assert "Trung bình" in row["d"] and "Khá" in row["d"], "giá trị trước → sau"
+    assert "Gió" in row["d"] and "QA Vợt" in row["d"], "giá trị trước → sau"  # T-038
     assert mail not in row["d"] and re.search(r"[a-z0-9]\*\*\*@gmail\.com", row["d"]), "email che"
     assert m["phone"] not in row["d"]
 
