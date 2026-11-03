@@ -8,7 +8,7 @@ import { formatDayMonthYear, formatVnd } from "@/lib/format";
 import { CustomerPicker, customerErrors, customerPayload, emptyCustomer, type CustomerState } from "./customer-picker";
 import { authFailure } from "./booking-dialogs";
 import { getRecurringPreview, sendCollectOrder, sendRecurring } from "./requests";
-import type { Calendar, RecurringBody, RecurringPreview, RecurringResult } from "./types";
+import type { Calendar, RecurringBody, RecurringConflict, RecurringPreview, RecurringResult } from "./types";
 import { btnCls, btnPrimaryCls, ErrorBanner, Hint, inputCls, SummaryBox } from "./ui";
 
 // Đặt sân định kỳ (T-035, chỉ Admin): các thứ trong tuần + khung giờ, từ ngày → đến ngày, % giảm.
@@ -66,7 +66,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
   const [dateTo, setDateTo] = useState(addDays(today, 30));
   const [pct, setPct] = useState("0");
   const [preview, setPreview] = useState<RecurringPreview | null>(null);
-  const [serverConflicts, setServerConflicts] = useState<{ date: string; start: string; reason: string }[]>([]);
+  const [serverConflicts, setServerConflicts] = useState<RecurringConflict[]>([]);
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -128,7 +128,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
         if (authFailure(e)) return;
         if (e.code === "E-BOOK-5" && Array.isArray(e.extra.conflicts)) {
           // Có buổi không đặt được (kể cả tranh chấp đồng thời): không tạo gì; hiện danh sách buổi lỗi
-          setServerConflicts(e.extra.conflicts as { date: string; start: string; reason: string }[]);
+          setServerConflicts(e.extra.conflicts as RecurringConflict[]);
           setPreview(null);
           setBanner(errorText(e));
           return;
@@ -319,7 +319,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
             <ul className="mt-1 list-disc pl-5">
               {serverConflicts.map((c) => (
                 <li key={`${c.date}-${c.start}`}>
-                  {dowName(c.date)} {formatDayMonthYear(c.date)} {hh(c.start)}: {reasonText(c.reason)}
+                  {dowName(c.date)} {formatDayMonthYear(c.date)} {hh(c.start)}: {c.reason_text ?? reasonText(c.reason)}
                 </li>
               ))}
             </ul>
@@ -343,20 +343,20 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
               </thead>
               <tbody>
                 {preview.sessions.map((s) => (
-                  <tr key={`${s.date}-${s.start}`} className={`border-t border-border ${s.ok ? "" : "bg-danger/10 text-danger"}`}>
+                  <tr key={`${s.date}-${s.start_time}`} className={`border-t border-border ${s.ok ? "" : "bg-danger/10 text-danger"}`}>
                     <td className="px-3 py-1.5 tabular-nums">{formatDayMonthYear(s.date)}</td>
                     <td className="px-2 py-1.5">{dowName(s.date)}</td>
                     <td className="px-2 py-1.5 tabular-nums">
-                      {hh(s.start)}–{hh(s.end)}
+                      {hh(s.start_time)}–{hh(s.end_time)}
                     </td>
                     {s.ok ? (
                       <>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{formatVnd(s.price)}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{formatVnd(s.price_after_discount)}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{s.price !== null ? formatVnd(s.price) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{s.price_after_discount !== null ? formatVnd(s.price_after_discount) : "—"}</td>
                       </>
                     ) : (
                       <td colSpan={2} className="px-3 py-1.5 text-right font-medium">
-                        {reasonText(s.reason)}
+                        {s.reason_text ?? reasonText(s.reason)}
                       </td>
                     )}
                   </tr>
