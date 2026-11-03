@@ -16,10 +16,12 @@ type Props = {
   footerClassName?: string;
   /** Điện thoại: trượt từ đáy, bo góc trên 20 px (khu hội viên). Từ sm: hộp giữa màn như thường. */
   sheet?: boolean;
+  /** Dưới md: màn toàn trang (cao hết màn hình, không bo góc); từ md: hộp thoại như thường (T-039). */
+  full?: boolean;
 };
 
 /** Hộp thoại dùng <dialog> gốc: tự khóa nền, bẫy phím Tab, đóng bằng Esc. */
-export function Modal({ open, onClose, title, children, footer, size = "narrow", footerClassName, sheet = false }: Props) {
+export function Modal({ open, onClose, title, children, footer, size = "narrow", footerClassName, sheet = false, full = false }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -53,11 +55,17 @@ export function Modal({ open, onClose, title, children, footer, size = "narrow",
         "animate-scale-in backdrop:animate-fade-in backdrop:bg-black/45",
         size === "wide" ? "max-w-2xl" : "max-w-md",
         sheet && "max-w-none sm:max-w-md",
+        full && `
+          max-md:m-0 max-md:h-dvh max-md:max-h-none max-md:w-full max-md:max-w-none
+          max-md:rounded-none max-md:border-0
+        `,
       )}
     >
       {open ? (
         // 3 vùng tách hẳn: đầu cố định, thân là vùng cuộn duy nhất, chân cố định (không đè lên nội dung)
-        <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
+        <div className={cn("flex max-h-[calc(100dvh-2rem)] flex-col", full && `
+          max-md:h-dvh max-md:max-h-none
+        `)}>
           <div className={cn(`
             flex shrink-0 items-center justify-between gap-4 border-b border-border px-5 py-4
           `)}>

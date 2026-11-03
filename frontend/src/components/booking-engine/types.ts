@@ -218,3 +218,35 @@ export type RecurringPreview = Api["schemas"]["RecurringPreview"];
 export type RecurringResult = Api["schemas"]["RecurringCreated"];
 /** Buổi không đặt được trong lỗi 409 E-BOOK-5 (`extra.conflicts`). */
 export type RecurringConflict = { date: string; start: string; reason: string | null; reason_text?: string | null };
+
+// ---- Danh sách đơn định kỳ (T-039). TODO(T-039): đổi sang `Api["schemas"]` khi BE handoff.
+export type RecurringOrderStatus = "unpaid" | "paid" | "uncollectible";
+export type RecurringOrderRow = {
+  order_code: string;
+  customer_name: string;
+  /** SĐT đã che. */
+  phone_masked: string | null;
+  resource_code: string;
+  resource_name: string;
+  /** Thứ ISO 1..7 (1 = T2). */
+  weekdays: number[];
+  start_hour: number;
+  end_hour: number;
+  date_from: string;
+  date_to: string;
+  sessions: number;
+  original_amount: number;
+  discount_pct: number;
+  discount_amount: number;
+  total: number;
+  status: RecurringOrderStatus;
+  created_at: string;
+  created_by: string | null;
+};
+export type RecurringOrderList = {
+  items: RecurringOrderRow[];
+  counts: { all: number; unpaid: number; paid: number; uncollectible: number };
+  page: number;
+  size: number;
+  total: number;
+};

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
@@ -9,10 +9,10 @@ import { CustomerPicker, customerErrors, customerPayload, emptyCustomer, type Cu
 import { authFailure } from "./booking-dialogs";
 import { getRecurringPreview, sendCollectOrder, sendRecurring } from "./requests";
 import type { Calendar, RecurringBody, RecurringConflict, RecurringPreview, RecurringResult } from "./types";
-import { btnCls, btnPrimaryCls, ErrorBanner, Hint, inputCls, SummaryBox } from "./ui";
+import { btnCls, btnPrimaryCls, ErrorBanner, Group, Hint, inputCls, SummaryBox } from "./ui";
 
-// Đặt sân định kỳ (T-035, chỉ Admin): các thứ trong tuần + khung giờ, từ ngày → đến ngày, % giảm.
-// Luồng: nhập → Xem trước (bảng từng buổi + tiền, buổi lỗi tô đỏ) → Đặt n buổi (tất cả hoặc không) → kết quả có "Thu cả đơn".
+// Đặt sân định kỳ (T-035, chỉ Admin), v2 (T-039): ba nhóm Khách · Lịch · Tiền, xem trước TỰ ĐỘNG khi đổi dữ liệu
+// (debounce 400 ms, hủy lượt gọi cũ), điện thoại là màn toàn trang với nút Đặt dính đáy.
 
 const DOW = [
   [1, "T2"],
@@ -29,6 +29,7 @@ const dowName = (d: string) => DOW.find(([n]) => n === isoDow(d))?.[1] ?? "";
 const pad = (n: number) => String(n).padStart(2, "0");
 const hh = (t: string) => t.slice(0, 5);
 const MAX_DAYS = 92;
+const DEBOUNCE_MS = 400;
 const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 
 const REASON: Record<string, string> = {
@@ -65,17 +66,16 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(addDays(today, 30));
   const [pct, setPct] = useState("0");
-  const [preview, setPreview] = useState<RecurringPreview | null>(null);
+  // Kết quả xem trước kèm khóa dữ liệu đã dùng; chỉ "tươi" khi khóa khớp dữ liệu đang nhập
+  const [result, setResult] = useState<{ key: string; data: RecurringPreview } | null>(null);
+  const [calculating, setCalculating] = useState(false);
   const [serverConflicts, setServerConflicts] = useState<RecurringConflict[]>([]);
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState("");
-  const [submitted, setSubmitted] = useState(false);
   const [done, setDone] = useState<(RecurringResult & { paid: boolean }) | null>(null);
 
-  // Mọi thay đổi ở form làm bản xem trước cũ không còn đúng ⇒ phải xem trước lại trước khi đặt
   const edit = <T,>(set: (v: T) => void) => (v: T) => {
     set(v);
-    setPreview(null);
     setServerConflicts([]);
     setBanner("");
   };
@@ -83,55 +83,63 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
   const pctNum = pct.trim() === "" ? NaN : Number(pct);
   const cErr = customerErrors(customer);
   const formError =
-    Object.keys(cErr).length > 0 ? "Vui lòng chọn khách." :
-    !resource ? "Vui lòng chọn sân." :
-    weekdays.length === 0 ? "Vui lòng chọn ít nhất một thứ trong tuần." :
-    endHour <= startHour ? "Giờ kết thúc phải sau giờ bắt đầu." :
-    !dateFrom || !dateTo || dateTo < dateFrom ? "Khoảng ngày không hợp lệ." :
-    dateFrom < today ? "Từ ngày không được trước hôm nay." :
-    dateTo > addDays(dateFrom, MAX_DAYS - 1) ? `Khoảng ngày tối đa ${MAX_DAYS} ngày.` :
-    !Number.isInteger(pctNum) || pctNum < 0 || pctNum > 100 ? "% giảm là số nguyên từ 0 đến 100." : "";
+    Object.keys(cErr).length > 0 ? "Chọn khách (hội viên hoặc hồ sơ tạm)" :
+    !resource ? "Chọn sân" :
+    weekdays.length === 0 ? "Chọn ít nhất một thứ trong tuần" :
+    endHour <= startHour ? "Giờ kết thúc phải sau giờ bắt đầu" :
+    !dateFrom || !dateTo || dateTo < dateFrom ? "Khoảng ngày không hợp lệ" :
+    dateFrom < today ? "Từ ngày không được trước hôm nay" :
+    dateTo > addDays(dateFrom, MAX_DAYS - 1) ? `Khoảng ngày tối đa ${MAX_DAYS} ngày` :
+    !Number.isInteger(pctNum) || pctNum < 0 || pctNum > 100 ? "% giảm là số nguyên từ 0 đến 100" : "";
 
-  function body(): RecurringBody | null {
-    const payload = customerPayload(customer);
-    if (!payload || formError) return null;
-    return { customer: payload, resource_code: resource, weekdays: [...weekdays].sort(), start_hour: startHour, end_hour: endHour, date_from: dateFrom, date_to: dateTo, discount_pct: pctNum };
-  }
+  const payload: RecurringBody | null = (() => {
+    const c = customerPayload(customer);
+    if (!c || formError) return null;
+    return { customer: c, resource_code: resource, weekdays: [...weekdays].sort(), start_hour: startHour, end_hour: endHour, date_from: dateFrom, date_to: dateTo, discount_pct: pctNum };
+  })();
+  const key = payload ? JSON.stringify(payload) : "";
 
-  async function runPreview() {
-    setSubmitted(true);
-    setBanner("");
-    const b = body();
-    if (!b) return;
-    setBusy(true);
-    try {
-      const res = await getRecurringPreview(b);
-      if (!res.ok) {
-        if (!authFailure(res.error)) setBanner(errorText(res.error));
-        return;
-      }
-      setPreview(res.data);
-    } finally {
-      setBusy(false);
+  // Xem trước tự động: đổi dữ liệu → đợi 400 ms → gọi; đổi tiếp thì hủy lượt cũ (kết quả cũ không được áp dụng)
+  useEffect(() => {
+    if (!key) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- thiếu dữ liệu: không gọi API
+      setCalculating(false);
+      return;
     }
-  }
+    const ctl = new AbortController();
+     
+    setCalculating(true);
+    const timer = setTimeout(async () => {
+      const res = await getRecurringPreview(JSON.parse(key) as RecurringBody, ctl.signal);
+      if (ctl.signal.aborted) return;
+      setCalculating(false);
+      if (res.ok) {
+        setResult({ key, data: res.data });
+        setBanner("");
+      } else if (!authFailure(res.error)) setBanner(errorText(res.error));
+    }, DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+      ctl.abort();
+    };
+  }, [key]);
+
+  const preview = result && result.key === key ? result.data : null;
+  const canBook = Boolean(payload && preview && !calculating && !busy && preview.conflicts_count === 0 && preview.count > 0);
 
   async function book() {
-    const b = body();
-    if (!b || !preview || preview.conflicts_count > 0 || busy) return;
+    if (!payload || !canBook) return;
     setBusy(true);
     setBanner("");
     try {
-      const res = await write((key) => sendRecurring(key, b));
+      const res = await write((k) => sendRecurring(k, payload));
       if (!res.ok) {
         const e = res.error;
         if (authFailure(e)) return;
         if (e.code === "E-BOOK-5" && Array.isArray(e.extra.conflicts)) {
           // Có buổi không đặt được (kể cả tranh chấp đồng thời): không tạo gì; hiện danh sách buổi lỗi
           setServerConflicts(e.extra.conflicts as RecurringConflict[]);
-          setPreview(null);
-          setBanner(errorText(e));
-          return;
+          setResult(null);
         }
         setBanner(errorText(e));
         return;
@@ -150,7 +158,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
     setBusy(true);
     setBanner("");
     try {
-      const res = await write((key) => sendCollectOrder(key, done.order_code));
+      const res = await write((k) => sendCollectOrder(k, done.order_code));
       if (!res.ok) {
         if (!authFailure(res.error)) setBanner(errorText(res.error));
         return;
@@ -196,55 +204,83 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
             {done.discount_pct > 0 ? ` · giảm ${done.discount_pct}% (${formatVnd(done.discount_amount)})` : ""}
           </p>
           <p className="text-base font-bold">Phải thu {formatVnd(done.total)}</p>
-          <p className={done.paid ? "font-medium text-primary" : "text-muted"}>{done.paid ? "Đã thanh toán (tiền mặt)" : "Chưa thanh toán. Thu cả đơn ngay hoặc sau ở Lịch sử giao dịch."}</p>
+          <p className={done.paid ? "font-medium text-primary" : "text-muted"}>{done.paid ? "Đã thanh toán (tiền mặt)" : "Chưa thanh toán. Thu cả đơn ngay hoặc sau ở màn Đơn định kỳ."}</p>
         </SummaryBox>
         <p className="text-xs text-muted">Mỗi buổi hiện trên lịch là một khối mang mã đơn. Chưa có hủy hay đổi buổi.</p>
       </Modal>
     );
   }
 
-  // ---------------- Nhập + xem trước
+  // ---------------- Nhập + xem trước tự động
   const sel = `${inputCls} h-10`;
   return (
     <Modal
       open
+      full
       onClose={onClose}
       size="wide"
       title="Đặt sân định kỳ"
       footer={
         <>
-          <button type="button" onClick={onClose} className={btnCls}>
+          <button type="button" onClick={onClose} className={`${btnCls} max-md:h-12`}>
             Hủy
           </button>
-          <button type="button" onClick={() => void runPreview()} disabled={busy} className={btnCls}>
-            {busy && !preview ? "Đang tính…" : "Xem trước"}
-          </button>
-          <button type="button" onClick={() => void book()} disabled={busy || !preview || preview.conflicts_count > 0 || preview.count === 0} className={btnPrimaryCls}>
-            {preview && preview.conflicts_count === 0 ? `Đặt ${preview.count} buổi` : "Đặt sân"}
+          <button type="button" onClick={() => void book()} disabled={!canBook} className={`${btnPrimaryCls} max-md:h-12 max-md:flex-1`}>
+            {busy ? "Đang đặt…" : canBook && preview ? `Đặt ${preview.count} buổi · ${formatVnd(preview.total)}` : "Đặt sân"}
           </button>
         </>
       }
     >
       {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
 
-      <CustomerPicker state={customer} onChange={edit(setCustomer)} submitted={submitted} />
+      <Group title="Khách">
+        <CustomerPicker state={customer} onChange={edit(setCustomer)} submitted={false} />
+      </Group>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label htmlFor={ids.res} className="mb-1 block text-sm font-medium">
-            Sân
-          </label>
-          <select id={ids.res} value={resource} onChange={(e) => edit(setResource)(e.target.value)} className={sel}>
-            {resources.map((r) => (
-              <option key={r.code} value={r.code}>
-                {r.code} · {r.name}
-              </option>
-            ))}
-          </select>
+      <Group title="Lịch">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor={ids.res} className="mb-1 block text-sm font-medium">
+              Sân
+            </label>
+            <select id={ids.res} value={resource} onChange={(e) => edit(setResource)(e.target.value)} className={sel}>
+              {resources.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.code} · {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor={ids.sh} className="mb-1 block text-sm font-medium">
+                Giờ từ
+              </label>
+              <select id={ids.sh} value={startHour} onChange={(e) => edit(setStartHour)(Number(e.target.value))} className={sel}>
+                {calendar.columns.map((h) => (
+                  <option key={h} value={h}>
+                    {pad(h)}:00
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor={ids.eh} className="mb-1 block text-sm font-medium">
+                Giờ đến
+              </label>
+              <select id={ids.eh} value={endHour} onChange={(e) => edit(setEndHour)(Number(e.target.value))} className={sel}>
+                {calendar.columns.map((h) => (
+                  <option key={h + 1} value={h + 1}>
+                    {pad(h + 1)}:00
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
-        <fieldset>
+        <fieldset className="mt-3">
           <legend className="mb-1 text-sm font-medium">Các thứ trong tuần</legend>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="grid grid-cols-7 gap-1.5">
             {DOW.map(([n, label]) => {
               const on = weekdays.includes(n);
               return (
@@ -253,7 +289,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
                   type="button"
                   aria-pressed={on}
                   onClick={() => edit(setWeekdays)(on ? weekdays.filter((x) => x !== n) : [...weekdays, n])}
-                  className={`h-10 min-w-10 rounded-md border px-2 text-sm font-medium ${on ? "border-primary bg-primary text-white" : "border-border bg-background hover:bg-primary-softer"}`}
+                  className={`h-10 rounded-md border text-sm font-medium ${on ? "border-primary bg-primary text-white" : "border-border bg-background hover:bg-primary-softer"}`}
                 >
                   {label}
                 </button>
@@ -261,33 +297,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
             })}
           </div>
         </fieldset>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor={ids.sh} className="mb-1 block text-sm font-medium">
-              Giờ từ
-            </label>
-            <select id={ids.sh} value={startHour} onChange={(e) => edit(setStartHour)(Number(e.target.value))} className={sel}>
-              {calendar.columns.map((h) => (
-                <option key={h} value={h}>
-                  {pad(h)}:00
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor={ids.eh} className="mb-1 block text-sm font-medium">
-              Giờ đến
-            </label>
-            <select id={ids.eh} value={endHour} onChange={(e) => edit(setEndHour)(Number(e.target.value))} className={sel}>
-              {calendar.columns.map((h) => (
-                <option key={h + 1} value={h + 1}>
-                  {pad(h + 1)}:00
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="mt-3 grid grid-cols-2 gap-3">
           <div>
             <label htmlFor={ids.from} className="mb-1 block text-sm font-medium">
               Từ ngày
@@ -301,21 +311,46 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
             <input id={ids.to} type="date" min={dateFrom} value={dateTo} onChange={(e) => edit(setDateTo)(e.target.value)} className={sel} />
           </div>
         </div>
-        <div>
-          <label htmlFor={ids.pct} className="mb-1 block text-sm font-medium">
-            Giảm giá cả đơn (%)
-          </label>
-          <input id={ids.pct} inputMode="numeric" value={pct} onChange={(e) => edit(setPct)(e.target.value.replace(/[^\d]/g, "").slice(0, 3))} className={sel} />
+      </Group>
+
+      <Group title="Tiền">
+        <div className="grid gap-3 sm:grid-cols-[11rem_1fr] sm:items-start">
+          <div>
+            <label htmlFor={ids.pct} className="mb-1 block text-sm font-medium">
+              Giảm giá cả đơn (%)
+            </label>
+            <input id={ids.pct} inputMode="numeric" value={pct} onChange={(e) => edit(setPct)(e.target.value.replace(/[^\d]/g, "").slice(0, 3))} className={sel} />
+          </div>
+          <SummaryBox>
+            {!payload ? (
+              <p className="text-muted">Nhập {formError.toLowerCase()} để xem trước các buổi và tiền.</p>
+            ) : calculating || !preview ? (
+              <p className="text-muted" role="status">
+                Đang tính…
+              </p>
+            ) : (
+              <>
+                <p>
+                  <b>{preview.count}</b> buổi · giá gốc {formatVnd(preview.original_amount)} · giảm {formatVnd(preview.discount_amount)}
+                </p>
+                <p className="text-base font-bold">Phải thu {formatVnd(preview.total)}</p>
+                {preview.conflicts_count > 0 ? (
+                  <p role="alert" className="font-medium text-danger">
+                    Còn {preview.conflicts_count} buổi lỗi. Đổi lịch mới đặt được.
+                  </p>
+                ) : null}
+              </>
+            )}
+          </SummaryBox>
         </div>
-      </div>
-      {submitted && formError ? <ErrorBanner>{formError}</ErrorBanner> : null}
+      </Group>
 
       <Hint>Hệ thống sinh từng buổi, kiểm lịch theo từng ngày và đặt tất cả hoặc không đặt gì. Giá gốc theo bảng giá từng buổi, tối đa {MAX_DAYS} ngày và 60 buổi. Chưa có hủy hay đổi buổi: kiểm kỹ bảng xem trước.</Hint>
 
       {serverConflicts.length > 0 ? (
         <section aria-label="Buổi không đặt được">
           <ErrorBanner>
-            Có {serverConflicts.length} buổi không đặt được, chưa tạo buổi nào. Đổi lịch rồi bấm Xem trước.
+            Có {serverConflicts.length} buổi không đặt được, chưa tạo buổi nào. Đổi lịch, bảng xem trước sẽ tự cập nhật.
             <ul className="mt-1 list-disc pl-5">
               {serverConflicts.map((c) => (
                 <li key={`${c.date}-${c.start}`}>
@@ -328,8 +363,9 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
       ) : null}
 
       {preview ? (
-        <section aria-label="Xem trước các buổi" className="space-y-2">
-          <div className="max-h-72 overflow-auto rounded-lg border border-border">
+        <section aria-label="Các buổi sẽ đặt" className={`space-y-2 ${calculating ? "opacity-60" : ""}`} aria-busy={calculating}>
+          {/* Từ md: bảng; điện thoại: danh sách thẻ */}
+          <div className="hidden max-h-72 overflow-auto rounded-lg border border-border md:block">
             <table className="w-full text-sm">
               <caption className="sr-only">Danh sách {preview.count} buổi</caption>
               <thead className="sticky top-0 bg-background text-left text-xs text-muted">
@@ -364,17 +400,28 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
               </tbody>
             </table>
           </div>
-          <SummaryBox>
-            <p>
-              <b>{preview.count}</b> buổi · giá gốc {formatVnd(preview.original_amount)} · giảm {formatVnd(preview.discount_amount)}
-            </p>
-            <p className="text-base font-bold">Phải thu {formatVnd(preview.total)}</p>
-            {preview.conflicts_count > 0 ? (
-              <p role="alert" className="font-medium text-danger">
-                Còn {preview.conflicts_count} buổi lỗi. Đổi lịch rồi xem trước lại mới đặt được.
-              </p>
-            ) : null}
-          </SummaryBox>
+          <ul className="space-y-2 md:hidden">
+            {preview.sessions.map((s) => (
+              <li key={`${s.date}-${s.start_time}`} className={`rounded-lg border p-3 text-sm ${s.ok ? "border-border" : "border-danger/40 bg-danger/10 text-danger"}`}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-medium tabular-nums">
+                    {dowName(s.date)} {formatDayMonthYear(s.date)}
+                  </span>
+                  <span className="tabular-nums">
+                    {hh(s.start_time)}–{hh(s.end_time)}
+                  </span>
+                </div>
+                {s.ok ? (
+                  <p className="mt-1 flex justify-between gap-3 tabular-nums">
+                    <span className="text-muted">Giá gốc {s.price !== null ? formatVnd(s.price) : "—"}</span>
+                    <b>{s.price_after_discount !== null ? formatVnd(s.price_after_discount) : "—"}</b>
+                  </p>
+                ) : (
+                  <p className="mt-1 font-medium">{s.reason_text ?? reasonText(s.reason)}</p>
+                )}
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
     </Modal>
