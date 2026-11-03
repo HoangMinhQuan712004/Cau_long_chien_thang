@@ -40,6 +40,14 @@ class PersonOut(BaseModel):
     avatar_url: str | None = Field(description="Ảnh đại diện; null -> FE hiện chữ cái đầu")
 
 
+class TierRange(BaseModel):
+    min: str | None = Field(description="Hạng thấp nhất (null = không giới hạn dưới)")
+    max: str | None = Field(description="Hạng cao nhất (null = không giới hạn trên)")
+
+
+JoinBlock = Literal["out_of_range", "unranked"]
+
+
 class RoomCard(BaseModel):
     """Thẻ phòng ở Danh sách sân (AC6)."""
 
@@ -56,6 +64,10 @@ class RoomCard(BaseModel):
     is_mine: bool = Field(description='Mình đang trong phòng (tag "Bạn", nút "Vào phòng")')
     my_join_pending: bool = Field(description='Đã "Xin vào", đang chờ Host duyệt')
     my_invite_id: int | None = Field(description='Lời mời đang chờ mình ("Nhận lời mời")')
+    tier_range: TierRange | None = Field(description="Khoảng hạng của phòng (T-031); null = mở")
+    my_join_block: JoinBlock | None = Field(
+        description="Mình không vào được vì hạng (nút Xin vào mờ): ngoài khoảng / chưa xếp hạng"
+    )
     version: int
 
 
@@ -83,6 +95,7 @@ class PendingPersonOut(BaseModel):
     display_name: str
     avatar_url: str | None
     created_at: dt.datetime
+    tier: str | None = Field(description="Hạng của người xin / được mời (T-031); null = chưa xếp")
 
 
 class PlayerOut(BaseModel):
@@ -118,6 +131,10 @@ class RoomDetail(BaseModel):
     my_role: Role
     my_join_pending: bool
     my_invite_id: int | None
+    tier_range: TierRange | None = Field(description="Khoảng hạng của phòng (T-031); null = mở")
+    my_join_block: JoinBlock | None = Field(
+        description="Người ngoài phòng không vào được vì hạng; người trong phòng luôn null"
+    )
     members: list[RoomMemberOut] = Field(description="Host đầu tiên, rồi theo giờ vào")
     join_requests: list[PendingPersonOut] = Field(description="Chỉ Host thấy (người khác: [])")
     invites: list[PendingPersonOut] = Field(description="Lời mời đang chờ – chỉ Host thấy")

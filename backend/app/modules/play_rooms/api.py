@@ -7,6 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.members import api as members
+from app.modules.play_rooms import errors as room_errors
+from app.modules.play_rooms import tiers
 from app.modules.play_rooms.common import CAPACITY, eligible, is_closed, person_out
 from app.modules.play_rooms.models import PlayRoom, PlayRoomMember
 from app.modules.play_rooms.schemas import PersonOut
@@ -99,3 +101,18 @@ async def room_id_for_booking(session: AsyncSession, customer_id: int, code: str
         )
     )
     return room.id if member is not None else None
+
+
+def valid_tier_range(min_tier: str | None, max_tier: str | None) -> bool:
+    """Khoảng hạng người đặt chọn (T-031): tên hạng hợp lệ hoặc None, ``min ≤ max``."""
+    return tiers.valid_range(min_tier, max_tier)
+
+
+def bad_tier_range() -> Exception:
+    """422 E-ROOM-14 "Khoảng hạng không hợp lệ."."""
+    return room_errors.bad_tier_range()
+
+
+def tier_range_members_only() -> Exception:
+    """422 E-ROOM-14 "Khoảng hạng chỉ dùng khi đặt trong khu hội viên."."""
+    return room_errors.tier_range_members_only()

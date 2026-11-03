@@ -435,23 +435,33 @@ async def test_ac12_unknown_or_forbidden_fields_are_rejected(admin, made):
     assert (await me(c))["phone"] == m["phone"] == cur["phone"]
 
 
-async def test_ac13_racket_is_a_string_added_to_the_catalogue_once(admin, made):
+async def test_ac13_racket_is_free_text_normalised_and_never_added_to_the_catalogue(admin, made):
+    """T-033: ô chữ tự nhập – cắt 2 đầu, gộp khoảng trắng, tối đa 100, rỗng → null; không tự thêm vào danh mục vợt."""
     c, _ = await member_login(admin, made, tier="Khá")
     name = f"QA Vợt {tag()}"
-    r = await save(c, await me(c), racket=name)
-    assert r.status_code == 200 and r.json()["racket"] == name
+    before = len((await c.get(f"{API}/rackets")).json())
+    r = await save(c, await me(c), racket=f"  {name.replace(' ', '   ')}  ")
+    assert r.status_code == 200 and r.json()["racket"] == name, (
+        "chuẩn hóa: cắt 2 đầu, gộp khoảng trắng"
+    )
     listed = (await c.get(f"{API}/rackets")).json()
-    assert sum(1 for i in listed if i["name"].lower() == name.lower()) == 1
+    assert not any(i["name"].lower() == name.lower() for i in listed), "không thêm vào danh mục"
+    assert len(listed) == before
     other, _ = await member_login(admin, made, tier="Khá")
     r2 = await save(other, await me(other), racket=name.upper())
-    assert r2.status_code == 200
-    listed = (await other.get(f"{API}/rackets")).json()
-    assert sum(1 for i in listed if i["name"].lower() == name.lower()) == 1, (
-        "không nhân đôi (không phân biệt hoa thường)"
+    assert r2.status_code == 200 and r2.json()["racket"] == name.upper(), (
+        "giữ nguyên chữ người nhập"
     )
-    cleared = await save(c, r.json(), racket=None)
+    assert len((await other.get(f"{API}/rackets")).json()) == before
+    blank = await save(c, r.json(), racket="   ")
+    assert blank.status_code == 200 and blank.json()["racket"] is None, (
+        "rỗng / toàn khoảng trắng → null"
+    )
+    cleared = await save(c, blank.json(), racket=None)
     assert cleared.status_code == 200 and cleared.json()["racket"] is None
-    r3 = await save(c, cleared.json(), racket="z" * 101)
+    ok100 = await save(c, cleared.json(), racket="z" * 100)
+    assert ok100.status_code == 200 and ok100.json()["racket"] == "z" * 100, "100 ký tự là hợp lệ"
+    r3 = await save(c, ok100.json(), racket="z" * 101)
     assert r3.status_code == 422 and any(f["field"] == "racket" for f in err(r3)["fields"])
 
 
@@ -519,15 +529,29 @@ async def test_ac17_audit_before_after_masked_email_and_actor(admin, made):
     assert m["phone"] not in row["d"]
 
 
-async def test_ac17_new_racket_writes_racket_create_audit(admin, made):
-    c, _ = await member_login(admin, made, tier="Khá")
+async def test_ac17_new_racket_writes_no_racket_row_or_audit_and_audit_keeps_before_after(
+    admin, made
+):
+    """T-033 AC3 + AC5: vợt lạ không sinh dòng `racket` / audit `racket.create`; audit sửa hồ sơ vẫn ghi trước → sau."""
+    c, m = await member_login(admin, made, tier="Khá")
     base = (await q("SELECT coalesce(max(id), 0) AS i FROM audit_log"))[0]["i"]
-    name = f"QA Vợt {tag()}"
-    assert (await save(c, await me(c), racket=name)).status_code == 200
-    rows = await q(
-        "SELECT detail::text AS d FROM audit_log WHERE id > :b AND action='racket.create'", b=base
+    rows_before = (await q("SELECT count(*) AS n FROM racket"))[0]["n"]
+    first, second = f"QA Vợt {tag()}", f"QA Vợt {tag()}"
+    r1 = await save(c, await me(c), racket=first)
+    assert r1.status_code == 200
+    assert (await save(c, r1.json(), racket=second)).status_code == 200
+    assert not await q("SELECT 1 FROM audit_log WHERE id > :b AND action='racket.create'", b=base)
+    assert (await q("SELECT count(*) AS n FROM racket"))[0]["n"] == rows_before, (
+        "không có dòng racket mới"
     )
-    assert rows and name in rows[0]["d"]
+    row = (
+        await q(
+            "SELECT detail::text AS d FROM audit_log WHERE action='member.self_update' AND entity_code=:c AND id > :b ORDER BY id DESC LIMIT 1",
+            c=m["member_code"],
+            b=base,
+        )
+    )[0]
+    assert first in row["d"] and second in row["d"], "audit ghi vợt trước → sau"
 
 
 async def test_ac17_failed_save_writes_no_audit(admin, made):

@@ -14,7 +14,7 @@ from app.core import ratelimit
 from app.core.audit import audit, audit_change, audit_detail
 from app.modules.member_inbox import api as inbox
 from app.modules.members import api as members
-from app.modules.play_rooms import errors
+from app.modules.play_rooms import errors, tiers
 from app.modules.play_rooms.common import (
     CAPACITY,
     Me,
@@ -96,6 +96,7 @@ async def request_join(session: AsyncSession, me: Me, room_id: int, version: int
     room = await writable_room(session, room_id, version, now)
     if await member_row(session, room.id, me.customer_id) is not None:
         raise errors.already_in_room()
+    await tiers.require(session, room, me.customer_id)
     await _ensure_space(session, room)
     if await _pending(session, room.id, me.customer_id, "join") is not None:
         return room  # đã xin – bấm lại không tạo thêm
@@ -148,6 +149,7 @@ async def decide_join(
         raise errors.stale()
     people = await members.room_people(session, {me.customer_id, req.customer_id})
     if approve and await member_row(session, room.id, req.customer_id) is None:
+        await tiers.require(session, room, req.customer_id)
         await _ensure_space(session, room)
         _add_member(session, room, req.customer_id, now)
         await _close_pending(session, room.id, req.customer_id, "invite", "cancelled", now)
@@ -205,6 +207,7 @@ async def invite(session: AsyncSession, me: Me, room_id: int, phone: str, versio
         raise errors.no_member_account()
     if target == me.customer_id or await member_row(session, room.id, target) is not None:
         raise errors.already_in_room()
+    await tiers.require(session, room, target)
     await _ensure_space(session, room)
     if await _pending(session, room.id, target, "invite") is not None:
         return room  # đã mời, đang chờ
@@ -250,6 +253,7 @@ async def answer_invite(session: AsyncSession, me: Me, invite_id: int, accept: b
     if req.status != "pending":
         raise errors.stale()
     if accept and await member_row(session, room.id, me.customer_id) is None:
+        await tiers.require(session, room, me.customer_id)
         await _ensure_space(session, room)
         _add_member(session, room, me.customer_id, now)
         await _close_pending(session, room.id, me.customer_id, "join", "cancelled", now)

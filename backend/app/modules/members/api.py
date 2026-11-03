@@ -14,14 +14,16 @@ from app.modules.members import avatar, enrollment, profiles, self_service, serv
 from app.modules.members import room_people as room_people_mod
 from app.modules.members.avatar import Crop, StoredAvatar
 from app.modules.members.enrollment import MemberEnsured
-from app.modules.members.models import Customer
+from app.modules.members.models import TIERS, Customer
 from app.modules.members.room_people import RoomPerson
-from app.modules.members.schemas import CustomerIn, CustomerProfile, MemberSearchItem
+from app.modules.members.schemas import CustomerIn, CustomerProfile, MemberSearchItem, Tier
 from app.modules.members.self_service import SelfProfile, SelfUpdate, not_member
 from app.modules.members.service import PHONE_RE, normalize_phone
 
 __all__ = [
     "Crop",
+    "Tier",
+    "tier_rank",
     "MemberEnsured",
     "ensure_member_for_phone",
     "member_of_phone",
@@ -144,6 +146,11 @@ async def load_avatar(session: AsyncSession, customer_id: int) -> StoredAvatar |
 async def room_people(session: AsyncSession, ids: set[int] | list[int]) -> dict[int, RoomPerson]:
     """Tên hiển thị (Biệt danh / Họ tên), ảnh, còn là hội viên Hoạt động – theo id hồ sơ."""
     return await room_people_mod.people(session, ids)
+
+
+def tier_rank(tier: str | None) -> int | None:
+    """Thứ tự hạng theo ``TIERS`` (0 = Yếu … 7 = Chuyên nghiệp); None / tên lạ -> None (T-031)."""
+    return TIERS.index(tier) if tier in TIERS else None
 
 
 async def member_ids(session: AsyncSession) -> list[int]:

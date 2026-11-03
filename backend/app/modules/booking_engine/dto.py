@@ -247,6 +247,8 @@ class RoomSource(BaseModel):
     resource_type_name: str
     start_at: dt.datetime
     end_at: dt.datetime
+    min_tier: str | None = Field(default=None, description="Khoảng hạng của đơn (T-031)")
+    max_tier: str | None = None
 
 
 class CustomerBookingRow(BaseModel):
@@ -599,6 +601,9 @@ class CheckoutCreate(StrictIn):
     date: dt.date
     slots: list[OnlineSlotIn] = Field(max_length=200)
     note: str | None = Field(default=None, max_length=200)
+    # Khoảng hạng phòng chơi (T-031) – lớp gọi đã kiểm (tên hạng, thứ tự); engine chỉ lưu
+    min_tier: str | None = Field(default=None, max_length=20)
+    max_tier: str | None = Field(default=None, max_length=20)
 
 
 class CheckoutItem(BaseModel):
