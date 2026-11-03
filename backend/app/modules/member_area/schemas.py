@@ -32,7 +32,10 @@ class MemberMeIn(StrictIn):
     nickname: str | None = Field(default=None, max_length=200)
     email: str | None = Field(default=None, max_length=400)
     tier: str | None = Field(
-        max_length=50, description="1 trong 8 bậc; null chỉ khi hồ sơ đang chưa xếp hạng"
+        default=None,
+        max_length=50,
+        description="Hạng do quầy xếp (T-038): không gửi = bỏ qua; gửi khác hạng hiện tại -> 422 "
+        "E-HV-14. Hạng không bao giờ đổi qua đường này",
     )
     racket: str | None = Field(
         default=None,
