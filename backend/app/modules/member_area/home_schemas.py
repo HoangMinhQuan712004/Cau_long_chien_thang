@@ -5,7 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.modules.play_rooms.schemas import PersonOut
+from app.modules.play_rooms.schemas import PersonOut, PlayHistorySummary, RoomCard
+from app.modules.records.schemas import SpeedRankingRow
 
 
 class UpcomingItem(BaseModel):
@@ -31,6 +32,44 @@ class Overview(BaseModel):
     today_count: int = Field(description="Lịch chơi hôm nay chưa kết thúc")
     upcoming: list[UpcomingItem] = Field(description="Tối đa 4: thẻ TIẾP THEO + 3 dòng")
     unread_count: int = Field(description="Thông báo chưa đọc")
+    # ---- Tổng quan v2 (T-036)
+    month: str = Field(description="Tháng hiện tại YYYY-MM (giờ VN)")
+    month_stats: PlayHistorySummary = Field(description="Buổi chơi / số trận / thắng trong tháng")
+    month_record_kmh: int | None = Field(description="Số đo cao nhất của mình trong tháng")
+    record_kmh: int | None = Field(description="Kỷ lục mọi thời gian của mình")
+    open_rooms: list[RoomCard] = Field(
+        description="Tối đa 3 phòng hôm nay còn mở, còn chỗ, mình chưa ở trong"
+    )
+    ranking: "OverviewRanking"
+    recent_records: list["RecentRecord"] = Field(
+        description="Tối đa 3 lần phá kỷ lục cụm gần nhất (mới nhất trước); rỗng -> ẩn khối"
+    )
+
+
+class OverviewRankingMe(BaseModel):
+    rank: int
+    speed_kmh: int
+    gap_to_top10: int | None = Field(description="null khi đã trong top 10")
+    top10_kmh: int | None = Field(description="km/h của hạng 10 (null khi chưa đủ 10 người)")
+
+
+class OverviewRanking(BaseModel):
+    """Bảng xếp hạng tốc độ **tháng này** (như T-030)."""
+
+    total_members: int
+    me: OverviewRankingMe | None = Field(description="null: mình chưa có số đo trong tháng")
+    top3: list[SpeedRankingRow]
+
+
+class RecentRecord(BaseModel):
+    speed_kmh: int
+    delta_kmh: int | None = Field(description="+ so với kỷ lục cụm trước đó; null = lần đầu")
+    display_name: str = Field(description="'Hội viên ẩn danh' khi người đó ẩn")
+    avatar_url: str | None
+    racket: str | None = Field(description="Vợt (T-033); null khi ẩn danh / chưa nhập")
+    resource_name: str | None = Field(description="Sân đo; null khi số đo không gắn sân")
+    measured_at: dt.datetime
+    is_current: bool = Field(description="Đang giữ kỷ lục (thẻ viền vàng)")
 
 
 Kind = Literal["booking", "ticket"]
@@ -76,3 +115,6 @@ class PaymentList(BaseModel):
     )
     summary: PaymentSummary = Field(description="Cả tháng (không theo bộ lọc)")
     items: list[PaymentItem] = Field(description="Theo bộ lọc ``kind``, mới nhất trước")
+
+
+Overview.model_rebuild()
