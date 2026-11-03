@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
-from app.modules.members import avatar, enrollment, profiles, self_service, service
+from app.modules.members import avatar, demo, enrollment, profiles, self_service, service
 from app.modules.members import room_people as room_people_mod
 from app.modules.members.avatar import Crop, StoredAvatar
 from app.modules.members.enrollment import MemberEnsured
@@ -192,3 +192,30 @@ async def rackets_of(session: AsyncSession, ids: set[int] | list[int]) -> dict[i
         select(Customer.id, Customer.racket).where(Customer.id.in_(sorted(set(ids))))
     )
     return {cid: racket for cid, racket in rows}
+
+
+# ------------------------------------------------------------------ dữ liệu mẫu dev (T-034)
+
+DemoMember = demo.DemoMember
+DemoMemberSpec = demo.DemoMemberSpec
+demo_phone = demo.demo_phone
+
+
+async def demo_foreign_phones(session: AsyncSession) -> list[str]:
+    """SĐT trong dải mẫu thuộc hồ sơ thật (không dấu mẫu) – có thì script mẫu phải dừng."""
+    return await demo.foreign_demo_phones(session)
+
+
+async def demo_member_ids(session: AsyncSession) -> list[int]:
+    return await demo.demo_member_ids(session)
+
+
+async def seed_demo_members(
+    session: AsyncSession, specs: list[demo.DemoMemberSpec]
+) -> list[demo.DemoMember]:
+    return await demo.seed_members(session, specs)
+
+
+async def purge_demo(session: AsyncSession) -> int:
+    """Xóa hồ sơ hội viên mẫu (tên "Mẫu · " + SĐT 09990000xx). Không commit."""
+    return await demo.purge_demo(session)

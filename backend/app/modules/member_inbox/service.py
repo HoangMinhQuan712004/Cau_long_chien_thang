@@ -126,3 +126,13 @@ async def purge_old(session: AsyncSession) -> int:
     )
     await session.commit()
     return result.rowcount or 0
+
+
+async def purge_for(session: AsyncSession, customer_ids: list[int]) -> int:
+    """Xóa mọi thông báo của các hồ sơ này (dữ liệu mẫu T-034). Không commit."""
+    if not customer_ids:
+        return 0
+    result = await session.execute(
+        delete(MemberNotification).where(MemberNotification.customer_id.in_(customer_ids))
+    )
+    return result.rowcount or 0

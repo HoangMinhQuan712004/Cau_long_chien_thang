@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import AppError
-from app.modules.auth import cookies, enroll, member_accounts, membership, otp, service, utils
+from app.modules.auth import cookies, demo, enroll, member_accounts, membership, otp, service, utils
 from app.modules.auth import phone as phone_flow
 from app.modules.auth.deps import AuthStateDep, CurrentCustomer, SessionDep
 from app.modules.auth.models import OtpPurpose, Role, User
@@ -277,3 +277,22 @@ async def set_full_name(session: AsyncSession, user_id: int, full_name: str) -> 
     user = await session.get(User, user_id)
     if user is not None:
         user.full_name = full_name
+
+
+# ------------------------------------------------------------------ dữ liệu mẫu dev (T-034)
+
+
+async def demo_foreign_phones(session: AsyncSession) -> list[str]:
+    """SĐT trong dải mẫu thuộc tài khoản thật – có thì script mẫu phải dừng."""
+    return await demo.foreign_demo_phones(session)
+
+
+async def create_demo_account(
+    session: AsyncSession, phone: str, full_name: str, password: str | None
+) -> None:
+    """Tài khoản mẫu đã xác minh SĐT, không bắt đổi mật khẩu; ``password=None`` -> ngẫu nhiên."""
+    await demo.create_account(session, phone, full_name, password)
+
+
+async def purge_demo(session: AsyncSession) -> int:
+    return await demo.purge_demo(session)
