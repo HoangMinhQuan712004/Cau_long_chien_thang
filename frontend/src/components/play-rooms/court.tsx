@@ -62,13 +62,13 @@ function Chip({ p, host, left, top }: { p: Person; host: boolean; left: number; 
     <span
       style={{ left: `${left}%`, top: `${top}%` }}
       className="
-        absolute flex max-w-[34%] -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full bg-surface py-0.5
-        pr-2.5 pl-0.5 text-xs font-semibold text-foreground shadow-card
-        sm:text-sm
+        absolute flex w-max max-w-[44%] -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full bg-surface py-0.5
+        pr-2 pl-0.5 text-[11px] font-semibold text-foreground shadow-card
+        sm:max-w-[34%] sm:gap-1.5 sm:pr-2.5 sm:text-sm
       "
     >
       <Avatar url={p.avatar_url} name={p.display_name} size={22} />
-      <span className="truncate">{p.display_name}</span>
+      <span className="min-w-0 truncate">{p.display_name}</span>
       {host ? <Crown /> : null}
     </span>
   );
@@ -82,27 +82,29 @@ function Slot({ team, idx, p, host, left, top, editor }: { team: "a" | "b"; idx:
     <span
       data-slot={`${team}-${idx}`}
       style={{ left: `${left}%`, top: `${top}%` }}
-      className={cn("absolute flex max-w-[38%] -translate-x-1/2 -translate-y-1/2 items-center rounded-full", over && "ring-2 ring-surface ring-offset-2 ring-offset-primary")}
+      // w-max + max-w: chip rộng theo tên nhưng không quá ~nửa sân, tên dài cắt "…" (không đè chip đội bên kia)
+      className={cn("absolute flex w-max max-w-[44%] -translate-x-1/2 -translate-y-1/2 items-center rounded-full sm:max-w-[38%]", over && "ring-2 ring-surface ring-offset-2 ring-offset-primary")}
     >
       {p ? (
-        <span className="flex items-center rounded-full bg-surface pr-0.5 pl-0.5 shadow-card">
+        <span className="flex max-w-full min-w-0 items-center rounded-full bg-surface pr-0.5 pl-0.5 shadow-card">
           <button
             type="button"
             aria-label={`${name}: ${p.display_name}. Mở menu`}
             aria-haspopup="dialog"
             onClick={(e) => editor.onSlot(ref, e.currentTarget)}
             onPointerDown={(e) => editor.onDragStart(e, ref, p.display_name)}
-            className="flex min-h-8 min-w-0 cursor-grab items-center gap-1.5 rounded-full py-0.5 pr-1 pl-0.5 text-xs font-semibold text-foreground select-none focus-ring sm:text-sm"
+            className="flex min-h-8 min-w-0 cursor-grab items-center gap-1 rounded-full py-0.5 pr-1.5 pl-0.5 text-[11px] font-semibold text-foreground select-none focus-ring sm:gap-1.5 sm:pr-1 sm:text-sm"
           >
             <Avatar url={p.avatar_url} name={p.display_name} size={22} />
-            <span className="truncate">{p.display_name}</span>
+            <span className="min-w-0 truncate">{p.display_name}</span>
             {host ? <Crown /> : null}
           </button>
+          {/* Điện thoại: không có ×, bấm tên mở menu (có "Bỏ khỏi sân") để chip đủ chỗ cho tên */}
           <button
             type="button"
             aria-label={`Bỏ ${p.display_name} khỏi sân`}
             onClick={() => editor.onRemove(ref)}
-            className="grid size-6 shrink-0 place-items-center rounded-full text-muted hover:bg-primary-softer hover:text-foreground focus-ring"
+            className="grid size-6 shrink-0 place-items-center rounded-full text-muted hover:bg-primary-softer hover:text-foreground focus-ring max-sm:hidden"
           >
             <span aria-hidden>×</span>
           </button>

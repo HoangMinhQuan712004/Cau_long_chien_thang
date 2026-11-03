@@ -4,9 +4,10 @@ import { useState, useSyncExternalStore } from "react";
 import { Avatar } from "@/components/member-area/avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
+import { UserCheckIcon } from "@/components/ui/icons";
 import type { PendingPerson } from "./types";
 
-// "Chờ duyệt (k)" của Host (T-032 AC9): desktop = popover dưới nút, dưới lg = bảng trượt từ đáy.
+// "Chờ duyệt (k)" của Host (T-032 AC9): nút icon kèm số; desktop = popover dưới nút, dưới lg = bảng trượt từ đáy.
 // Mỗi yêu cầu: avatar, tên, "Xin vào x phút trước", Từ chối / Duyệt.
 
 const DESKTOP = "(min-width: 1024px)";
@@ -79,13 +80,19 @@ export function JoinRequests({ requests, full, busy, nowMs, onDecide }: Props) {
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-label={title}
+        title={title}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
         disabled={requests.length === 0}
-        className="inline-flex h-11 items-center gap-2 rounded-lg border border-primary bg-surface px-3 text-xs font-semibold hover:bg-primary-softer focus-ring disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:text-sm"
+        className="relative grid size-11 place-items-center rounded-lg border border-primary bg-surface text-primary hover:bg-primary-softer focus-ring disabled:cursor-not-allowed disabled:opacity-50 sm:size-10"
       >
-        Chờ duyệt
-        <span className="grid min-w-5 place-items-center rounded-full bg-accent px-1.5 text-xs leading-5 font-bold text-cta-fg">{requests.length}</span>
+        <UserCheckIcon size={20} />
+        {requests.length > 0 ? (
+          <span aria-hidden className="absolute -top-2 -right-2 grid min-w-5 place-items-center rounded-full bg-accent px-1.5 text-xs leading-5 font-bold text-cta-fg">
+            {requests.length}
+          </span>
+        ) : null}
       </button>
       {open && desktop && requests.length > 0 ? (
         <div role="dialog" aria-label={title} onKeyDown={(e) => e.key === "Escape" && setOpen(false)} className="absolute right-0 z-30 mt-2 w-[22rem] rounded-card bg-surface shadow-card ring-1 ring-border">

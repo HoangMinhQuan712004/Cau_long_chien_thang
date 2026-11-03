@@ -9,6 +9,7 @@ import { Avatar } from "@/components/member-area/avatar";
 import { PageBanner } from "@/components/member-area/page-banner";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { UserPlusIcon } from "@/components/ui/icons";
 import { errorText, type WriteResult } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
 import { toast } from "@/lib/feedback";
@@ -220,6 +221,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
   const placedCount = lu ? idsOf(lu.base).length : 0;
   const roomName = room.resource_name.replace(/^Sân (\d+)/, "Sân số $1");
   const beforeStart = nowMs < Date.parse(room.can_start_from);
+  // E-ROOM-10: Host chỉ bắt đầu trận từ 15 phút trước giờ chơi – nói rõ giờ thay vì để nút mờ không lý do
+  const startHint = `Bắt đầu trận được từ ${formatTime(room.can_start_from)} (15 phút trước giờ chơi)`;
 
   async function leave(): Promise<string | null> {
     const r = await write((v) => roomsApi.leave(id, v));
@@ -237,8 +240,9 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
         title={`Phòng: ${roomName}`}
         subtitle={`${room.members.length}/${MAX_MEMBERS} thành viên · Host: ${hostName} · ${hourRange(room.start_at, room.end_at)}${tierRangeText(room.tier_range) ? ` · ${tierRangeText(room.tier_range)}` : ""}`}
         aside={
+          // Máy tính: "Rời phòng" ở banner; điện thoại: ở cuối trang
           isMember && open ? (
-            <button type="button" onClick={() => setDialog({ kind: "leave" })} className="h-10 rounded-lg bg-surface px-4 text-sm font-semibold text-danger hover:bg-primary-softer focus-ring">
+            <button type="button" onClick={() => setDialog({ kind: "leave" })} className="h-10 rounded-lg bg-surface px-4 text-sm font-semibold text-danger hover:bg-primary-softer focus-ring max-lg:hidden">
               Rời phòng
             </button>
           ) : null
@@ -316,8 +320,9 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
         ) : (
           <div className="space-y-4">
             <section className="overflow-hidden rounded-card bg-surface shadow-card" aria-label="Điều khiển trận">
+              {/* Máy tính: Thể thức · trạng thái · Bốc · Bắt đầu. Điện thoại: hàng 1 Thể thức … Bắt đầu (phải), hàng 2 Bốc · trạng thái */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4" hidden={!MATCHES_READY}>
-                <div className="flex items-center gap-3">
+                <div className="order-1 flex items-center gap-3">
                   <span className="text-sm font-semibold text-muted" id="fmt-label">
                     Thể thức
                   </span>
@@ -340,7 +345,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                     ))}
                   </div>
                 </div>
-                <p className="min-w-0 flex-1 text-sm text-muted" role="status">
+                {/* Điện thoại: bỏ câu hướng dẫn dài khi đã có đội hình; vẫn giữ giờ được bắt đầu trận */}
+                <p className={cn("order-5 min-w-0 flex-1 text-sm text-muted lg:order-2", drawn && !(isHost && beforeStart) && "max-lg:hidden")} role="status">
                   {playing && cur ? (
                     <span className="inline-flex items-center gap-2 font-medium text-foreground">
                       <span aria-hidden className="size-2 rounded-full bg-danger" />
@@ -348,6 +354,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                     </span>
                   ) : isHost && lu?.hasDraft && placedCount < need ? (
                     `Cần đủ ${need} người · đã xếp ${placedCount}/${need} · bản nháp trên máy bạn, chưa lưu`
+                  ) : isHost && drawn && beforeStart ? (
+                    `Đội hình đã lưu · ${startHint}`
                   ) : isHost && drawn ? (
                     "Đội hình đã lưu · bấm “Bắt đầu trận” khi sẵn sàng · đổi thể thức sẽ xóa đội hình"
                   ) : drawn ? (
@@ -360,37 +368,37 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                     `Chưa đủ người · cần ${need} (đang có ${waitingAll.length})`
                   )}
                 </p>
-                {isHost ? (
-                  <div className="flex gap-2">
-                    {playing ? (
-                      <Button variant="cta" onClick={() => setDialog({ kind: "result" })} className="h-11 px-5 sm:h-11 sm:text-sm">
-                        Kết thúc trận
-                      </Button>
-                    ) : (
-                      <>
-                        <Button
-                          variant="secondary"
-                          className="h-11 sm:h-11"
-                          onClick={() => void inline((v) => roomsApi.draw(id, v)).then(() => setDraft(null))}
-                          loading={busy}
-                          disabled={waitingAll.length < need}
-                        >
-                          {drawn ? "Bốc lại" : "Bốc ngẫu nhiên"}
-                        </Button>
-                        <Button
-                          variant="cta"
-                          className="h-11 px-5 sm:h-11 sm:text-sm"
-                          onClick={() => void inline((v) => roomsApi.start(id, v))}
-                          loading={busy}
-                          disabled={!drawn || Boolean(lu?.hasDraft) || beforeStart}
-                          title={!drawn || lu?.hasDraft ? `Cần đủ ${need} người` : beforeStart ? "Chưa tới giờ bắt đầu trận." : undefined}
-                        >
-                          Bắt đầu trận
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                {isHost && !playing ? (
+                  <Button
+                    variant="secondary"
+                    className="order-4 h-11 sm:h-11 lg:order-3"
+                    onClick={() => void inline((v) => roomsApi.draw(id, v)).then(() => setDraft(null))}
+                    loading={busy}
+                    disabled={waitingAll.length < need}
+                  >
+                    {drawn ? "Bốc lại" : "Bốc ngẫu nhiên"}
+                  </Button>
                 ) : null}
+                {isHost ? (
+                  playing ? (
+                    <Button variant="cta" onClick={() => setDialog({ kind: "result" })} className="order-2 ml-auto h-11 px-5 sm:h-11 sm:text-sm lg:order-4 lg:ml-0">
+                      Kết thúc trận
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="cta"
+                      className="order-2 ml-auto h-11 px-5 sm:h-11 sm:text-sm lg:order-4 lg:ml-0"
+                      onClick={() => void inline((v) => roomsApi.start(id, v))}
+                      loading={busy}
+                      disabled={!drawn || Boolean(lu?.hasDraft) || beforeStart}
+                      title={!drawn || lu?.hasDraft ? `Cần đủ ${need} người` : beforeStart ? startHint : undefined}
+                    >
+                      Bắt đầu trận
+                    </Button>
+                  )
+                ) : null}
+                {/* Điện thoại: ngắt hàng sau nút Bắt đầu trận */}
+                <span aria-hidden className="order-3 basis-full lg:hidden" />
               </div>
               <Court
                 format={cur?.format ?? room.format}
@@ -437,9 +445,16 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                       nowMs={nowMs}
                       onDecide={(q, approve) => void inline((v) => roomsApi.decide(id, q.id, approve, v), approve ? ["Đã duyệt", q.display_name] : undefined)}
                     />
-                    <Button variant="secondary" className="h-11 sm:h-10" onClick={() => setDialog({ kind: "invite" })} disabled={room.members.length >= MAX_MEMBERS}>
-                      + Mời người chơi
-                    </Button>
+                    <button
+                      type="button"
+                      aria-label="Mời người chơi"
+                      title={room.members.length >= MAX_MEMBERS ? `Phòng đã đủ ${MAX_MEMBERS} người.` : "Mời người chơi"}
+                      onClick={() => setDialog({ kind: "invite" })}
+                      disabled={room.members.length >= MAX_MEMBERS}
+                      className="grid size-11 place-items-center rounded-lg border border-primary bg-surface text-primary hover:bg-primary-softer focus-ring disabled:cursor-not-allowed disabled:opacity-50 sm:size-10"
+                    >
+                      <UserPlusIcon size={20} />
+                    </button>
                   </div>
                 ) : null}
               </div>
@@ -465,6 +480,18 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
             </section>
           </div>
         )}
+
+        {isMember && open ? (
+          <div className="flex justify-end pt-2 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setDialog({ kind: "leave" })}
+              className="h-10 rounded-lg border border-danger/40 bg-surface px-4 text-sm font-semibold text-danger hover:bg-danger-soft focus-ring"
+            >
+              Rời phòng
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {drag.ghost}
