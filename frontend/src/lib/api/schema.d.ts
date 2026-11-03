@@ -1045,7 +1045,8 @@ export interface paths {
         };
         /**
          * Overview
-         * @description Trang Tổng quan (AC1–AC3): tên chào, lịch hôm nay, lịch sắp tới, số thông báo chưa đọc.
+         * @description Trang Tổng quan v2 (T-018 + T-036): chào, lịch hôm nay / sắp tới, thông báo chưa đọc, số
+         *     liệu tháng, kỷ lục, phòng đang trống, hạng tháng, kỷ lục mới của cụm. ETag / 304.
          *     403 E-HV-8 (chưa là hội viên).
          */
         get: operations["overview_api_v1_member_area_overview_get"];
@@ -3913,6 +3914,63 @@ export interface components {
              * @description Thông báo chưa đọc
              */
             unread_count: number;
+            /**
+             * Month
+             * @description Tháng hiện tại YYYY-MM (giờ VN)
+             */
+            month: string;
+            /** @description Buổi chơi / số trận / thắng trong tháng */
+            month_stats: components["schemas"]["PlayHistorySummary"];
+            /**
+             * Month Record Kmh
+             * @description Số đo cao nhất của mình trong tháng
+             */
+            month_record_kmh: number | null;
+            /**
+             * Record Kmh
+             * @description Kỷ lục mọi thời gian của mình
+             */
+            record_kmh: number | null;
+            /**
+             * Open Rooms
+             * @description Tối đa 3 phòng hôm nay còn mở, còn chỗ, mình chưa ở trong
+             */
+            open_rooms: components["schemas"]["RoomCard"][];
+            ranking: components["schemas"]["OverviewRanking"];
+            /**
+             * Recent Records
+             * @description Tối đa 3 lần phá kỷ lục cụm gần nhất (mới nhất trước); rỗng -> ẩn khối
+             */
+            recent_records: components["schemas"]["RecentRecord"][];
+        };
+        /**
+         * OverviewRanking
+         * @description Bảng xếp hạng tốc độ **tháng này** (như T-030).
+         */
+        OverviewRanking: {
+            /** Total Members */
+            total_members: number;
+            /** @description null: mình chưa có số đo trong tháng */
+            me: components["schemas"]["OverviewRankingMe"] | null;
+            /** Top3 */
+            top3: components["schemas"]["SpeedRankingRow"][];
+        };
+        /** OverviewRankingMe */
+        OverviewRankingMe: {
+            /** Rank */
+            rank: number;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Gap To Top10
+             * @description null khi đã trong top 10
+             */
+            gap_to_top10: number | null;
+            /**
+             * Top10 Kmh
+             * @description km/h của hạng 10 (null khi chưa đủ 10 người)
+             */
+            top10_kmh: number | null;
         };
         /**
          * PasswordChangeIn
@@ -4666,6 +4724,43 @@ export interface components {
             win_rate: number;
             /** Is Me */
             is_me: boolean;
+        };
+        /** RecentRecord */
+        RecentRecord: {
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Delta Kmh
+             * @description + so với kỷ lục cụm trước đó; null = lần đầu
+             */
+            delta_kmh: number | null;
+            /**
+             * Display Name
+             * @description 'Hội viên ẩn danh' khi người đó ẩn
+             */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Racket
+             * @description Vợt (T-033); null khi ẩn danh / chưa nhập
+             */
+            racket: string | null;
+            /**
+             * Resource Name
+             * @description Sân đo; null khi số đo không gắn sân
+             */
+            resource_name: string | null;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /**
+             * Is Current
+             * @description Đang giữ kỷ lục (thẻ viền vàng)
+             */
+            is_current: boolean;
         };
         /** RecurringBookingIn */
         RecurringBookingIn: {
@@ -7748,7 +7843,9 @@ export interface operations {
     overview_api_v1_member_area_overview_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "if-none-match"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -7761,6 +7858,22 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Overview"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
