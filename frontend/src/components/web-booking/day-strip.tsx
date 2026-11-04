@@ -43,7 +43,8 @@ export function DayStrip({ date, today, onPick }: Props) {
   const atStart = start <= today;
 
   return (
-    <div className="rounded-2xl bg-appbar p-3 text-surface sm:p-4">
+    // Điện thoại: chữ / ô nhỏ hơn (người dùng 03/11); từ sm giữ cỡ cũ
+    <div className="rounded-2xl bg-appbar p-2.5 text-surface sm:p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="relative">
           <label htmlFor={monthId} className="sr-only">
@@ -53,7 +54,7 @@ export function DayStrip({ date, today, onPick }: Props) {
             id={monthId}
             value={monthOf(date)}
             onChange={(e) => pickMonth(e.target.value)}
-            className="h-11 appearance-none rounded-lg border border-surface/25 bg-surface/10 py-0 pr-9 pl-3 text-sm font-bold text-surface focus-ring"
+            className="h-10 appearance-none rounded-lg border border-surface/25 bg-surface/10 py-0 pr-8 pl-3 text-xs font-bold text-surface focus-ring sm:h-11 sm:pr-9 sm:text-sm"
           >
             {months.map((m) => (
               <option key={m} value={m} className="text-foreground">
@@ -71,7 +72,7 @@ export function DayStrip({ date, today, onPick }: Props) {
             aria-label="Tuần trước"
             disabled={atStart}
             onClick={() => shift(-1)}
-            className="grid size-11 place-items-center rounded-lg border border-surface/25 bg-surface/10 text-lg hover:bg-surface/20 focus-ring disabled:opacity-35 disabled:hover:bg-surface/10"
+            className="grid size-10 place-items-center sm:size-11 rounded-lg border border-surface/25 bg-surface/10 text-lg hover:bg-surface/20 focus-ring disabled:opacity-35 disabled:hover:bg-surface/10"
           >
             <span aria-hidden>‹</span>
           </button>
@@ -79,14 +80,14 @@ export function DayStrip({ date, today, onPick }: Props) {
             type="button"
             aria-label="Tuần sau"
             onClick={() => shift(1)}
-            className="grid size-11 place-items-center rounded-lg border border-surface/25 bg-surface/10 text-lg hover:bg-surface/20 focus-ring"
+            className="grid size-10 place-items-center sm:size-11 rounded-lg border border-surface/25 bg-surface/10 text-lg hover:bg-surface/20 focus-ring"
           >
             <span aria-hidden>›</span>
           </button>
         </div>
       </div>
 
-      <div role="group" aria-label="Chọn ngày" className="mt-3 grid grid-cols-7 gap-1.5 sm:gap-2">
+      <div role="group" aria-label="Chọn ngày" className="mt-2.5 grid grid-cols-7 gap-1 sm:mt-3 sm:gap-2">
         {days.map((d) => {
           const on = d === date;
           const past = d < today;
@@ -101,13 +102,13 @@ export function DayStrip({ date, today, onPick }: Props) {
               aria-label={`${label}, ${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`}
               onClick={() => !on && onPick(d)}
               className={cn(
-                "flex min-h-14 min-w-0 flex-col items-center justify-center rounded-lg border px-0.5 text-center leading-tight focus-ring",
+                "flex min-h-11 min-w-0 flex-col items-center justify-center rounded-lg border px-0.5 text-center leading-tight focus-ring sm:min-h-14",
                 on ? "border-surface bg-surface text-primary-hover shadow-card" : "border-surface/25 text-surface hover:bg-surface/12",
                 past && "opacity-35 hover:bg-transparent",
               )}
             >
-              <span className={cn("text-[11px] font-semibold sm:text-xs", !on && weekend && "text-accent-soft", d === today && "text-[10px] tracking-tight whitespace-nowrap sm:text-xs")}>{label}</span>
-              <span className="text-[13px] font-bold tabular-nums sm:text-sm">
+              <span className={cn("text-[10px] font-semibold sm:text-xs", !on && weekend && "text-accent-soft", d === today && "text-[9px] tracking-tight whitespace-nowrap sm:text-xs")}>{label}</span>
+              <span className="text-[11px] font-bold tabular-nums sm:text-sm">
                 {d.slice(8, 10)}/{d.slice(5, 7)}
               </span>
             </button>
