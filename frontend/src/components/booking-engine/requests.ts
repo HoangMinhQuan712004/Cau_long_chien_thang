@@ -10,6 +10,7 @@ import type {
   Quote,
   RecurringBody,
   RecurringPreview,
+  BookingOrderList,
   RecurringOrderList,
   RecurringPreviewBody,
   SearchResult,
@@ -115,4 +116,10 @@ export const sendRecurring = (key: string, body: RecurringBody) => looseApi.POST
 export const getRecurringOrders = (f: { status?: string; q?: string; page?: number; size?: number }) => {
   const query = Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined && v !== ""));
   return read<RecurringOrderList>(() => looseApi.GET(`${P}/front-desk/recurring`, { params: { query } }));
+};
+
+// ---- Đơn đặt sân (T-041, Admin): mọi đơn quầy / online / định kỳ, không gồm vé ----
+export const getBookingOrders = (f: { kind?: string; status?: string; q?: string; date_from?: string; date_to?: string; page?: number; size?: number }) => {
+  const query = Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined && v !== ""));
+  return read<BookingOrderList>(() => looseApi.GET(`${P}/front-desk/orders`, { params: { query } }));
 };
