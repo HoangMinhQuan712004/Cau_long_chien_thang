@@ -411,60 +411,76 @@ function RankCard({ ranking, month }: { ranking: Overview["ranking"]; month: num
 
 // ------------------------------------------------------------------ Kỷ lục mới
 
+/** Vạch sân mờ làm nền ô video. */
+function CourtLines() {
+  return (
+    <svg aria-hidden viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" className="pointer-events-none absolute inset-0 size-full text-surface opacity-[0.12]" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="60" y="20" width="200" height="130" />
+      <path d="M160 20v130M60 85h200M60 45h200M60 125h200M95 20v130M225 20v130" />
+    </svg>
+  );
+}
+
 // Khối chỉ để xem (người dùng 04/11): không có link sang màn khác, ô không bấm được; khi chưa có kỷ lục vẫn giữ khung chờ video
 function RecordCards({ records }: { records: Overview["recent_records"] }) {
   // Thẻ đang phát video (T-046): chỉ một thẻ phát tại một thời điểm; iframe chỉ nạp sau khi bấm ▶
   const [playing, setPlaying] = useState<string | null>(null);
-  // Không có lần phá kỷ lục nào ⇒ ẩn cả khối
-  if (records.length === 0) return null;
   return (
     <section className={card} aria-labelledby="rec-title">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="rec-title" className="text-base font-bold">
-          Kỷ lục mới
-        </h2>
-        <Link href="/hoi-vien/video-ky-luc" className="rounded-sm text-sm font-semibold text-primary hover:underline focus-ring">
-          Xem Video &amp; kỷ lục ›
-        </Link>
-      </div>
-      <ul className="mt-3 grid gap-3 sm:grid-cols-3">
-        {records.slice(0, 3).map((r) => {
-          const k = `${r.measured_at}-${r.speed_kmh}`;
-          const title = `${r.speed_kmh} km/h · ${r.display_name}`;
-          return (
-          <li key={k} className={cn("relative flex min-h-44 flex-col justify-end overflow-hidden rounded-xl bg-appbar p-4 text-surface", r.is_current && "ring-2 ring-accent")}>
-            {r.video && playing === k ? (
-              <VideoPlayer video={r.video} title={title} autoPlay className="relative mb-3" />
-            ) : r.video ? (
-              <button
-                type="button"
-                onClick={() => setPlaying(k)}
-                aria-label={`Phát video: ${title}`}
-                className="absolute top-3 right-3 z-10 grid size-11 place-items-center rounded-full bg-cta text-cta-fg shadow-card focus-ring"
-              >
-                <svg viewBox="0 0 24 24" className="size-6 translate-x-px" fill="currentColor" aria-hidden>
-                  <path d="M8 5.5v13l11-6.5z" />
-                </svg>
-              </button>
-            ) : null}
-            <svg aria-hidden viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" className="pointer-events-none absolute inset-0 size-full text-surface opacity-[0.12]" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="60" y="20" width="200" height="130" />
-              <path d="M160 20v130M60 85h200M60 45h200M60 125h200M95 20v130M225 20v130" />
+      <h2 id="rec-title" className="text-base font-bold">
+        Kỷ lục mới
+      </h2>
+      {/* Chưa có kỷ lục nào: vẫn giữ khung chờ video (người dùng 04/11) */}
+      {records.length === 0 ? (
+        <div className="relative mt-3 flex min-h-44 items-end overflow-hidden rounded-xl bg-appbar p-4 text-surface sm:max-w-sm">
+          <CourtLines />
+          <span aria-hidden className="absolute top-[38%] left-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-surface/20 ring-1 ring-surface/40">
+            <svg viewBox="0 0 24 24" className="size-5 translate-x-px" fill="currentColor">
+              <path d="M8 5.5v13l11-6.5z" />
             </svg>
-            {r.is_current ? <span className="absolute top-3 left-3 rounded-full bg-accent px-2.5 py-1 text-xs font-bold text-cta-fg">Đang giữ kỷ lục</span> : null}
-            <p className="relative flex flex-wrap items-baseline gap-2">
-              <b className="text-3xl leading-none tabular-nums">{r.speed_kmh} km/h</b>
-              {r.delta_kmh !== null ? <span className="rounded-md bg-surface/15 px-2 py-0.5 text-xs font-semibold text-accent-soft">+{r.delta_kmh} km/h</span> : null}
-            </p>
-            <p className="relative mt-1 flex items-center gap-2 text-sm font-semibold">
-              <Avatar url={r.avatar_url} name={r.display_name} size={22} />
-              <span className="truncate">{r.display_name}</span>
-            </p>
-            <p className="relative mt-0.5 truncate text-xs text-surface/80">{[r.racket, r.resource_name, shortDay(r.measured_at)].filter(Boolean).join(" · ")}</p>
-          </li>
-          );
-        })}
-      </ul>
+          </span>
+          <p className="relative text-sm text-surface/85">Chưa có kỷ lục mới trong tháng. Video cú đập kỷ lục sẽ hiện ở đây.</p>
+        </div>
+      ) : null}
+      {records.length > 0 ? (
+        <ul className="mt-3 grid gap-3 sm:grid-cols-3">
+          {records.slice(0, 3).map((r) => {
+            const k = `${r.measured_at}-${r.speed_kmh}`;
+            const title = `${r.speed_kmh} km/h · ${r.display_name}`;
+            return (
+            <li key={k} className={cn("relative flex min-h-44 flex-col justify-end overflow-hidden rounded-xl bg-appbar p-4 text-surface", r.is_current && "ring-2 ring-accent")}>
+              {r.video && playing === k ? (
+                <VideoPlayer video={r.video} title={title} autoPlay className="relative mb-3" />
+              ) : r.video ? (
+                <button
+                  type="button"
+                  onClick={() => setPlaying(k)}
+                  aria-label={`Phát video: ${title}`}
+                  className="absolute top-3 right-3 z-10 grid size-11 place-items-center rounded-full bg-cta text-cta-fg shadow-card focus-ring"
+                >
+                  <svg viewBox="0 0 24 24" className="size-6 translate-x-px" fill="currentColor" aria-hidden>
+                    <path d="M8 5.5v13l11-6.5z" />
+                  </svg>
+                </button>
+              ) : (
+                <span className="absolute top-3 right-3 rounded bg-black/45 px-1.5 py-0.5 text-[11px] font-medium text-surface/90">Chưa có video</span>
+              )}
+              <CourtLines />
+              {r.is_current ? <span className="absolute top-3 left-3 rounded-full bg-accent px-2.5 py-1 text-xs font-bold text-cta-fg">Đang giữ kỷ lục</span> : null}
+              <p className="relative flex flex-wrap items-baseline gap-2">
+                <b className="text-3xl leading-none tabular-nums">{r.speed_kmh} km/h</b>
+                {r.delta_kmh !== null ? <span className="rounded-md bg-surface/15 px-2 py-0.5 text-xs font-semibold text-accent-soft">+{r.delta_kmh} km/h</span> : null}
+              </p>
+              <p className="relative mt-1 flex items-center gap-2 text-sm font-semibold">
+                <Avatar url={r.avatar_url} name={r.display_name} size={22} />
+                <span className="truncate">{r.display_name}</span>
+              </p>
+              <p className="relative mt-0.5 truncate text-xs text-surface/80">{[r.racket, r.resource_name, shortDay(r.measured_at)].filter(Boolean).join(" · ")}</p>
+            </li>
+            );
+          })}
+        </ul>
+      ) : null}
     </section>
   );
 }
