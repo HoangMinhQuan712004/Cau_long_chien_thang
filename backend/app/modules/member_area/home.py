@@ -161,6 +161,7 @@ async def _recent_records(session: AsyncSession, customer_id: int) -> list[Recen
             resource_name=names.get(b.court_code) if b.court_code else None,
             measured_at=b.measured_at,
             is_current=b.is_current,
+            video=records.video_of(b.video_url),
         )
         for b in breaks
     ]

@@ -4,8 +4,8 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.records import service
-from app.modules.records.schemas import Period, SpeedRanking
+from app.modules.records import service, video
+from app.modules.records.schemas import Period, SpeedRanking, VideoOut
 from app.modules.records.service import RecordBreak
 
 __all__ = [
@@ -14,6 +14,7 @@ __all__ = [
     "month_best",
     "record_kmh",
     "speed_ranking",
+    "video_of",
 ]
 
 
@@ -40,3 +41,8 @@ async def club_record_breaks(
 ) -> list[RecordBreak]:
     """Các lần phá kỷ lục toàn cụm gần nhất (mới nhất trước, ``is_current`` = đang giữ kỷ lục)."""
     return await service.club_record_breaks(session, viewer_id, limit)
+
+
+def video_of(url: str | None) -> VideoOut | None:
+    """Link video đã lưu -> ``{kind, url, embed_url, thumbnail_url}`` cho FE (T-046)."""
+    return video.parse(url)
