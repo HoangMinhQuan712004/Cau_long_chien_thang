@@ -8,9 +8,10 @@ import { formatDayMonthYear, formatVnd } from "@/lib/format";
 import { CustomerPicker, customerErrors, customerPayload, emptyCustomer, type CustomerState } from "./customer-picker";
 import { authFailure } from "./booking-dialogs";
 import { getRecurringPreview, sendCollectOrder, sendRecurring } from "./requests";
-import type { Calendar, RecurringBody, RecurringConflict, RecurringPreview, RecurringResult } from "./types";
+import type { Calendar, RecurringBody, RecurringConflict, RecurringPreview, RecurringResult, RecurringSessionIn, RecurringSuggestion } from "./types";
 import { btnCls, btnPrimaryCls, ErrorBanner, Group, Hint, inputCls, SummaryBox } from "./ui";
 
+// Đặt sân định kỳ (T-035, chỉ Admin), v2 (T-039), linh động (T-043): gợi ý buổi lỗi, sửa / bỏ từng buổi, xem trước gọn.
 // Đặt sân định kỳ (T-035, chỉ Admin), v2 (T-039): ba nhóm Khách · Lịch · Tiền, xem trước TỰ ĐỘNG khi đổi dữ liệu
 // (debounce 400 ms, hủy lượt gọi cũ), điện thoại là màn toàn trang với nút Đặt dính đáy.
 
@@ -31,6 +32,9 @@ const hh = (t: string) => t.slice(0, 5);
 const MAX_DAYS = 92;
 const DEBOUNCE_MS = 400;
 const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+
+/** Chỉnh sửa của một buổi so với lịch chung. */
+type Tweak = { resource_code?: string; start_hour?: number; end_hour?: number; removed?: boolean };
 
 const REASON: Record<string, string> = {
   booked: "Đã có người đặt",
@@ -70,15 +74,34 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
   const [result, setResult] = useState<{ key: string; data: RecurringPreview } | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [serverConflicts, setServerConflicts] = useState<RecurringConflict[]>([]);
+  // Chỉnh từng buổi, khóa theo ngày (mỗi ngày tối đa một buổi): đổi sân / giờ hoặc bỏ buổi (T-043 AC3)
+  const [tweaks, setTweaks] = useState<Record<string, Tweak>>({});
+  const [editingDay, setEditingDay] = useState<string | null>(null);
+  const [showOk, setShowOk] = useState(false);
+  const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState("");
   const [done, setDone] = useState<(RecurringResult & { paid: boolean }) | null>(null);
 
-  const edit = <T,>(set: (v: T) => void) => (v: T) => {
+  const edit = <T,>(set: (v: T) => void, resetTweaks = false) => (v: T) => {
     set(v);
     setServerConflicts([]);
     setBanner("");
+    if (resetTweaks) {
+      setTweaks({});
+      setEditingDay(null);
+    }
   };
+
+  // Các buổi sinh từ lịch chung (theo thứ trong tuần), rồi áp chỉnh sửa / lượt bỏ của từng buổi
+  const base: RecurringSessionIn[] = (() => {
+    if (!dateFrom || !dateTo || dateTo < dateFrom || dateTo > addDays(dateFrom, MAX_DAYS - 1) || weekdays.length === 0) return [];
+    const out: RecurringSessionIn[] = [];
+    for (let d = dateFrom; d <= dateTo; d = addDays(d, 1)) if (weekdays.includes(isoDow(d))) out.push({ date: d, resource_code: resource, start_hour: startHour, end_hour: endHour });
+    return out;
+  })();
+  const effective = base.filter((b) => !tweaks[b.date]?.removed).map((b) => ({ ...b, ...tweaks[b.date], removed: undefined })) as RecurringSessionIn[];
+  const removedDays = base.filter((b) => tweaks[b.date]?.removed);
 
   const pctNum = pct.trim() === "" ? NaN : Number(pct);
   const cErr = customerErrors(customer);
@@ -90,12 +113,13 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
     !dateFrom || !dateTo || dateTo < dateFrom ? "Khoảng ngày không hợp lệ" :
     dateFrom < today ? "Từ ngày không được trước hôm nay" :
     dateTo > addDays(dateFrom, MAX_DAYS - 1) ? `Khoảng ngày tối đa ${MAX_DAYS} ngày` :
-    !Number.isInteger(pctNum) || pctNum < 0 || pctNum > 100 ? "% giảm là số nguyên từ 0 đến 100" : "";
+    !Number.isInteger(pctNum) || pctNum < 0 || pctNum > 100 ? "% giảm là số nguyên từ 0 đến 100" :
+    base.length > 0 && effective.length === 0 ? "Đã bỏ hết các buổi" : "";
 
   const payload: RecurringBody | null = (() => {
     const c = customerPayload(customer);
     if (!c || formError) return null;
-    return { customer: c, resource_code: resource, weekdays: [...weekdays].sort(), start_hour: startHour, end_hour: endHour, date_from: dateFrom, date_to: dateTo, discount_pct: pctNum };
+    return { customer: c, resource_code: resource, weekdays: [...weekdays].sort(), start_hour: startHour, end_hour: endHour, date_from: dateFrom, date_to: dateTo, discount_pct: pctNum, sessions: effective };
   })();
   const key = payload ? JSON.stringify(payload) : "";
 
@@ -107,7 +131,6 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
       return;
     }
     const ctl = new AbortController();
-     
     setCalculating(true);
     const timer = setTimeout(async () => {
       const res = await getRecurringPreview(JSON.parse(key) as RecurringBody, ctl.signal);
@@ -122,10 +145,20 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
       clearTimeout(timer);
       ctl.abort();
     };
-  }, [key]);
+  }, [key, tick]);
 
   const preview = result && result.key === key ? result.data : null;
   const canBook = Boolean(payload && preview && !calculating && !busy && preview.conflicts_count === 0 && preview.count > 0);
+
+  const setTweak = (day: string, t: Tweak | null) =>
+    setTweaks((cur) => {
+      const next = { ...cur };
+      if (t) next[day] = { ...cur[day], ...t };
+      else delete next[day];
+      return next;
+    });
+  /** Áp một gợi ý cho buổi ngày `day`: đổi sân + giờ (T-043 AC2). */
+  const applySuggestion = (day: string, sg: RecurringSuggestion) => setTweak(day, { resource_code: sg.resource_code, start_hour: sg.start_hour, end_hour: sg.end_hour });
 
   async function book() {
     if (!payload || !canBook) return;
@@ -140,6 +173,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
           // Có buổi không đặt được (kể cả tranh chấp đồng thời): không tạo gì; hiện danh sách buổi lỗi
           setServerConflicts(e.extra.conflicts as RecurringConflict[]);
           setResult(null);
+          setTick((n) => n + 1); // tính lại ngay để thấy buổi lỗi + gợi ý mới
         }
         setBanner(errorText(e));
         return;
@@ -243,7 +277,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
             <label htmlFor={ids.res} className="mb-1 block text-sm font-medium">
               Sân
             </label>
-            <select id={ids.res} value={resource} onChange={(e) => edit(setResource)(e.target.value)} className={sel}>
+            <select id={ids.res} value={resource} onChange={(e) => edit(setResource, true)(e.target.value)} className={sel}>
               {resources.map((r) => (
                 <option key={r.code} value={r.code}>
                   {r.code} · {r.name}
@@ -256,7 +290,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
               <label htmlFor={ids.sh} className="mb-1 block text-sm font-medium">
                 Giờ từ
               </label>
-              <select id={ids.sh} value={startHour} onChange={(e) => edit(setStartHour)(Number(e.target.value))} className={sel}>
+              <select id={ids.sh} value={startHour} onChange={(e) => edit(setStartHour, true)(Number(e.target.value))} className={sel}>
                 {calendar.columns.map((h) => (
                   <option key={h} value={h}>
                     {pad(h)}:00
@@ -268,7 +302,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
               <label htmlFor={ids.eh} className="mb-1 block text-sm font-medium">
                 Giờ đến
               </label>
-              <select id={ids.eh} value={endHour} onChange={(e) => edit(setEndHour)(Number(e.target.value))} className={sel}>
+              <select id={ids.eh} value={endHour} onChange={(e) => edit(setEndHour, true)(Number(e.target.value))} className={sel}>
                 {calendar.columns.map((h) => (
                   <option key={h + 1} value={h + 1}>
                     {pad(h + 1)}:00
@@ -288,7 +322,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
                   key={n}
                   type="button"
                   aria-pressed={on}
-                  onClick={() => edit(setWeekdays)(on ? weekdays.filter((x) => x !== n) : [...weekdays, n])}
+                  onClick={() => edit(setWeekdays, true)(on ? weekdays.filter((x) => x !== n) : [...weekdays, n])}
                   className={`h-10 rounded-md border text-sm font-medium ${on ? "border-primary bg-primary text-white" : "border-border bg-background hover:bg-primary-softer"}`}
                 >
                   {label}
@@ -302,13 +336,13 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
             <label htmlFor={ids.from} className="mb-1 block text-sm font-medium">
               Từ ngày
             </label>
-            <input id={ids.from} type="date" min={today} value={dateFrom} onChange={(e) => edit(setDateFrom)(e.target.value)} className={sel} />
+            <input id={ids.from} type="date" min={today} value={dateFrom} onChange={(e) => edit(setDateFrom, true)(e.target.value)} className={sel} />
           </div>
           <div>
             <label htmlFor={ids.to} className="mb-1 block text-sm font-medium">
               Đến ngày
             </label>
-            <input id={ids.to} type="date" min={dateFrom} value={dateTo} onChange={(e) => edit(setDateTo)(e.target.value)} className={sel} />
+            <input id={ids.to} type="date" min={dateFrom} value={dateTo} onChange={(e) => edit(setDateTo, true)(e.target.value)} className={sel} />
           </div>
         </div>
       </Group>
@@ -331,12 +365,11 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
             ) : (
               <>
                 <p>
-                  <b>{preview.count}</b> buổi · giá gốc {formatVnd(preview.original_amount)} · giảm {formatVnd(preview.discount_amount)}
+                  <b>{preview.count}</b> buổi · gốc {formatVnd(preview.original_amount)} · giảm {formatVnd(preview.discount_amount)} · <b className="text-base">phải thu {formatVnd(preview.total)}</b>
                 </p>
-                <p className="text-base font-bold">Phải thu {formatVnd(preview.total)}</p>
                 {preview.conflicts_count > 0 ? (
                   <p role="alert" className="font-medium text-danger">
-                    Còn {preview.conflicts_count} buổi lỗi. Đổi lịch mới đặt được.
+                    Còn {preview.conflicts_count} buổi lỗi. Dùng gợi ý, sửa hoặc bỏ buổi để tiếp tục.
                   </p>
                 ) : null}
               </>
@@ -345,7 +378,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
         </div>
       </Group>
 
-      <Hint>Hệ thống sinh từng buổi, kiểm lịch theo từng ngày và đặt tất cả hoặc không đặt gì. Giá gốc theo bảng giá từng buổi, tối đa {MAX_DAYS} ngày và 60 buổi. Chưa có hủy hay đổi buổi: kiểm kỹ bảng xem trước.</Hint>
+      <Hint>Hệ thống sinh từng buổi, kiểm lịch theo từng ngày và đặt tất cả hoặc không đặt gì. Giá gốc theo bảng giá từng buổi, tối đa {MAX_DAYS} ngày và 60 buổi. Buổi lỗi có thể dùng gợi ý, sửa giờ / sân hoặc bỏ riêng. Đặt xong chưa có hủy hay đổi buổi.</Hint>
 
       {serverConflicts.length > 0 ? (
         <section aria-label="Buổi không đặt được">
@@ -362,68 +395,182 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
         </section>
       ) : null}
 
-      {preview ? (
-        <section aria-label="Các buổi sẽ đặt" className={`space-y-2 ${calculating ? "opacity-60" : ""}`} aria-busy={calculating}>
-          {/* Từ md: bảng; điện thoại: danh sách thẻ */}
-          <div className="hidden max-h-72 overflow-auto rounded-lg border border-border md:block">
-            <table className="w-full text-sm">
-              <caption className="sr-only">Danh sách {preview.count} buổi</caption>
-              <thead className="sticky top-0 bg-background text-left text-xs text-muted">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Ngày</th>
-                  <th className="px-2 py-2 font-medium">Thứ</th>
-                  <th className="px-2 py-2 font-medium">Giờ</th>
-                  <th className="px-2 py-2 text-right font-medium">Giá gốc</th>
-                  <th className="px-3 py-2 text-right font-medium">Sau giảm</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.sessions.map((s) => (
-                  <tr key={`${s.date}-${s.start_time}`} className={`border-t border-border ${s.ok ? "" : "bg-danger/10 text-danger"}`}>
-                    <td className="px-3 py-1.5 tabular-nums">{formatDayMonthYear(s.date)}</td>
-                    <td className="px-2 py-1.5">{dowName(s.date)}</td>
-                    <td className="px-2 py-1.5 tabular-nums">
-                      {hh(s.start_time)}–{hh(s.end_time)}
-                    </td>
-                    {s.ok ? (
-                      <>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{s.price !== null ? formatVnd(s.price) : "—"}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{s.price_after_discount !== null ? formatVnd(s.price_after_discount) : "—"}</td>
-                      </>
-                    ) : (
-                      <td colSpan={2} className="px-3 py-1.5 text-right font-medium">
-                        {s.reason_text ?? reasonText(s.reason)}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <ul className="space-y-2 md:hidden">
-            {preview.sessions.map((s) => (
-              <li key={`${s.date}-${s.start_time}`} className={`rounded-lg border p-3 text-sm ${s.ok ? "border-border" : "border-danger/40 bg-danger/10 text-danger"}`}>
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium tabular-nums">
-                    {dowName(s.date)} {formatDayMonthYear(s.date)}
-                  </span>
-                  <span className="tabular-nums">
-                    {hh(s.start_time)}–{hh(s.end_time)}
-                  </span>
-                </div>
-                {s.ok ? (
-                  <p className="mt-1 flex justify-between gap-3 tabular-nums">
-                    <span className="text-muted">Giá gốc {s.price !== null ? formatVnd(s.price) : "—"}</span>
-                    <b>{s.price_after_discount !== null ? formatVnd(s.price_after_discount) : "—"}</b>
-                  </p>
-                ) : (
-                  <p className="mt-1 font-medium">{s.reason_text ?? reasonText(s.reason)}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      <SessionsPanel
+        preview={preview}
+        calculating={calculating}
+        resources={resources}
+        columns={calendar.columns}
+        tweaks={tweaks}
+        removedDays={removedDays}
+        editingDay={editingDay}
+        setEditingDay={setEditingDay}
+        setTweak={setTweak}
+        applySuggestion={applySuggestion}
+        showOk={showOk}
+        setShowOk={setShowOk}
+      />
     </Modal>
+  );
+}
+
+type PanelProps = {
+  preview: RecurringPreview | null;
+  calculating: boolean;
+  resources: Calendar["resources"];
+  columns: number[];
+  tweaks: Record<string, Tweak>;
+  removedDays: RecurringSessionIn[];
+  editingDay: string | null;
+  setEditingDay: (d: string | null) => void;
+  setTweak: (day: string, t: Tweak | null) => void;
+  applySuggestion: (day: string, sg: RecurringSuggestion) => void;
+  showOk: boolean;
+  setShowOk: (v: boolean) => void;
+};
+
+const KIND_LABEL: Record<RecurringSuggestion["kind"], string> = { shift: "Lệch giờ", court: "Sân khác" };
+
+/** Xem trước gọn (T-043 AC4): chỉ buổi lỗi + dòng gộp "✓ n buổi hợp lệ" (bấm để mở), buổi đã bỏ có Hoàn tác. */
+function SessionsPanel({ preview, calculating, resources, columns, tweaks, removedDays, editingDay, setEditingDay, setTweak, applySuggestion, showOk, setShowOk }: PanelProps) {
+  if (!preview && removedDays.length === 0) return null;
+  const sessions = preview?.sessions ?? [];
+  const bad = sessions.filter((s) => !s.ok);
+  const good = sessions.filter((s) => s.ok);
+  const nameOf = (code?: string) => resources.find((r) => r.code === code)?.name ?? code ?? "";
+
+  // "Áp cho mọi buổi {thứ} lỗi": nhóm các buổi lỗi cùng thứ có cùng kiểu gợi ý (≥ 2 buổi)
+  const bulk = new Map<string, { dow: string; kind: RecurringSuggestion["kind"]; days: { date: string; sg: RecurringSuggestion }[] }>();
+  for (const s of bad) {
+    for (const sg of s.suggestions ?? []) {
+      const k = `${isoDow(s.date)}|${sg.kind}`;
+      const g = bulk.get(k) ?? { dow: dowName(s.date), kind: sg.kind, days: [] };
+      g.days.push({ date: s.date, sg });
+      bulk.set(k, g);
+    }
+  }
+  const bulkList = [...bulk.values()].filter((g) => g.days.length >= 2);
+  const smallBtn = "min-h-10 rounded-md border border-border px-3 text-sm hover:bg-primary-softer focus-ring";
+
+  const row = (s: (typeof sessions)[number], bad: boolean) => {
+    const tw = tweaks[s.date];
+    const code = s.resource_code ?? tw?.resource_code;
+    const editing = editingDay === s.date;
+    return (
+      <li key={s.date} className={`rounded-lg border p-3 text-sm ${bad ? "border-danger/40 bg-danger/10" : "border-border"}`}>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <span className="font-medium tabular-nums">
+            {dowName(s.date)} {formatDayMonthYear(s.date)} · {hh(s.start_time)}–{hh(s.end_time)}
+            {code ? <span className="font-normal text-muted"> · {nameOf(code)}</span> : null}
+          </span>
+          <span className="flex items-center gap-2">
+            {tw ? <span className="rounded-full bg-primary-softer px-2 py-0.5 text-xs font-medium text-primary">Đã chỉnh</span> : null}
+            {bad ? <b className="text-danger">{s.reason_text ?? reasonText(s.reason)}</b> : <span className="tabular-nums">{s.price_after_discount !== null ? formatVnd(s.price_after_discount) : "—"}</span>}
+          </span>
+        </div>
+
+        {bad && (s.suggestions?.length ?? 0) > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={`Gợi ý cho ${dowName(s.date)} ${formatDayMonthYear(s.date)}`}>
+            {s.suggestions!.map((sg) => (
+              <button key={`${sg.kind}-${sg.resource_code}-${sg.start_hour}`} type="button" onClick={() => applySuggestion(s.date, sg)} className={`${smallBtn} border-primary text-primary`}>
+                Dùng gợi ý · {KIND_LABEL[sg.kind]}: {sg.kind === "court" ? `${sg.resource_name} ` : ""}
+                {pad(sg.start_hour)}–{pad(sg.end_hour)}h · {formatVnd(sg.price)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button type="button" onClick={() => setEditingDay(editing ? null : s.date)} aria-expanded={editing} className={smallBtn}>
+            {editing ? "Xong" : "Sửa giờ / sân"}
+          </button>
+          <button type="button" onClick={() => setTweak(s.date, { removed: true })} className={smallBtn}>
+            Bỏ buổi
+          </button>
+          {tw ? (
+            <button type="button" onClick={() => setTweak(s.date, null)} className={smallBtn}>
+              Hoàn tác
+            </button>
+          ) : null}
+        </div>
+
+        {editing ? (
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <label className="text-xs text-muted">
+              Sân
+              <select value={code ?? ""} onChange={(e) => setTweak(s.date, { resource_code: e.target.value })} className={`${inputCls} mt-0.5 h-10`}>
+                {resources.map((r) => (
+                  <option key={r.code} value={r.code}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-muted">
+              Từ
+              <select value={Number(s.start_time.slice(0, 2))} onChange={(e) => setTweak(s.date, { start_hour: Number(e.target.value), end_hour: Math.max(Number(e.target.value) + 1, tw?.end_hour ?? Number(s.end_time.slice(0, 2))) })} className={`${inputCls} mt-0.5 h-10`}>
+                {columns.map((h) => (
+                  <option key={h} value={h}>
+                    {pad(h)}:00
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-muted">
+              Đến
+              <select value={Number(s.end_time.slice(0, 2))} onChange={(e) => setTweak(s.date, { end_hour: Number(e.target.value) })} className={`${inputCls} mt-0.5 h-10`}>
+                {columns.filter((h) => h + 1 > Number(s.start_time.slice(0, 2))).map((h) => (
+                  <option key={h + 1} value={h + 1}>
+                    {pad(h + 1)}:00
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : null}
+      </li>
+    );
+  };
+
+  return (
+    <section aria-label="Các buổi cần xử lý" className={`space-y-2 ${calculating ? "opacity-60" : ""}`} aria-busy={calculating}>
+      {bulkList.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {bulkList.map((g) => (
+            <button key={`${g.dow}-${g.kind}`} type="button" onClick={() => g.days.forEach((d) => applySuggestion(d.date, d.sg))} className={`${smallBtn} border-primary text-primary`}>
+              Áp “{KIND_LABEL[g.kind].toLowerCase()}” cho mọi buổi {g.dow} lỗi ({g.days.length})
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {bad.length > 0 ? <ul className="space-y-2">{bad.map((s) => row(s, true))}</ul> : null}
+
+      {removedDays.length > 0 ? (
+        <ul className="space-y-1" aria-label="Buổi đã bỏ">
+          {removedDays.map((r) => (
+            <li key={r.date} className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted">
+              <span className="tabular-nums line-through">
+                {dowName(r.date)} {formatDayMonthYear(r.date)}
+              </span>
+              <button type="button" onClick={() => setTweak(r.date, null)} className="min-h-9 rounded-md px-2 text-primary hover:underline focus-ring">
+                Hoàn tác
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {good.length > 0 ? (
+        <div>
+          <button type="button" onClick={() => setShowOk(!showOk)} aria-expanded={showOk} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 text-left text-sm font-medium focus-ring">
+            <span>✓ {good.length} buổi hợp lệ</span>
+            <span aria-hidden className="text-muted">
+              {showOk ? "Thu gọn ▴" : "Xem ▾"}
+            </span>
+          </button>
+          {showOk ? <ul className="mt-2 space-y-2">{good.map((s) => row(s, false))}</ul> : null}
+        </div>
+      ) : null}
+    </section>
   );
 }

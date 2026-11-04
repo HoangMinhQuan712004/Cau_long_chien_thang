@@ -211,15 +211,25 @@ export type SchemaContract = [
 ];
 
 // ---- Đặt sân định kỳ (T-035, Admin): kiểu sinh từ schema.d.ts ----
+/** Một buổi tường minh gửi lên (T-043): FE sinh từ lịch chung rồi áp chỉnh sửa / bỏ buổi. */
+export type RecurringSessionIn = Api["schemas"]["RecurringSessionIn"];
+/** Gợi ý cho buổi lỗi (T-043 AC1): `shift` = cùng sân lệch giờ, `court` = cùng giờ sân khác. Giá là giá gốc. */
+export type RecurringSuggestion = Api["schemas"]["RecurringSuggestion"];
 export type RecurringBody = Api["schemas"]["RecurringBookingIn"];
 export type RecurringPreviewBody = Api["schemas"]["RecurringPreviewIn"];
 export type RecurringSession = Api["schemas"]["RecurringSession"];
 export type RecurringPreview = Api["schemas"]["RecurringPreview"];
 export type RecurringResult = Api["schemas"]["RecurringCreated"];
 /** Buổi không đặt được trong lỗi 409 E-BOOK-5 (`extra.conflicts`). */
-export type RecurringConflict = { date: string; start: string; reason: string | null; reason_text?: string | null };
+export type RecurringConflict = { date: string; start: string; resource_code?: string; reason: string | null; reason_text?: string | null };
 
 // ---- Danh sách đơn định kỳ (T-039): kiểu sinh từ schema.d.ts ----
 export type RecurringOrderStatus = Api["schemas"]["RecurringOrderOut"]["status"];
 export type RecurringOrderRow = Api["schemas"]["RecurringOrderOut"];
 export type RecurringOrderList = Api["schemas"]["RecurringOrderListOut"];
+
+// ---- Đơn đặt sân (T-041): kiểu sinh từ schema.d.ts ----
+export type BookingOrderRow = Api["schemas"]["OrderOut"];
+export type BookingOrderList = Api["schemas"]["OrderListOut"];
+export type BookingOrderKind = BookingOrderRow["kind"];
+export type BookingOrderStatus = BookingOrderRow["status"];
