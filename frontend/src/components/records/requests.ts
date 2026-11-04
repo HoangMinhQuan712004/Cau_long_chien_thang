@@ -1,9 +1,9 @@
 import "client-only";
 import { looseApi } from "@/lib/api/client";
 import { toApiError, type ApiError } from "@/lib/api/write";
-import type { RecordVideo } from "@/lib/video";
+import type { components } from "@/lib/api/schema";
 
-// Video kỷ lục (T-046). TODO(T-046): đổi sang `schema.d.ts` + `api` có kiểu khi BE handoff; kiểu dưới đây là giả định theo spec.
+// Video kỷ lục (T-046): kiểu sinh từ schema.d.ts.
 
 export type Read<T> = { ok: true; data: T } | { ok: false; error: ApiError };
 
@@ -20,18 +20,8 @@ async function read<T>(call: () => Promise<{ data?: unknown; error?: unknown; re
 const P = "/api/v1";
 const idem = (key: string) => ({ "Idempotency-Key": key });
 
-/** Một số đo ở màn Admin "Kỷ lục & video". */
-export type AdminSpeedRecord = {
-  id: number;
-  speed_kmh: number;
-  measured_at: string;
-  display_name: string;
-  member_code: string | null;
-  /** Sân (tên hoặc mã) nếu có. */
-  resource_name?: string | null;
-  video: RecordVideo | null;
-};
-export type AdminSpeedRecordList = { items: AdminSpeedRecord[]; total: number; page: number; size: number };
+export type AdminSpeedRecord = components["schemas"]["AdminSpeedRecordRow"];
+export type AdminSpeedRecordList = components["schemas"]["AdminSpeedRecordList"];
 
 export const getAdminSpeedRecords = (f: { has_video?: boolean; page?: number; size?: number }) => {
   const query = Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined));
@@ -39,20 +29,11 @@ export const getAdminSpeedRecords = (f: { has_video?: boolean; page?: number; si
 };
 
 /** Gắn / sửa video của một số đo (`write((key) => sendRecordVideo(key, id, url))`). Link sai → 422 E-REC-1. */
-export const sendRecordVideo = (key: string, id: number, url: string) => looseApi.PUT(`${P}/admin/speed-records/{id}/video`, { params: { path: { id } }, body: { url }, headers: idem(key) });
+export const sendRecordVideo = (key: string, id: number, url: string) => looseApi.PUT(`${P}/admin/speed-records/{record_id}/video`, { params: { path: { record_id: id } }, body: { url }, headers: idem(key) });
 
-export const sendRemoveRecordVideo = (key: string, id: number) => looseApi.DELETE(`${P}/admin/speed-records/{id}/video`, { params: { path: { id } }, headers: idem(key) });
+export const sendRemoveRecordVideo = (key: string, id: number) => looseApi.DELETE(`${P}/admin/speed-records/{record_id}/video`, { params: { path: { record_id: id } }, headers: idem(key) });
 
-/** Video ở màn hội viên "Video & kỷ lục". */
-export type MemberRecordVideo = {
-  speed_kmh: number;
-  measured_at: string;
-  /** Theo quy tắc ẩn danh T-030. */
-  display_name: string;
-  avatar_url: string | null;
-  racket?: string | null;
-  resource_name?: string | null;
-  video: RecordVideo;
-};
+/** Video ở màn hội viên "Video & kỷ lục": chỉ số đo có video, tối đa 60; tên theo quy tắc ẩn danh T-030. */
+export type MemberRecordVideo = components["schemas"]["RecordVideoCard"];
 export type VideoPeriod = "week" | "month" | "year" | "all";
-export const getMemberVideos = (period: VideoPeriod) => read<{ items: MemberRecordVideo[] }>(() => looseApi.GET(`${P}/member-area/record-videos`, { params: { query: { period } } }));
+export const getMemberVideos = (period: VideoPeriod) => read<components["schemas"]["RecordVideoList"]>(() => looseApi.GET(`${P}/member-area/record-videos`, { params: { query: { period } } }));

@@ -90,7 +90,7 @@ export function AdminRecordsScreen() {
                   {r.video ? <span className="rounded-full bg-primary-softer px-2 py-0.5 text-xs font-semibold text-primary">{r.video.kind === "youtube" ? "YouTube" : "File video"}</span> : <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">Chưa có video</span>}
                 </p>
                 <p className="text-sm font-medium">
-                  {r.display_name}
+                  {r.member_name}
                   {r.member_code ? <span className="ml-1.5 rounded bg-background px-1.5 py-0.5 font-mono text-xs font-normal text-muted">{r.member_code}</span> : null}
                 </p>
                 <p className="text-xs text-muted tabular-nums">
@@ -172,7 +172,7 @@ function VideoDialog({ record, onClose, onSaved }: { record: AdminSpeedRecord; o
         if (!authFailure(res.error)) setBanner(errorText(res.error));
         return;
       }
-      toast(record.video ? "Đã cập nhật video" : "Đã gắn video", `${record.speed_kmh} km/h · ${record.display_name}`);
+      toast(record.video ? "Đã cập nhật video" : "Đã gắn video", `${record.speed_kmh} km/h · ${record.member_name}`);
       onSaved();
     } finally {
       setBusy(false);
@@ -198,7 +198,7 @@ function VideoDialog({ record, onClose, onSaved }: { record: AdminSpeedRecord; o
     >
       {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
       <p className="text-sm">
-        <b className="tabular-nums">{record.speed_kmh} km/h</b> · {record.display_name}
+        <b className="tabular-nums">{record.speed_kmh} km/h</b> · {record.member_name}
         {record.member_code ? ` (${record.member_code})` : ""}
       </p>
       <div>
@@ -248,7 +248,7 @@ function RemoveDialog({ record, onClose, onRemoved }: { record: AdminSpeedRecord
         if (!authFailure(res.error)) setBanner(errorText(res.error));
         return;
       }
-      toast("Đã gỡ video", `${record.speed_kmh} km/h · ${record.display_name}`);
+      toast("Đã gỡ video", `${record.speed_kmh} km/h · ${record.member_name}`);
       onRemoved();
     } finally {
       setBusy(false);
@@ -272,7 +272,7 @@ function RemoveDialog({ record, onClose, onRemoved }: { record: AdminSpeedRecord
     >
       {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
       <p className="text-sm">
-        Gỡ video của số đo <b>{record.speed_kmh} km/h</b> ({record.display_name}). Số đo vẫn còn trong bảng xếp hạng.
+        Gỡ video của số đo <b>{record.speed_kmh} km/h</b> ({record.member_name}). Số đo vẫn còn trong bảng xếp hạng.
       </p>
     </Modal>
   );

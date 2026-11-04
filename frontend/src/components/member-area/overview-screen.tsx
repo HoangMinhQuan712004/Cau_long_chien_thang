@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Avatar } from "@/components/member-area/avatar";
 import { PageBanner } from "@/components/member-area/page-banner";
 import { roomsApi } from "@/components/play-rooms/requests";
+import { VideoPlayer } from "@/components/records/video-player";
 import type { RoomCard } from "@/components/play-rooms/types";
 import { hourRange, joinBlockText, tierRangeText } from "@/components/play-rooms/utils";
 import { Button } from "@/components/ui/button";
@@ -438,6 +439,8 @@ function RankCard({ ranking, month }: { ranking: Overview["ranking"]; month: num
 // ------------------------------------------------------------------ Kỷ lục mới
 
 function RecordCards({ records }: { records: Overview["recent_records"] }) {
+  // Thẻ đang phát video (T-046): chỉ một thẻ phát tại một thời điểm; iframe chỉ nạp sau khi bấm ▶
+  const [playing, setPlaying] = useState<string | null>(null);
   // Không có lần phá kỷ lục nào ⇒ ẩn cả khối
   if (records.length === 0) return null;
   return (
@@ -451,8 +454,25 @@ function RecordCards({ records }: { records: Overview["recent_records"] }) {
         </Link>
       </div>
       <ul className="mt-3 grid gap-3 sm:grid-cols-3">
-        {records.slice(0, 3).map((r) => (
-          <li key={`${r.measured_at}-${r.speed_kmh}`} className={cn("relative flex min-h-44 flex-col justify-end overflow-hidden rounded-xl bg-appbar p-4 text-surface", r.is_current && "ring-2 ring-accent")}>
+        {records.slice(0, 3).map((r) => {
+          const k = `${r.measured_at}-${r.speed_kmh}`;
+          const title = `${r.speed_kmh} km/h · ${r.display_name}`;
+          return (
+          <li key={k} className={cn("relative flex min-h-44 flex-col justify-end overflow-hidden rounded-xl bg-appbar p-4 text-surface", r.is_current && "ring-2 ring-accent")}>
+            {r.video && playing === k ? (
+              <VideoPlayer video={r.video} title={title} autoPlay className="relative mb-3" />
+            ) : r.video ? (
+              <button
+                type="button"
+                onClick={() => setPlaying(k)}
+                aria-label={`Phát video: ${title}`}
+                className="absolute top-3 right-3 z-10 grid size-11 place-items-center rounded-full bg-cta text-cta-fg shadow-card focus-ring"
+              >
+                <svg viewBox="0 0 24 24" className="size-6 translate-x-px" fill="currentColor" aria-hidden>
+                  <path d="M8 5.5v13l11-6.5z" />
+                </svg>
+              </button>
+            ) : null}
             <svg aria-hidden viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" className="pointer-events-none absolute inset-0 size-full text-surface opacity-[0.12]" fill="none" stroke="currentColor" strokeWidth="1.5">
               <rect x="60" y="20" width="200" height="130" />
               <path d="M160 20v130M60 85h200M60 45h200M60 125h200M95 20v130M225 20v130" />
@@ -468,7 +488,8 @@ function RecordCards({ records }: { records: Overview["recent_records"] }) {
             </p>
             <p className="relative mt-0.5 truncate text-xs text-surface/80">{[r.racket, r.resource_name, shortDay(r.measured_at)].filter(Boolean).join(" · ")}</p>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </section>
   );

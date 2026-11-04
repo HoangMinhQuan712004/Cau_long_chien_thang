@@ -1,7 +1,7 @@
 // Video kỷ lục gắn thủ công (T-046): chỉ nhận link https của YouTube hoặc file .mp4 / .webm.
 // Kiểm ở FE chỉ để báo sớm và xem thử; server (E-REC-1) mới là nơi quyết định.
 
-export type RecordVideo = { kind: "youtube" | "file"; url: string; embed_url?: string | null };
+export type RecordVideo = { kind: "youtube" | "file"; url: string; embed_url?: string | null; thumbnail_url?: string | null };
 
 const YT_ID = /^[\w-]{11}$/;
 const YT_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"]);
