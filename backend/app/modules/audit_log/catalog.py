@@ -89,6 +89,14 @@ GROUPS: tuple[ActionGroup, ...] = (
             _t("payment.uncollectible", "Không thu được"),
         ),
     ),
+    ActionGroup(
+        "Kỷ lục",
+        (
+            # T-046: Admin gắn / gỡ link video cho số đo tốc độ
+            _t("record.video_set", "Gắn video kỷ lục"),
+            _t("record.video_removed", "Gỡ video kỷ lục"),
+        ),
+    ),
 )
 
 # Người làm lọc được (BR-013): mã ``audit_log.actor_type`` -> nhãn

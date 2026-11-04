@@ -7,8 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.members import api as members
+from app.modules.play_rooms import demo, history, tiers, views
 from app.modules.play_rooms import errors as room_errors
-from app.modules.play_rooms import history, tiers, views
 from app.modules.play_rooms.common import CAPACITY, Me, eligible, is_closed, person_out
 from app.modules.play_rooms.models import PlayRoom, PlayRoomMember
 from app.modules.play_rooms.schemas import PersonOut, PlayHistorySummary, RoomCard
@@ -138,3 +138,33 @@ async def month_stats(
 ) -> PlayHistorySummary:
     """Buổi chơi / số trận / trận thắng trong tháng – cùng định nghĩa Lịch sử chơi (T-029)."""
     return (await history.play_history(session, customer_id, month)).summary
+
+
+# ------------------------------------------------------------------ dữ liệu mẫu dev (T-034)
+
+DemoMatch = demo.DemoMatch
+
+
+async def seed_demo_room(
+    session: AsyncSession,
+    booking_code: str,
+    *,
+    member_ids: list[int],
+    pending_join: list[int] | None = None,
+    matches: list[demo.DemoMatch] | None = None,
+    close: bool = False,
+) -> int | None:
+    return await demo.seed_room(
+        session,
+        booking_code,
+        member_ids=member_ids,
+        pending_join=pending_join,
+        matches=matches,
+        close=close,
+    )
+
+
+async def purge_demo(
+    session: AsyncSession, booking_codes: list[str], customer_ids: list[int]
+) -> int:
+    return await demo.purge_demo(session, booking_codes, customer_ids)

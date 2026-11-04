@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.modules.play_rooms.schemas import PersonOut, PlayHistorySummary, RoomCard
-from app.modules.records.schemas import SpeedRankingRow
+from app.modules.records.schemas import SpeedRankingRow, VideoOut
 
 
 class UpcomingItem(BaseModel):
@@ -97,6 +97,9 @@ class RecentRecord(BaseModel):
     resource_name: str | None = Field(description="Sân đo; null khi số đo không gắn sân")
     measured_at: dt.datetime
     is_current: bool = Field(description="Đang giữ kỷ lục (thẻ viền vàng)")
+    video: VideoOut | None = Field(
+        default=None, description="T-046: có thì hiện nút ▶ phát tại chỗ (cả khi ẩn danh)"
+    )
 
 
 Kind = Literal["booking", "ticket"]

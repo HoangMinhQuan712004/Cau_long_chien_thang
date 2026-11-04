@@ -16,6 +16,7 @@ from app.modules.booking_engine import (
     booking_service,
     config_service,
     customer_history,
+    demo,
     holds,
     member_history,
     online_service,
@@ -606,3 +607,65 @@ async def upcoming_events(
 ) -> list[UpcomingEvent]:
     """Sự kiện chưa bắt đầu trong ``days`` ngày tới (T-045) – không danh sách người mua."""
     return await ticket_online.upcoming_events(session, _tid(tenant_id), refs, days)
+
+
+# ---- Dữ liệu mẫu dev (T-034) – từ chối khi ENV=production
+
+DemoPayment = demo.DemoPayment
+
+
+async def seed_demo_booking(
+    session: AsyncSession,
+    customer: CustomerSnapshot,
+    day: dt.date,
+    hours: list[int],
+    *,
+    channel: str = "counter",
+    payment: "demo.DemoPayment | None" = None,
+    min_tier: str | None = None,
+    max_tier: str | None = None,
+    tenant_id: int | None = None,
+) -> str | None:
+    """Khối booking mẫu 1 giờ (kể cả ngày đã qua) – vẫn qua exclusion constraint; trả mã con."""
+    return await demo.seed_booking(
+        session,
+        _tid(tenant_id),
+        customer,
+        day,
+        hours,
+        channel=channel,
+        payment=payment,
+        min_tier=min_tier,
+        max_tier=max_tier,
+    )
+
+
+async def seed_demo_event(
+    session: AsyncSession,
+    name: str,
+    day: dt.date,
+    hours: list[int],
+    capacity: int,
+    ticket_price: int,
+    buyers: list[CustomerSnapshot],
+    paid_at: dt.datetime,
+    *,
+    tenant_id: int | None = None,
+) -> str | None:
+    """Sự kiện "[Mẫu] …" qua đường tạo sự kiện thật + vé đã thanh toán của ``buyers``."""
+    return await demo.seed_event(
+        session, _tid(tenant_id), name, day, hours, capacity, ticket_price, buyers, paid_at
+    )
+
+
+async def demo_booking_codes(
+    session: AsyncSession, phones: list[str], *, tenant_id: int | None = None
+) -> list[str]:
+    return await demo.demo_booking_codes(session, _tid(tenant_id), phones)
+
+
+async def purge_demo(
+    session: AsyncSession, phones: list[str], *, tenant_id: int | None = None
+) -> dict[str, int]:
+    """Xóa booking / đơn / lượt thanh toán / vé của khách mẫu + sự kiện "[Mẫu]". Không commit."""
+    return await demo.purge_demo(session, _tid(tenant_id), phones)

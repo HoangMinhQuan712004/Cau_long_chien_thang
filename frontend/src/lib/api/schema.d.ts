@@ -1672,6 +1672,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/record-videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Record Videos
+         * @description Video & kỷ lục (T-046): số đo có video trong kỳ (tuần T2→CN / tháng / năm / mọi thời gian,
+         *     giờ VN), mới nhất trước, tối đa 60. Ẩn danh như Bảng xếp hạng (video vẫn phát).
+         */
+        get: operations["record_videos_api_v1_member_area_record_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Speed Records
+         * @description Số đo mới nhất trước (20 / trang) – tên thật + Mã HV, sân, video (chỉ Admin).
+         */
+        get: operations["list_speed_records_api_v1_admin_speed_records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records/{record_id}/video": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Video
+         * @description Gắn / sửa link video. Chỉ YouTube hoặc file .mp4 / .webm (https), khác -> 422 E-REC-1.
+         *     Audit ``record.video_set``. Không có số đo -> 404.
+         */
+        put: operations["set_video_api_v1_admin_speed_records__record_id__video_put"];
+        post?: never;
+        /**
+         * Remove Video
+         * @description Gỡ video (audit ``record.video_removed``); chưa có video -> trả nguyên trạng.
+         */
+        delete: operations["remove_video_api_v1_admin_speed_records__record_id__video_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rackets": {
         parameters: {
             query?: never;
@@ -2265,6 +2331,36 @@ export interface components {
              * @enum {string}
              */
             kind: "admin";
+        };
+        /** AdminSpeedRecordList */
+        AdminSpeedRecordList: {
+            /** Items */
+            items: components["schemas"]["AdminSpeedRecordRow"][];
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+            /** Total */
+            total: number;
+        };
+        /** AdminSpeedRecordRow */
+        AdminSpeedRecordRow: {
+            /** Id */
+            id: number;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /** Member Code */
+            member_code: string | null;
+            /** Member Name */
+            member_name: string;
+            /** Resource Name */
+            resource_name: string | null;
+            video: components["schemas"]["VideoOut"] | null;
         };
         /** AuditCatalogOut */
         AuditCatalogOut: {
@@ -4985,6 +5081,50 @@ export interface components {
              * @description Đang giữ kỷ lục (thẻ viền vàng)
              */
             is_current: boolean;
+            /** @description T-046: có thì hiện nút ▶ phát tại chỗ (cả khi ẩn danh) */
+            video?: components["schemas"]["VideoOut"] | null;
+        };
+        /**
+         * RecordVideoCard
+         * @description Thẻ Video & kỷ lục (T-046) – ẩn danh như T-030 (mình luôn thấy tên mình).
+         */
+        RecordVideoCard: {
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /** Display Name */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /** Resource Name */
+            resource_name: string | null;
+            /** Is Me */
+            is_me: boolean;
+            video: components["schemas"]["VideoOut"];
+        };
+        /** RecordVideoList */
+        RecordVideoList: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "week" | "month" | "year" | "all";
+            /**
+             * Start
+             * @description null khi period = all
+             */
+            start: string | null;
+            /** End */
+            end: string | null;
+            /**
+             * Items
+             * @description Mới nhất trước, tối đa 60
+             */
+            items: components["schemas"]["RecordVideoCard"][];
         };
         /** RecurringBookingIn */
         RecurringBookingIn: {
@@ -6287,6 +6427,37 @@ export interface components {
              * @description ``version`` của phòng lúc người dùng bấm (AC21)
              */
             version: number;
+        };
+        /** VideoIn */
+        VideoIn: {
+            /**
+             * Url
+             * @description https YouTube hoặc file .mp4 / .webm
+             */
+            url: string;
+        };
+        /** VideoOut */
+        VideoOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "youtube" | "file";
+            /**
+             * Url
+             * @description Link Admin đã dán
+             */
+            url: string;
+            /**
+             * Embed Url
+             * @description YouTube: youtube-nocookie.com/embed/{id}
+             */
+            embed_url: string | null;
+            /**
+             * Thumbnail Url
+             * @description YouTube: ảnh xem trước i.ytimg.com
+             */
+            thumbnail_url: string | null;
         };
         /** WebCalendarOut */
         WebCalendarOut: {
@@ -9326,6 +9497,144 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SpeedRanking"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_videos_api_v1_member_area_record_videos_get: {
+        parameters: {
+            query?: {
+                period?: "week" | "month" | "year" | "all";
+                /** @description Ngày bất kỳ trong kỳ, mặc định hôm nay */
+                date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordVideoList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_speed_records_api_v1_admin_speed_records_get: {
+        parameters: {
+            query?: {
+                /** @description true: có video · false: chưa có */
+                has_video?: boolean | null;
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_video_api_v1_admin_speed_records__record_id__video_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_video_api_v1_admin_speed_records__record_id__video_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
                 };
             };
             /** @description Validation Error */
