@@ -6,6 +6,7 @@ import { Avatar } from "@/components/member-area/avatar";
 import { PageBanner } from "@/components/member-area/page-banner";
 import { roomsApi } from "@/components/play-rooms/requests";
 import type { RoomCard } from "@/components/play-rooms/types";
+import { EventCard } from "@/components/play-rooms/event-card";
 import { hourRange, joinBlockText, tierRangeText } from "@/components/play-rooms/utils";
 import { Button } from "@/components/ui/button";
 import { usePolling } from "@/hooks/use-polling";
@@ -173,6 +174,8 @@ export function OverviewScreen() {
                 </section>
 
                 <OpenRooms rooms={data.open_rooms} busyId={busyId} onJoin={(r) => void requestJoin(r)} />
+
+                <UpcomingEvents events={data.upcoming_events} />
               </div>
 
               <RankCard ranking={data.ranking} month={month} />
@@ -467,6 +470,32 @@ function RecordCards({ records }: { records: Overview["recent_records"] }) {
               <span className="truncate">{r.display_name}</span>
             </p>
             <p className="relative mt-0.5 truncate text-xs text-surface/80">{[r.racket, r.resource_name, shortDay(r.measured_at)].filter(Boolean).join(" · ")}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ------------------------------------------------------------------ Sự kiện sắp tới (T-045)
+
+/** Tối đa 3 sự kiện trong 14 ngày tới; không có thì ẩn cả khối. */
+function UpcomingEvents({ events }: { events: Overview["upcoming_events"] }) {
+  if (!events || events.length === 0) return null;
+  return (
+    <section className={card} aria-labelledby="ev-title">
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="ev-title" className="text-base font-bold">
+          Sự kiện sắp tới
+        </h2>
+        <Link href="/hoi-vien/danh-sach-san?loc=su-kien" className="rounded-sm text-sm font-semibold text-primary hover:underline focus-ring">
+          Xem tất cả ›
+        </Link>
+      </div>
+      <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        {events.map((e) => (
+          <li key={e.code}>
+            <EventCard e={e} />
           </li>
         ))}
       </ul>
