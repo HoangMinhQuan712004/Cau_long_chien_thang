@@ -272,6 +272,13 @@ def test_bad_first_phone_and_video_env(monkeypatch, capsys):
     assert seed_demo.main([]) == seed_demo.EXIT_BAD_PHONE
     assert "DEMO_MEMBER_PHONE" in capsys.readouterr().err
     monkeypatch.setenv(
-        "DEMO_VIDEO_URLS", "https://a.vn/1.mp4, http://b.vn/2.mp4 https://c.vn/3.webm"
+        "DEMO_VIDEO_URLS",
+        "https://a.vn/1.mp4, http://b.vn/2.mp4 https://vimeo.com/1 "
+        "https://youtu.be/dQw4w9WgXcQ https://c.vn/3.webm https://d.vn/4.mp4",
     )
-    assert seed_demo.video_urls_from_env() == ["https://a.vn/1.mp4", "https://c.vn/3.webm"]
+    # Theo luật T-046: bỏ http / vimeo, giữ YouTube + file, tối đa 3
+    assert seed_demo.video_urls_from_env() == [
+        "https://a.vn/1.mp4",
+        "https://youtu.be/dQw4w9WgXcQ",
+        "https://c.vn/3.webm",
+    ]
