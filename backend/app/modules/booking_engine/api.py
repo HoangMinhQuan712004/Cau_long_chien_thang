@@ -52,6 +52,7 @@ from app.modules.booking_engine.dto import (
     OnlinePaymentResult,
     OrderCollectIn,
     OrderCollectOut,
+    OrderList,
     PaidItem,
     PriceTable,
     PriceTableUpdate,
@@ -570,3 +571,30 @@ async def list_recurring(
     """Đơn định kỳ (T-039): lịch suy từ các buổi, trạng thái từ thanh toán các buổi, đếm theo
     trạng thái. ``customer_phone`` đầy đủ – lớp gọi che trước khi trả ra API."""
     return await recurring_list.list_orders(session, _tid(tenant_id), status, q, page, size)
+
+
+async def list_orders(
+    session: AsyncSession,
+    *,
+    kind: str | None = None,
+    status: str | None = None,
+    q: str | None = None,
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+    page: int = 1,
+    size: int = 20,
+    tenant_id: int | None = None,
+) -> OrderList:
+    """Đơn đặt sân (T-041): quầy / online / định kỳ, không gồm vé; ``customer_phone`` đầy đủ –
+    lớp gọi che."""
+    return await recurring_list.list_all(
+        session,
+        _tid(tenant_id),
+        kind=kind,  # type: ignore[arg-type]
+        status=status,  # type: ignore[arg-type]
+        q=q,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        size=size,
+    )
