@@ -916,3 +916,26 @@ class RecurringOrderList(BaseModel):
     page: int
     size: int
     total: int = Field(description="Số đơn khớp ``status`` + ``q``")
+
+
+# ---------- Sự kiện sắp tới trong khu hội viên (T-045) ----------
+
+
+class UpcomingEvent(BaseModel):
+    """Sự kiện chưa bắt đầu – không có danh sách người mua."""
+
+    code: str
+    name: str
+    play_date: dt.date
+    start_at: dt.datetime
+    end_at: dt.datetime
+    start_time: str
+    end_time: str
+    resource_names: list[str]
+    ticket_price: int
+    capacity: int
+    taken: int = Field(description="Vé đã có + ghế đang giữ online")
+    remaining: int
+    can_buy: bool
+    reason: EventBuyBlock | None = Field(description="full / free (engine); online_off do lớp gọi")
+    my_ticket_count: int = Field(description="Số vé của hội viên trong sự kiện (mọi trạng thái)")

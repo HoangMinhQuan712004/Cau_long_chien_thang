@@ -42,6 +42,7 @@ from app.modules.booking_engine.dto import (
     MyTicket,
     OnlinePaymentIn,
     OnlinePaymentResult,
+    UpcomingEvent,
 )
 from app.modules.booking_engine.holds import expire_holds
 from app.modules.booking_engine.models import Checkout, EventSession, Hold, Ticket
@@ -478,3 +479,74 @@ async def find_ticket(session: AsyncSession, tenant_id: int, code: str) -> Ticke
     return await session.scalar(
         select(Ticket).where(Ticket.tenant_id == tenant_id, Ticket.code == code)
     )
+
+
+# ------------------------------------------------------------------ sự kiện sắp tới (T-045)
+
+
+async def upcoming_events(
+    session: AsyncSession, tenant_id: int, refs: list[str], days: int
+) -> list[UpcomingEvent]:
+    """Sự kiện còn hiệu lực **chưa bắt đầu**, ngày diễn ra từ hôm nay tới hôm nay + ``days`` (giờ
+    VN), sắp theo giờ bắt đầu. ``refs`` = customer_ref của hội viên -> đếm vé của mình."""
+    ctx = await context(session, tenant_id)
+    events = list(
+        await session.scalars(
+            select(EventSession)
+            .where(
+                EventSession.tenant_id == tenant_id,
+                EventSession.status == "active",
+                EventSession.start_at > ctx.now,
+                EventSession.play_date <= ctx.today + timedelta(days=days),
+            )
+            .order_by(EventSession.start_at, EventSession.code)
+        )
+    )
+    if not events:
+        return []
+    ids = [ev.id for ev in events]
+    counts = await session_counts(session, tenant_id, ids)
+    courts = await session_resources(session, tenant_id, ids)
+    mine = (
+        dict(
+            (
+                await session.execute(
+                    select(Ticket.session_id, func.count())
+                    .where(
+                        Ticket.tenant_id == tenant_id,
+                        Ticket.session_id.in_(ids),
+                        Ticket.customer_ref.in_(refs),
+                    )
+                    .group_by(Ticket.session_id)
+                )
+            ).all()
+        )
+        if refs
+        else {}
+    )
+    out = []
+    for ev in events:
+        tickets_n, _, held = counts[ev.id]
+        taken = tickets_n + held
+        remaining = max(ev.capacity - taken, 0)
+        reason = _buy_block(ctx, ev, remaining)
+        out.append(
+            UpcomingEvent(
+                code=ev.code,
+                name=ev.name,
+                play_date=ev.play_date,
+                start_at=ev.start_at,
+                end_at=ev.end_at,
+                start_time=ctx.hhmm(ev.play_date, ev.start_at),
+                end_time=ctx.hhmm(ev.play_date, ev.end_at),
+                resource_names=[r.name for r in courts.get(ev.id, [])],
+                ticket_price=ev.ticket_price,
+                capacity=ev.capacity,
+                taken=taken,
+                remaining=remaining,
+                can_buy=reason is None,
+                reason=reason,
+                my_ticket_count=mine.get(ev.id, 0),
+            )
+        )
+    return out

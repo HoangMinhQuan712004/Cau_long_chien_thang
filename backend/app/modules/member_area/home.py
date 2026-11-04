@@ -7,9 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import AppError
+from app.modules.auth import api as auth
 from app.modules.booking_engine import api as engine
 from app.modules.member_area.home_schemas import (
     BookingSummary,
+    EventCard,
     Overview,
     OverviewRanking,
     OverviewRankingMe,
@@ -22,10 +24,13 @@ from app.modules.member_area.home_schemas import (
 )
 from app.modules.member_inbox import api as inbox
 from app.modules.members import api as members
+from app.modules.payments import api as payments_api
 from app.modules.play_rooms import api as rooms
 from app.modules.records import api as records
 
 UPCOMING_MAX = 4
+EVENT_DAYS = 14
+EVENTS_MAX = 3
 OPEN_ROOMS_MAX = 3
 RECENT_RECORDS_MAX = 3
 TOP = 10
@@ -125,6 +130,7 @@ async def overview(session: AsyncSession, customer_id: int, user_id: int) -> Ove
         open_rooms=await rooms.open_rooms_today(session, user_id, customer_id, OPEN_ROOMS_MAX),
         ranking=await _ranking(session, customer_id, today),
         recent_records=await _recent_records(session, customer_id),
+        upcoming_events=(await events(session, customer_id, EVENT_DAYS))[:EVENTS_MAX],
     )
 
 
@@ -258,3 +264,23 @@ async def payment(session: AsyncSession, customer_id: int, code: str) -> Payment
     if found is None:
         raise AppError("E-NOT-FOUND", "Không tìm thấy khoản thanh toán.", 404)
     return _item(found)
+
+
+# ------------------------------------------------------------------ Sự kiện sắp tới (T-045)
+
+
+async def events(session: AsyncSession, customer_id: int, days: int) -> list[EventCard]:
+    """Sự kiện chưa bắt đầu trong ``days`` ngày tới, có "vé của tôi". Đặt online tắt -> nút mờ với
+    lý do ``online_off`` (cùng điều kiện ``/web/booking/events/{code}``)."""
+    refs = await members.booking_refs_of(session, customer_id)
+    found = await engine.upcoming_events(session, refs, days)
+    if not found:
+        return []
+    online = auth.otp_channel_ready() and await payments_api.online_enabled(session)
+    out = []
+    for e in found:
+        card = EventCard(**e.model_dump())
+        if card.can_buy and not online:
+            card.can_buy, card.reason = False, "online_off"
+        out.append(card)
+    return out

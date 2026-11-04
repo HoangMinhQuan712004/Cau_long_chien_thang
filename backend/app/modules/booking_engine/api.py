@@ -78,6 +78,7 @@ from app.modules.booking_engine.dto import (
     TransactionsQuery,
     UncollectibleIn,
     UpcomingBooking,
+    UpcomingEvent,
 )
 from app.modules.booking_engine.models import DEFAULT_TENANT_SETTINGS, Tenant
 from app.modules.booking_engine.tenant import current_tenant_id
@@ -570,3 +571,10 @@ async def list_recurring(
     """Đơn định kỳ (T-039): lịch suy từ các buổi, trạng thái từ thanh toán các buổi, đếm theo
     trạng thái. ``customer_phone`` đầy đủ – lớp gọi che trước khi trả ra API."""
     return await recurring_list.list_orders(session, _tid(tenant_id), status, q, page, size)
+
+
+async def upcoming_events(
+    session: AsyncSession, refs: list[str], days: int = 14, *, tenant_id: int | None = None
+) -> list[UpcomingEvent]:
+    """Sự kiện chưa bắt đầu trong ``days`` ngày tới (T-045) – không danh sách người mua."""
+    return await ticket_online.upcoming_events(session, _tid(tenant_id), refs, days)
