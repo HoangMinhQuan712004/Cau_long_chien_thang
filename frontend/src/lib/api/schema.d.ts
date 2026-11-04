@@ -4796,6 +4796,11 @@ export interface components {
              * @default 0
              */
             discount_pct: number;
+            /**
+             * Sessions
+             * @description Buổi tường minh (T-043); tối đa 60 buổi, trong 92 ngày, mỗi buổi một sân
+             */
+            sessions?: components["schemas"]["RecurringSessionIn"][] | null;
             customer: components["schemas"]["CustomerIn"];
         };
         /** RecurringCounts */
@@ -4960,6 +4965,11 @@ export interface components {
              * @default 0
              */
             discount_pct: number;
+            /**
+             * Sessions
+             * @description Buổi tường minh (T-043); tối đa 60 buổi, trong 92 ngày, mỗi buổi một sân
+             */
+            sessions?: components["schemas"]["RecurringSessionIn"][] | null;
             customer?: components["schemas"]["CustomerIn"] | null;
         };
         /** RecurringSession */
@@ -4974,6 +4984,14 @@ export interface components {
              * @description ISO 1–7
              */
             weekday: number;
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
             /** Start Time */
             start_time: string;
             /** End Time */
@@ -5001,6 +5019,51 @@ export interface components {
             reason?: ("booked" | "event" | "hold" | "closed" | "inactive" | "past" | "no_price") | null;
             /** Reason Text */
             reason_text?: string | null;
+            /**
+             * Suggestions
+             * @description Tối đa 2 – chỉ buổi lỗi booked / event / hold (T-043)
+             */
+            suggestions?: components["schemas"]["RecurringSuggestion"][];
+        };
+        /**
+         * RecurringSessionIn
+         * @description Một buổi tường minh (T-043): FE sinh từ lịch chung rồi áp chỉnh sửa / gợi ý; bỏ buổi = không
+         *     gửi buổi đó.
+         */
+        RecurringSessionIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Resource Code */
+            resource_code: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+        };
+        /**
+         * RecurringSuggestion
+         * @description Gợi ý cho buổi trùng (T-043): ``shift`` = cùng sân lệch giờ gần nhất, ``court`` = cùng giờ
+         *     sân khác (ưu tiên cùng loại sân). Đã kiểm giờ mở cửa, giá và chỗ trống của ngày đó.
+         */
+        RecurringSuggestion: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "shift" | "court";
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /** Price */
+            price: number;
         };
         /** RegisterOut */
         RegisterOut: {
