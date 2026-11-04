@@ -10,8 +10,9 @@
 - Dấu mẫu: họ tên "Mẫu · ", SĐT ``09990000xx``, sự kiện "[Mẫu]", số đo ``source_ref`` "demo:".
 - ``DEMO_MEMBER_PHONE`` (tùy chọn, bổ sung 04/11): SĐT đăng nhập của "Mẫu · Hội viên 01" do người
   dùng chọn; số đó đang thuộc hồ sơ / tài khoản thật -> dừng (exit 3). Chỉ in SĐT đã che.
-- ``DEMO_VIDEO_URLS`` (tùy chọn): link video (https, cách nhau bởi dấu phẩy / khoảng trắng) gắn vào
-  các lần phá kỷ lục mẫu. Code không chứa link video của bên thứ ba.
+- ``DEMO_VIDEO_URLS`` (tùy chọn): link video cách nhau bởi dấu phẩy / khoảng trắng, chỉ nhận link
+  hợp lệ theo T-046 (YouTube / .mp4 / .webm, https), gắn vào các lần phá kỷ lục mẫu. Code không chứa
+  link video của bên thứ ba.
 - ``DEMO_MEMBER_PASSWORD``: mật khẩu của "Mẫu · Hội viên 01" và "02" (không in, không log). Thiếu
   biến -> hai hồ sơ này không có tài khoản đăng nhập. Hội viên mẫu còn lại có tài khoản liên kết
   với mật khẩu ngẫu nhiên không ai biết (để hiện trên Bảng xếp hạng / phòng chơi).
@@ -354,9 +355,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def video_urls_from_env() -> list[str]:
-    """``DEMO_VIDEO_URLS``: link https cách nhau bởi dấu phẩy / khoảng trắng, lấy tối đa 3."""
+    """``DEMO_VIDEO_URLS``: link cách nhau bởi dấu phẩy / khoảng trắng; chỉ giữ link phát được theo
+    luật của T-046 (YouTube / .mp4 / .webm, https), tối đa 3."""
     raw = os.environ.get("DEMO_VIDEO_URLS") or ""
-    urls = [u for u in raw.replace(",", " ").split() if u.startswith("https://")]
+    urls = [u for u in raw.replace(",", " ").split() if records.video_of(u) is not None]
     return urls[:MAX_VIDEOS]
 
 
