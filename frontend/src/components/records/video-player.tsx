@@ -49,7 +49,7 @@ export function VideoPlayer({ video, title, className, autoPlay = false }: { vid
       ) : (
         <button type="button" onClick={() => setPlaying(true)} aria-label={`Phát video: ${title}`} className="group absolute inset-0 grid size-full place-items-center focus-ring">
           {/* eslint-disable-next-line @next/next/no-img-element -- ảnh xem trước của YouTube, không qua tối ưu ảnh của Next */}
-          <img src={youtubeThumb(id)} alt="" loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 size-full object-cover" />
+          <img src={video.thumbnail_url?.startsWith("https://i.ytimg.com/") ? video.thumbnail_url : youtubeThumb(id)} alt="" loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 size-full object-cover" />
           <span className="absolute inset-0 bg-black/25 group-hover:bg-black/15" aria-hidden />
           <span className="relative grid size-14 place-items-center rounded-full bg-cta text-cta-fg shadow-card">
             <PlayIcon />
