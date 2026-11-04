@@ -218,12 +218,12 @@ function PaidTicketView({ checkout, ticket, member, bookPath }: { checkout: Chec
         <Row label="Ngày" value={formatLongDate(ticket.play_date)} />
         <Row label="Giờ" value={`${hhmm(ticket.start_time)} – ${hhmm(ticket.end_time)}`} />
         <Row label="Số vé" value={String(ticket.seats)} />
-        {codes.length > 0 ? <Row label="Mã vé" value={codes.join(", ")} /> : null}
+        {codes.length > 0 ? <Row label="Mã check-in" value={codes.join(", ")} /> : null}
         <Row label="Người mua" value={`${checkout.customer.full_name} · ${checkout.customer.phone_masked ?? "—"}`} />
         <Row label="Đã thanh toán" value={`${formatVnd(checkout.amount)} · Chuyển khoản`} />
       </dl>
 
-      <p className="mt-4 text-sm text-muted">Lưu mã đơn hoặc mã vé để tra cứu. Vui lòng đến trước giờ bắt đầu và báo mã vé tại quầy.</p>
+      <p className="mt-4 text-sm text-muted">Lưu mã đơn hoặc mã check-in để tra cứu. Vui lòng đến trước giờ bắt đầu và báo mã check-in tại quầy.</p>
       <div className="mt-4 grid grid-cols-2 gap-3">
         <Link href={member ? "/hoi-vien/lich-su-thanh-toan" : "/tra-cuu"} className="rounded-lg border border-border px-4 py-3 text-center text-sm font-semibold hover:bg-primary-softer">
           {member ? "Lịch sử thanh toán" : "Tra cứu vé"}

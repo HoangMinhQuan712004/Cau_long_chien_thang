@@ -35,7 +35,7 @@ export const NEXT_SORT: Record<SortDir, string | null> = { desc: "thoi-gian-tang
 /** Patch "Xóa lọc": về mặc định (7 ngày gần nhất, Tất cả); giữ sắp xếp và số dòng như màn Hội viên. */
 export const CLEAR_FILTERS = { from: null, to: null, actor: null, action: null } as const;
 
-const ACTORS: readonly AuditActorKind[] = ["admin", "staff", "system"];
+const ACTORS: readonly AuditActorKind[] = ["admin", "staff", "customer", "system"];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Toàn bộ tham số đã đọc: bộ lọc + sắp xếp + trang + số dòng. */

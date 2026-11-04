@@ -22,6 +22,7 @@ class Perm(enum.StrEnum):
     BOOKING_CALENDAR_VIEW = "booking.calendar.view"
     BOOKING_SEARCH = "booking.search"
     BOOKING_COUNTER_CREATE = "booking.counter.create"
+    BOOKING_ORDERS_VIEW = "booking.orders.view"  # màn Đơn đặt sân (chỉ Admin, T-041)
     BOOKING_RECURRING = "booking.recurring"  # đặt sân định kỳ cho khách (chỉ Admin, T-035)
     BOOKING_ITEM_VIEW = "booking.item.view"  # Thông tin booking / vé
     BOOKING_TICKET_CREATE = "booking.ticket.create"  # đăng ký vé tại quầy
@@ -39,6 +40,7 @@ class Perm(enum.StrEnum):
     CONTENT_MANAGE = "content.manage"  # tin tức / trang nội dung (chỉ Admin)
     PAYMENTS_SETTINGS = "payments.settings"  # tài khoản nhận tiền, khóa SePay (chỉ Admin, T-012)
     AUDIT_LOG_VIEW = "audit_log.view"  # Lịch sử thao tác (chỉ Admin, SRS Lịch sử thao tác BR-001)
+    RECORDS_VIDEO_MANAGE = "records.video.manage"  # gắn / gỡ video kỷ lục (chỉ Admin, T-046)
     REPORTS_VIEW = "reports.view"  # Báo cáo & phân tích (chỉ Admin, SRS Báo cáo BR-001)
 
 

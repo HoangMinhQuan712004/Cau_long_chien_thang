@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
+import { TrashIcon } from "@/components/ui/icons";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
@@ -480,31 +481,37 @@ function CourtFormDialog({
           </div>
           <div>
             <span className="mb-1 block text-sm font-medium">Số khung</span>
-            <p className="py-2 text-sm">{slots} khung 30 phút mỗi ngày</p>
+            {/* Cùng khung với hai ô chọn giờ bên cạnh để ba cột thẳng hàng */}
+            <p className="rounded-md border border-transparent bg-background/60 px-3 py-2 text-sm text-muted">{slots} khung 30 phút mỗi ngày</p>
           </div>
         </div>
       </div>
 
       <fieldset>
-        <legend className="mb-1 text-sm font-medium">Giờ cao điểm</legend>
+        <legend className="mb-2 text-sm font-semibold">Giờ cao điểm</legend>
         <div className="space-y-2">
           {f.peaks.map((p, i) => {
             const bad = showPeaks && (err.peaks[i] || err.overlapIdx?.includes(i));
             return (
               <div key={i}>
-                <div className={`flex flex-wrap items-center gap-2 rounded-md ${bad ? "ring-1 ring-danger" : ""}`}>
+                {/* Hàng khung giờ: Từ – Đến cùng cỡ cột Mở cửa / Đóng cửa phía trên, nút xóa là icon cùng chiều cao */}
+                <div className={`grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 rounded-md sm:grid-cols-[minmax(0,10rem)_auto_minmax(0,10rem)_auto] ${bad ? "ring-1 ring-danger" : ""}`}>
                   <TimeSelect label="Từ" value={p[0]} onChange={(v) => setPeak(i, 0, v)} />
-                  <span aria-hidden>–</span>
+                  <span aria-hidden className="text-muted">
+                    –
+                  </span>
                   <TimeSelect label="Đến" value={p[1]} onChange={(v) => setPeak(i, 1, v)} />
                   <button
                     type="button"
+                    title="Xóa khung giờ"
                     onClick={() => {
                       setTouched((t) => ({ ...t, peaks: true }));
                       setF((cur) => ({ ...cur, peaks: cur.peaks.filter((_, k) => k !== i) }));
                     }}
-                    className="text-sm text-muted hover:text-danger"
+                    className="grid size-9 place-items-center rounded-md text-muted hover:bg-danger-soft hover:text-danger focus-ring"
                   >
-                    Xóa<span className="sr-only"> khung cao điểm {i + 1}</span>
+                    <TrashIcon size={16} />
+                    <span className="sr-only">Xóa khung cao điểm {i + 1}</span>
                   </button>
                 </div>
                 {showPeaks && err.peaks[i] ? <p className="mt-1 text-xs text-danger">{err.peaks[i]}</p> : null}
@@ -573,7 +580,7 @@ function TimeSelect({
       aria-invalid={invalid || undefined}
       aria-describedby={describedBy}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm sm:w-auto sm:min-w-28"
+      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
     >
       {TIMES.map((t) => (
         <option key={t} value={t}>

@@ -13,11 +13,11 @@ from email_validator import EmailNotValidError, validate_email
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import AuditActor, audit, audit_changes, audit_detail
+from app.core.audit import AuditActor, audit, audit_change, audit_changes, audit_detail
 from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
 from app.modules.members import rackets
-from app.modules.members.models import Customer, CustomerAvatar
+from app.modules.members.models import TIERS, Customer, CustomerAvatar
 from app.modules.members.profiles import booking_refs
 
 NAME_MAX = 100
@@ -50,16 +50,8 @@ class SelfUpdate:
     racket: str | None
     show_on_records: bool
     version: int
-    # T-038: client có gửi ``tier`` không (không gửi -> bỏ qua; gửi khác hạng hiện tại -> E-HV-14)
+    # Client có gửi ``tier`` không: không gửi -> giữ hạng hiện tại (T-042: gửi thì tự đổi được)
     tier_sent: bool = True
-
-
-def tier_locked() -> AppError:
-    """Hạng do quầy xếp (T-038): hội viên không tự đổi – khoảng hạng phòng (T-031) dựa vào đây."""
-    message = "Hạng do quầy xếp, bạn không tự đổi được."
-    return AppError(
-        "E-HV-14", message, 422, fields=[{"field": "tier", "code": "E-HV-14", "message": message}]
-    )
 
 
 @dataclass
@@ -145,6 +137,8 @@ async def _validate(
         errors.add("full_name", "E-HV-1", "Vui lòng nhập Họ tên.")
     elif len(full_name) > NAME_MAX:
         errors.add("full_name", "E-HV-1", f"Họ tên tối đa {NAME_MAX} ký tự.")
+    if data.tier_sent and data.tier is not None and data.tier not in TIERS:
+        errors.add("tier", "E-HV-1", "Trình độ không hợp lệ.")
     nickname = (data.nickname or "").strip() or None
     if nickname is not None and len(nickname) > NICKNAME_MAX:
         errors.add("nickname", "E-HV-1", f"Biệt danh tối đa {NICKNAME_MAX} ký tự.")
@@ -183,6 +177,10 @@ SELF_LABELS = {
 }
 
 
+def _tier_text(tier: str | None) -> str:
+    return tier or "Chưa xếp hạng"
+
+
 def _shown(values: dict) -> dict:
     """Giá trị hiển thị: email che, công tắc Bật / Tắt."""
     return {
@@ -204,8 +202,6 @@ async def update_profile(
         raise not_member()
     if c.version != data.version:
         raise stale()
-    if data.tier_sent and data.tier != c.tier:
-        raise tier_locked()
     full_name, nickname, email = await _validate(session, c, data)
     # Vợt: ô chữ tự nhập (T-033) – không ép / không thêm vào danh mục
     racket = rackets.clean_racket(data.racket)
@@ -214,7 +210,7 @@ async def update_profile(
         "full_name": full_name,
         "nickname": nickname,
         "email": email,
-        "tier": c.tier,  # T-038: hội viên không đổi Hạng qua đường này
+        "tier": data.tier if data.tier_sent else c.tier,  # T-042: hội viên tự chọn
         "racket": racket,
         "show_on_records": data.show_on_records,
     }
@@ -226,6 +222,25 @@ async def update_profile(
     for name in changed:
         setattr(c, name, after[name])
     c.version += 1
+    if "tier" in changed:
+        # T-042: dòng riêng, hiện trong Lịch sử thao tác (người làm = hội viên)
+        audit(
+            session,
+            actor,
+            "member.tier_self_change",
+            "customer",
+            c.member_code,
+            audit_detail(
+                c.member_code,
+                c.full_name,
+                [audit_change("Trình độ", _tier_text(before["tier"]), _tier_text(after["tier"]))],
+            ),
+        )
+        before.pop("tier"), after.pop("tier")
+        changed.remove("tier")
+    if not changed:
+        await session.flush()
+        return await _to_profile(session, c), True
     # Định dạng Lịch sử thao tác (PR #22): "Tên ô: trước → sau"; email luôn che (T-016)
     detail = audit_detail(
         c.member_code,

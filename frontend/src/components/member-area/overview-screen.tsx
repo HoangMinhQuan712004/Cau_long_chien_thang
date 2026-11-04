@@ -5,7 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Avatar } from "@/components/member-area/avatar";
 import { PageBanner } from "@/components/member-area/page-banner";
 import { roomsApi } from "@/components/play-rooms/requests";
+import { VideoPlayer } from "@/components/records/video-player";
 import type { RoomCard } from "@/components/play-rooms/types";
+import { EventCard } from "@/components/play-rooms/event-card";
 import { hourRange, joinBlockText, tierRangeText } from "@/components/play-rooms/utils";
 import { Button } from "@/components/ui/button";
 import { usePolling } from "@/hooks/use-polling";
@@ -88,8 +90,7 @@ export function OverviewScreen() {
     await load();
   }
 
-  const [next, ...rest] = data?.upcoming ?? [];
-  const more = rest.slice(0, 3);
+  const next = data?.upcoming[0];
   const month = data ? monthNo(data.month, data.today) : 0;
   const stats = data?.month_stats;
 
@@ -138,41 +139,25 @@ export function OverviewScreen() {
           <>
             <div className="grid gap-4 lg:grid-cols-[1.45fr_1fr] lg:items-start">
               <div className="min-w-0 space-y-4">
+                {/* Một khung: thẻ "Tiếp theo" (lịch chơi gần nhất) + danh sách Phòng đang trống (thiết kế prototype, người dùng 04/11) */}
                 <section className={card} aria-labelledby="up-title">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 id="up-title" className="text-base font-bold">
-                      Lịch đặt sắp tới
-                    </h2>
-                    {next ? (
-                      <Link href="/hoi-vien/danh-sach-san?loc=cua-toi" className="rounded-sm text-sm font-semibold text-primary hover:underline focus-ring">
-                        Xem tất cả ›
-                      </Link>
-                    ) : null}
-                  </div>
-                  {!next ? (
-                    <div className="py-8 text-center">
+                  <h2 id="up-title" className="sr-only">
+                    Lịch chơi tiếp theo
+                  </h2>
+                  {next ? (
+                    <NextCard item={next} today={data.today} nowMs={nowMs} />
+                  ) : (
+                    <div className="rounded-xl bg-primary-softer px-4 py-6 text-center ring-1 ring-primary/10">
                       <p className="text-muted">Bạn chưa có lịch chơi sắp tới</p>
                       <Link href="/hoi-vien/dat-san" className={cn(ctaCls, "mt-4")}>
                         Đặt sân
                       </Link>
                     </div>
-                  ) : (
-                    <>
-                      <NextCard item={next} today={data.today} nowMs={nowMs} />
-                      {more.length > 0 ? (
-                        <ul className="mt-3 divide-y divide-border">
-                          {more.map((it) => (
-                            <li key={it.booking_code}>
-                              <Row item={it} today={data.today} />
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </>
                   )}
+                  <OpenRooms rooms={data.open_rooms} busyId={busyId} onJoin={(r) => void requestJoin(r)} />
                 </section>
 
-                <OpenRooms rooms={data.open_rooms} busyId={busyId} onJoin={(r) => void requestJoin(r)} />
+                <UpcomingEvents events={data.upcoming_events} />
               </div>
 
               <RankCard ranking={data.ranking} month={month} />
@@ -215,54 +200,71 @@ function StatCard({ href, label, month, value, unit, sub }: { href: string; labe
 
 const dayLabel = (playDate: string, today: string) => (playDate === today ? "Hôm nay" : formatDayMonth(playDate));
 
-function HostTag({ role }: { role: Upcoming["role"] }) {
-  return <span className="rounded-full bg-primary-softer px-2 py-0.5 text-xs font-semibold ring-1 ring-border">{role === "host" ? "Host" : "Thành viên"}</span>;
+/** Sân nhỏ vẽ bằng nét, avatar người trong phòng xếp trên mép sân (thẻ "Tiếp theo" theo prototype). */
+function MiniCourt({ people }: { people: Upcoming["members_preview"] }) {
+  return (
+    <div className="relative hidden h-24 min-w-0 flex-1 sm:block" aria-hidden>
+      <svg viewBox="0 0 160 70" preserveAspectRatio="none" className="absolute inset-x-0 bottom-0 h-16 w-full text-primary/40" fill="none" stroke="currentColor" strokeWidth="1.4">
+        <rect x="1" y="1" width="158" height="68" />
+        <path d="M80 1v68M1 35h158M30 1v68M130 1v68" />
+      </svg>
+      {people.length > 0 ? (
+        <div className="absolute top-0 left-1/2 flex -translate-x-1/2 -space-x-2">
+          {people.slice(0, 4).map((m, i) => (
+            <Avatar key={`${m.display_name}-${i}`} url={m.avatar_url} name={m.display_name} size={34} className="ring-2 ring-surface" />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
-/** Thẻ "TIẾP THEO" kiểu thẻ sân (T-028 AC11): dải xanh có hoa văn + giờ lớn + pill đếm ngược, thân trắng có Host, cụm avatar và CTA vàng. */
+/** Thẻ "TIẾP THEO" theo prototype: nền xanh nhạt; trái = giờ, sân, Host, cụm avatar; phải = sân nhỏ + đếm ngược + Vào phòng. */
 function NextCard({ item, today, nowMs }: { item: Upcoming; today: string; nowMs: number }) {
   const minutes = Math.ceil((Date.parse(item.start_at) - nowMs) / 60000);
   const ongoing = item.phase === "ongoing";
   const badge = ongoing ? "Đang diễn ra" : nowMs > 0 && minutes > 0 && minutes <= 60 ? `Còn ${minutes} phút` : null;
   return (
-    <article className="mt-3 overflow-hidden rounded-xl border border-border bg-surface shadow-card">
-      <div className="relative bg-appbar px-4 pt-3 pb-4 text-surface">
-        <svg aria-hidden viewBox="0 0 320 100" preserveAspectRatio="xMidYMid slice" className="pointer-events-none absolute inset-0 size-full text-surface opacity-[0.09]" fill="none" stroke="currentColor" strokeWidth="1.4">
-          <rect x="16" y="8" width="288" height="84" />
-          <path d="M160 8v84M16 50h288M16 24h288M16 76h288M64 8v84M256 8v84" />
-        </svg>
-        <div className="relative flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-bold tracking-wider">TIẾP THEO</p>
-          {badge ? <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", ongoing ? "bg-cta text-cta-fg" : "bg-surface text-primary-hover")}>{badge}</span> : null}
-        </div>
-        <p className="relative mt-2 text-2xl leading-tight font-bold">
+    <article className="flex flex-col gap-4 rounded-xl bg-primary-softer p-4 ring-1 ring-primary/10 sm:flex-row sm:p-5">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-bold tracking-wider text-muted">TIẾP THEO</p>
+        <p className="mt-1 text-2xl leading-tight font-bold">
           {dayLabel(item.play_date, today)} · <span className="tabular-nums">{hourRange(item.start_at, item.end_at)}</span>
         </p>
-      </div>
-      <div className="p-4">
-        <p className="font-semibold">
-          {item.resource_name} <span className="font-normal text-muted">· {item.resource_type_name}</span>
+        <p className="mt-1 text-sm text-muted">
+          {item.resource_name} · {item.resource_type_name} · Host: <b className="font-semibold text-foreground">{item.role === "host" ? "bạn" : item.host_name}</b>
         </p>
-        <p className="mt-0.5 text-sm text-muted">
-          Host: <b className="font-semibold text-foreground">{item.role === "host" ? "bạn" : item.host_name}</b>
-        </p>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          {item.capacity !== null ? (
-            <div className="flex items-center gap-2">
-              <div className="flex -space-x-1.5" aria-hidden>
-                {item.members_preview.map((m, i) => (
-                  <Avatar key={`${m.display_name}-${i}`} url={m.avatar_url} name={m.display_name} size={28} className="ring-2 ring-surface" />
-                ))}
-              </div>
-              <span className="text-sm font-semibold tabular-nums" aria-label={`${item.count} trên ${item.capacity} thành viên`}>
-                {item.count}/{item.capacity}
-              </span>
+        {item.capacity !== null ? (
+          <div className="mt-3 flex items-center gap-2">
+            <div className="flex -space-x-1.5" aria-hidden>
+              {item.members_preview.map((m, i) => (
+                <Avatar key={`${m.display_name}-${i}`} url={m.avatar_url} name={m.display_name} size={26} className="ring-2 ring-surface" />
+              ))}
             </div>
+            <span className="text-sm font-semibold tabular-nums" aria-label={`${item.count} trên ${item.capacity} thành viên`}>
+              {item.count}/{item.capacity}
+            </span>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-muted">Phòng đang được tạo</p>
+        )}
+      </div>
+      <div className="flex items-stretch gap-4 sm:w-[46%]">
+        <MiniCourt people={item.members_preview} />
+        <div className="flex flex-1 shrink-0 flex-col items-end justify-between gap-3 sm:flex-none">
+          {badge ? (
+            <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold", ongoing ? "bg-cta text-cta-fg" : "bg-appbar text-surface")}>
+              <svg viewBox="0 0 20 20" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <circle cx="10" cy="11" r="6.5" />
+                <path d="M10 8v3l2 1.5M8 2.5h4" />
+              </svg>
+              {badge}
+            </span>
           ) : (
-            <span className="text-sm text-muted">Phòng đang được tạo</span>
+            <span aria-hidden />
           )}
           {item.room_id !== null ? (
-            <Link href={`/hoi-vien/phong/${item.room_id}`} className={ctaCls}>
+            <Link href={`/hoi-vien/phong/${item.room_id}`} className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-surface hover:bg-primary-hover focus-ring">
               Vào phòng
             </Link>
           ) : null}
@@ -272,39 +274,11 @@ function NextCard({ item, today, nowMs }: { item: Upcoming; today: string; nowMs
   );
 }
 
-function Row({ item, today }: { item: Upcoming; today: string }) {
-  const body = (
-    <>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold">
-          {dayLabel(item.play_date, today)} · {hourRange(item.start_at, item.end_at)}
-        </span>
-        <span className="block truncate text-xs text-muted">{item.resource_name}</span>
-      </span>
-      <HostTag role={item.role} />
-      {item.capacity !== null ? (
-        <span className="text-sm font-semibold tabular-nums">
-          {item.count}/{item.capacity}
-        </span>
-      ) : null}
-      {item.room_id !== null ? <span aria-hidden>›</span> : null}
-    </>
-  );
-  const cls = "flex min-h-12 items-center gap-3 rounded-lg py-2";
-  return item.room_id !== null ? (
-    <Link href={`/hoi-vien/phong/${item.room_id}`} className={cn(cls, "hover:bg-primary-softer focus-ring")}>
-      {body}
-    </Link>
-  ) : (
-    <div className={cls}>{body}</div>
-  );
-}
-
 // ------------------------------------------------------------------ Phòng đang trống
 
 function OpenRooms({ rooms, busyId, onJoin }: { rooms: RoomCard[]; busyId: number | null; onJoin: (r: RoomCard) => void }) {
   return (
-    <section className={card} aria-labelledby="open-title">
+    <section className="mt-5" aria-labelledby="open-title">
       <div className="flex items-center justify-between gap-3">
         <h2 id="open-title" className="text-base font-bold">
           Phòng đang trống
@@ -437,36 +411,99 @@ function RankCard({ ranking, month }: { ranking: Overview["ranking"]; month: num
 
 // ------------------------------------------------------------------ Kỷ lục mới
 
+/** Vạch sân mờ làm nền ô video. */
+function CourtLines() {
+  return (
+    <svg aria-hidden viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" className="pointer-events-none absolute inset-0 size-full text-surface opacity-[0.12]" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="60" y="20" width="200" height="130" />
+      <path d="M160 20v130M60 85h200M60 45h200M60 125h200M95 20v130M225 20v130" />
+    </svg>
+  );
+}
+
+// Khối chỉ để xem (người dùng 04/11): không có link sang màn khác, ô không bấm được; khi chưa có kỷ lục vẫn giữ khung chờ video
 function RecordCards({ records }: { records: Overview["recent_records"] }) {
-  // Không có lần phá kỷ lục nào ⇒ ẩn cả khối
-  if (records.length === 0) return null;
+  // Thẻ đang phát video (T-046): chỉ một thẻ phát tại một thời điểm; iframe chỉ nạp sau khi bấm ▶
+  const [playing, setPlaying] = useState<string | null>(null);
   return (
     <section className={card} aria-labelledby="rec-title">
+      <h2 id="rec-title" className="text-base font-bold">
+        Kỷ lục mới
+      </h2>
+      {/* Chưa có kỷ lục nào: vẫn giữ khung chờ video (người dùng 04/11) */}
+      {records.length === 0 ? (
+        <div className="relative mt-3 flex min-h-44 items-end overflow-hidden rounded-xl bg-appbar p-4 text-surface sm:max-w-sm">
+          <CourtLines />
+          <span aria-hidden className="absolute top-[38%] left-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-surface/20 ring-1 ring-surface/40">
+            <svg viewBox="0 0 24 24" className="size-5 translate-x-px" fill="currentColor">
+              <path d="M8 5.5v13l11-6.5z" />
+            </svg>
+          </span>
+          <p className="relative text-sm text-surface/85">Chưa có kỷ lục mới trong tháng. Video cú đập kỷ lục sẽ hiện ở đây.</p>
+        </div>
+      ) : null}
+      {records.length > 0 ? (
+        <ul className="mt-3 grid gap-3 sm:grid-cols-3">
+          {records.slice(0, 3).map((r) => {
+            const k = `${r.measured_at}-${r.speed_kmh}`;
+            const title = `${r.speed_kmh} km/h · ${r.display_name}`;
+            return (
+            <li key={k} className={cn("relative flex min-h-44 flex-col justify-end overflow-hidden rounded-xl bg-appbar p-4 text-surface", r.is_current && "ring-2 ring-accent")}>
+              {r.video && playing === k ? (
+                <VideoPlayer video={r.video} title={title} autoPlay className="relative mb-3" />
+              ) : r.video ? (
+                <button
+                  type="button"
+                  onClick={() => setPlaying(k)}
+                  aria-label={`Phát video: ${title}`}
+                  className="absolute top-3 right-3 z-10 grid size-11 place-items-center rounded-full bg-cta text-cta-fg shadow-card focus-ring"
+                >
+                  <svg viewBox="0 0 24 24" className="size-6 translate-x-px" fill="currentColor" aria-hidden>
+                    <path d="M8 5.5v13l11-6.5z" />
+                  </svg>
+                </button>
+              ) : (
+                <span className="absolute top-3 right-3 rounded bg-black/45 px-1.5 py-0.5 text-[11px] font-medium text-surface/90">Chưa có video</span>
+              )}
+              <CourtLines />
+              {r.is_current ? <span className="absolute top-3 left-3 rounded-full bg-accent px-2.5 py-1 text-xs font-bold text-cta-fg">Đang giữ kỷ lục</span> : null}
+              <p className="relative flex flex-wrap items-baseline gap-2">
+                <b className="text-3xl leading-none tabular-nums">{r.speed_kmh} km/h</b>
+                {r.delta_kmh !== null ? <span className="rounded-md bg-surface/15 px-2 py-0.5 text-xs font-semibold text-accent-soft">+{r.delta_kmh} km/h</span> : null}
+              </p>
+              <p className="relative mt-1 flex items-center gap-2 text-sm font-semibold">
+                <Avatar url={r.avatar_url} name={r.display_name} size={22} />
+                <span className="truncate">{r.display_name}</span>
+              </p>
+              <p className="relative mt-0.5 truncate text-xs text-surface/80">{[r.racket, r.resource_name, shortDay(r.measured_at)].filter(Boolean).join(" · ")}</p>
+            </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+// ------------------------------------------------------------------ Sự kiện sắp tới (T-045)
+
+/** Tối đa 3 sự kiện trong 14 ngày tới; không có thì ẩn cả khối. */
+function UpcomingEvents({ events }: { events: Overview["upcoming_events"] }) {
+  if (!events || events.length === 0) return null;
+  return (
+    <section className={card} aria-labelledby="ev-title">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="rec-title" className="text-base font-bold">
-          Kỷ lục mới
+        <h2 id="ev-title" className="text-base font-bold">
+          Sự kiện sắp tới
         </h2>
-        <Link href="/hoi-vien/video-ky-luc" className="rounded-sm text-sm font-semibold text-primary hover:underline focus-ring">
-          Xem Video &amp; kỷ lục ›
+        <Link href="/hoi-vien/danh-sach-san?loc=su-kien" className="rounded-sm text-sm font-semibold text-primary hover:underline focus-ring">
+          Xem tất cả ›
         </Link>
       </div>
-      <ul className="mt-3 grid gap-3 sm:grid-cols-3">
-        {records.slice(0, 3).map((r) => (
-          <li key={`${r.measured_at}-${r.speed_kmh}`} className={cn("relative flex min-h-44 flex-col justify-end overflow-hidden rounded-xl bg-appbar p-4 text-surface", r.is_current && "ring-2 ring-accent")}>
-            <svg aria-hidden viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" className="pointer-events-none absolute inset-0 size-full text-surface opacity-[0.12]" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="60" y="20" width="200" height="130" />
-              <path d="M160 20v130M60 85h200M60 45h200M60 125h200M95 20v130M225 20v130" />
-            </svg>
-            {r.is_current ? <span className="absolute top-3 left-3 rounded-full bg-accent px-2.5 py-1 text-xs font-bold text-cta-fg">Đang giữ kỷ lục</span> : null}
-            <p className="relative flex flex-wrap items-baseline gap-2">
-              <b className="text-3xl leading-none tabular-nums">{r.speed_kmh} km/h</b>
-              {r.delta_kmh !== null ? <span className="rounded-md bg-surface/15 px-2 py-0.5 text-xs font-semibold text-accent-soft">+{r.delta_kmh} km/h</span> : null}
-            </p>
-            <p className="relative mt-1 flex items-center gap-2 text-sm font-semibold">
-              <Avatar url={r.avatar_url} name={r.display_name} size={22} />
-              <span className="truncate">{r.display_name}</span>
-            </p>
-            <p className="relative mt-0.5 truncate text-xs text-surface/80">{[r.racket, r.resource_name, shortDay(r.measured_at)].filter(Boolean).join(" · ")}</p>
+      <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        {events.map((e) => (
+          <li key={e.code}>
+            <EventCard e={e} />
           </li>
         ))}
       </ul>

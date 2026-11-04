@@ -71,6 +71,8 @@ GROUPS: tuple[ActionGroup, ...] = (
             # T-021 R1: chủ SĐT xác minh OTP -> Hệ thống nâng hồ sơ tạm (hội viên tự đăng ký mới
             # ``member.self_register`` do khách làm, không hiện – như quy ước PR #22)
             _t("member.auto_upgrade_temp", "Tự nâng hồ sơ tạm thành hội viên"),
+            # T-042: hội viên tự đổi Hạng (người làm = hội viên)
+            _t("member.tier_self_change", "Hội viên tự đổi hạng"),
         ),
     ),
     ActionGroup(
@@ -87,10 +89,23 @@ GROUPS: tuple[ActionGroup, ...] = (
             _t("payment.uncollectible", "Không thu được"),
         ),
     ),
+    ActionGroup(
+        "Kỷ lục",
+        (
+            # T-046: Admin gắn / gỡ link video cho số đo tốc độ
+            _t("record.video_set", "Gắn video kỷ lục"),
+            _t("record.video_removed", "Gỡ video kỷ lục"),
+        ),
+    ),
 )
 
 # Người làm lọc được (BR-013): mã ``audit_log.actor_type`` -> nhãn
-ACTORS: dict[str, str] = {"admin": "Admin", "staff": "Nhân viên", "system": "Hệ thống"}
+ACTORS: dict[str, str] = {
+    "admin": "Admin",
+    "staff": "Nhân viên",
+    "system": "Hệ thống",
+    "customer": "Hội viên",  # T-042: chỉ các thao tác hội viên có trong danh mục
+}
 
 TYPES: dict[str, ActionType] = {t.key: t for g in GROUPS for t in g.types}
 # Mã audit_log.action -> loại hiển thị

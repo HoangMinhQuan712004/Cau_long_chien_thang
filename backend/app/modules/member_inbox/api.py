@@ -8,6 +8,7 @@ from app.modules.member_inbox.service import (
     mark_read,
     notify,
     publish_created,
+    purge_for,
     purge_old,
     unread_count,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "mark_read",
     "notify",
     "publish_created",
+    "purge_for",
     "purge_old",
     "unread_count",
 ]

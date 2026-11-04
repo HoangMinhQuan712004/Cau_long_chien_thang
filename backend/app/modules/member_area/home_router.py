@@ -7,18 +7,27 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Header, Path, Query, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 from app.core.db import SessionDep
 from app.modules.auth import api as auth
 from app.modules.member_area import home
-from app.modules.member_area.home_schemas import Overview, PaymentItem, PaymentList
+from app.modules.member_area.home_schemas import (
+    EventCard,
+    Overview,
+    PaymentItem,
+    PaymentList,
+)
 
 router = APIRouter(prefix="/member-area", tags=["member-area"])
 
 
 def no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
+
+
+class _EventList(RootModel[list[EventCard]]):
+    pass
 
 
 def _etag_response(body: BaseModel, if_none_match: str | None) -> Response:
@@ -47,6 +56,24 @@ async def overview(
     403 E-HV-8 (chưa là hội viên)."""
     body = await home.overview(session, member.customer_id, member.user_id)
     return _etag_response(body, if_none_match)
+
+
+@router.get(
+    "/events",
+    response_model=list[EventCard],
+    responses={304: {"description": "Không đổi so với ETag gửi lên"}},
+)
+async def upcoming_events(
+    member: auth.CurrentMember,
+    session: SessionDep,
+    days: Annotated[int, Query(ge=1, le=31, description="Số ngày tới (giờ VN)")] = 14,
+    if_none_match: Annotated[str | None, Header()] = None,
+):
+    """Sự kiện sắp tới (T-045): chưa bắt đầu, ngày diễn ra từ hôm nay tới hôm nay + ``days``, sắp
+    theo giờ bắt đầu. Có số chỗ (tính cả ghế đang giữ), ``can_buy`` + ``reason``, số vé của mình;
+    không có danh sách người mua. Đặt vé: luồng T-023 (``/web/booking/event-checkouts``)."""
+    body = await home.events(session, member.customer_id, days)
+    return _etag_response(_EventList(body), if_none_match)
 
 
 @router.get("/payments", response_model=PaymentList, dependencies=[Depends(no_store)])

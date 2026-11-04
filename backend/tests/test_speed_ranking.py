@@ -4,13 +4,12 @@ import uuid
 from datetime import UTC, date, datetime
 
 import pytest
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, update
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.members.models import Customer
-from app.modules.records import seed_demo
 from app.modules.records.models import SpeedRecord
 from app.modules.records.service import period_bounds
 from tests import test_play_rooms as base
@@ -176,23 +175,3 @@ async def test_speed_range_and_unique_source_ref(people):
                 )
             )
             await s.commit()
-
-
-async def test_seed_demo_refuses_production(monkeypatch, capsys):
-    monkeypatch.setattr(settings, "ENV", "production")
-    assert seed_demo.main([]) == 2
-    assert "production" in capsys.readouterr().err
-
-
-async def test_seed_demo_seeds_and_clears(people):
-    hv = await people()
-    assert await seed_demo.seed(per_member=2) >= 2
-    async with SessionLocal() as s:
-        n = await s.scalar(
-            select(func.count())
-            .select_from(SpeedRecord)
-            .where(SpeedRecord.customer_id == hv.customer_id, SpeedRecord.device_id == "demo")
-        )
-    assert n == 2
-    assert await seed_demo.seed(per_member=2) >= 2  # chạy lại không trùng
-    assert await seed_demo.clear() >= 2

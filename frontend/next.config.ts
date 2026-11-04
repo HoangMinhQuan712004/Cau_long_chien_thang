@@ -18,10 +18,12 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${GSI && ` ${GSI}client`}`,
   `style-src 'self' 'unsafe-inline'${GSI && ` ${GSI}style`}`,
-  "img-src 'self' data: blob: https://qr.sepay.vn",
+  "img-src 'self' data: blob: https://qr.sepay.vn https://i.ytimg.com",
   "font-src 'self' data:",
   `connect-src 'self'${GSI && ` ${GSI}`}`,
-  ...(GSI ? [`frame-src 'self' ${GSI}`] : []),
+  // Video kỷ lục (T-046): YouTube chỉ nạp iframe khi bấm phát; file .mp4 / .webm do Admin dán link https
+  `frame-src 'self' https://www.youtube-nocookie.com${GSI && ` ${GSI}`}`,
+  "media-src 'self' https:",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -59,6 +61,11 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
+  },
+  // Người dùng 04/11: bỏ trang chủ giới thiệu, /dat-san là trang chính (mang JSON-LD + mô tả của trang chủ cũ).
+  // Vĩnh viễn (308) để Google chuyển thứ hạng của "/" sang /dat-san. Trang app/(public)/page.tsx không còn ai vào được.
+  async redirects() {
+    return [{ source: "/", destination: "/dat-san", permanent: true }];
   },
   // Trình duyệt gọi /api/v1/* cùng domain -> Next chuyển tiếp sang FastAPI.
   // Cookie httpOnly vì vậy là same-origin, không cần CORS.

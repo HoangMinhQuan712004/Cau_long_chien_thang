@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { TIERS } from "@/app/admin/hoi-vien/_components/member-params";
 import { Button } from "@/components/ui/button";
+import { Dropdown } from "@/components/ui/dropdown";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { errorText } from "@/lib/api/write";
@@ -11,7 +13,7 @@ import { Avatar } from "./avatar";
 import { CropDialog } from "./crop-dialog";
 import { useMember } from "./member-shell";
 import { deleteAvatar, getMe, putMe } from "./requests";
-import { formatPhone, type MemberMe, NICKNAME_MAX } from "./types";
+import { formatPhone, type MemberMe, type MeInput, NICKNAME_MAX } from "./types";
 
 // /hoi-vien/ho-so (T-016 AC7–AC19): hero + hai thẻ; Lưu / Hủy mờ khi chưa sửa; lỗi dưới ô; E-006 / E-007 / E-010 / E-011.
 
@@ -208,15 +210,16 @@ function CourtLines() {
 }
 
 // Hồ sơ chia hai khối Xem / Sửa (T-038): mặc định chế độ xem, "Sửa" ở tiêu đề từng khối, chỉ một khối sửa tại một thời điểm.
-// Hạng (Trình độ) do quầy xếp: luôn là chữ khóa, không bao giờ gửi giá trị khác (BE trả 422 E-HV-14).
+// Hạng (Trình độ): hội viên tự chọn khi Sửa khối Thông tin chơi (T-042, đảo phần khóa Hạng của T-038); NV / Admin vẫn sửa ở quản trị.
 type Section = "personal" | "play";
-type Values = { full_name: string; nickname: string; email: string; racket: string; show_on_records: boolean };
+type Values = { full_name: string; nickname: string; email: string; tier: string; racket: string; show_on_records: boolean };
 type Errors = { full_name?: string; nickname?: string; email?: string; racket?: string };
 
 const toValues = (m: MemberMe): Values => ({
   full_name: m.full_name,
   nickname: m.nickname ?? "",
   email: m.email ?? "",
+  tier: m.tier ?? "",
   racket: m.racket ?? "",
   show_on_records: m.show_on_records,
 });
@@ -238,7 +241,7 @@ const LOCK = (
 
 function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promise<void> }) {
   const { setMe, setDirty, leave } = useMember();
-  const ids = { name: useId(), nick: useId(), email: useId(), phone: useId(), racket: useId(), show: useId() };
+  const ids = { name: useId(), nick: useId(), email: useId(), phone: useId(), tier: useId(), racket: useId(), show: useId() };
   const nameRef = useRef<HTMLInputElement>(null);
   const nickRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -258,7 +261,7 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
     editing === "personal"
       ? v.full_name.trim() !== saved.full_name.trim() || v.nickname.trim() !== saved.nickname.trim() || v.email.trim() !== saved.email.trim()
       : editing === "play"
-        ? racketName(v) !== racketName(saved) || v.show_on_records !== saved.show_on_records
+        ? v.tier !== saved.tier || racketName(v) !== racketName(saved) || v.show_on_records !== saved.show_on_records
         : false;
 
   // Báo khung (menu, logo, Đăng xuất) có thay đổi chưa lưu ⇒ hỏi E-007 trước khi rời
@@ -315,14 +318,14 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
     if (Object.keys(found).length) return focusFirst(found);
 
     // Khối không sửa giữ nguyên giá trị đã lưu; `tier` luôn là hạng hiện tại (BE bỏ qua, không bao giờ đổi qua đường này)
-    const next = editing === "personal" ? { ...saved, full_name: v.full_name, nickname: v.nickname, email: v.email } : { ...saved, racket: v.racket, show_on_records: v.show_on_records };
+    const next = editing === "personal" ? { ...saved, full_name: v.full_name, nickname: v.nickname, email: v.email } : { ...saved, tier: v.tier, racket: v.racket, show_on_records: v.show_on_records };
     sending.current = true;
     setBusy(true);
     const res = await putMe({
       full_name: next.full_name.trim(),
       nickname: next.nickname.trim() || null,
       email: next.email.trim() || null,
-      tier: base.tier,
+      tier: (next.tier || null) as MeInput["tier"],
       racket: racketName(next),
       show_on_records: next.show_on_records,
       version: base.version,
@@ -466,17 +469,11 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
 
         <SectionCard id={`${ids.name}-t2`} title="Thông tin chơi" editing={editing === "play"} onEdit={() => startEdit("play")} onCancel={cancel} onSubmit={save} busy={busy} dirty={dirty}>
           <div className="space-y-4">
-            {/* Hạng do quầy xếp: luôn là chữ khóa, kể cả khi đang Sửa */}
-            <dl>
-              <View label="Trình độ (Hạng)" hint="Liên hệ quầy để xếp/đổi hạng.">
-                <span className="inline-flex items-center gap-1">
-                  {base.tier ?? "Chưa xếp hạng"}
-                  {LOCK}
-                </span>
-              </View>
-            </dl>
             {editing === "play" ? (
               <>
+                <Row label="Trình độ (Hạng)" htmlFor={ids.tier}>
+                  <Dropdown id={ids.tier} value={v.tier} onChange={(t) => set("tier", t)} placeholder="Chưa xếp hạng" options={TIERS.map((t) => ({ value: t, label: t }))} />
+                </Row>
                 <Row label="Vợt đang dùng" htmlFor={ids.racket}>
                   <Input id={ids.racket} value={v.racket} maxLength={100} autoComplete="off" placeholder="Ví dụ: Yonex Astrox 88D" onChange={(e) => set("racket", e.target.value)} {...err("racket")} />
                   {showErr("racket")}
@@ -495,6 +492,7 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
               </>
             ) : (
               <dl className="space-y-4">
+                <View label="Trình độ (Hạng)">{base.tier ?? "Chưa xếp hạng"}</View>
                 <View label="Vợt đang dùng">{base.racket || none}</View>
                 <View label="Hiện trên Video & kỷ lục" hint="Hiện tên và kỷ lục tốc độ của bạn cho hội viên khác">
                   <span className={cn("font-semibold", base.show_on_records ? "text-primary" : "text-muted")}>{base.show_on_records ? "Bật" : "Tắt"}</span>

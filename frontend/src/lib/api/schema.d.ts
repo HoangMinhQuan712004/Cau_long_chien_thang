@@ -979,9 +979,9 @@ export interface paths {
         get: operations["get_me_api_v1_member_area_me_get"];
         /**
          * Update Me
-         * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / racket),
-         *     409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
-         *     Hạng (``tier``) do quầy xếp (T-038): gửi khác hạng hiện tại -> 422 E-HV-14.
+         * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier /
+         *     racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
+         *     Hạng hội viên tự chọn (T-042); đổi hạng ghi audit ``member.tier_self_change``.
          */
         put: operations["update_me_api_v1_member_area_me_put"];
         post?: never;
@@ -1050,6 +1050,28 @@ export interface paths {
          *     403 E-HV-8 (chưa là hội viên).
          */
         get: operations["overview_api_v1_member_area_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Upcoming Events
+         * @description Sự kiện sắp tới (T-045): chưa bắt đầu, ngày diễn ra từ hôm nay tới hôm nay + ``days``, sắp
+         *     theo giờ bắt đầu. Có số chỗ (tính cả ghế đang giữ), ``can_buy`` + ``reason``, số vé của mình;
+         *     không có danh sách người mua. Đặt vé: luồng T-023 (``/web/booking/event-checkouts``).
+         */
+        get: operations["upcoming_events_api_v1_member_area_events_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1650,6 +1672,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/record-videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Record Videos
+         * @description Video & kỷ lục (T-046): số đo có video trong kỳ (tuần T2→CN / tháng / năm / mọi thời gian,
+         *     giờ VN), mới nhất trước, tối đa 60. Ẩn danh như Bảng xếp hạng (video vẫn phát).
+         */
+        get: operations["record_videos_api_v1_member_area_record_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Speed Records
+         * @description Số đo mới nhất trước (20 / trang) – tên thật + Mã HV, sân, video (chỉ Admin).
+         */
+        get: operations["list_speed_records_api_v1_admin_speed_records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records/{record_id}/video": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Video
+         * @description Gắn / sửa link video. Chỉ YouTube hoặc file .mp4 / .webm (https), khác -> 422 E-REC-1.
+         *     Audit ``record.video_set``. Không có số đo -> 404.
+         */
+        put: operations["set_video_api_v1_admin_speed_records__record_id__video_put"];
+        post?: never;
+        /**
+         * Remove Video
+         * @description Gỡ video (audit ``record.video_removed``); chưa có video -> trả nguyên trạng.
+         */
+        delete: operations["remove_video_api_v1_admin_speed_records__record_id__video_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rackets": {
         parameters: {
             query?: never;
@@ -1835,6 +1923,29 @@ export interface paths {
          *     Lỗi khác như xem trước; khách: E-014 / E-018 / E-001 như đặt quầy.
          */
         post: operations["create_recurring_api_v1_front_desk_recurring_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Orders
+         * @description Màn "Đơn đặt sân" (chỉ Admin, T-041): mọi đơn quầy / online / định kỳ (không gồm vé, không
+         *     gồm lượt giữ chỗ chưa trả tiền), mới nhất trước. Lọc loại × trạng thái + khoảng ngày chơi (đơn
+         *     có khối trong khoảng); tìm mã đơn / mã con / tên / SĐT. Thu cả đơn: ``POST
+         *     /booking/orders/{code}/collect`` (T-019). Ngày sai thứ tự -> 422 E-016.
+         */
+        get: operations["list_orders_api_v1_front_desk_orders_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2221,6 +2332,36 @@ export interface components {
              */
             kind: "admin";
         };
+        /** AdminSpeedRecordList */
+        AdminSpeedRecordList: {
+            /** Items */
+            items: components["schemas"]["AdminSpeedRecordRow"][];
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+            /** Total */
+            total: number;
+        };
+        /** AdminSpeedRecordRow */
+        AdminSpeedRecordRow: {
+            /** Id */
+            id: number;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /** Member Code */
+            member_code: string | null;
+            /** Member Name */
+            member_name: string;
+            /** Resource Name */
+            resource_name: string | null;
+            video: components["schemas"]["VideoOut"] | null;
+        };
         /** AuditCatalogOut */
         AuditCatalogOut: {
             /** Groups */
@@ -2260,7 +2401,7 @@ export interface components {
              * Actor
              * @enum {string}
              */
-            actor: "admin" | "staff" | "system";
+            actor: "admin" | "staff" | "system" | "customer";
             /** Actor Label */
             actor_label: string;
             /** Actor Name */
@@ -2801,6 +2942,60 @@ export interface components {
             date: string;
             /** Revenue */
             revenue: number;
+        };
+        /**
+         * EventCard
+         * @description Thẻ sự kiện sắp tới (T-045) – không danh sách người mua.
+         */
+        EventCard: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Names */
+            resource_names: string[];
+            /** Ticket Price */
+            ticket_price: number;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Taken
+             * @description Vé đã có + ghế đang giữ online
+             */
+            taken: number;
+            /** Remaining */
+            remaining: number;
+            /** Can Buy */
+            can_buy: boolean;
+            /**
+             * Reason
+             * @description full = Đã đủ chỗ · free = Đăng ký tại quầy (giá 0) · online_off = đặt online tạm ngưng
+             */
+            reason: ("full" | "free" | "online_off") | null;
+            /**
+             * My Ticket Count
+             * @description "Bạn có n vé"
+             */
+            my_ticket_count: number;
         };
         /** EventCheckoutIn */
         EventCheckoutIn: {
@@ -3490,7 +3685,7 @@ export interface components {
             email?: string | null;
             /**
              * Tier
-             * @description Hạng do quầy xếp (T-038): không gửi = bỏ qua; gửi khác hạng hiện tại -> 422 E-HV-14. Hạng không bao giờ đổi qua đường này
+             * @description Hạng tự chọn (T-042): một trong 8 bậc hoặc null (Chưa xếp hạng); giá trị lạ -> 422 (fields: tier, E-HV-1). Không gửi = giữ hạng hiện tại
              */
             tier?: string | null;
             /**
@@ -3878,6 +4073,121 @@ export interface components {
              */
             bookings: components["schemas"]["ItemOut"][];
         };
+        /** OrderCountsOut */
+        OrderCountsOut: {
+            all: components["schemas"]["RecurringCounts"];
+            single: components["schemas"]["RecurringCounts"];
+            recurring: components["schemas"]["RecurringCounts"];
+        };
+        /** OrderListOut */
+        OrderListOut: {
+            /** Items */
+            items: components["schemas"]["OrderOut"][];
+            /** @description Loại × trạng thái theo q + ngày */
+            counts: components["schemas"]["OrderCountsOut"];
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * OrderOut
+         * @description Một đơn đặt sân (quầy / online / định kỳ) – SĐT đã che, không gồm vé.
+         */
+        OrderOut: {
+            /** Order Code */
+            order_code: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Weekdays
+             * @description ISO 1 = T2 … 7 = CN (các thứ có buổi)
+             */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /**
+             * Date From
+             * Format: date
+             * @description Ngày buổi đầu
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             * @description Ngày buổi cuối
+             */
+            date_to: string;
+            /** Sessions */
+            sessions: number;
+            /** Original Amount */
+            original_amount: number;
+            /** Discount Pct */
+            discount_pct: number;
+            /** Discount Amount */
+            discount_amount: number;
+            /**
+             * Total
+             * @description Phải thu (sau giảm)
+             */
+            total: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unpaid" | "paid" | "uncollectible";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string;
+            /**
+             * Kind
+             * @description single = đơn ngày · recurring
+             * @enum {string}
+             */
+            kind: "single" | "recurring";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "online";
+            /**
+             * Member Code
+             * @description Mã HV khi khách là hội viên
+             */
+            member_code: string | null;
+            /** Resource Codes */
+            resource_codes: string[];
+            /**
+             * Resource Names
+             * @description Đơn ngày có thể nhiều sân
+             */
+            resource_names: string[];
+            /**
+             * Play Date
+             * Format: date
+             * @description Ngày chơi (định kỳ: ngày buổi đầu)
+             */
+            play_date: string;
+            /**
+             * Blocks
+             * @description Số khối (đơn ngày) / số buổi (định kỳ)
+             */
+            blocks: number;
+        };
         /** OtpSentOut */
         OtpSentOut: {
             /**
@@ -3947,6 +4257,11 @@ export interface components {
              * @description Tối đa 3 lần phá kỷ lục cụm gần nhất (mới nhất trước); rỗng -> ẩn khối
              */
             recent_records: components["schemas"]["RecentRecord"][];
+            /**
+             * Upcoming Events
+             * @description T-045: tối đa 3 sự kiện chưa bắt đầu trong 14 ngày tới; rỗng -> ẩn khối
+             */
+            upcoming_events?: components["schemas"]["EventCard"][];
         };
         /**
          * OverviewRanking
@@ -4766,6 +5081,50 @@ export interface components {
              * @description Đang giữ kỷ lục (thẻ viền vàng)
              */
             is_current: boolean;
+            /** @description T-046: có thì hiện nút ▶ phát tại chỗ (cả khi ẩn danh) */
+            video?: components["schemas"]["VideoOut"] | null;
+        };
+        /**
+         * RecordVideoCard
+         * @description Thẻ Video & kỷ lục (T-046) – ẩn danh như T-030 (mình luôn thấy tên mình).
+         */
+        RecordVideoCard: {
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /** Display Name */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /** Resource Name */
+            resource_name: string | null;
+            /** Is Me */
+            is_me: boolean;
+            video: components["schemas"]["VideoOut"];
+        };
+        /** RecordVideoList */
+        RecordVideoList: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "week" | "month" | "year" | "all";
+            /**
+             * Start
+             * @description null khi period = all
+             */
+            start: string | null;
+            /** End */
+            end: string | null;
+            /**
+             * Items
+             * @description Mới nhất trước, tối đa 60
+             */
+            items: components["schemas"]["RecordVideoCard"][];
         };
         /** RecurringBookingIn */
         RecurringBookingIn: {
@@ -4796,6 +5155,11 @@ export interface components {
              * @default 0
              */
             discount_pct: number;
+            /**
+             * Sessions
+             * @description Buổi tường minh (T-043); tối đa 60 buổi, trong 92 ngày, mỗi buổi một sân
+             */
+            sessions?: components["schemas"]["RecurringSessionIn"][] | null;
             customer: components["schemas"]["CustomerIn"];
         };
         /** RecurringCounts */
@@ -4960,6 +5324,11 @@ export interface components {
              * @default 0
              */
             discount_pct: number;
+            /**
+             * Sessions
+             * @description Buổi tường minh (T-043); tối đa 60 buổi, trong 92 ngày, mỗi buổi một sân
+             */
+            sessions?: components["schemas"]["RecurringSessionIn"][] | null;
             customer?: components["schemas"]["CustomerIn"] | null;
         };
         /** RecurringSession */
@@ -4974,6 +5343,14 @@ export interface components {
              * @description ISO 1–7
              */
             weekday: number;
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
             /** Start Time */
             start_time: string;
             /** End Time */
@@ -5001,6 +5378,51 @@ export interface components {
             reason?: ("booked" | "event" | "hold" | "closed" | "inactive" | "past" | "no_price") | null;
             /** Reason Text */
             reason_text?: string | null;
+            /**
+             * Suggestions
+             * @description Tối đa 2 – chỉ buổi lỗi booked / event / hold (T-043)
+             */
+            suggestions?: components["schemas"]["RecurringSuggestion"][];
+        };
+        /**
+         * RecurringSessionIn
+         * @description Một buổi tường minh (T-043): FE sinh từ lịch chung rồi áp chỉnh sửa / gợi ý; bỏ buổi = không
+         *     gửi buổi đó.
+         */
+        RecurringSessionIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Resource Code */
+            resource_code: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+        };
+        /**
+         * RecurringSuggestion
+         * @description Gợi ý cho buổi trùng (T-043): ``shift`` = cùng sân lệch giờ gần nhất, ``court`` = cùng giờ
+         *     sân khác (ưu tiên cùng loại sân). Đã kiểm giờ mở cửa, giá và chỗ trống của ngày đó.
+         */
+        RecurringSuggestion: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "shift" | "court";
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /** Price */
+            price: number;
         };
         /** RegisterOut */
         RegisterOut: {
@@ -6005,6 +6427,37 @@ export interface components {
              * @description ``version`` của phòng lúc người dùng bấm (AC21)
              */
             version: number;
+        };
+        /** VideoIn */
+        VideoIn: {
+            /**
+             * Url
+             * @description https YouTube hoặc file .mp4 / .webm
+             */
+            url: string;
+        };
+        /** VideoOut */
+        VideoOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "youtube" | "file";
+            /**
+             * Url
+             * @description Link Admin đã dán
+             */
+            url: string;
+            /**
+             * Embed Url
+             * @description YouTube: youtube-nocookie.com/embed/{id}
+             */
+            embed_url: string | null;
+            /**
+             * Thumbnail Url
+             * @description YouTube: ảnh xem trước i.ytimg.com
+             */
+            thumbnail_url: string | null;
         };
         /** WebCalendarOut */
         WebCalendarOut: {
@@ -7969,6 +8422,47 @@ export interface operations {
             };
         };
     };
+    upcoming_events_api_v1_member_area_events_get: {
+        parameters: {
+            query?: {
+                /** @description Số ngày tới (giờ VN) */
+                days?: number;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCard"][];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     payments_api_v1_member_area_payments_get: {
         parameters: {
             query?: {
@@ -9016,6 +9510,144 @@ export interface operations {
             };
         };
     };
+    record_videos_api_v1_member_area_record_videos_get: {
+        parameters: {
+            query?: {
+                period?: "week" | "month" | "year" | "all";
+                /** @description Ngày bất kỳ trong kỳ, mặc định hôm nay */
+                date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordVideoList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_speed_records_api_v1_admin_speed_records_get: {
+        parameters: {
+            query?: {
+                /** @description true: có video · false: chưa có */
+                has_video?: boolean | null;
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_video_api_v1_admin_speed_records__record_id__video_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_video_api_v1_admin_speed_records__record_id__video_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_rackets_api_v1_rackets_get: {
         parameters: {
             query?: {
@@ -9359,6 +9991,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecurringCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_orders_api_v1_front_desk_orders_get: {
+        parameters: {
+            query?: {
+                kind?: "all" | "single" | "recurring";
+                status?: ("unpaid" | "paid" | "uncollectible") | null;
+                q?: string | null;
+                /** @description Ngày chơi từ (khối bất kỳ) */
+                date_from?: string | null;
+                /** @description Ngày chơi đến */
+                date_to?: string | null;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderListOut"];
                 };
             };
             /** @description Validation Error */
@@ -9773,7 +10444,7 @@ export interface operations {
             query?: {
                 from?: string | null;
                 to?: string | null;
-                actor?: ("admin" | "staff" | "system") | null;
+                actor?: ("admin" | "staff" | "system" | "customer") | null;
                 action?: string | null;
                 /** @description Thời điểm: at_desc (mặc định, mới trước) | at_asc (cũ trước) */
                 sort?: ("at_desc" | "at_asc") | null;
