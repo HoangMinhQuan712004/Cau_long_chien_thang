@@ -39,6 +39,7 @@ class Perm(enum.StrEnum):
     CONTENT_MANAGE = "content.manage"  # tin tức / trang nội dung (chỉ Admin)
     PAYMENTS_SETTINGS = "payments.settings"  # tài khoản nhận tiền, khóa SePay (chỉ Admin, T-012)
     AUDIT_LOG_VIEW = "audit_log.view"  # Lịch sử thao tác (chỉ Admin, SRS Lịch sử thao tác BR-001)
+    RECORDS_VIDEO_MANAGE = "records.video.manage"  # gắn / gỡ video kỷ lục (chỉ Admin, T-046)
     REPORTS_VIEW = "reports.view"  # Báo cáo & phân tích (chỉ Admin, SRS Báo cáo BR-001)
 
 
