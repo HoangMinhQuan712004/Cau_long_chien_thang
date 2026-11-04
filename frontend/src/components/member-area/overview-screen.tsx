@@ -90,8 +90,7 @@ export function OverviewScreen() {
     await load();
   }
 
-  const [next, ...rest] = data?.upcoming ?? [];
-  const more = rest.slice(0, 3);
+  const next = data?.upcoming[0];
   const month = data ? monthNo(data.month, data.today) : 0;
   const stats = data?.month_stats;
 
@@ -140,41 +139,23 @@ export function OverviewScreen() {
           <>
             <div className="grid gap-4 lg:grid-cols-[1.45fr_1fr] lg:items-start">
               <div className="min-w-0 space-y-4">
+                {/* Một khung: thẻ "Tiếp theo" (lịch chơi gần nhất) + danh sách Phòng đang trống (thiết kế prototype, người dùng 04/11) */}
                 <section className={card} aria-labelledby="up-title">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 id="up-title" className="text-base font-bold">
-                      Lịch đặt sắp tới
-                    </h2>
-                    {next ? (
-                      <Link href="/hoi-vien/danh-sach-san?loc=cua-toi" className="rounded-sm text-sm font-semibold text-primary hover:underline focus-ring">
-                        Xem tất cả ›
-                      </Link>
-                    ) : null}
-                  </div>
-                  {!next ? (
-                    <div className="py-8 text-center">
+                  <h2 id="up-title" className="sr-only">
+                    Lịch chơi tiếp theo
+                  </h2>
+                  {next ? (
+                    <NextCard item={next} today={data.today} nowMs={nowMs} />
+                  ) : (
+                    <div className="rounded-xl bg-primary-softer px-4 py-6 text-center ring-1 ring-primary/10">
                       <p className="text-muted">Bạn chưa có lịch chơi sắp tới</p>
                       <Link href="/hoi-vien/dat-san" className={cn(ctaCls, "mt-4")}>
                         Đặt sân
                       </Link>
                     </div>
-                  ) : (
-                    <>
-                      <NextCard item={next} today={data.today} nowMs={nowMs} />
-                      {more.length > 0 ? (
-                        <ul className="mt-3 divide-y divide-border">
-                          {more.map((it) => (
-                            <li key={it.booking_code}>
-                              <Row item={it} today={data.today} />
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </>
                   )}
+                  <OpenRooms rooms={data.open_rooms} busyId={busyId} onJoin={(r) => void requestJoin(r)} />
                 </section>
-
-                <OpenRooms rooms={data.open_rooms} busyId={busyId} onJoin={(r) => void requestJoin(r)} />
 
                 <UpcomingEvents events={data.upcoming_events} />
               </div>
@@ -219,54 +200,71 @@ function StatCard({ href, label, month, value, unit, sub }: { href: string; labe
 
 const dayLabel = (playDate: string, today: string) => (playDate === today ? "Hôm nay" : formatDayMonth(playDate));
 
-function HostTag({ role }: { role: Upcoming["role"] }) {
-  return <span className="rounded-full bg-primary-softer px-2 py-0.5 text-xs font-semibold ring-1 ring-border">{role === "host" ? "Host" : "Thành viên"}</span>;
+/** Sân nhỏ vẽ bằng nét, avatar người trong phòng xếp trên mép sân (thẻ "Tiếp theo" theo prototype). */
+function MiniCourt({ people }: { people: Upcoming["members_preview"] }) {
+  return (
+    <div className="relative hidden h-24 min-w-0 flex-1 sm:block" aria-hidden>
+      <svg viewBox="0 0 160 70" preserveAspectRatio="none" className="absolute inset-x-0 bottom-0 h-16 w-full text-primary/40" fill="none" stroke="currentColor" strokeWidth="1.4">
+        <rect x="1" y="1" width="158" height="68" />
+        <path d="M80 1v68M1 35h158M30 1v68M130 1v68" />
+      </svg>
+      {people.length > 0 ? (
+        <div className="absolute top-0 left-1/2 flex -translate-x-1/2 -space-x-2">
+          {people.slice(0, 4).map((m, i) => (
+            <Avatar key={`${m.display_name}-${i}`} url={m.avatar_url} name={m.display_name} size={34} className="ring-2 ring-surface" />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
-/** Thẻ "TIẾP THEO" kiểu thẻ sân (T-028 AC11): dải xanh có hoa văn + giờ lớn + pill đếm ngược, thân trắng có Host, cụm avatar và CTA vàng. */
+/** Thẻ "TIẾP THEO" theo prototype: nền xanh nhạt; trái = giờ, sân, Host, cụm avatar; phải = sân nhỏ + đếm ngược + Vào phòng. */
 function NextCard({ item, today, nowMs }: { item: Upcoming; today: string; nowMs: number }) {
   const minutes = Math.ceil((Date.parse(item.start_at) - nowMs) / 60000);
   const ongoing = item.phase === "ongoing";
   const badge = ongoing ? "Đang diễn ra" : nowMs > 0 && minutes > 0 && minutes <= 60 ? `Còn ${minutes} phút` : null;
   return (
-    <article className="mt-3 overflow-hidden rounded-xl border border-border bg-surface shadow-card">
-      <div className="relative bg-appbar px-4 pt-3 pb-4 text-surface">
-        <svg aria-hidden viewBox="0 0 320 100" preserveAspectRatio="xMidYMid slice" className="pointer-events-none absolute inset-0 size-full text-surface opacity-[0.09]" fill="none" stroke="currentColor" strokeWidth="1.4">
-          <rect x="16" y="8" width="288" height="84" />
-          <path d="M160 8v84M16 50h288M16 24h288M16 76h288M64 8v84M256 8v84" />
-        </svg>
-        <div className="relative flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-bold tracking-wider">TIẾP THEO</p>
-          {badge ? <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", ongoing ? "bg-cta text-cta-fg" : "bg-surface text-primary-hover")}>{badge}</span> : null}
-        </div>
-        <p className="relative mt-2 text-2xl leading-tight font-bold">
+    <article className="flex flex-col gap-4 rounded-xl bg-primary-softer p-4 ring-1 ring-primary/10 sm:flex-row sm:p-5">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-bold tracking-wider text-muted">TIẾP THEO</p>
+        <p className="mt-1 text-2xl leading-tight font-bold">
           {dayLabel(item.play_date, today)} · <span className="tabular-nums">{hourRange(item.start_at, item.end_at)}</span>
         </p>
-      </div>
-      <div className="p-4">
-        <p className="font-semibold">
-          {item.resource_name} <span className="font-normal text-muted">· {item.resource_type_name}</span>
+        <p className="mt-1 text-sm text-muted">
+          {item.resource_name} · {item.resource_type_name} · Host: <b className="font-semibold text-foreground">{item.role === "host" ? "bạn" : item.host_name}</b>
         </p>
-        <p className="mt-0.5 text-sm text-muted">
-          Host: <b className="font-semibold text-foreground">{item.role === "host" ? "bạn" : item.host_name}</b>
-        </p>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          {item.capacity !== null ? (
-            <div className="flex items-center gap-2">
-              <div className="flex -space-x-1.5" aria-hidden>
-                {item.members_preview.map((m, i) => (
-                  <Avatar key={`${m.display_name}-${i}`} url={m.avatar_url} name={m.display_name} size={28} className="ring-2 ring-surface" />
-                ))}
-              </div>
-              <span className="text-sm font-semibold tabular-nums" aria-label={`${item.count} trên ${item.capacity} thành viên`}>
-                {item.count}/{item.capacity}
-              </span>
+        {item.capacity !== null ? (
+          <div className="mt-3 flex items-center gap-2">
+            <div className="flex -space-x-1.5" aria-hidden>
+              {item.members_preview.map((m, i) => (
+                <Avatar key={`${m.display_name}-${i}`} url={m.avatar_url} name={m.display_name} size={26} className="ring-2 ring-surface" />
+              ))}
             </div>
+            <span className="text-sm font-semibold tabular-nums" aria-label={`${item.count} trên ${item.capacity} thành viên`}>
+              {item.count}/{item.capacity}
+            </span>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-muted">Phòng đang được tạo</p>
+        )}
+      </div>
+      <div className="flex items-stretch gap-4 sm:w-[46%]">
+        <MiniCourt people={item.members_preview} />
+        <div className="flex flex-1 shrink-0 flex-col items-end justify-between gap-3 sm:flex-none">
+          {badge ? (
+            <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold", ongoing ? "bg-cta text-cta-fg" : "bg-appbar text-surface")}>
+              <svg viewBox="0 0 20 20" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <circle cx="10" cy="11" r="6.5" />
+                <path d="M10 8v3l2 1.5M8 2.5h4" />
+              </svg>
+              {badge}
+            </span>
           ) : (
-            <span className="text-sm text-muted">Phòng đang được tạo</span>
+            <span aria-hidden />
           )}
           {item.room_id !== null ? (
-            <Link href={`/hoi-vien/phong/${item.room_id}`} className={ctaCls}>
+            <Link href={`/hoi-vien/phong/${item.room_id}`} className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-surface hover:bg-primary-hover focus-ring">
               Vào phòng
             </Link>
           ) : null}
@@ -276,39 +274,11 @@ function NextCard({ item, today, nowMs }: { item: Upcoming; today: string; nowMs
   );
 }
 
-function Row({ item, today }: { item: Upcoming; today: string }) {
-  const body = (
-    <>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold">
-          {dayLabel(item.play_date, today)} · {hourRange(item.start_at, item.end_at)}
-        </span>
-        <span className="block truncate text-xs text-muted">{item.resource_name}</span>
-      </span>
-      <HostTag role={item.role} />
-      {item.capacity !== null ? (
-        <span className="text-sm font-semibold tabular-nums">
-          {item.count}/{item.capacity}
-        </span>
-      ) : null}
-      {item.room_id !== null ? <span aria-hidden>›</span> : null}
-    </>
-  );
-  const cls = "flex min-h-12 items-center gap-3 rounded-lg py-2";
-  return item.room_id !== null ? (
-    <Link href={`/hoi-vien/phong/${item.room_id}`} className={cn(cls, "hover:bg-primary-softer focus-ring")}>
-      {body}
-    </Link>
-  ) : (
-    <div className={cls}>{body}</div>
-  );
-}
-
 // ------------------------------------------------------------------ Phòng đang trống
 
 function OpenRooms({ rooms, busyId, onJoin }: { rooms: RoomCard[]; busyId: number | null; onJoin: (r: RoomCard) => void }) {
   return (
-    <section className={card} aria-labelledby="open-title">
+    <section className="mt-5" aria-labelledby="open-title">
       <div className="flex items-center justify-between gap-3">
         <h2 id="open-title" className="text-base font-bold">
           Phòng đang trống
@@ -441,6 +411,7 @@ function RankCard({ ranking, month }: { ranking: Overview["ranking"]; month: num
 
 // ------------------------------------------------------------------ Kỷ lục mới
 
+// Khối chỉ để xem (người dùng 04/11): không có link sang màn khác, ô không bấm được; khi chưa có kỷ lục vẫn giữ khung chờ video
 function RecordCards({ records }: { records: Overview["recent_records"] }) {
   // Thẻ đang phát video (T-046): chỉ một thẻ phát tại một thời điểm; iframe chỉ nạp sau khi bấm ▶
   const [playing, setPlaying] = useState<string | null>(null);

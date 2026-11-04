@@ -62,6 +62,11 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Người dùng 04/11: bỏ trang chủ giới thiệu, /dat-san là trang chính (mang JSON-LD + mô tả của trang chủ cũ).
+  // Vĩnh viễn (308) để Google chuyển thứ hạng của "/" sang /dat-san. Trang app/(public)/page.tsx không còn ai vào được.
+  async redirects() {
+    return [{ source: "/", destination: "/dat-san", permanent: true }];
+  },
   // Trình duyệt gọi /api/v1/* cùng domain -> Next chuyển tiếp sang FastAPI.
   // Cookie httpOnly vì vậy là same-origin, không cần CORS.
   async rewrites() {

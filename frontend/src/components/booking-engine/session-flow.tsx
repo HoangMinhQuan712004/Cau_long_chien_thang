@@ -173,7 +173,7 @@ export function SessionFlow({ code, onClose, onChanged, onOpenTicket }: Props) {
             <table className="w-full text-sm">
               <thead className="text-xs text-muted">
                 <tr className="border-b border-border">
-                  <th className="px-3 py-1.5 text-left font-medium">Mã vé</th>
+                  <th className="px-3 py-1.5 text-left font-medium">Mã check-in</th>
                   <th className="px-3 py-1.5 text-left font-medium">Khách</th>
                   <th className="px-3 py-1.5 text-left font-medium">SĐT</th>
                   <th className="px-3 py-1.5 text-left font-medium">Nguồn</th>

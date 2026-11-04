@@ -9,7 +9,8 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-(--z-header) border-b border-border bg-surface/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:gap-6">
-        <Link href="/" className="flex min-w-0 items-center gap-2 font-bold text-primary">
+        {/* /dat-san là trang chính (ADR-012): trỏ thẳng, không qua chuyển hướng "/" */}
+        <Link href="/dat-san" className="flex min-w-0 items-center gap-2 font-bold text-primary">
           <span aria-hidden className="grid size-8 place-items-center rounded-lg bg-primary text-xs text-white">
             CL
           </span>
