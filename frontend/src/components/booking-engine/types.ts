@@ -211,10 +211,14 @@ export type SchemaContract = [
 ];
 
 // ---- Đặt sân định kỳ (T-035, Admin): kiểu sinh từ schema.d.ts ----
-export type RecurringBody = Api["schemas"]["RecurringBookingIn"];
-export type RecurringPreviewBody = Api["schemas"]["RecurringPreviewIn"];
-export type RecurringSession = Api["schemas"]["RecurringSession"];
-export type RecurringPreview = Api["schemas"]["RecurringPreview"];
+/** Một buổi tường minh gửi lên (T-043): FE sinh từ lịch chung rồi áp chỉnh sửa / bỏ buổi. */
+export type RecurringSessionIn = { date: string; resource_code: string; start_hour: number; end_hour: number };
+/** Gợi ý cho buổi lỗi (T-043 AC1): `shift` = cùng sân lệch giờ, `court` = cùng giờ sân khác. */
+export type RecurringSuggestion = { kind: "shift" | "court"; resource_code: string; resource_name: string; start_hour: number; end_hour: number; price: number };
+export type RecurringBody = Api["schemas"]["RecurringBookingIn"] & { sessions?: RecurringSessionIn[] };
+export type RecurringPreviewBody = Api["schemas"]["RecurringPreviewIn"] & { sessions?: RecurringSessionIn[] };
+export type RecurringSession = Api["schemas"]["RecurringSession"] & { resource_code?: string; suggestions?: RecurringSuggestion[] };
+export type RecurringPreview = Omit<Api["schemas"]["RecurringPreview"], "sessions"> & { sessions: RecurringSession[] };
 export type RecurringResult = Api["schemas"]["RecurringCreated"];
 /** Buổi không đặt được trong lỗi 409 E-BOOK-5 (`extra.conflicts`). */
 export type RecurringConflict = { date: string; start: string; reason: string | null; reason_text?: string | null };
