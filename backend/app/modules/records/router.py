@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.db import SessionDep
 from app.modules.auth import api as auth
 from app.modules.records import service
-from app.modules.records.schemas import Period, SpeedRanking
+from app.modules.records.schemas import Period, RecordVideoList, SpeedRanking, VideoPeriod
 
 router = APIRouter(prefix="/member-area", tags=["member-area"])
 
@@ -35,3 +35,18 @@ async def speed_ranking(
     """
     today = dt.datetime.now(settings.tz).date()
     return await service.ranking(session, member.customer_id, period, day or today)
+
+
+@router.get("/record-videos", response_model=RecordVideoList, dependencies=[Depends(no_store)])
+async def record_videos(
+    member: auth.CurrentMember,
+    session: SessionDep,
+    period: Annotated[VideoPeriod, Query()] = "month",
+    day: Annotated[
+        dt.date | None, Query(alias="date", description="Ngày bất kỳ trong kỳ, mặc định hôm nay")
+    ] = None,
+):
+    """Video & kỷ lục (T-046): số đo có video trong kỳ (tuần T2→CN / tháng / năm / mọi thời gian,
+    giờ VN), mới nhất trước, tối đa 60. Ẩn danh như Bảng xếp hạng (video vẫn phát)."""
+    today = dt.datetime.now(settings.tz).date()
+    return await service.record_videos(session, member.customer_id, period, day or today)

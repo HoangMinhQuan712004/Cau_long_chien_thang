@@ -4,8 +4,8 @@ from datetime import date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.records import demo, service
-from app.modules.records.schemas import Period, SpeedRanking
+from app.modules.records import demo, service, video
+from app.modules.records.schemas import Period, SpeedRanking, VideoOut
 from app.modules.records.service import RecordBreak
 
 __all__ = [
@@ -17,6 +17,7 @@ __all__ = [
     "seed_demo_breaks",
     "seed_demo_speeds",
     "speed_ranking",
+    "video_of",
 ]
 
 
@@ -59,3 +60,8 @@ async def seed_demo_breaks(
 
 async def purge_demo(session: AsyncSession) -> int:
     return await demo.purge_demo(session)
+
+
+def video_of(url: str | None) -> VideoOut | None:
+    """Link video đã lưu -> ``{kind, url, embed_url, thumbnail_url}`` cho FE (T-046)."""
+    return video.parse(url)

@@ -9,9 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.modules.auth import api as auth
+from app.modules.booking_engine import api as engine
 from app.modules.members import api as members
+from app.modules.records import video
 from app.modules.records.models import SpeedRecord
-from app.modules.records.schemas import Period, SpeedMe, SpeedRanking, SpeedRankingRow
+from app.modules.records.schemas import (
+    Period,
+    RecordVideoCard,
+    RecordVideoList,
+    SpeedMe,
+    SpeedRanking,
+    SpeedRankingRow,
+    VideoPeriod,
+)
 
 TOP = 10
 BAR_FLOOR_KMH = 200
@@ -146,6 +156,7 @@ class RecordBreak:
     measured_at: datetime
     court_code: str | None
     is_current: bool
+    video_url: str | None = None  # T-046: link Admin gắn (phát cả khi người đó ẩn danh)
 
 
 async def club_record_breaks(
@@ -169,6 +180,7 @@ async def club_record_breaks(
             SpeedRecord.speed_kmh,
             SpeedRecord.measured_at,
             SpeedRecord.court_code,
+            SpeedRecord.video_url,
             SpeedRecord.id,
             previous.label("previous"),
         )
@@ -198,6 +210,61 @@ async def club_record_breaks(
                 measured_at=r.measured_at,
                 court_code=r.court_code,
                 is_current=i == 0,
+                video_url=r.video_url,
             )
         )
     return out
+
+
+# ------------------------------------------------------------------ Video & kỷ lục (T-046)
+
+VIDEO_LIMIT = 60
+
+
+async def record_videos(
+    session: AsyncSession, viewer_id: int, period: VideoPeriod, day: date
+) -> RecordVideoList:
+    """Số đo có video trong kỳ (tuần / tháng / năm / mọi thời gian), mới nhất trước. Chỉ hội viên
+    đủ điều kiện như Bảng xếp hạng; ẩn danh như T-030 (video vẫn phát, tên ẩn)."""
+    conds = [SpeedRecord.video_url.is_not(None)]
+    first = last = None
+    if period != "all":
+        first, last = period_bounds(period, day)
+        conds += [
+            SpeedRecord.measured_at >= _at(first),
+            SpeedRecord.measured_at < _at(last + timedelta(days=1)),
+        ]
+    rows = list(
+        await session.scalars(
+            select(SpeedRecord)
+            .where(*conds)
+            .order_by(SpeedRecord.measured_at.desc(), SpeedRecord.id.desc())
+            .limit(VIDEO_LIMIT * 2)
+        )
+    )
+    people = await eligible(session, {r.customer_id for r in rows})
+    courts = (
+        {c.code: c.name for c in (await engine.list_resources(session)).items}
+        if any(r.court_code for r in rows)
+        else {}
+    )
+    items = []
+    for r in rows:
+        p = people.get(r.customer_id)
+        clip = video.parse(r.video_url)
+        if p is None or clip is None:
+            continue
+        is_me = r.customer_id == viewer_id
+        shown = is_me or p.show_on_records
+        items.append(
+            RecordVideoCard(
+                speed_kmh=r.speed_kmh,
+                measured_at=r.measured_at,
+                display_name=p.display_name if shown else ANONYMOUS,
+                avatar_url=_avatar_url(p) if shown else None,
+                resource_name=courts.get(r.court_code) if r.court_code else None,
+                is_me=is_me,
+                video=clip,
+            )
+        )
+    return RecordVideoList(period=period, start=first, end=last, items=items[:VIDEO_LIMIT])
