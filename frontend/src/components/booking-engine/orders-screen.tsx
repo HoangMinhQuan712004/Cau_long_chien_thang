@@ -34,8 +34,11 @@ const SOURCE: Record<string, string> = { counter: "Quầy", online: "Online" };
 
 type Dialog = { kind: "order"; code: string } | { kind: "item"; code: string } | { kind: "collect"; row: BookingOrderRow };
 
-/** Chữ "sân chính (+n sân khác)" (T-043 cho phép đơn định kỳ có buổi ở sân khác). */
-const courtText = (o: BookingOrderRow) => `${o.resource_name}${o.other_resources ? ` (+${o.other_resources} sân khác)` : ""}`;
+/** Chữ "sân chính (+n sân khác)" (đơn định kỳ có thể có buổi ở nhiều sân, T-043). */
+const courtText = (o: BookingOrderRow) => {
+  const others = new Set(o.resource_codes).size - 1;
+  return `${o.resource_name}${others > 0 ? ` (+${others} sân khác)` : ""}`;
+};
 
 export function OrdersScreen({ today }: { today: string }) {
   const [kind, setKind] = useState<"all" | BookingOrderKind>("all");
@@ -95,7 +98,8 @@ export function OrdersScreen({ today }: { today: string }) {
     }
   }
 
-  const counts = data?.counts;
+  // Số đếm theo trạng thái trong phạm vi Loại đang lọc (counts[kind][status])
+  const counts = data?.counts[kind];
   const pages = data ? Math.max(1, Math.ceil(data.total / data.size)) : 1;
   const chip = (active: boolean) => `rounded-full border px-3 py-1.5 text-sm ${active ? "border-primary bg-primary text-white" : "border-border bg-surface hover:bg-primary-softer"}`;
   const reset = () => setPage(1);
@@ -137,7 +141,7 @@ export function OrdersScreen({ today }: { today: string }) {
                 className={chip(status === f.key)}
               >
                 {f.label}
-                {counts ? ` (${counts[f.key] ?? 0})` : ""}
+                {counts ? ` (${counts[f.key]})` : ""}
               </button>
             ))}
           </div>
@@ -207,7 +211,7 @@ export function OrdersScreen({ today }: { today: string }) {
                   <span className="flex flex-wrap items-center gap-2">
                     <b className="font-mono text-sm">{o.order_code}</b>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${o.kind === "recurring" ? "bg-blk-session text-blk-session-fg" : "bg-primary-softer text-primary"}`}>{o.kind === "recurring" ? "Định kỳ" : "Ngày"}</span>
-                    <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">{SOURCE[o.source] ?? o.source}</span>
+                    <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">{SOURCE[o.source]}</span>
                     <StatusBadge status={o.status} />
                   </span>
                   <span className="mt-1 block text-sm font-medium">
@@ -218,7 +222,7 @@ export function OrdersScreen({ today }: { today: string }) {
                   {o.kind === "recurring" ? (
                     <>
                       <span className="block text-sm text-muted">
-                        {courtText(o)} · {(o.weekdays ?? []).map((d) => DOW[d - 1]).join(" ")} · {pad(o.start_hour)}:00–{pad(o.end_hour)}:00
+                        {courtText(o)} · {o.weekdays.map((d) => DOW[d - 1]).join(" ")} · {pad(o.start_hour)}:00–{pad(o.end_hour)}:00
                       </span>
                       <span className="block text-sm text-muted">
                         Từ buổi đầu {dm(o.date_from)} – buổi cuối {dm(o.date_to)}/{o.date_to.slice(0, 4)} · {o.sessions} buổi
@@ -228,7 +232,7 @@ export function OrdersScreen({ today }: { today: string }) {
                     <>
                       <span className="block text-sm text-muted">{courtText(o)}</span>
                       <span className="block text-sm text-muted">
-                        {o.play_date ? formatDayMonthYear(o.play_date) : formatDayMonthYear(o.date_from)} · {o.blocks ?? o.sessions} khối
+                        {formatDayMonthYear(o.play_date)} · {o.blocks} khối
                       </span>
                     </>
                   )}

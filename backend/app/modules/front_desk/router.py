@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
 from app.core.db import SessionDep
+from app.core.errors import AppError
 from app.core.idempotency import IdempotencyDep
 from app.core.permissions import Perm, Principal, require
 from app.core.privacy import mask_phone
@@ -38,6 +39,7 @@ router = APIRouter(prefix="/front-desk", tags=["front-desk"])
 
 CounterBooker = Annotated[Principal, Depends(require(Perm.BOOKING_COUNTER_CREATE))]
 RecurringBooker = Annotated[Principal, Depends(require(Perm.BOOKING_RECURRING))]
+OrdersViewer = Annotated[Principal, Depends(require(Perm.BOOKING_ORDERS_VIEW))]
 TicketSeller = Annotated[Principal, Depends(require(Perm.BOOKING_TICKET_CREATE))]
 
 
@@ -256,6 +258,80 @@ async def list_recurring(
             for row in out.items
         ],
         counts=out.counts,
+        page=out.page,
+        size=out.size,
+        total=out.total,
+    )
+
+
+# ------------------------------------------------------------------ đơn đặt sân (T-041)
+
+
+class OrderOut(RecurringOrderOut):
+    """Một đơn đặt sân (quầy / online / định kỳ) – SĐT đã che, không gồm vé."""
+
+    kind: Literal["single", "recurring"] = Field(description="single = đơn ngày · recurring")
+    source: Literal["counter", "online"]
+    member_code: str | None = Field(description="Mã HV khi khách là hội viên")
+    resource_codes: list[str]
+    resource_names: list[str] = Field(description="Đơn ngày có thể nhiều sân")
+    play_date: dt.date = Field(description="Ngày chơi (định kỳ: ngày buổi đầu)")
+    blocks: int = Field(description="Số khối (đơn ngày) / số buổi (định kỳ)")
+
+
+class OrderCountsOut(BaseModel):
+    all: RecurringCounts
+    single: RecurringCounts
+    recurring: RecurringCounts
+
+
+class OrderListOut(BaseModel):
+    items: list[OrderOut]
+    counts: OrderCountsOut = Field(description="Loại × trạng thái theo q + ngày")
+    page: int
+    size: int
+    total: int
+
+
+@router.get("/orders", response_model=OrderListOut)
+async def list_orders(
+    _: OrdersViewer,
+    session: SessionDep,
+    kind: Annotated[Literal["all", "single", "recurring"], Query()] = "all",
+    status_: Annotated[
+        Literal["unpaid", "paid", "uncollectible"] | None, Query(alias="status")
+    ] = None,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    date_from: Annotated[dt.date | None, Query(description="Ngày chơi từ (khối bất kỳ)")] = None,
+    date_to: Annotated[dt.date | None, Query(description="Ngày chơi đến")] = None,
+    page: Annotated[int, Query(ge=1, le=10_000)] = 1,
+    size: Annotated[int, Query(ge=1, le=50)] = 20,
+):
+    """Màn "Đơn đặt sân" (chỉ Admin, T-041): mọi đơn quầy / online / định kỳ (không gồm vé, không
+    gồm lượt giữ chỗ chưa trả tiền), mới nhất trước. Lọc loại × trạng thái + khoảng ngày chơi (đơn
+    có khối trong khoảng); tìm mã đơn / mã con / tên / SĐT. Thu cả đơn: ``POST
+    /booking/orders/{code}/collect`` (T-019). Ngày sai thứ tự -> 422 E-016."""
+    if date_from and date_to and date_from > date_to:
+        raise AppError("E-016", "Từ ngày không được sau Đến ngày.", 422)
+    out = await engine.list_orders(
+        session,
+        kind=None if kind == "all" else kind,
+        status=status_,
+        q=q,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        size=size,
+    )
+    return OrderListOut(
+        items=[
+            OrderOut(
+                **row.model_dump(exclude={"customer_phone"}),
+                phone_masked=mask_phone(row.customer_phone),
+            )
+            for row in out.items
+        ],
+        counts=OrderCountsOut(**out.counts.model_dump()),
         page=out.page,
         size=out.size,
         total=out.total,

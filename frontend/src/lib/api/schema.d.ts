@@ -1841,6 +1841,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/front-desk/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Orders
+         * @description Màn "Đơn đặt sân" (chỉ Admin, T-041): mọi đơn quầy / online / định kỳ (không gồm vé, không
+         *     gồm lượt giữ chỗ chưa trả tiền), mới nhất trước. Lọc loại × trạng thái + khoảng ngày chơi (đơn
+         *     có khối trong khoảng); tìm mã đơn / mã con / tên / SĐT. Thu cả đơn: ``POST
+         *     /booking/orders/{code}/collect`` (T-019). Ngày sai thứ tự -> 422 E-016.
+         */
+        get: operations["list_orders_api_v1_front_desk_orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/web/booking/calendar": {
         parameters: {
             query?: never;
@@ -3877,6 +3900,121 @@ export interface components {
              * @description Mọi khối của đơn sau khi thu
              */
             bookings: components["schemas"]["ItemOut"][];
+        };
+        /** OrderCountsOut */
+        OrderCountsOut: {
+            all: components["schemas"]["RecurringCounts"];
+            single: components["schemas"]["RecurringCounts"];
+            recurring: components["schemas"]["RecurringCounts"];
+        };
+        /** OrderListOut */
+        OrderListOut: {
+            /** Items */
+            items: components["schemas"]["OrderOut"][];
+            /** @description Loại × trạng thái theo q + ngày */
+            counts: components["schemas"]["OrderCountsOut"];
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * OrderOut
+         * @description Một đơn đặt sân (quầy / online / định kỳ) – SĐT đã che, không gồm vé.
+         */
+        OrderOut: {
+            /** Order Code */
+            order_code: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Weekdays
+             * @description ISO 1 = T2 … 7 = CN (các thứ có buổi)
+             */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /**
+             * Date From
+             * Format: date
+             * @description Ngày buổi đầu
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             * @description Ngày buổi cuối
+             */
+            date_to: string;
+            /** Sessions */
+            sessions: number;
+            /** Original Amount */
+            original_amount: number;
+            /** Discount Pct */
+            discount_pct: number;
+            /** Discount Amount */
+            discount_amount: number;
+            /**
+             * Total
+             * @description Phải thu (sau giảm)
+             */
+            total: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unpaid" | "paid" | "uncollectible";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string;
+            /**
+             * Kind
+             * @description single = đơn ngày · recurring
+             * @enum {string}
+             */
+            kind: "single" | "recurring";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "online";
+            /**
+             * Member Code
+             * @description Mã HV khi khách là hội viên
+             */
+            member_code: string | null;
+            /** Resource Codes */
+            resource_codes: string[];
+            /**
+             * Resource Names
+             * @description Đơn ngày có thể nhiều sân
+             */
+            resource_names: string[];
+            /**
+             * Play Date
+             * Format: date
+             * @description Ngày chơi (định kỳ: ngày buổi đầu)
+             */
+            play_date: string;
+            /**
+             * Blocks
+             * @description Số khối (đơn ngày) / số buổi (định kỳ)
+             */
+            blocks: number;
         };
         /** OtpSentOut */
         OtpSentOut: {
@@ -9422,6 +9560,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecurringCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_orders_api_v1_front_desk_orders_get: {
+        parameters: {
+            query?: {
+                kind?: "all" | "single" | "recurring";
+                status?: ("unpaid" | "paid" | "uncollectible") | null;
+                q?: string | null;
+                /** @description Ngày chơi từ (khối bất kỳ) */
+                date_from?: string | null;
+                /** @description Ngày chơi đến */
+                date_to?: string | null;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderListOut"];
                 };
             };
             /** @description Validation Error */

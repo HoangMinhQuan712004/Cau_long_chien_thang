@@ -955,3 +955,35 @@ class RecurringOrderList(BaseModel):
     page: int
     size: int
     total: int = Field(description="Số đơn khớp ``status`` + ``q``")
+
+
+# ---------- Đơn đặt sân (T-041) ----------
+
+OrderKind = Literal["single", "recurring"]
+
+
+class OrderRow(RecurringOrderRow):
+    """Một đơn đặt sân bất kỳ (quầy / online / định kỳ) – không gồm vé. ``customer_phone`` đầy
+    đủ – lớp gọi phải che. Lịch suy từ các khối (``date_from`` / ``date_to`` = khối đầu / cuối)."""
+
+    kind: OrderKind = Field(description="single = đơn ngày (quầy / online) · recurring = định kỳ")
+    source: Source = Field(description="counter = tại quầy · online")
+    member_code: str | None = Field(description="Mã HV khi khách là hội viên")
+    resource_codes: list[str] = Field(description="Mọi sân của đơn (đơn ngày có thể nhiều sân)")
+    resource_names: list[str]
+    play_date: dt.date = Field(description="Ngày chơi của đơn (định kỳ: ngày buổi đầu)")
+    blocks: int = Field(description="Số khối (đơn ngày) / số buổi (định kỳ)")
+
+
+class OrderCounts(BaseModel):
+    all: RecurringCounts
+    single: RecurringCounts
+    recurring: RecurringCounts
+
+
+class OrderList(BaseModel):
+    items: list[OrderRow]
+    counts: OrderCounts = Field(description="Loại × trạng thái, theo q + ngày (bỏ qua kind/status)")
+    page: int
+    size: int
+    total: int = Field(description="Số đơn khớp kind + status + q + ngày")

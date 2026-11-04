@@ -228,46 +228,8 @@ export type RecurringOrderStatus = Api["schemas"]["RecurringOrderOut"]["status"]
 export type RecurringOrderRow = Api["schemas"]["RecurringOrderOut"];
 export type RecurringOrderList = Api["schemas"]["RecurringOrderListOut"];
 
-// ---- Đơn đặt sân (T-041). TODO(T-041): đổi sang `Api["schemas"]` khi BE handoff.
-export type BookingOrderKind = "single" | "recurring";
-export type BookingOrderStatus = "unpaid" | "paid" | "uncollectible";
-export type BookingOrderRow = {
-  order_code: string;
-  kind: BookingOrderKind;
-  source: "counter" | "online" | string;
-  customer_name: string;
-  member_code?: string | null;
-  /** SĐT đã che. */
-  phone_masked: string | null;
-  resource_code: string;
-  resource_name: string;
-  /** Số sân khác sân chính (đơn định kỳ có buổi ở sân khác, T-043). */
-  other_resources?: number;
-  /** Thứ ISO 1..7; chỉ có ở đơn định kỳ. */
-  weekdays?: number[];
-  start_hour: number;
-  end_hour: number;
-  date_from: string;
-  date_to: string;
-  /** Ngày chơi của đơn ngày. */
-  play_date?: string | null;
-  /** Số khối của đơn ngày. */
-  blocks?: number;
-  /** Số buổi (đơn định kỳ) hoặc số khối. */
-  sessions: number;
-  original_amount: number;
-  discount_pct: number;
-  discount_amount: number;
-  total: number;
-  status: BookingOrderStatus;
-  created_at: string;
-  created_by: string | null;
-};
-export type BookingOrderList = {
-  items: BookingOrderRow[];
-  /** Số đếm theo trạng thái trong phạm vi Loại đang lọc. */
-  counts: { all: number; unpaid: number; paid: number; uncollectible: number } & Record<string, number>;
-  page: number;
-  size: number;
-  total: number;
-};
+// ---- Đơn đặt sân (T-041): kiểu sinh từ schema.d.ts ----
+export type BookingOrderRow = Api["schemas"]["OrderOut"];
+export type BookingOrderList = Api["schemas"]["OrderListOut"];
+export type BookingOrderKind = BookingOrderRow["kind"];
+export type BookingOrderStatus = BookingOrderRow["status"];
