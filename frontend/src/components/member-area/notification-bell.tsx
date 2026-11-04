@@ -73,7 +73,8 @@ export function NotificationBell({ onDark = false }: { onDark?: boolean }) {
         ) : null}
       </button>
       {open ? (
-        <div role="dialog" aria-label="Thông báo" className="absolute right-0 z-40 mt-2 w-[min(22rem,calc(100vw-1.5rem))] rounded-card bg-surface shadow-card ring-1 ring-border">
+        <div role="dialog" aria-label="Thông báo" // text-foreground: trên điện thoại chuông nằm ở app bar chữ trắng, không để bảng thừa hưởng màu đó
+        className="absolute right-0 z-40 mt-2 w-[min(22rem,calc(100vw-1.5rem))] rounded-card bg-surface text-foreground shadow-card ring-1 ring-border">
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <h2 className="text-sm font-bold">Thông báo{unread > 0 ? ` · ${unread}` : ""}</h2>
             <button type="button" onClick={() => void readAll()} disabled={unread === 0} className="rounded-sm text-xs font-semibold text-primary hover:underline focus-ring disabled:text-subtle disabled:no-underline">

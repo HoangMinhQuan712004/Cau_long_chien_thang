@@ -118,7 +118,7 @@ export function MemberShell({ initial, children }: { initial: MemberMe; children
     <MemberCtx.Provider value={value}>
       <MemberHeader />
       {/* Chừa chỗ cho thanh điều hướng dưới (điện thoại); thanh tự ẩn khi màn có thanh hành động riêng */}
-      <main className="flex-1 pb-24 lg:pb-0 [body:has([data-bottom-bar])_&]:pb-52 lg:[body:has([data-bottom-bar])_&]:pb-0">{children}</main>
+      <main className="flex-1 pb-24 lg:pb-0 [body:has([data-bottom-bar])_&]:pb-32 lg:[body:has([data-bottom-bar])_&]:pb-0">{children}</main>
       <BottomNav />
       <Modal
         open={asking}
@@ -229,7 +229,9 @@ function MobileBar() {
 
   if (home) {
     return (
-      <header className="relative overflow-hidden bg-appbar text-surface lg:hidden">
+      // Không overflow-hidden (hình sân SVG tự cắt trong khung): để bảng Thông báo của chuông thả xuống không bị cắt;
+      // z-header để bảng nằm trên phần nội dung bên dưới
+      <header className="relative z-(--z-header) bg-appbar text-surface lg:hidden">
         <CourtPattern />
         <div className="relative flex items-center gap-3 px-4 pt-4 pb-5">
           <div className="min-w-0 flex-1">
@@ -436,7 +438,7 @@ function BottomNav() {
 
   return (
     <>
-      {/* Luôn ghim trên mọi màn khu hội viên; thanh hành động riêng (`data-bottom-bar`) nằm trên menu: xem globals.css */}
+      {/* Luôn ghim trên mọi màn khu hội viên; tạm ẩn khi màn có thanh hành động riêng (`data-bottom-bar`): xem globals.css */}
       <nav
         aria-label="Điều hướng chính"
         data-member-nav

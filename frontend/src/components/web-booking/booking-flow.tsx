@@ -617,7 +617,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
     calendar && calendar.columns.length ? `Mở cửa ${pad2(calendar.columns[0])}:00 – ${pad2(calendar.columns[calendar.columns.length - 1] + 1)}:00 · ` : "";
 
   return (
-    <div className={cn("space-y-4", cells.length > 0 && "pb-28 sm:pb-0")}>
+    <div className={cn("space-y-4", cells.length > 0 && "pb-24 sm:pb-0")}>
       <DayStrip date={date} today={today} onPick={onDateInput} />
 
       <ul aria-label="Chú thích màu" className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted">
@@ -679,13 +679,14 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
           aria-label="Bạn đang chọn"
           className="fixed inset-x-0 bottom-0 z-40 rounded-t-[20px] bg-appbar text-surface shadow-[0_-6px_24px_rgb(0_0_0/0.25)] sm:sticky sm:bottom-3 sm:rounded-2xl sm:shadow-lg"
         >
-          <div className="px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3">
+          {/* Điện thoại: thanh gọn (người dùng 03/11) – đệm, chữ và nút nhỏ hơn; từ sm giữ cỡ cũ */}
+          <div className="px-4 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:py-3">
             <button
               type="button"
               onClick={() => setBarOpen((o) => !o)}
               aria-expanded={barOpen}
               aria-controls="bar-list"
-              className="mx-auto mb-1 flex h-6 w-full items-center justify-center rounded text-surface/80 hover:text-surface focus-ring"
+              className="mx-auto mb-0.5 flex h-5 w-full items-center justify-center rounded text-surface/80 hover:text-surface focus-ring sm:mb-1 sm:h-6"
             >
               <span className="sr-only">{barOpen ? "Thu gọn danh sách khung đã chọn" : "Xem danh sách khung đã chọn"}</span>
               <svg aria-hidden viewBox="0 0 20 20" className={cn("size-5 transition-transform motion-reduce:transition-none", barOpen && "rotate-180")} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -707,15 +708,15 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
             ) : null}
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1 leading-tight">
-                <p className="text-xs text-surface/80">
+                <p className="text-[11px] text-surface/80 sm:text-xs">
                   Tổng giờ: <b className="text-surface">{totalHours}</b>
                 </p>
-                <p className="text-lg font-bold tabular-nums">
-                  <span className="text-xs font-normal text-surface/80">Tổng tiền: </span>
+                <p className="text-base font-bold tabular-nums sm:text-lg">
+                  <span className="text-[11px] font-normal text-surface/80 sm:text-xs">Tổng tiền: </span>
                   {formatVnd(total)}
                 </p>
               </div>
-              <Button variant="cta" onClick={() => applyStep(2)} disabled={onlineOff || !calendar} className="h-12 min-w-36 px-6 text-sm sm:h-12 sm:text-sm">
+              <Button variant="cta" onClick={() => applyStep(2)} disabled={onlineOff || !calendar} className="h-11 min-w-28 px-4 text-xs sm:h-12 sm:min-w-36 sm:px-6 sm:text-sm">
                 Tiếp theo
               </Button>
             </div>

@@ -320,85 +320,88 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
         ) : (
           <div className="space-y-4">
             <section className="overflow-hidden rounded-card bg-surface shadow-card" aria-label="Điều khiển trận">
-              {/* Máy tính: Thể thức · trạng thái · Bốc · Bắt đầu. Điện thoại: hàng 1 Thể thức … Bắt đầu (phải), hàng 2 Bốc · trạng thái */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4" hidden={!MATCHES_READY}>
-                <div className="order-1 flex items-center gap-3">
-                  <span className="text-sm font-semibold text-muted" id="fmt-label">
-                    Thể thức
-                  </span>
-                  <div role="group" aria-labelledby="fmt-label" className="flex rounded-lg border border-border-strong p-0.5">
-                    {(["2v2", "1v1"] as Format[]).map((f) => (
-                      <button
-                        key={f}
-                        type="button"
-                        aria-pressed={room.format === f}
-                        disabled={!isHost || playing || busy}
-                        onClick={() => room.format !== f && void inline((v) => roomsApi.setFormat(id, f, v))}
-                        className={cn(
-                          "h-8 rounded-md px-3.5 text-sm font-semibold focus-ring disabled:cursor-not-allowed",
-                          room.format === f ? "bg-primary-hover text-surface" : "text-muted enabled:hover:bg-primary-softer",
-                          playing && "opacity-50",
-                        )}
-                      >
-                        {FORMAT_LABEL[f]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {/* Điện thoại: bỏ câu hướng dẫn dài khi đã có đội hình; vẫn giữ giờ được bắt đầu trận */}
-                <p className={cn("order-5 min-w-0 flex-1 text-sm text-muted lg:order-2", drawn && !(isHost && beforeStart) && "max-lg:hidden")} role="status">
-                  {playing && cur ? (
-                    <span className="inline-flex items-center gap-2 font-medium text-foreground">
-                      <span aria-hidden className="size-2 rounded-full bg-danger" />
-                      Trận #{cur.no} đang chơi{cur.started_at ? ` · bắt đầu ${formatTime(cur.started_at)}` : ""}
+              {/* Điện thoại: hàng 1 Thể thức … Bắt đầu trận (phải), hàng 2 Bốc · trạng thái.
+                  Máy tính: hai hàng bỏ khung (lg:contents) thành một hàng Thể thức · trạng thái · Bốc · Bắt đầu */}
+              <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:gap-4" hidden={!MATCHES_READY}>
+                <div className="flex items-center justify-between gap-3 lg:contents">
+                  <div className="flex min-w-0 items-center gap-3 lg:order-1">
+                    <span className="text-sm font-semibold text-muted max-sm:sr-only" id="fmt-label">
+                      Thể thức
                     </span>
-                  ) : isHost && lu?.hasDraft && placedCount < need ? (
-                    `Cần đủ ${need} người · đã xếp ${placedCount}/${need} · bản nháp trên máy bạn, chưa lưu`
-                  ) : isHost && drawn && beforeStart ? (
-                    `Đội hình đã lưu · ${startHint}`
-                  ) : isHost && drawn ? (
-                    "Đội hình đã lưu · bấm “Bắt đầu trận” khi sẵn sàng · đổi thể thức sẽ xóa đội hình"
-                  ) : drawn ? (
-                    "Đổi thể thức sẽ xóa kết quả bốc · chỉ chốt khi bấm “Bắt đầu trận”"
-                  ) : isHost && placedCount > 0 ? (
-                    `Cần đủ ${need} người · đã xếp ${placedCount}/${need} · bản nháp trên máy bạn, chưa lưu`
-                  ) : waitingAll.length >= need ? (
-                    `Đủ người · ${Math.min(waitingAll.length, need)}/${need} cho ${FORMAT_LABEL[room.format]}`
-                  ) : (
-                    `Chưa đủ người · cần ${need} (đang có ${waitingAll.length})`
-                  )}
-                </p>
-                {isHost && !playing ? (
-                  <Button
-                    variant="secondary"
-                    className="order-4 h-11 sm:h-11 lg:order-3"
-                    onClick={() => void inline((v) => roomsApi.draw(id, v)).then(() => setDraft(null))}
-                    loading={busy}
-                    disabled={waitingAll.length < need}
-                  >
-                    {drawn ? "Bốc lại" : "Bốc ngẫu nhiên"}
-                  </Button>
-                ) : null}
-                {isHost ? (
-                  playing ? (
-                    <Button variant="cta" onClick={() => setDialog({ kind: "result" })} className="order-2 ml-auto h-11 px-5 sm:h-11 sm:text-sm lg:order-4 lg:ml-0">
-                      Kết thúc trận
-                    </Button>
-                  ) : (
+                    <div role="group" aria-labelledby="fmt-label" className="flex rounded-lg border border-border-strong p-0.5">
+                      {(["2v2", "1v1"] as Format[]).map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          aria-pressed={room.format === f}
+                          disabled={!isHost || playing || busy}
+                          onClick={() => room.format !== f && void inline((v) => roomsApi.setFormat(id, f, v))}
+                          className={cn(
+                            "h-8 rounded-md px-3 text-sm font-semibold focus-ring disabled:cursor-not-allowed sm:px-3.5",
+                            room.format === f ? "bg-primary-hover text-surface" : "text-muted enabled:hover:bg-primary-softer",
+                            playing && "opacity-50",
+                          )}
+                        >
+                          {FORMAT_LABEL[f]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {isHost ? (
+                    playing ? (
+                      <Button variant="cta" onClick={() => setDialog({ kind: "result" })} className="h-11 shrink-0 px-4 sm:h-11 sm:px-5 sm:text-sm lg:order-4">
+                        Kết thúc trận
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="cta"
+                        className="h-11 shrink-0 px-4 sm:h-11 sm:px-5 sm:text-sm lg:order-4"
+                        onClick={() => void inline((v) => roomsApi.start(id, v))}
+                        loading={busy}
+                        disabled={!drawn || Boolean(lu?.hasDraft) || beforeStart}
+                        title={!drawn || lu?.hasDraft ? `Cần đủ ${need} người` : beforeStart ? startHint : undefined}
+                      >
+                        Bắt đầu trận
+                      </Button>
+                    )
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-3 lg:contents">
+                  {isHost && !playing ? (
                     <Button
-                      variant="cta"
-                      className="order-2 ml-auto h-11 px-5 sm:h-11 sm:text-sm lg:order-4 lg:ml-0"
-                      onClick={() => void inline((v) => roomsApi.start(id, v))}
+                      variant="secondary"
+                      className="h-11 shrink-0 sm:h-11 lg:order-3"
+                      onClick={() => void inline((v) => roomsApi.draw(id, v)).then(() => setDraft(null))}
                       loading={busy}
-                      disabled={!drawn || Boolean(lu?.hasDraft) || beforeStart}
-                      title={!drawn || lu?.hasDraft ? `Cần đủ ${need} người` : beforeStart ? startHint : undefined}
+                      disabled={waitingAll.length < need}
                     >
-                      Bắt đầu trận
+                      {drawn ? "Bốc lại" : "Bốc ngẫu nhiên"}
                     </Button>
-                  )
-                ) : null}
-                {/* Điện thoại: ngắt hàng sau nút Bắt đầu trận */}
-                <span aria-hidden className="order-3 basis-full lg:hidden" />
+                  ) : null}
+                  {/* Điện thoại: bỏ câu hướng dẫn dài khi đã có đội hình; vẫn giữ giờ được bắt đầu trận */}
+                  <p className={cn("min-w-0 flex-1 text-sm text-muted lg:order-2", drawn && !(isHost && beforeStart) && "max-lg:hidden")} role="status">
+                    {playing && cur ? (
+                      <span className="inline-flex items-center gap-2 font-medium text-foreground">
+                        <span aria-hidden className="size-2 rounded-full bg-danger" />
+                        Trận #{cur.no} đang chơi{cur.started_at ? ` · bắt đầu ${formatTime(cur.started_at)}` : ""}
+                      </span>
+                    ) : isHost && lu?.hasDraft && placedCount < need ? (
+                      `Cần đủ ${need} người · đã xếp ${placedCount}/${need} · bản nháp trên máy bạn, chưa lưu`
+                    ) : isHost && drawn && beforeStart ? (
+                      `Đội hình đã lưu · ${startHint}`
+                    ) : isHost && drawn ? (
+                      "Đội hình đã lưu · bấm “Bắt đầu trận” khi sẵn sàng · đổi thể thức sẽ xóa đội hình"
+                    ) : drawn ? (
+                      "Đổi thể thức sẽ xóa kết quả bốc · chỉ chốt khi bấm “Bắt đầu trận”"
+                    ) : isHost && placedCount > 0 ? (
+                      `Cần đủ ${need} người · đã xếp ${placedCount}/${need} · bản nháp trên máy bạn, chưa lưu`
+                    ) : waitingAll.length >= need ? (
+                      `Đủ người · ${Math.min(waitingAll.length, need)}/${need} cho ${FORMAT_LABEL[room.format]}`
+                    ) : (
+                      `Chưa đủ người · cần ${need} (đang có ${waitingAll.length})`
+                    )}
+                  </p>
+                </div>
               </div>
               <Court
                 format={cur?.format ?? room.format}
