@@ -108,7 +108,8 @@ async def test_admin_sets_and_removes_video_with_audit(admin, staff, people):
     r = await admin.put(f"{ADMIN}/{rid}/video", json={"url": f" {YT} "}, headers=key)
     assert r.status_code == 200, r.text
     assert r.json()["video"]["kind"] == "youtube" and r.json()["video"]["url"] == YT
-    again = await admin.put(f"{ADMIN}/{rid}/video", json={"url": YT}, headers=key)
+    # Gửi lại cùng khóa phải đúng y nội dung cũ (khác nội dung -> E-SEC-4, ADR-004)
+    again = await admin.put(f"{ADMIN}/{rid}/video", json={"url": f" {YT} "}, headers=key)
     assert again.json() == r.json()
     r = await admin.put(f"{ADMIN}/{rid}/video", json={"url": "https://vimeo.com/1"}, headers=idem())
     assert r.status_code == 422 and r.json()["detail"]["code"] == "E-REC-1"
@@ -122,7 +123,10 @@ async def test_admin_sets_and_removes_video_with_audit(admin, staff, people):
     async with SessionLocal() as s:
         rows = list(
             await s.scalars(
-                select(AuditLog).where(AuditLog.entity_code == str(rid)).order_by(AuditLog.id)
+                # entity_code là id số: lọc thêm theo action để không lẫn bản ghi khác cùng số
+                select(AuditLog)
+                .where(AuditLog.entity_code == str(rid), AuditLog.action.like("record.%"))
+                .order_by(AuditLog.id)
             )
         )
     assert [x.action for x in rows] == ["record.video_set", "record.video_removed"]

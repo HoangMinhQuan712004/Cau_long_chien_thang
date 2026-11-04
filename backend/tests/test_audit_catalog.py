@@ -17,6 +17,7 @@ def test_catalog_follows_srs_groups():
         "Sân & bảng giá",
         "Hội viên",
         "Đặt sân & thanh toán",
+        "Kỷ lục",  # T-046: gắn / gỡ video kỷ lục
     ]
     assert [t.label for t in catalog.GROUPS[0].types] == [
         "Đăng nhập thành công",
