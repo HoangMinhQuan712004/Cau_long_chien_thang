@@ -44,6 +44,33 @@ class Overview(BaseModel):
     recent_records: list["RecentRecord"] = Field(
         description="Tối đa 3 lần phá kỷ lục cụm gần nhất (mới nhất trước); rỗng -> ẩn khối"
     )
+    upcoming_events: list["EventCard"] = Field(
+        default_factory=list,
+        description="T-045: tối đa 3 sự kiện chưa bắt đầu trong 14 ngày tới; rỗng -> ẩn khối",
+    )
+
+
+class EventCard(BaseModel):
+    """Thẻ sự kiện sắp tới (T-045) – không danh sách người mua."""
+
+    code: str
+    name: str
+    play_date: dt.date
+    start_at: dt.datetime
+    end_at: dt.datetime
+    start_time: str
+    end_time: str
+    resource_names: list[str]
+    ticket_price: int
+    capacity: int
+    taken: int = Field(description="Vé đã có + ghế đang giữ online")
+    remaining: int
+    can_buy: bool
+    reason: Literal["full", "free", "online_off"] | None = Field(
+        description="full = Đã đủ chỗ · free = Đăng ký tại quầy (giá 0) · online_off = đặt online "
+        "tạm ngưng"
+    )
+    my_ticket_count: int = Field(description='"Bạn có n vé"')
 
 
 class OverviewRankingMe(BaseModel):

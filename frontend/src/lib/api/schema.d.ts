@@ -1058,6 +1058,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Upcoming Events
+         * @description Sự kiện sắp tới (T-045): chưa bắt đầu, ngày diễn ra từ hôm nay tới hôm nay + ``days``, sắp
+         *     theo giờ bắt đầu. Có số chỗ (tính cả ghế đang giữ), ``can_buy`` + ``reason``, số vé của mình;
+         *     không có danh sách người mua. Đặt vé: luồng T-023 (``/web/booking/event-checkouts``).
+         */
+        get: operations["upcoming_events_api_v1_member_area_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/member-area/payments": {
         parameters: {
             query?: never;
@@ -2825,6 +2847,60 @@ export interface components {
             /** Revenue */
             revenue: number;
         };
+        /**
+         * EventCard
+         * @description Thẻ sự kiện sắp tới (T-045) – không danh sách người mua.
+         */
+        EventCard: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Names */
+            resource_names: string[];
+            /** Ticket Price */
+            ticket_price: number;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Taken
+             * @description Vé đã có + ghế đang giữ online
+             */
+            taken: number;
+            /** Remaining */
+            remaining: number;
+            /** Can Buy */
+            can_buy: boolean;
+            /**
+             * Reason
+             * @description full = Đã đủ chỗ · free = Đăng ký tại quầy (giá 0) · online_off = đặt online tạm ngưng
+             */
+            reason: ("full" | "free" | "online_off") | null;
+            /**
+             * My Ticket Count
+             * @description "Bạn có n vé"
+             */
+            my_ticket_count: number;
+        };
         /** EventCheckoutIn */
         EventCheckoutIn: {
             /** Event Code */
@@ -4085,6 +4161,11 @@ export interface components {
              * @description Tối đa 3 lần phá kỷ lục cụm gần nhất (mới nhất trước); rỗng -> ẩn khối
              */
             recent_records: components["schemas"]["RecentRecord"][];
+            /**
+             * Upcoming Events
+             * @description T-045: tối đa 3 sự kiện chưa bắt đầu trong 14 ngày tới; rỗng -> ẩn khối
+             */
+            upcoming_events?: components["schemas"]["EventCard"][];
         };
         /**
          * OverviewRanking
@@ -8150,6 +8231,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Overview"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upcoming_events_api_v1_member_area_events_get: {
+        parameters: {
+            query?: {
+                /** @description Số ngày tới (giờ VN) */
+                days?: number;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCard"][];
                 };
             };
             /** @description Không đổi so với ETag gửi lên */
