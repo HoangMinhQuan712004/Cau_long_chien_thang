@@ -28,7 +28,7 @@ from app.modules.auth.models import User
 DEFAULT_DAYS = 7  # BR-012: 7 ngày gần nhất, tính cả hôm nay
 
 # Chỉ thao tác ở trang quản trị + việc Hệ thống làm; actor "web" (khách online) không hiện (BR-002)
-SHOWN_ACTORS: tuple[ActorKind, ...] = ("admin", "staff", "system")
+SHOWN_ACTORS: tuple[ActorKind, ...] = ("admin", "staff", "system", "customer")
 
 
 def _today() -> date:
@@ -97,7 +97,9 @@ def _entry(row: AuditLog, staff_codes: dict[int, str]) -> AuditEntryOut:
         at=row.at,
         actor=kind,
         actor_label=catalog.ACTORS[kind],
-        actor_name=_staff_name(row.actor_label) if is_staff else None,
+        actor_name=_staff_name(row.actor_label)
+        if is_staff
+        else (row.actor_label if kind == "customer" else None),
         actor_code=staff_codes.get(row.actor_id) if is_staff and row.actor_id else None,
         action=action_type.key,
         action_label=action_type.label,

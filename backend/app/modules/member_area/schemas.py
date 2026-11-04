@@ -34,8 +34,8 @@ class MemberMeIn(StrictIn):
     tier: str | None = Field(
         default=None,
         max_length=50,
-        description="Hạng do quầy xếp (T-038): không gửi = bỏ qua; gửi khác hạng hiện tại -> 422 "
-        "E-HV-14. Hạng không bao giờ đổi qua đường này",
+        description="Hạng tự chọn (T-042): một trong 8 bậc hoặc null (Chưa xếp hạng); giá trị lạ "
+        "-> 422 (fields: tier, E-HV-1). Không gửi = giữ hạng hiện tại",
     )
     racket: str | None = Field(
         default=None,

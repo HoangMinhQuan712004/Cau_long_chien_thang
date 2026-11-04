@@ -979,9 +979,9 @@ export interface paths {
         get: operations["get_me_api_v1_member_area_me_get"];
         /**
          * Update Me
-         * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / racket),
-         *     409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
-         *     Hạng (``tier``) do quầy xếp (T-038): gửi khác hạng hiện tại -> 422 E-HV-14.
+         * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier /
+         *     racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
+         *     Hạng hội viên tự chọn (T-042); đổi hạng ghi audit ``member.tier_self_change``.
          */
         put: operations["update_me_api_v1_member_area_me_put"];
         post?: never;
@@ -2260,7 +2260,7 @@ export interface components {
              * Actor
              * @enum {string}
              */
-            actor: "admin" | "staff" | "system";
+            actor: "admin" | "staff" | "system" | "customer";
             /** Actor Label */
             actor_label: string;
             /** Actor Name */
@@ -3490,7 +3490,7 @@ export interface components {
             email?: string | null;
             /**
              * Tier
-             * @description Hạng do quầy xếp (T-038): không gửi = bỏ qua; gửi khác hạng hiện tại -> 422 E-HV-14. Hạng không bao giờ đổi qua đường này
+             * @description Hạng tự chọn (T-042): một trong 8 bậc hoặc null (Chưa xếp hạng); giá trị lạ -> 422 (fields: tier, E-HV-1). Không gửi = giữ hạng hiện tại
              */
             tier?: string | null;
             /**
@@ -9773,7 +9773,7 @@ export interface operations {
             query?: {
                 from?: string | null;
                 to?: string | null;
-                actor?: ("admin" | "staff" | "system") | null;
+                actor?: ("admin" | "staff" | "system" | "customer") | null;
                 action?: string | null;
                 /** @description Thời điểm: at_desc (mặc định, mới trước) | at_asc (cũ trước) */
                 sort?: ("at_desc" | "at_asc") | null;

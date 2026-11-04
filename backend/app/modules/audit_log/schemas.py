@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from app.core.audit import Value
 
-ActorKind = Literal["admin", "staff", "system"]
+ActorKind = Literal["admin", "staff", "system", "customer"]
 AuditSort = Literal["at_desc", "at_asc"]
 
 
@@ -38,7 +38,7 @@ class AuditEntryOut(BaseModel):
     at: datetime
     actor: ActorKind
     actor_label: str  # Admin / Nhân viên / Hệ thống
-    actor_name: str | None  # chỉ Nhân viên: tên lúc làm (bản chụp, BR-008)
+    actor_name: str | None  # Nhân viên: tên lúc làm (BR-008); Hội viên: nhãn "… · HV0031"
     actor_code: str | None  # chỉ Nhân viên: mã NV hiện tại (khóa link); không tìm được NV -> null
     action: str  # mã loại trong danh mục
     action_label: str
