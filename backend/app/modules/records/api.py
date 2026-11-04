@@ -14,6 +14,7 @@ __all__ = [
     "month_best",
     "purge_demo",
     "record_kmh",
+    "seed_demo_breaks",
     "seed_demo_speeds",
     "speed_ranking",
 ]
@@ -47,6 +48,13 @@ async def club_record_breaks(
 async def seed_demo_speeds(session: AsyncSession, customer_ids: list[int], now: datetime) -> int:
     """Số đo mẫu (source_ref "demo:") – tuần / tháng / năm nay và năm trước. Không commit."""
     return await demo.seed_speeds(session, customer_ids, now)
+
+
+async def seed_demo_breaks(
+    session: AsyncSession, customer_ids: list[int], now: datetime, video_urls: list[str]
+) -> int:
+    """3 lần phá kỷ lục cụm mẫu, gắn link video (nếu có). Không commit."""
+    return await demo.seed_breaks(session, customer_ids, now, video_urls)
 
 
 async def purge_demo(session: AsyncSession) -> int:

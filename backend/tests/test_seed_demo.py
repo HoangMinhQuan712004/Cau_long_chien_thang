@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, select
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.auth.models import User
-from app.modules.booking_engine.models import BookingOrder, EventSession, Ticket
+from app.modules.booking_engine.models import Booking, BookingOrder, EventSession, Ticket
 from app.modules.members.models import Customer
 from app.modules.play_rooms.models import PlayMatch, PlayRoom
 from app.modules.records.models import SpeedRecord
@@ -98,8 +98,22 @@ async def test_seed_twice_then_clear_keeps_real_data(admin, clean, capsys):
                 .select_from(SpeedRecord)
                 .where(SpeedRecord.source_ref.startswith("demo:"))
             )
-            == 48
+            == 51  # 12 người × 4 + 3 lần phá kỷ lục cụm
         )
+        orders = list(
+            await s.scalars(
+                select(BookingOrder).where(
+                    BookingOrder.kind == "recurring",
+                    BookingOrder.customer_phone.like("09990000%"),
+                )
+            )
+        )
+        assert len(orders) == 2  # một chưa thu, một đã thu
+        statuses = []
+        for o in orders:
+            paid = await s.scalars(select(Booking.payment_status).where(Booking.order_id == o.id))
+            statuses.append(set(paid))
+        assert {frozenset(x) for x in statuses} == {frozenset({"unpaid"}), frozenset({"paid"})}
 
     # AC4: đăng nhập tài khoản mẫu 01, các màn có số liệu
     async with _client() as c:
@@ -114,6 +128,12 @@ async def test_seed_twice_then_clear_keeps_real_data(admin, clean, capsys):
         assert ranking["total_members"] == 12 and ranking["me"] is not None
         payments = (await c.get(f"{MA}/payments", params={"month": month.strftime("%Y-%m")})).json()
         assert payments["summary"]["count"] >= 1
+        # Tổng quan v2: có lịch sắp tới, phòng đang trống (có phòng giới hạn hạng), kỷ lục mới
+        o = (await c.get(f"{MA}/overview")).json()
+        assert o["upcoming"] and o["record_kmh"] is not None and me["racket"]
+        assert len(o["open_rooms"]) >= 2 and any(r["tier_range"] for r in o["open_rooms"])
+        assert len(o["recent_records"]) >= 3 and o["recent_records"][0]["is_current"]
+        assert o["ranking"]["me"] is not None and len(o["ranking"]["top3"]) == 3
 
     # AC1: chạy lần hai không nhân đôi
     assert await seed_demo.run(False, PASSWORD) == 0
@@ -200,3 +220,58 @@ def test_script_only_calls_module_facades():
                 node.module,
                 [a.name for a in node.names],
             )
+
+
+async def test_custom_first_phone_videos_and_clear(admin, clean, capsys):
+    """Bổ sung 04/11: DEMO_MEMBER_PHONE cho Hội viên 01 (chỉ in SĐT che), DEMO_VIDEO_URLS gắn vào
+    các lần phá kỷ lục; --clear xóa cả hồ sơ 01 dùng SĐT riêng (không cần biến)."""
+    phone = random_phone()
+    clip = "https://cdn.example.com/demo-smash.mp4"
+    assert await seed_demo.run(False, PASSWORD, phone, [clip]) == 0
+    out = capsys.readouterr().out
+    assert phone not in out and f"{phone[:4]} xxx {phone[-3:]}" in out
+    async with SessionLocal() as s:
+        first = await s.scalar(select(Customer).where(Customer.full_name == "Mẫu · Hội viên 01"))
+        assert first.phone == phone and first.racket
+        videos = await s.scalar(
+            select(func.count())
+            .select_from(SpeedRecord)
+            .where(SpeedRecord.source_ref.startswith("demo:"), SpeedRecord.video_url == clip)
+        )
+    assert videos == 1
+    async with _client() as c:
+        assert (await sign_in(c, phone, PASSWORD)).status_code == 200
+
+    assert await seed_demo.run(True, None) == 0  # không truyền SĐT riêng vẫn xóa đúng 01
+    async with SessionLocal() as s:
+        assert await s.scalar(select(Customer).where(Customer.phone == phone)) is None
+        assert await s.scalar(select(User).where(User.phone == phone)) is None
+
+
+async def test_custom_first_phone_owned_by_real_profile_stops(admin, clean, capsys):
+    phone = random_phone()
+    r = await admin.post(M, json={"full_name": "Chủ SĐT Thật", "phone": phone}, headers=idem())
+    assert r.status_code == 201, r.text
+    try:
+        assert await seed_demo.run(False, PASSWORD, phone) == seed_demo.EXIT_FOREIGN
+        err = capsys.readouterr().err
+        assert phone not in err and f"{phone[:4]} xxx {phone[-3:]}" in err
+        assert await demo_members() == 0
+        async with SessionLocal() as s:
+            real = await s.scalar(select(Customer).where(Customer.phone == phone))
+        assert real.full_name == "Chủ SĐT Thật"  # không bị ghi đè
+    finally:
+        async with SessionLocal() as s:
+            await s.execute(delete(Customer).where(Customer.phone == phone))
+            await s.execute(delete(User).where(User.phone == phone))
+            await s.commit()
+
+
+def test_bad_first_phone_and_video_env(monkeypatch, capsys):
+    monkeypatch.setenv("DEMO_MEMBER_PHONE", "12345")
+    assert seed_demo.main([]) == seed_demo.EXIT_BAD_PHONE
+    assert "DEMO_MEMBER_PHONE" in capsys.readouterr().err
+    monkeypatch.setenv(
+        "DEMO_VIDEO_URLS", "https://a.vn/1.mp4, http://b.vn/2.mp4 https://c.vn/3.webm"
+    )
+    assert seed_demo.video_urls_from_env() == ["https://a.vn/1.mp4", "https://c.vn/3.webm"]

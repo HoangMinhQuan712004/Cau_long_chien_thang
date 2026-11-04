@@ -201,9 +201,13 @@ DemoMemberSpec = demo.DemoMemberSpec
 demo_phone = demo.demo_phone
 
 
-async def demo_foreign_phones(session: AsyncSession) -> list[str]:
-    """SĐT trong dải mẫu thuộc hồ sơ thật (không dấu mẫu) – có thì script mẫu phải dừng."""
-    return await demo.foreign_demo_phones(session)
+async def demo_foreign_phones(session: AsyncSession, extra_phone: str | None = None) -> list[str]:
+    """SĐT trong dải mẫu (và ``extra_phone``) thuộc hồ sơ thật – có thì script mẫu phải dừng."""
+    return await demo.foreign_demo_phones(session, extra_phone)
+
+
+async def demo_member_phones(session: AsyncSession) -> list[str]:
+    return await demo.demo_member_phones(session)
 
 
 async def demo_member_ids(session: AsyncSession) -> list[int]:
@@ -211,9 +215,9 @@ async def demo_member_ids(session: AsyncSession) -> list[int]:
 
 
 async def seed_demo_members(
-    session: AsyncSession, specs: list[demo.DemoMemberSpec]
+    session: AsyncSession, specs: list[demo.DemoMemberSpec], first_phone: str | None = None
 ) -> list[demo.DemoMember]:
-    return await demo.seed_members(session, specs)
+    return await demo.seed_members(session, specs, first_phone)
 
 
 async def purge_demo(session: AsyncSession) -> int:

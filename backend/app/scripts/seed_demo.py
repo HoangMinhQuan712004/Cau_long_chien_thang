@@ -8,6 +8,10 @@
 - Script chỉ **điều phối**: tạo / xóa qua ``api`` của từng module (members, auth, booking_engine,
   play_rooms, records, member_inbox). Booking mẫu vẫn đi qua exclusion constraint.
 - Dấu mẫu: họ tên "Mẫu · ", SĐT ``09990000xx``, sự kiện "[Mẫu]", số đo ``source_ref`` "demo:".
+- ``DEMO_MEMBER_PHONE`` (tùy chọn, bổ sung 04/11): SĐT đăng nhập của "Mẫu · Hội viên 01" do người
+  dùng chọn; số đó đang thuộc hồ sơ / tài khoản thật -> dừng (exit 3). Chỉ in SĐT đã che.
+- ``DEMO_VIDEO_URLS`` (tùy chọn): link video (https, cách nhau bởi dấu phẩy / khoảng trắng) gắn vào
+  các lần phá kỷ lục mẫu. Code không chứa link video của bên thứ ba.
 - ``DEMO_MEMBER_PASSWORD``: mật khẩu của "Mẫu · Hội viên 01" và "02" (không in, không log). Thiếu
   biến -> hai hồ sơ này không có tài khoản đăng nhập. Hội viên mẫu còn lại có tài khoản liên kết
   với mật khẩu ngẫu nhiên không ai biết (để hiện trên Bảng xếp hạng / phòng chơi).
@@ -25,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.core.errors import AppError
 from app.core.privacy import mask_phone
 from app.modules.auth import api as auth
 from app.modules.booking_engine import api as engine
@@ -35,11 +40,13 @@ from app.modules.records import api as records
 
 EXIT_PRODUCTION = 2
 EXIT_FOREIGN = 3
+EXIT_BAD_PHONE = 4
+MAX_VIDEOS = 3
 DEMO_RANGE = range(1, 100)  # 0999000001 … 0999000099
 
 # 12 hội viên: phủ 8 bậc + 2 "Chưa xếp hạng"; 05 và 09 ẩn danh trên Bảng xếp hạng
 SPECS = [
-    members.DemoMemberSpec(1, "Khá", True, "Mẫu 01"),
+    members.DemoMemberSpec(1, "Khá", True, "Mẫu 01", "Yonex Astrox 88D"),
     members.DemoMemberSpec(2, "Yếu", True, "Mẫu 02"),
     members.DemoMemberSpec(3, "Trung bình yếu", True),
     members.DemoMemberSpec(4, "Trung bình -", True),
@@ -53,7 +60,7 @@ SPECS = [
     members.DemoMemberSpec(12, None, True),
 ]
 LOGIN_MEMBERS = (1, 2)  # có mật khẩu DEMO_MEMBER_PASSWORD
-PAST_DAYS = (3, 8, 15, 23, 34, 47)  # ~6 buổi trong 2 tháng gần nhất
+PAST_DAYS = (1, 3, 8, 15, 23, 34, 47)  # ~7 buổi trong 2 tháng gần nhất (có buổi tháng này)
 
 
 def _phones() -> list[str]:
@@ -74,7 +81,7 @@ def _snapshot(m: members.DemoMember) -> engine.CustomerSnapshot:
 async def purge(session: AsyncSession) -> dict[str, int]:
     """Xóa mọi dữ liệu có dấu mẫu, theo thứ tự phụ thuộc. Không commit."""
     ids = await members.demo_member_ids(session)
-    phones = _phones()
+    phones = sorted(set(_phones()) | set(await members.demo_member_phones(session)))
     codes = await engine.demo_booking_codes(session, phones)
     counts = {"rooms": await rooms.purge_demo(session, codes, ids)}
     counts["notifications"] = await inbox.purge_for(session, ids)
@@ -94,7 +101,7 @@ async def _past_sessions(
     session: AsyncSession, people: list[members.DemoMember], now: datetime, rng
 ) -> tuple[int, int]:
     """Buổi đã qua: booking đã thanh toán (tiền mặt / QR) + phòng đóng có 3–6 trận finished."""
-    hosts = [people[0], people[1], people[0], people[5], people[0], people[6]]
+    hosts = [people[0], people[0], people[1], people[0], people[5], people[0], people[6]]
     sessions = matches_total = 0
     for i, days in enumerate(PAST_DAYS):
         host = hosts[i]
@@ -149,7 +156,8 @@ async def _past_sessions(
 async def _rooms_today(
     session: AsyncSession, people: list[members.DemoMember], now: datetime
 ) -> int:
-    """3 phòng hôm nay (hoặc ngày mai nếu đã muộn): không giới hạn, "Trung bình – Khá", "từ Khá"."""
+    """5 phòng hôm nay (hoặc ngày mai nếu đã muộn): 01 làm Host ("Tiếp theo"); không giới hạn,
+    "Trung bình – Khá", "từ Khá"; thêm 1 phòng còn chỗ không có 01 ("Phòng đang trống")."""
     local = _local(now)
     day: date = local.date()
     hours = list(range(max(local.hour + 1, 6), 22))
@@ -157,9 +165,11 @@ async def _rooms_today(
         day, hours = day + timedelta(days=1), list(range(8, 22))
     p = {n: people[n - 1] for n in range(1, 13)}
     plans = [
+        (p[1], None, None, [p[2], p[12]], [], "counter", None),
         (p[3], None, None, [p[1], p[6]], [p[10]], "counter", None),
         (p[4], "Trung bình", "Khá", [p[1], p[10]], [p[6]], "online", "online_transfer"),
         (p[5], "Khá", None, [p[7], p[8]], [p[9]], "online", "online_transfer"),
+        (p[6], None, None, [p[11]], [], "counter", None),
     ]
     made = 0
     for i, (host, low, high, joined, pending, channel, method) in enumerate(plans):
@@ -189,18 +199,18 @@ async def _rooms_today(
 async def _events(session: AsyncSession, people: list[members.DemoMember], now: datetime) -> int:
     today = _local(now).date()
     p = {n: people[n - 1] for n in range(1, 13)}
-    plans = [
-        ("Giao lưu cuối tuần", 2, 60_000, [p[1], p[3], p[6]]),
-        ("Giải đôi nam nữ", 5, 80_000, [p[1], p[2], p[7], p[8]]),
+    plans = [  # (tên, sau n ngày, giá, người mua, sức chứa)
+        ("Giao lưu cuối tuần", 2, 60_000, [p[1], p[3], p[6]], 16),
+        ("Giải đôi nam nữ", 5, 80_000, [p[2], p[7], p[8], p[9]], 4),  # đã đủ chỗ
     ]
     made = 0
-    for name, days, price, buyers in plans:
+    for name, days, price, buyers, capacity in plans:
         code = await engine.seed_demo_event(
             session,
             name,
             today + timedelta(days=days),
             [18, 17, 19, 16, 9],
-            16,
+            capacity,
             price,
             [_snapshot(b) for b in buyers],
             now,
@@ -209,10 +219,58 @@ async def _events(session: AsyncSession, people: list[members.DemoMember], now: 
     return made
 
 
-async def seed(session: AsyncSession, password: str | None) -> dict[str, int | list[str]]:
+DEMO_ACTOR = engine.Actor(type="system", id=None, label="Dữ liệu mẫu")
+
+
+async def _recurring(session: AsyncSession, people: list[members.DemoMember], now: datetime) -> int:
+    """Đơn định kỳ qua đường đặt thật (all-or-nothing, exclusion constraint): 01 chưa thu (2 thứ ×
+    4 tuần ≈ 8 buổi, giảm 10%); 03 đã thu cả đơn (1 thứ × 4 tuần)."""
+    courts = [r for r in (await engine.list_resources(session)).items if r.is_active]
+    start = _local(now).date() + timedelta(days=1)
+    plans = [
+        (people[0], [start.isoweekday(), (start + timedelta(days=3)).isoweekday()], 10, False),
+        (people[2], [(start + timedelta(days=1)).isoweekday()], 0, True),
+    ]
+    made = 0
+    for who, weekdays, pct, collect in plans:
+        done = None
+        for court in courts:
+            for hour in (6, 7, 21, 5, 20):
+                data = engine.RecurringIn(
+                    resource_code=court.code,
+                    weekdays=weekdays,
+                    start_hour=hour,
+                    end_hour=hour + 1,
+                    date_from=start,
+                    date_to=start + timedelta(days=27),
+                    discount_pct=pct,
+                )
+                try:
+                    done = await engine.create_recurring(session, DEMO_ACTOR, data, _snapshot(who))
+                except AppError:  # trùng / ngoài giờ -> thử khung khác
+                    continue
+                break
+            if done is not None:
+                break
+        if done is None:
+            continue
+        if collect:
+            await engine.collect_order(
+                session, DEMO_ACTOR, done.order_code, engine.OrderCollectIn(method="cash")
+            )
+        made += 1
+    return made
+
+
+async def seed(
+    session: AsyncSession,
+    password: str | None,
+    first_phone: str | None = None,
+    video_urls: list[str] | None = None,
+) -> dict[str, int | list[str]]:
     rng = secrets.SystemRandom()
     now = datetime.now(UTC)
-    people = await members.seed_demo_members(session, SPECS)
+    people = await members.seed_demo_members(session, SPECS, first_phone)
     logins: list[str] = []
     accounts = 0
     for spec, m in zip(SPECS, people, strict=True):
@@ -231,28 +289,42 @@ async def seed(session: AsyncSession, password: str | None) -> dict[str, int | l
         "matches": matches,
         "rooms_today": await _rooms_today(session, people, now),
         "events": await _events(session, people, now),
+        "recurring_orders": await _recurring(session, people, now),
         "speed_records": await records.seed_demo_speeds(
             session, [m.customer_id for m in people], now
         ),
+        # 3 lần phá kỷ lục cụm (Kỷ lục mới, T-036), 01 có một lần; gắn video nếu có
+        "record_breaks": await records.seed_demo_breaks(
+            session,
+            [people[6].customer_id, people[0].customer_id, people[7].customer_id],
+            now,
+            video_urls or [],
+        ),
+        "videos": len(video_urls or []),
         "login_phones": logins,
     }
 
 
-async def run(clear: bool, password: str | None) -> int:
+async def run(
+    clear: bool,
+    password: str | None,
+    first_phone: str | None = None,
+    video_urls: list[str] | None = None,
+) -> int:
     async with SessionLocal() as session:
-        foreign = await members.demo_foreign_phones(session) + await auth.demo_foreign_phones(
-            session
-        )
+        foreign = await members.demo_foreign_phones(
+            session, first_phone
+        ) + await auth.demo_foreign_phones(session, first_phone)
         if foreign:
             masked = ", ".join(sorted({mask_phone(p) or "" for p in foreign}))
-            print(f"Dừng: dải SĐT mẫu đang có hồ sơ / tài khoản thật ({masked}).", file=sys.stderr)
+            print(f"Dừng: SĐT mẫu đang thuộc hồ sơ / tài khoản thật ({masked}).", file=sys.stderr)
             return EXIT_FOREIGN
         removed = await purge(session)
         if clear:
             await session.commit()
             print("Đã xóa dữ liệu mẫu: " + ", ".join(f"{k}={v}" for k, v in removed.items()))
             return 0
-        created = await seed(session, password)
+        created = await seed(session, password, first_phone, video_urls)
         await session.commit()
     logins = created.pop("login_phones")
     print("Đã tạo dữ liệu mẫu: " + ", ".join(f"{k}={v}" for k, v in created.items()))
@@ -271,7 +343,21 @@ def main(argv: list[str] | None = None) -> int:
         print("Từ chối: không tạo / xóa dữ liệu mẫu khi ENV=production.", file=sys.stderr)
         return EXIT_PRODUCTION
     password = os.environ.get("DEMO_MEMBER_PASSWORD") or None
-    return asyncio.run(run(args.clear, password))
+    raw_phone = (os.environ.get("DEMO_MEMBER_PHONE") or "").strip()
+    first_phone = None
+    if raw_phone:
+        first_phone = members.normalize_phone(raw_phone)
+        if not members.PHONE_RE.match(first_phone):
+            print("Dừng: DEMO_MEMBER_PHONE không phải SĐT hợp lệ (10 số).", file=sys.stderr)
+            return EXIT_BAD_PHONE
+    return asyncio.run(run(args.clear, password, first_phone, video_urls_from_env()))
+
+
+def video_urls_from_env() -> list[str]:
+    """``DEMO_VIDEO_URLS``: link https cách nhau bởi dấu phẩy / khoảng trắng, lấy tối đa 3."""
+    raw = os.environ.get("DEMO_VIDEO_URLS") or ""
+    urls = [u for u in raw.replace(",", " ").split() if u.startswith("https://")]
+    return urls[:MAX_VIDEOS]
 
 
 if __name__ == "__main__":

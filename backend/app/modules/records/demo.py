@@ -66,6 +66,31 @@ async def seed_speeds(session: AsyncSession, customer_ids: list[int], now: datet
     return len(rows)
 
 
+async def seed_breaks(
+    session: AsyncSession,
+    customer_ids: list[int],
+    now: datetime,
+    video_urls: list[str],
+) -> int:
+    """3 lần phá kỷ lục cụm gần đây (331 → 335 → 340 km/h, cao hơn mọi số đo ngẫu nhiên ≤ 330)
+    cho khối "Kỷ lục mới" (T-036); gắn lần lượt ``video_urls`` (T-046, nếu có) vào các lần phá."""
+    rows = []
+    for k, (cid, kmh) in enumerate(zip(customer_ids, (331, 335, 340), strict=False)):
+        rows.append(
+            SpeedRecord(
+                customer_id=cid,
+                speed_kmh=kmh,
+                measured_at=(now - timedelta(days=3 - k, hours=1)).astimezone(UTC),
+                device_id="demo",
+                video_url=video_urls[k] if k < len(video_urls) else None,
+                source_ref=f"{DEMO_PREFIX}break:{cid}:{k}",
+            )
+        )
+    session.add_all(rows)
+    await session.flush()
+    return len(rows)
+
+
 async def purge_demo(session: AsyncSession) -> int:
     result = await session.execute(
         delete(SpeedRecord).where(SpeedRecord.source_ref.startswith(DEMO_PREFIX))

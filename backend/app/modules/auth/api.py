@@ -282,9 +282,9 @@ async def set_full_name(session: AsyncSession, user_id: int, full_name: str) -> 
 # ------------------------------------------------------------------ dữ liệu mẫu dev (T-034)
 
 
-async def demo_foreign_phones(session: AsyncSession) -> list[str]:
-    """SĐT trong dải mẫu thuộc tài khoản thật – có thì script mẫu phải dừng."""
-    return await demo.foreign_demo_phones(session)
+async def demo_foreign_phones(session: AsyncSession, extra_phone: str | None = None) -> list[str]:
+    """SĐT trong dải mẫu (và ``extra_phone``) thuộc tài khoản thật – có thì script mẫu dừng."""
+    return await demo.foreign_demo_phones(session, extra_phone)
 
 
 async def create_demo_account(
