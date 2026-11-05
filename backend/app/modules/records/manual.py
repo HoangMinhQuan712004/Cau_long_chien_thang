@@ -8,15 +8,17 @@ Hàm ghi **không commit** (router chạy trong ``Idempotency.run``); thông bá
 - Số đo máy đo (``device``) không sửa / xóa được (403 E-REC-2).
 """
 
+import math
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import ratelimit
 from app.core.audit import AuditActor, audit, audit_change, audit_detail
+from app.core.config import settings
 from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
 from app.modules.member_inbox import api as inbox
@@ -339,21 +341,47 @@ async def _mine(
     ]
 
 
+def day_bounds(now: datetime) -> tuple[datetime, datetime]:
+    """[00:00, 24:00) của ngày giờ VN chứa ``now``."""
+    start = datetime.combine(now.astimezone(settings.tz).date(), time(), settings.tz)
+    return start, start + timedelta(days=1)
+
+
+async def _check_daily_limit(session: AsyncSession, customer_id: int, now: datetime) -> None:
+    """Tối đa 5 bản gửi / ngày giờ VN (mọi trạng thái; bản đã rút lại là đã xóa nên không đếm).
+
+    Khóa advisory theo người gửi trong transaction: hai lượt gửi cùng lúc không cùng lọt qua.
+    """
+    await session.execute(
+        select(func.pg_advisory_xact_lock(func.hashtext(f"record.submit:{customer_id}")))
+    )
+    start, end = day_bounds(now)
+    sent = await session.scalar(
+        select(func.count())
+        .select_from(SpeedRecord)
+        .where(
+            SpeedRecord.customer_id == customer_id,
+            SpeedRecord.source == "member",
+            SpeedRecord.created_at >= start,
+            SpeedRecord.created_at < end,
+        )
+    )
+    if (sent or 0) >= SUBMITS_PER_DAY:
+        raise ratelimit.too_many(max(1, math.ceil((end - now).total_seconds())))
+
+
 async def submit(session: AsyncSession, me: Submitter, data: SpeedSubmitIn) -> MySpeedRecord:
     """Hội viên gửi cú đập của **chính mình** -> chờ duyệt. 403 E-REC-7 (đang Ngừng) · 422
-    E-REC-5 / E-REC-6 / E-REC-1 · 429 E-SEC-5 (> 5 lượt / ngày, chỉ đếm lượt hợp lệ)."""
+    E-REC-5 / E-REC-6 / E-REC-1 · 429 E-SEC-5 (đã gửi 5 bản trong ngày giờ VN; lượt lỗi không
+    tính; ``Retry-After`` tới 00:00 hôm sau)."""
     person = await _active_person(session, me.customer_id)
     if person is None:
         raise AppError("E-REC-7", "Hội viên đang Ngừng không gửi được số đo.", 403)
     measured_at = _check_time(data.measured_at)
     court = await _court(session, data.resource_code)
     url = _video(data.video_url)
-    retry_after = await ratelimit.check(
-        "record.submit", str(me.customer_id), SUBMITS_PER_DAY, 86400
-    )
-    if retry_after is not None:
-        raise ratelimit.too_many(retry_after)
     now = datetime.now(UTC)
+    await _check_daily_limit(session, me.customer_id, now)
     r = SpeedRecord(
         customer_id=me.customer_id,
         speed_kmh=data.speed_kmh,
