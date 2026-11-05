@@ -15,6 +15,7 @@ export const FORBIDDEN_REPORT_PARAM = `${FORBIDDEN_KEY}=${FORBIDDEN_REPORT_VALUE
 export type AdminPerm =
   | "reports.view"
   | "booking.calendar.view"
+  | "booking.counter.create"
   | "booking.transactions.view"
   | "booking.config.manage"
   | "member.manage"

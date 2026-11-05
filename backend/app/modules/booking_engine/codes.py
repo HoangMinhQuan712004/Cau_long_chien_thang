@@ -16,6 +16,20 @@ from app.modules.booking_engine.models import CodeSequence
 
 
 async def next_code(session: AsyncSession, tenant_id: int, prefix: str, day: date) -> str:
+    value = await _next_value(session, tenant_id, prefix, day)
+    return f"{prefix}-{day:%Y%m%d}-{value:03d}"
+
+
+SERIES_PREFIX = "GT"
+
+
+async def next_series_code(session: AsyncSession, tenant_id: int, month: date) -> str:
+    """Gói đặt theo tháng: ``GT-YYMM-NNN`` (đếm theo tháng của gói, cùng cơ chế khóa dòng đếm)."""
+    value = await _next_value(session, tenant_id, SERIES_PREFIX, month.replace(day=1))
+    return f"{SERIES_PREFIX}-{month:%y%m}-{value:03d}"
+
+
+async def _next_value(session: AsyncSession, tenant_id: int, prefix: str, day: date) -> int:
     stmt = (
         insert(CodeSequence)
         .values(tenant_id=tenant_id, prefix=prefix, day=day, last_value=1)
@@ -25,5 +39,4 @@ async def next_code(session: AsyncSession, tenant_id: int, prefix: str, day: dat
         )
         .returning(CodeSequence.last_value)
     )
-    value = (await session.execute(stmt)).scalar_one()
-    return f"{prefix}-{day:%Y%m%d}-{value:03d}"
+    return (await session.execute(stmt)).scalar_one()

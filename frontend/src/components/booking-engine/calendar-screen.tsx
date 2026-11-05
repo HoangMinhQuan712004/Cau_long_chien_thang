@@ -12,9 +12,12 @@ import { BookingDialog, SessionFormDialog } from "./booking-dialogs";
 import { ItemFlow } from "./item-flow";
 import { OrderFlow } from "./order-flow";
 import { getCalendar, searchCode } from "./requests";
+import { SeriesDialog } from "./series-dialog";
+import { SeriesPanel } from "./series-panel";
 import { SessionFlow } from "./session-flow";
 import type { Calendar, CalendarBlock, Selection } from "./types";
 import { inputCls } from "./ui";
+import type { Dictionary } from "@/i18n/dictionaries";
 
 // Màn Đặt sân (/admin/dat-san): lịch ngày + các hộp thoại. Dữ liệu đầu lấy ở server; sau đó tải lại ở client:
 // mỗi 30 giây khi tab đang hiển thị (NFR-002) và ngay sau mỗi thao tác ghi.
@@ -24,11 +27,14 @@ type Dialog =
   | { kind: "order"; orderCode: string }
   | { kind: "sessionForm"; selection: Selection }
   | { kind: "item"; code: string }
-  | { kind: "session"; code: string };
+  | { kind: "session"; code: string }
+  | { kind: "series" }
+  | { kind: "seriesPanel"; code: string };
 
 const REFRESH_MS = 30_000;
 
-export function CalendarScreen({ initial }: { initial: Calendar }) {
+/** `seriesT`: chữ gói tháng; `canSeries` false (thiếu booking.counter.create) ⇒ ẩn nút "Đặt theo tháng", vẫn xem được chi tiết gói. */
+export function CalendarScreen({ initial, seriesT, canSeries }: { initial: Calendar; seriesT: Dictionary["series"]; canSeries: boolean }) {
   const [calendar, setCalendar] = useState(initial);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [onlyUnpaid, setOnlyUnpaid] = useState(false);
@@ -266,6 +272,15 @@ export function CalendarScreen({ initial }: { initial: Calendar }) {
         <button type="submit" className="rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:bg-primary-softer">
           Tìm
         </button>
+        {canSeries ? (
+          <button
+            type="button"
+            onClick={() => setDialog({ kind: "series" })}
+            className="ml-auto min-h-10 rounded-lg border border-primary bg-surface px-4 text-sm font-semibold text-primary hover:bg-primary-softer sm:order-last"
+          >
+            {seriesT.open}
+          </button>
+        ) : null}
         {unpaidOnly ? (
           <p className="self-center text-sm text-muted">
             Đang lọc: Chưa thanh toán · {calendar.unpaid_count}.{" "}
@@ -347,6 +362,27 @@ export function CalendarScreen({ initial }: { initial: Calendar }) {
             setDialog(null);
             refresh();
           }}
+        />
+      ) : null}
+      {dialog?.kind === "series" ? (
+        <SeriesDialog
+          calendar={calendar}
+          prefill={blocks.length === 1 ? blocks[0] : null}
+          t={seriesT}
+          onClose={() => setDialog(null)}
+          onBooked={(code) => {
+            setDialog({ kind: "seriesPanel", code }); // chưa có lối vào khác (series_code ở popup booking thuộc phần sau)
+            refresh();
+          }}
+        />
+      ) : null}
+      {dialog?.kind === "seriesPanel" ? (
+        <SeriesPanel
+          key={dialog.code}
+          code={dialog.code}
+          t={seriesT}
+          onClose={() => setDialog(null)}
+          onOpenItem={(code) => setDialog({ kind: "item", code })}
         />
       ) : null}
       {dialog?.kind === "sessionForm" ? (

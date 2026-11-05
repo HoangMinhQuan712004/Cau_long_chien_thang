@@ -19,6 +19,12 @@ from app.modules.booking_engine.report_dto import (  # noqa: F401 – mặt ti�
     ReportFigures,
     RevenueTotals,
 )
+from app.modules.booking_engine.series_dto import (  # noqa: F401 – mặt tiền DTO gói tháng
+    SeriesCreateIn,
+    SeriesOut,
+    SeriesPlanIn,
+    SeriesPreviewOut,
+)
 
 # "HH:MM", bội 30 phút; "24:00" = nửa đêm cuối ngày (chỉ có nghĩa với giờ đóng cửa)
 HHMM = Annotated[str, StringConstraints(pattern=r"^(([01]\d|2[0-3]):(00|30)|24:00)$")]

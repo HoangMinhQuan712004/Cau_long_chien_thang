@@ -54,6 +54,11 @@ async def context(session: AsyncSession, tenant_id: int, for_update: bool = Fals
     return Ctx(tenant=tenant, tz=tz, now=now, today=now.date())
 
 
+def has_started(ctx: Ctx, start_at: datetime) -> bool:
+    """Khung đã tới giờ bắt đầu (giờ server, so mốc UTC)."""
+    return ctx.now >= start_at
+
+
 def audit_actor(actor: Actor) -> AuditActor:
     return AuditActor(type=actor.type, id=actor.id, label=actor.label)
 

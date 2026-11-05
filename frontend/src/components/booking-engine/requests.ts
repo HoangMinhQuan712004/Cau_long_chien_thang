@@ -1,6 +1,7 @@
 import "client-only";
-import { looseApi } from "@/lib/api/client";
+import { api, looseApi } from "@/lib/api/client";
 import { toApiError, type ApiError } from "@/lib/api/write";
+import type { components as Api } from "@/lib/api/schema";
 import type {
   Calendar,
   CustomerPayload,
@@ -9,6 +10,9 @@ import type {
   PaymentMethod,
   Quote,
   SearchResult,
+  SeriesDetail,
+  SeriesParams,
+  SeriesPreview,
   SessionDetail,
   Transactions,
 } from "./types";
@@ -46,6 +50,13 @@ export const getItem = (code: string) =>
 
 export const getSession = (code: string) =>
   read<SessionDetail>(() => looseApi.GET(`${P}/booking/sessions/{code}`, { params: { path: { code } } }));
+
+/** Xem trước các ngày của gói; `signal` để hủy lần kiểm cũ khi tham số đổi. */
+export const getSeriesPreview = (body: SeriesParams, signal?: AbortSignal) =>
+  read<SeriesPreview>(() => api.POST("/api/v1/front-desk/series/preview", { body, signal }));
+
+export const getSeries = (code: string) =>
+  read<SeriesDetail>(() => api.GET("/api/v1/front-desk/series/{code}", { params: { path: { code } } }));
 
 export type TransactionFilters = {
   from?: string;
@@ -98,3 +109,8 @@ export const sendUncollectible = (key: string, code: string, reason: string, ver
     body: { reason, version },
     headers: idem(key),
   });
+
+/** Đặt gói theo tháng: các ngày đang tích; ngày trùng lịch → 409 E-SERIES-1 + `conflicts: [{date, reason}]`, không ngày nào được tạo. */
+export const sendSeries = (key: string, body: Api["schemas"]["SeriesIn"]) =>
+  api.POST("/api/v1/front-desk/series", { body, headers: idem(key) });
+

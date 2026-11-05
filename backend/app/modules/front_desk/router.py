@@ -25,6 +25,10 @@ from app.modules.booking_engine.dto import (
     CounterOrderOut,
     CustomerSnapshot,
     ItemOut,
+    SeriesCreateIn,
+    SeriesOut,
+    SeriesPlanIn,
+    SeriesPreviewOut,
 )
 from app.modules.members import api as members
 from app.modules.members.api import CustomerIn
@@ -142,3 +146,43 @@ async def register_ticket(
         return await engine.register_ticket(session, actor_of(principal), code, snapshot, note)
 
     return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
+
+
+# ---------------------------------------------------------------- gói đặt theo tháng
+
+
+class SeriesIn(SeriesCreateIn):
+    customer: CustomerIn
+
+
+@router.post("/series/preview", response_model=SeriesPreviewOut)
+async def preview_series(data: SeriesPlanIn, _: CounterBooker, session: SessionDep):
+    """Xem trước gói: từng ngày còn đặt được (ngày đã qua / khung đã bắt đầu không trả) + giá +
+    ``ok`` / ``conflict`` kèm lý do (đã có booking / sự kiện, giữ chỗ online, ngoài giờ, sân ngừng).
+
+    Lỗi: 422 E-SERIES-2 (tháng đã qua) · E-001 (giờ) · 404 E-NOT-FOUND (sân).
+    """
+    return await engine.series_preview(session, data)
+
+
+@router.post("/series", response_model=SeriesOut, status_code=status.HTTP_201_CREATED)
+async def create_series(
+    data: SeriesIn, principal: CounterBooker, idem: IdempotencyDep, session: SessionDep
+):
+    """Tạo gói: mỗi ngày trong ``dates`` = 1 đơn 1 booking Chưa thanh toán, giá theo bảng giá
+    từng ngày. All-or-nothing: còn ngày vướng (kể cả vừa bị đặt chen) -> 409 E-SERIES-1 kèm
+    ``conflicts: [{date, reason}]``, không tạo ngày nào. 422 E-SERIES-2 (ngày ngoài gói / đã qua).
+    """
+
+    async def run() -> SeriesOut:
+        snapshot, note = await customer_snapshot(session, data.customer, principal)
+        plan = SeriesCreateIn(**data.model_dump(exclude={"customer"}))
+        return await engine.create_series(session, actor_of(principal), plan, snapshot, note)
+
+    return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
+
+
+@router.get("/series/{code}", response_model=SeriesOut)
+async def get_series(code: str, _: CounterBooker, session: SessionDep):
+    """Chi tiết gói: các ngày (mã booking, giá, trạng thái, thanh toán), tổng, đã thu."""
+    return await engine.get_series(session, code)

@@ -83,6 +83,7 @@ GROUPS: tuple[ActionGroup, ...] = (
         "Đặt sân & thanh toán",
         (
             _t("booking.counter.create", "Đặt sân tại quầy"),
+            _t("booking.series.create", "Đặt theo tháng"),
             _t("session.create", "Đặt sự kiện"),
             _t("session.delete", "Xóa buổi"),
             _t("ticket.create", "Đăng ký vé"),

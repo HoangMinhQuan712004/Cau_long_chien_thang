@@ -2000,6 +2000,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/front-desk/series/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Series
+         * @description Xem trước gói: từng ngày còn đặt được (ngày đã qua / khung đã bắt đầu không trả) + giá +
+         *     ``ok`` / ``conflict`` kèm lý do (đã có booking / sự kiện, giữ chỗ online, ngoài giờ, sân ngừng).
+         *
+         *     Lỗi: 422 E-SERIES-2 (tháng đã qua) · E-001 (giờ) · 404 E-NOT-FOUND (sân).
+         */
+        post: operations["preview_series_api_v1_front_desk_series_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Series
+         * @description Tạo gói: mỗi ngày trong ``dates`` = 1 đơn 1 booking Chưa thanh toán, giá theo bảng giá
+         *     từng ngày. All-or-nothing: còn ngày vướng (kể cả vừa bị đặt chen) -> 409 E-SERIES-1 kèm
+         *     ``conflicts: [{date, reason}]``, không tạo ngày nào. 422 E-SERIES-2 (ngày ngoài gói / đã qua).
+         */
+        post: operations["create_series_api_v1_front_desk_series_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/series/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Series
+         * @description Chi tiết gói: các ngày (mã booking, giá, trạng thái, thanh toán), tổng, đã thu.
+         */
+        get: operations["get_series_api_v1_front_desk_series__code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/web/booking/calendar": {
         parameters: {
             query?: never;
@@ -5450,6 +5515,154 @@ export interface components {
              * @description order: mã con các khối (theo thứ tự -01, -02…)
              */
             codes?: string[];
+        };
+        /** SeriesCustomer */
+        SeriesCustomer: {
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "member" | "temp";
+            /** Member Code */
+            member_code: string | null;
+            /** Tier */
+            tier: string | null;
+        };
+        /** SeriesIn */
+        SeriesIn: {
+            /** Resource Code */
+            resource_code: string;
+            /**
+             * Month
+             * @description YYYY-MM
+             * @example 2026-11
+             */
+            month: string;
+            /** Weekdays */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /** Dates */
+            dates: string[];
+            customer: components["schemas"]["CustomerIn"];
+        };
+        /** SeriesItemOut */
+        SeriesItemOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Booking Code */
+            booking_code: string;
+            /** Price */
+            price: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "cancelled";
+            /** Payment Status */
+            payment_status: string;
+        };
+        /** SeriesOut */
+        SeriesOut: {
+            /** Code */
+            code: string;
+            resource: components["schemas"]["SeriesResource"];
+            /** Month */
+            month: string;
+            /** Weekdays */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            customer: components["schemas"]["SeriesCustomer"];
+            /**
+             * Total
+             * @description Tổng tiền các ngày lúc tạo
+             */
+            total: number;
+            /**
+             * Paid Total
+             * @description Tổng tiền các ngày đã thu
+             */
+            paid_total: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "cancelled" | "completed";
+            /** Items */
+            items: components["schemas"]["SeriesItemOut"][];
+        };
+        /**
+         * SeriesPlanIn
+         * @description Kế hoạch gói: tháng ``YYYY-MM`` (tháng này hoặc sau), 1 sân, 1 khung giờ, các thứ ISO
+         *     (1 = Thứ Hai … 7 = Chủ nhật).
+         */
+        SeriesPlanIn: {
+            /** Resource Code */
+            resource_code: string;
+            /**
+             * Month
+             * @description YYYY-MM
+             * @example 2026-11
+             */
+            month: string;
+            /** Weekdays */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+        };
+        /** SeriesPreviewDate */
+        SeriesPreviewDate: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Price
+             * @description Giá ngày đó theo bảng giá hiện hành (0 nếu không bán)
+             */
+            price: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "conflict";
+            /** Reason */
+            reason?: string | null;
+        };
+        /** SeriesPreviewOut */
+        SeriesPreviewOut: {
+            /**
+             * Dates
+             * @description Ngày đã qua / khung đã bắt đầu không trả
+             */
+            dates: components["schemas"]["SeriesPreviewDate"][];
+            /**
+             * Total Ok
+             * @description Tổng tiền các ngày ``ok``
+             */
+            total_ok: number;
+        };
+        /** SeriesResource */
+        SeriesResource: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
         };
         /** SessionCan */
         SessionCan: {
@@ -9601,6 +9814,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_series_api_v1_front_desk_series_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesPlanIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesPreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_series_api_v1_front_desk_series_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_series_api_v1_front_desk_series__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesOut"];
                 };
             };
             /** @description Validation Error */

@@ -24,6 +24,8 @@ from app.modules.booking_engine import (
     payment_service,
     report_figures,
     rooms_feed,
+    series_query,
+    series_service,
     session_service,
     ticket_online,
     transactions,
@@ -64,6 +66,10 @@ from app.modules.booking_engine.dto import (
     ResourceUpdate,
     RoomSource,
     SearchResult,
+    SeriesCreateIn,
+    SeriesOut,
+    SeriesPlanIn,
+    SeriesPreviewOut,
     SessionCreate,
     SessionOut,
     SpecialDayIn,
@@ -527,3 +533,32 @@ async def rename_customer(
 
     Không commit; trả số booking + vé đã đổi (ghi vào nhật ký ``member.self_update``)."""
     return await customer_history.rename_customer(session, _tid(tenant_id), refs, name)
+
+
+# ---- Gói đặt theo tháng (quầy)
+
+
+async def series_preview(
+    session: AsyncSession, plan: SeriesPlanIn, *, tenant_id: int | None = None
+) -> SeriesPreviewOut:
+    """Từng ngày của gói: giá theo bảng giá hiện hành + ``ok`` / ``conflict`` kèm lý do."""
+    return await series_query.preview(session, _tid(tenant_id), plan)
+
+
+async def create_series(
+    session: AsyncSession,
+    actor: Actor,
+    data: SeriesCreateIn,
+    customer: CustomerSnapshot,
+    note: str | None = None,
+    *,
+    tenant_id: int | None = None,
+) -> SeriesOut:
+    """Tạo gói: mỗi ngày 1 đơn 1 booking chưa thu; all-or-nothing (409 ``E-SERIES-1``)."""
+    return await series_service.create(session, _tid(tenant_id), actor, data, customer, note)
+
+
+async def get_series(
+    session: AsyncSession, code: str, *, tenant_id: int | None = None
+) -> SeriesOut:
+    return await series_query.get(session, _tid(tenant_id), code)
