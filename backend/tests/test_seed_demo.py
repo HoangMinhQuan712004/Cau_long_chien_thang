@@ -131,7 +131,25 @@ async def test_seed_twice_then_clear_keeps_real_data(admin, clean, capsys):
         # Tổng quan v2: có lịch sắp tới, phòng đang trống (có phòng giới hạn hạng), kỷ lục mới
         o = (await c.get(f"{MA}/overview")).json()
         assert o["upcoming"] and o["record_kmh"] is not None and me["racket"]
-        assert len(o["open_rooms"]) >= 2 and any(r["tier_range"] for r in o["open_rooms"])
+        # "Phòng đang trống" = 3 phòng đầu (theo giờ) còn chỗ, mình chưa ở trong, của MỌI phòng
+        # hôm nay -> DB test dùng chung có phòng của test khác xếp trước phòng mẫu (nhất là chiều
+        # tối, khi phòng mẫu dồn vào ít giờ còn lại) => kiểm phòng mẫu trên Danh sách sân
+        free = [
+            r
+            for r in (await c.get(f"{MA}/rooms")).json()["items"]
+            if not r["is_mine"] and r["member_count"] < r["capacity"]
+        ]
+        assert [r["id"] for r in o["open_rooms"]] == [r["id"] for r in free[:3]]
+        async with SessionLocal() as s:
+            demo_rooms = set(
+                await s.scalars(
+                    select(PlayRoom.id).where(
+                        PlayRoom.host_customer_id.in_(select(Customer.id).where(DEMO))
+                    )
+                )
+            )
+        free_demo = [r for r in free if r["id"] in demo_rooms]
+        assert len(free_demo) >= 2 and any(r["tier_range"] for r in free_demo), free_demo
         assert len(o["recent_records"]) >= 3 and o["recent_records"][0]["is_current"]
         assert o["ranking"]["me"] is not None and len(o["ranking"]["top3"]) == 3
 
