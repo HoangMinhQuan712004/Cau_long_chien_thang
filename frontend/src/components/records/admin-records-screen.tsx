@@ -57,7 +57,7 @@ export function AdminRecordsScreen() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Kỷ lục &amp; video</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">Kỷ lục &amp; video</h1>
         <button type="button" onClick={() => setForm({ kind: "admin-create" })} className={btnPrimaryCls}>
           + Thêm số đo
         </button>

@@ -112,7 +112,7 @@ async function Profile() {
 
   return (
     <div className={COLUMN}>
-      <h1 className="text-2xl font-bold">{t.title}</h1>
+      <h1 className="text-xl font-bold sm:text-2xl">{t.title}</h1>
       {/* Một thẻ cho cả trang: dải xanh mang hình sân, các nhóm tách bằng đường kẻ mảnh */}
       <div className={CARD}>
         <div aria-hidden className={cn(`

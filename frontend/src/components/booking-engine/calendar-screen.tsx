@@ -3,19 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cellKey } from "@/components/court-grid/court-grid";
 import { errorText } from "@/lib/api/write";
-import { normalizeBookingCode } from "@/lib/booking-code";
+import { cn } from "@/lib/cn";
 import { toast } from "@/lib/feedback";
-import { addDaysIso, formatLongDate, formatVnd, vnDate } from "@/lib/format";
+import { vnDate } from "@/lib/format";
 import { AdminGrid, EVENT_RECT_HINT, isSellable, selectionBlocks, selectionRect } from "./admin-grid";
 import { MAX_BLOCKS, type Block } from "./block";
-import { BookingDialog, SessionFormDialog } from "./booking-dialogs";
+import { BookingDialog } from "./booking-dialogs";
+import { CalendarToolbar } from "./calendar-toolbar";
 import { ItemFlow } from "./item-flow";
 import { OrderFlow } from "./order-flow";
 import { RecurringDialog } from "./recurring-dialog";
+import { SelectionBar } from "./selection-bar";
 import { getCalendar, searchCode } from "./requests";
 import { SessionFlow } from "./session-flow";
+import { SessionFormDialog } from "./session-form-dialog";
 import type { Calendar, CalendarBlock, Selection } from "./types";
-import { inputCls } from "./ui";
 
 // Màn Đặt sân (/admin/dat-san): lịch ngày + các hộp thoại. Dữ liệu đầu lấy ở server; sau đó tải lại ở client:
 // mỗi 30 giây khi tab đang hiển thị (NFR-002) và ngay sau mỗi thao tác ghi.
@@ -37,8 +39,6 @@ export function CalendarScreen({ initial, canRecurring }: { initial: Calendar; c
   const [onlyUnpaid, setOnlyUnpaid] = useState(false);
   const [highlight, setHighlight] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [query, setQuery] = useState("");
-  const [searchError, setSearchError] = useState("");
   // Ô đang chọn trên lưới (bấm từng ô, T-025): khóa "mã sân|giờ"
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const dateRef = useRef(initial.date);
@@ -150,29 +150,23 @@ export function CalendarScreen({ initial, canRecurring }: { initial: Calendar; c
     if (rect && !eventReason) setDialog({ kind: "sessionForm", selection: rect });
   }
 
-  async function onSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const code = normalizeBookingCode(query);
-    if (!code) return;
+  /** Tìm mã (ô tìm ở thanh công cụ): trả câu lỗi, "" = tìm thấy (chuyển ngày + mở hộp chi tiết). */
+  async function findCode(code: string): Promise<string> {
     const res = await searchCode(code);
-    if (!res.ok) {
-      setSearchError(res.error.code === "E-021" || res.error.status === 404 ? `Không tìm thấy mã ${code}. Kiểm tra lại mã.` : errorText(res.error));
-      return;
-    }
-    setSearchError("");
+    if (!res.ok) return res.error.code === "E-021" || res.error.status === 404 ? `Không tìm thấy mã ${code}. Kiểm tra lại mã.` : errorText(res.error);
     const { kind, play_date } = res.data;
     if (play_date !== dateRef.current) await goto(play_date);
     // Mã đơn → danh sách các khối của đơn; mã khối (mã con) → chi tiết khối
     if (kind === "order") {
       setHighlight(res.data.order_code ?? res.data.code);
       setDialog({ kind: "order", orderCode: res.data.order_code ?? res.data.code });
-      return;
+      return "";
     }
     setHighlight(kind === "ticket" ? null : res.data.code);
     setDialog(kind === "session" ? { kind: "session", code: res.data.code } : { kind: "item", code: res.data.code });
+    return "";
   }
 
-  const isToday = calendar.date === today;
   const footText = calendar.is_past
     ? "Ngày đã qua: chỉ xem, không chọn khung mới. Bấm khối để xem Thông tin booking."
     : !canPick
@@ -181,110 +175,22 @@ export function CalendarScreen({ initial, canRecurring }: { initial: Calendar; c
         ? "Bấm từng ô trống để chọn (nhiều sân, nhiều giờ) rồi Đặt sân hoặc Tạo sự kiện · bấm khối để xem chi tiết · Esc bỏ chọn."
         : "Bấm từng ô trống để chọn (nhiều sân, nhiều giờ) rồi Đặt sân · bấm khối để xem chi tiết · Esc bỏ chọn.";
 
-  const chip = (active: boolean) =>
-    `rounded-full border px-3 py-1.5 text-sm ${active ? "border-primary bg-primary text-white" : "border-border bg-surface hover:bg-primary-softer"}`;
-
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold">Đặt sân</h1>
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => goto(addDaysIso(calendar.date, -1))}
-            aria-label="Ngày trước"
-            className="grid size-9 place-items-center rounded-lg border border-border bg-surface hover:bg-primary-softer"
-          >
-            ‹
-          </button>
-          <span className="min-w-36 text-center text-sm font-medium" aria-live="polite">
-            {formatLongDate(calendar.date)}
-          </span>
-          <button
-            type="button"
-            onClick={() => goto(addDaysIso(calendar.date, 1))}
-            aria-label="Ngày sau"
-            className="grid size-9 place-items-center rounded-lg border border-border bg-surface hover:bg-primary-softer"
-          >
-            ›
-          </button>
-          {canRecurring ? (
-            <button type="button" onClick={() => setDialog({ kind: "recurring" })} className="rounded-lg border border-primary bg-surface px-3 py-2 text-sm font-semibold text-primary hover:bg-primary-softer">
-              Đặt sân định kỳ
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => goto(today)}
-            disabled={isToday}
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:bg-primary-softer disabled:opacity-50"
-          >
-            Hôm nay
-          </button>
-        </div>
-      </div>
+    // md+: cao đúng phần còn lại dưới header (3.5rem) trừ lề trang ⇒ lưới cuộn bên trong, trang không phải cuộn
+    <div className="flex flex-col gap-3 md:h-[calc(100dvh-5.5rem)] lg:h-[calc(100dvh-6rem)]">
+      <CalendarToolbar
+        date={calendar.date}
+        today={today}
+        onGoto={(d) => void goto(d)}
+        onRecurring={canRecurring ? () => setDialog({ kind: "recurring" }) : null}
+        onSearch={findCode}
+        unpaidOnly={unpaidOnly}
+        unpaidCount={calendar.unpaid_count}
+        onUnpaidOnly={setOnlyUnpaid}
+      />
 
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
-        <Legend swatch="bg-cell-off" label="Xám = ngoài giờ mở cửa hoặc sân ngừng hoạt động" text="Xám" />
-        <Legend swatch="bg-blk-session" label="Tím" text="Tím = Sự kiện" />
-        <Legend swatch="border border-border bg-surface" label="Trắng" text="Trắng = Trống" />
-        <Legend swatch="bg-primary" label="Xanh" text="Xanh = Đang chọn" />
-        <Legend swatch="bg-blk-paid" label="Đỏ" text="Đỏ = Đã đặt" />
-        <Legend swatch="bg-blk-unpaid" label="Vàng" text="Vàng = Chưa thanh toán" />
-        <div className="ml-auto flex items-center gap-2">
-          <span>Hiển thị:</span>
-          <button type="button" onClick={() => setOnlyUnpaid(false)} aria-pressed={!unpaidOnly} className={chip(!unpaidOnly)}>
-            Tất cả
-          </button>
-          <button
-            type="button"
-            onClick={() => setOnlyUnpaid(true)}
-            disabled={calendar.unpaid_count === 0}
-            aria-pressed={unpaidOnly}
-            className={`${chip(unpaidOnly)} disabled:opacity-50`}
-          >
-            Chưa thanh toán ({calendar.unpaid_count})
-          </button>
-        </div>
-      </div>
-
-      <form onSubmit={onSearch} className="flex flex-wrap items-start gap-2" role="search">
-        <div>
-          <label htmlFor="code-search" className="sr-only">
-            Tìm theo mã đơn, mã khối, sự kiện hoặc vé
-          </label>
-          <input
-            id="code-search"
-            value={query}
-            placeholder="Tìm mã BK-20261020-021…"
-            maxLength={40}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setSearchError("");
-            }}
-            aria-invalid={Boolean(searchError) || undefined}
-            className={`${inputCls} w-64`}
-          />
-          {searchError ? (
-            <p role="alert" className="mt-1 text-xs text-danger">
-              {searchError}
-            </p>
-          ) : null}
-        </div>
-        <button type="submit" className="rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:bg-primary-softer">
-          Tìm
-        </button>
-        {unpaidOnly ? (
-          <p className="self-center text-sm text-muted">
-            Đang lọc: Chưa thanh toán · {calendar.unpaid_count}.{" "}
-            <button type="button" onClick={() => setOnlyUnpaid(false)} className="text-primary hover:underline">
-              Bỏ lọc
-            </button>
-          </p>
-        ) : null}
-      </form>
-
-      <div className={loading ? "opacity-60 transition-opacity" : "transition-opacity"} aria-busy={loading}>
+      {/* md+: khung lưới co theo chiều cao còn lại (tối thiểu 18rem), cuộn dọc bên trong, hàng giờ dính trên */}
+      <div className={cn("transition-opacity md:flex md:min-h-72 md:flex-col motion-reduce:transition-none", loading && "opacity-60")} aria-busy={loading}>
         <AdminGrid
           calendar={calendar}
           selected={selected}
@@ -297,43 +203,18 @@ export function CalendarScreen({ initial, canRecurring }: { initial: Calendar; c
           onHoldExpired={refresh}
         />
       </div>
-      <p className="text-sm text-muted">{footText}</p>
+      <p className="shrink-0 text-sm text-muted">{footText}</p>
 
       {selected.size > 0 ? (
-        <section data-bottom-bar className="sticky bottom-3 z-20 rounded-2xl border border-border bg-surface p-3 shadow-lg" aria-label="Khung đang chọn">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <p className="min-w-0 flex-1 text-sm font-semibold tabular-nums" aria-live="polite">
-              {selected.size} khung · {formatVnd(total)}
-              <span className="ml-2 text-xs font-normal text-muted">Tạm tính theo bảng giá; giá chốt khi đặt.</span>
-            </p>
-            <button type="button" onClick={clear} className="min-h-10 rounded-lg border border-border px-4 text-sm hover:bg-primary-softer">
-              Bỏ chọn
-            </button>
-            <button
-              type="button"
-              onClick={openBooking}
-              disabled={Boolean(bookReason)}
-              title={bookReason || undefined}
-              className="min-h-10 rounded-lg bg-primary px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Đặt sân
-            </button>
-            {canSession ? (
-              <button
-                type="button"
-                onClick={openSessionForm}
-                disabled={Boolean(eventReason)}
-                title={eventReason || undefined}
-                className="min-h-10 rounded-lg border border-primary px-5 text-sm font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Tạo sự kiện
-              </button>
-            ) : null}
-          </div>
-          {bookReason || (canSession && eventReason) ? (
-            <p className="mt-1.5 text-xs text-muted">{[bookReason, canSession ? eventReason : ""].filter(Boolean).join(" · ")}</p>
-          ) : null}
-        </section>
+        <SelectionBar
+          count={selected.size}
+          total={total}
+          bookReason={bookReason}
+          eventReason={canSession ? eventReason : null}
+          onClear={clear}
+          onBook={openBooking}
+          onEvent={openSessionForm}
+        />
       ) : null}
 
       {dialog?.kind === "booking" ? (
@@ -414,14 +295,5 @@ export function CalendarScreen({ initial, canRecurring }: { initial: Calendar; c
         />
       ) : null}
     </div>
-  );
-}
-
-function Legend({ swatch, label, text }: { swatch: string; label: string; text: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5" title={label}>
-      <span aria-hidden className={`inline-block size-3.5 rounded-sm ${swatch}`} />
-      {text}
-    </span>
   );
 }

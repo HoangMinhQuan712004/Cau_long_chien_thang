@@ -90,7 +90,7 @@ export function TransactionsScreen({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Lịch sử giao dịch</h1>
+      <h1 className="text-xl font-bold sm:text-2xl">Lịch sử giao dịch</h1>
 
       <div className="grid gap-3 sm:grid-cols-3">
         {cards.map(([k, label]) => (

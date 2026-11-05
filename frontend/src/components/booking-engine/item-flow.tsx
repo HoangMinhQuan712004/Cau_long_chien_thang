@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState } from "react";
+import { CopyIcon } from "@/components/ui/icons";
 import { Modal } from "@/components/ui/modal";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
-import { formatDateTime, formatDayMonthYear, formatVnd, hhmm } from "@/lib/format";
+import { cn } from "@/lib/cn";
+import { formatDateTime, formatDayMonthYear, formatLongDate, formatVnd, hhmm } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import { authFailure } from "./booking-dialogs";
 import { getItem, sendCollect, sendUncollectible } from "./requests";
@@ -12,19 +14,21 @@ import type { Item } from "./types";
 import {
   btnCls,
   btnDangerCls,
-  btnDangerOutlineCls,
   btnPrimaryCls,
+  btnRowCls,
   ErrorBanner,
   Group,
-  inputCls,
-  Kv,
   METHOD_LABEL,
+  raisedFooterCls,
   resourceLabels,
-  StatusBadge,
-  SummaryBox,
+  STATUS_LABEL,
+  STATUS_TONE,
+  textareaCls,
 } from "./ui";
 
-// Luồng một booking / vé: Thông tin → Thu tiền | Không thu được. Dùng ở màn Đặt sân và Lịch sử giao dịch.
+// Luồng một booking / vé: Thông tin → Thu tiền | Không thu được. Dùng ở màn Đặt sân, Đơn đặt sân và Lịch sử giao dịch.
+// Thông tin: cấu trúc như dev (Mã đơn / Mã khối, nhóm KHÁCH ĐẶT · LỊCH ĐẶT · THANH TOÁN). Dưới md dọc (điện thoại: bảng trượt
+// từ đáy); từ md ngang 896px: hàng mã + số tiền / trạng thái, dưới là 3 cột nhóm. Chân chỉ khi có thao tác, nút rộng bằng nhau.
 
 type Props = {
   code: string;
@@ -69,8 +73,8 @@ export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder 
 
   if (!item) {
     return (
-      <Modal open onClose={onClose} title="Thông tin" footer={<button type="button" onClick={onClose} className={btnCls}>Đóng</button>}>
-        {error ? <ErrorBanner>{error}</ErrorBanner> : <p className="text-sm text-muted">Đang tải…</p>}
+      <Modal open sheet size="medium" onClose={onClose} title="Thông tin">
+        {error ? <ErrorBanner>{error}</ErrorBanner> : <p className="text-sm text-muted" role="status">Đang tải…</p>}
       </Modal>
     );
   }
@@ -83,9 +87,94 @@ export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder 
   return <InfoDialog item={item} onClose={onClose} onCollect={() => setStep("collect")} onBad={() => setStep("bad")} onOpenSession={onOpenSession} onOpenOrder={onOpenOrder} />;
 }
 
-const when = (item: Item) =>
-  `${formatDayMonthYear(item.schedule.play_date)} · ${hhmm(item.schedule.start_time)} – ${hhmm(item.schedule.end_time)}`;
+/** Tiêu đề popup = sân ("S01 · Sân 1"); dòng phụ = ngày · giờ · số giờ. */
+const courtTitle = (item: Item) => resourceLabels(item.schedule.resource_codes, item.schedule.resource_names);
+function whenLine(item: Item) {
+  const s = item.schedule;
+  const hours = Number(hhmm(s.end_time).slice(0, 2)) - Number(hhmm(s.start_time).slice(0, 2));
+  return `${formatLongDate(s.play_date)} · ${hhmm(s.start_time)}–${hhmm(s.end_time)}${hours > 0 ? ` · ${hours} giờ` : ""}`;
+}
 
+/** Hàng điểm nhìn: badge trạng thái bên trái, số tiền 2xl bên phải (dùng chung Thông tin / Thu tiền / Không thu được). */
+function StatusAmount({ item }: { item: Item }) {
+  const p = item.payment;
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-semibold", STATUS_TONE[p.payment_status])}>
+        <span aria-hidden className="size-1.5 rounded-full bg-current" />
+        {STATUS_LABEL[p.payment_status]}
+      </span>
+      <p className="text-2xl font-bold tabular-nums">{formatVnd(p.amount)}</p>
+    </div>
+  );
+}
+
+/** Khách: tên đậm + badge loại hồ sơ / hạng; SĐT là link gọi (tel:). */
+function CustomerBlock({ item }: { item: Item }) {
+  const c = item.customer;
+  return (
+    <div className="space-y-0.5">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-semibold">{c.name}</span>
+        <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">{c.profile_label}</span>
+        </p>
+      {c.phone ? (
+        <a href={`tel:${c.phone}`} className="inline-flex min-h-8 items-center text-sm text-primary tabular-nums hover:underline focus-ring">
+          {formatPhone(c.phone)}
+        </a>
+      ) : (
+        <p className="text-sm text-muted">Không có SĐT</p>
+      )}
+    </div>
+  );
+}
+
+/** Nút chép mã: icon 16px trong vùng chạm 32px; toast như cũ. */
+function CopyButton({ code }: { code: string }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast(`Đã chép ${code}`, undefined, "info");
+    } catch {
+      toast("Không chép được, hãy chọn và sao chép tay", undefined, "error");
+    }
+  };
+  return (
+    <button type="button" onClick={() => void copy()} title="Chép mã" aria-label={`Chép mã ${code}`} className="grid size-8 shrink-0 place-items-center rounded-md text-muted hover:bg-primary-softer hover:text-primary focus-ring">
+      <CopyIcon size={16} />
+    </button>
+  );
+}
+
+/** Danh sách nhãn trái / giá trị phải như dev (Kv), làm đẹp nhẹ: nhãn muted cột cố định, giá trị thẳng cột, xuống dòng theo từ. */
+/** Dòng [nhãn, giá trị, chỉ hiện dưới md?] – dòng `true` ẩn từ md vì đã lên hàng đầu của bố cục ngang. */
+type KvRow = [string, React.ReactNode, boolean?];
+
+function KvList({ rows }: { rows: KvRow[] }) {
+  return (
+    <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 sm:grid-cols-[8rem_minmax(0,1fr)] md:grid-cols-[5.5rem_minmax(0,1fr)]">
+      {rows.map(([k, v, narrowOnly]) => (
+        <div key={k} className={narrowOnly ? "contents md:hidden" : "contents"}>
+          <dt className="py-1 text-ui text-muted">{k}</dt>
+          <dd className="flex min-h-8 min-w-0 flex-wrap items-center gap-x-1 py-1 text-sm break-words">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+const nowrap = (text: string) => <span className="whitespace-nowrap">{text}</span>;
+/** "a · b" một dòng (dưới md); từ md (cột hẹp) tách thành 2 dòng có chủ đích, bỏ dấu "·". */
+const twoLines = (a: string, b: string) => (
+  <span className="tabular-nums">
+    {nowrap(a)}
+    <span className="md:hidden"> · </span>
+    <br className="hidden md:block" />
+    {nowrap(b)}
+  </span>
+);
+
+// Bố cục đúng như dev: hàng Mã đơn / Mã khối, rồi 3 nhóm KHÁCH ĐẶT · LỊCH ĐẶT · THANH TOÁN (Group của dev); chỉ làm đẹp nhẹ
 function InfoDialog({
   item,
   onClose,
@@ -104,113 +193,138 @@ function InfoDialog({
   const isTicket = item.kind === "ticket";
   const p = item.payment;
   const s = item.schedule;
+  const c = item.customer;
   const status = p.payment_status;
+  const canCollect = item.actions.includes("collect");
+  const canBad = item.actions.includes("uncollectible");
+  const mono = (code: string) => <span className="font-mono text-ui">{code}</span>;
 
-  const schedule: [string, React.ReactNode][] = [
-    ["Mã sân", s.resource_codes.join(", ")],
-    ["Sân", s.resource_names.join(", ")],
-    ["Ngày / giờ", when(item)],
-  ];
+  const booking: KvRow[] = [];
+  if (isTicket || !item.order_code) {
+    booking.push([isTicket ? "Mã check-in" : "Mã booking", <>{mono(item.code)}<CopyButton code={item.code} /></>]);
+  } else {
+    const order = item.order_code;
+    booking.push([
+      "Mã đơn",
+      <>
+        {onOpenOrder ? (
+          <button type="button" onClick={() => onOpenOrder(order)} title="Xem cả đơn" className="rounded font-mono text-ui text-primary hover:underline focus-ring">
+            {order}
+          </button>
+        ) : (
+          mono(order)
+        )}
+        <CopyButton code={order} />
+      </>,
+    ]);
+    booking.push(["Mã khối", <>{mono(item.code)}<CopyButton code={item.code} /></>]);
+  }
+  const customer: KvRow[] = [];
+  customer.push(["Tên", <span key="t" className="font-medium">{c.name}</span>]);
+  customer.push([
+    "SĐT",
+    c.phone ? (
+      <a key="p" href={`tel:${c.phone}`} className="text-primary tabular-nums hover:underline focus-ring">
+        {formatPhone(c.phone)}
+      </a>
+    ) : (
+      "—"
+    ),
+  ]);
+  // Hạng đã nằm trong profile_label ("Hội viên (HV0012 · Hạng Khá)") ⇒ không thêm badge hạng
+  customer.push(["Loại hồ sơ", c.profile_label]);
+  const schedule: KvRow[] = [];
+  schedule.push(["Mã sân", s.resource_codes.join(", ")]);
+  schedule.push(["Sân", s.resource_names.join(", ")]);
+  schedule.push(["Ngày / giờ", twoLines(formatDayMonthYear(s.play_date), `${hhmm(s.start_time)} – ${hhmm(s.end_time)}`)]);
   if (s.session) {
+    const session = s.session;
     schedule.push([
       "Sự kiện",
       onOpenSession ? (
-        <button type="button" onClick={() => onOpenSession(s.session!.code)} className="text-primary hover:underline">
-          {s.session.name} ({s.session.code})
+        <button type="button" onClick={() => onOpenSession(session.code)} className="text-left text-primary hover:underline focus-ring">
+          {session.name} ({session.code})
         </button>
       ) : (
-        `${s.session.name} (${s.session.code})`
+        `${session.name} (${session.code})`
       ),
     ]);
   }
   if (item.note) schedule.push(["Ghi chú", item.note]);
 
-  const payment: [string, React.ReactNode][] = [
-    ["Số tiền", formatVnd(p.amount)],
-    ["Trạng thái", <StatusBadge key="st" status={status} />],
+  const amount = <span className="text-lg font-semibold tabular-nums md:text-2xl md:font-bold">{formatVnd(p.amount)}</span>;
+  const badge = <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", STATUS_TONE[status])}>{STATUS_LABEL[status]}</span>;
+  const payment: KvRow[] = [
+    ["Số tiền", amount, true],
+    ["Trạng thái", badge, true],
   ];
   if (status === "paid") {
     payment.push(["Phương thức", p.payment_method ? METHOD_LABEL[p.payment_method] : "—"]);
-    payment.push(["Thời gian TT", p.paid_at ? formatDateTime(p.paid_at) : "—"]);
+    payment.push(["Thời gian TT", p.paid_at ? nowrap(formatDateTime(p.paid_at)) : "—"]);
   }
-  payment.push(["Người tạo", `${item.created_by} · ${formatDateTime(item.created_at)}`]);
-  if (status === "paid") payment.push(["Người thu", p.collected_by ?? "—"]);
+  payment.push(["Người tạo", twoLines(item.created_by, formatDateTime(item.created_at))]);
+  if (status === "paid") payment.push(["Người thu", nowrap(p.collected_by ?? "—")]);
   if (status === "uncollectible") {
     payment.push(["Lý do", p.uncollectible_reason ?? "—"]);
-    payment.push(["Người đánh dấu", `${p.marked_by ?? "—"}${p.marked_at ? ` · ${formatDateTime(p.marked_at)}` : ""}`]);
+    payment.push(["Người đánh dấu", p.marked_at ? twoLines(p.marked_by ?? "—", formatDateTime(p.marked_at)) : nowrap(p.marked_by ?? "—")]);
   }
 
   return (
     <Modal
       open
+      sheet
+      size="large"
       onClose={onClose}
       title={isTicket ? "Thông tin vé" : "Thông tin booking"}
+      footerClassName={raisedFooterCls}
+      // Chỉ khi có thao tác: nút rộng bằng nhau (điện thoại chia đôi, dính đáy); không có ⇒ chỉ nút ×
       footer={
-        <>
-          {item.actions.includes("uncollectible") ? (
-            <button type="button" onClick={onBad} className={btnDangerOutlineCls}>
-              Không thu được
-            </button>
-          ) : null}
-          <button type="button" onClick={onClose} className={btnCls}>
-            Đóng
-          </button>
-          {item.actions.includes("collect") ? (
-            <button type="button" onClick={onCollect} className={btnPrimaryCls}>
-              Thu tiền
-            </button>
-          ) : null}
-        </>
+        canCollect || canBad ? (
+          <div className={cn(btnRowCls, canCollect && canBad ? "grid-cols-2 md:ml-auto md:w-96" : "grid-cols-1 sm:ml-auto sm:w-1/2 md:w-48")}>
+            {canBad ? (
+              <button type="button" onClick={onBad} className={cn(btnCls, "border-danger text-danger enabled:hover:bg-danger/10")}>
+                Không thu được
+              </button>
+            ) : null}
+            {canCollect ? (
+              <button type="button" onClick={onCollect} className={cn(btnPrimaryCls, "whitespace-nowrap")}>
+                Thu tiền · {formatVnd(p.amount)}
+              </button>
+            ) : null}
+          </div>
+        ) : undefined
       }
     >
-      <Kv
-        rows={
-          isTicket || !item.order_code
-            ? [[isTicket ? "Mã check-in" : "Mã booking", <span key="c" className="font-mono">{item.code}</span>]]
-            : [
-                [
-                  "Mã đơn",
-                  onOpenOrder ? (
-                    <button key="o" type="button" onClick={() => onOpenOrder(item.order_code as string)} className="font-mono text-primary hover:underline" title="Xem cả đơn">
-                      {item.order_code}
-                    </button>
-                  ) : (
-                    <span key="o" className="font-mono">{item.order_code}</span>
-                  ),
-                ],
-                ["Mã khối", <span key="c" className="font-mono">{item.code}</span>],
-              ]
-        }
-      />
-      <Group title="Khách đặt">
-        <Kv
-          rows={[
-            ["Tên", item.customer.name],
-            ["SĐT", item.customer.phone ? formatPhone(item.customer.phone) : "—"],
-            ["Loại hồ sơ", item.customer.profile_label],
-          ]}
-        />
-      </Group>
-      <Group title="Lịch đặt">
-        <Kv rows={schedule} />
-      </Group>
-      <Group title="Thanh toán">
-        <Kv rows={payment} />
-      </Group>
+      {/* Dưới md: dọc như dev. Từ md: hàng đầu = các mã (ngang) + số tiền lớn & trạng thái bên phải; dưới là 3 cột nhóm */}
+      <div className="md:flex md:items-center md:justify-between md:gap-6">
+        <div className="md:hidden">
+          <KvList rows={booking} />
+        </div>
+        <p className="hidden flex-wrap items-center gap-x-5 gap-y-1 md:flex">
+          {booking.map(([k, v]) => (
+            <span key={k} className="inline-flex items-center gap-1.5">
+              <span className="text-ui text-muted">{k}</span>
+              {v}
+            </span>
+          ))}
+        </p>
+        <div className="hidden shrink-0 items-center gap-3 md:flex">
+          {badge}
+          {amount}
+        </div>
+      </div>
+      <div className="space-y-4 md:grid md:grid-cols-3 md:space-y-0 md:divide-x md:divide-border [&>section]:md:px-4 [&>section]:md:first:pl-0 [&>section]:md:last:pr-0">
+        <Group title="Khách đặt">
+          <KvList rows={customer} />
+        </Group>
+        <Group title="Lịch đặt">
+          <KvList rows={schedule} />
+        </Group>
+        <Group title="Thanh toán">
+          <KvList rows={payment} />
+        </Group>
+      </div>
     </Modal>
-  );
-}
-
-function ItemSummary({ item }: { item: Item }) {
-  return (
-    <SummaryBox>
-      <p className="font-semibold">{item.code}</p>
-      <p>
-        {resourceLabels(item.schedule.resource_codes, item.schedule.resource_names)} · {hhmm(item.schedule.start_time)}–{hhmm(item.schedule.end_time)} ·{" "}
-        {formatDayMonthYear(item.schedule.play_date)}
-      </p>
-      <p className="text-muted">{item.customer.name}</p>
-    </SummaryBox>
   );
 }
 
@@ -254,28 +368,29 @@ function CollectDialog({ item, onBack, onClose, onDone, onStale }: StepProps) {
     <Modal
       open
       onClose={onClose}
+      sheet
+      size="medium"
       title="Thu tiền"
+      subtitle={`${courtTitle(item)} · ${whenLine(item)}`}
+      footerClassName={raisedFooterCls}
       footer={
-        <>
+        <div className={cn(btnRowCls, "grid-cols-2")}>
           <button type="button" onClick={onBack} disabled={busy} className={btnCls}>
             Hủy
           </button>
-          <button type="button" onClick={confirm} disabled={busy} className={btnPrimaryCls}>
+          <button type="button" onClick={confirm} disabled={busy} className={cn(btnPrimaryCls, "whitespace-nowrap")}>
             {busy ? "Đang lưu…" : "Xác nhận đã thu"}
           </button>
-        </>
+        </div>
       }
     >
       {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
-      <ItemSummary item={item} />
-      <div>
-        <span className="mb-1 block text-sm font-medium">Số tiền phải thu</span>
-        <p className="rounded-md border border-border bg-background px-3 py-2 text-sm font-semibold">{formatVnd(item.payment.amount)}</p>
-      </div>
+      <StatusAmount item={item} />
+      <CustomerBlock item={item} />
       <fieldset>
-        <legend className="mb-1 text-sm font-medium">Phương thức</legend>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="radio" name="pay-method" checked readOnly />
+        <legend className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Phương thức</legend>
+        <label className="flex min-h-10 items-center gap-2 text-sm">
+          <input type="radio" name="pay-method" checked readOnly className="size-4 accent-primary" />
           Tiền mặt
         </label>
       </fieldset>
@@ -318,26 +433,27 @@ function UncollectibleDialog({ item, onBack, onClose, onDone, onStale }: StepPro
     <Modal
       open
       onClose={onClose}
+      sheet
+      size="medium"
       title="Không thu được"
+      subtitle={`${courtTitle(item)} · ${whenLine(item)}`}
+      footerClassName={raisedFooterCls}
       footer={
-        <>
+        <div className={cn(btnRowCls, "grid-cols-2")}>
           <button type="button" onClick={onBack} disabled={busy} className={btnCls}>
             Hủy
           </button>
           <button type="button" onClick={confirm} disabled={busy} className={btnDangerCls}>
             {busy ? "Đang lưu…" : "Xác nhận Không thu được"}
           </button>
-        </>
+        </div>
       }
     >
       {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
-      <ItemSummary item={item} />
-      <div className="flex gap-3 text-sm">
-        <span>Số tiền</span>
-        <b className="ml-auto">{formatVnd(item.payment.amount)}</b>
-      </div>
+      <StatusAmount item={item} />
+      <CustomerBlock item={item} />
       <div>
-        <label htmlFor={reasonId} className="mb-1 block text-sm font-medium">
+        <label htmlFor={reasonId} className="mb-1.5 block text-label font-semibold text-muted">
           Lý do <span className="text-danger">*</span>
         </label>
         <textarea
@@ -347,7 +463,7 @@ function UncollectibleDialog({ item, onBack, onClose, onDone, onStale }: StepPro
           placeholder="Khách về trước khi thanh toán, không liên lạc được"
           onChange={(e) => setReason(e.target.value)}
           aria-invalid={Boolean(submitted && err) || undefined}
-          className={`${inputCls} min-h-20`}
+          className={`${textareaCls} min-h-20`}
         />
         <div className="mt-1 flex text-xs">
           {submitted && err ? <span className="text-danger">{err}</span> : null}

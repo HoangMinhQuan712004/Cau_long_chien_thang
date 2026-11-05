@@ -7,7 +7,7 @@ import type { Block } from "./block";
 import type { Calendar, CalendarBlock, Selection } from "./types";
 
 // Lưới đặt sân của admin / nhân viên (T-025): adapter `Calendar` → `CourtGrid` dùng chung với trang khách.
-// Chọn ô bằng cách bấm từng ô (không kéo chuột); khối đã đặt hiện tên + 4 số cuối SĐT + mã đơn.
+// Chọn ô bằng cách bấm từng ô; kéo chuột để cuộn. Khối đã đặt hiện tên + 4 số cuối SĐT + mã đơn (điện thoại ẩn mã đơn, xem ở popup).
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const mmss = (sec: number) => `${pad2(Math.floor(sec / 60))}:${pad2(Math.floor(sec % 60))}`;
@@ -124,7 +124,7 @@ export function AdminGrid({ calendar, selected, selectable, unpaidOnly = false, 
           cell = {
             ...common,
             tone: "session",
-            lines: [`Sự kiện · ${b.name ?? ""}`, `${b.taken}/${b.capacity}${b.is_full ? " · Đủ chỗ" : ""}`, <span key="c" className="font-mono text-[10px] opacity-80">{b.code}</span>],
+            lines: [`Sự kiện · ${b.name ?? ""}`, `${b.taken}/${b.capacity}${b.is_full ? " · Đủ chỗ" : ""}`, <span key="c" className="hidden font-mono text-2xs opacity-80 sm:inline">{b.code}</span>],
             aria: `sự kiện ${b.name ?? ""}, ${b.taken ?? 0} trên ${b.capacity ?? 0} người, xem chi tiết`,
             title: b.name ?? b.code ?? "",
           };
@@ -141,7 +141,7 @@ export function AdminGrid({ calendar, selected, selectable, unpaidOnly = false, 
             lines: [
               `${b.customer_name ?? ""}${tail ? ` · ${tail}` : ""}`,
               status === "unpaid" ? "Chưa thanh toán" : status === "uncollectible" ? "Không thu được" : null,
-              <span key="o" className="font-mono text-[10px] opacity-80">{order}</span>,
+              <span key="o" className="hidden font-mono text-2xs opacity-80 sm:inline">{order}</span>,
             ].filter((l) => l !== null),
             aria: `${b.customer_name ?? "khách"}, ${status === "paid" ? "đã thanh toán" : status === "uncollectible" ? "không thu được" : "chưa thanh toán"}, mã đơn ${order}, xem chi tiết`,
             title: `${b.customer_name ?? ""} · ${order}${b.order_code && b.code ? ` (khối ${b.code})` : ""}`,
@@ -168,6 +168,8 @@ export function AdminGrid({ calendar, selected, selectable, unpaidOnly = false, 
       nowAt={date === today ? nowMin / 60 : null}
       scrollToHour={date === today ? Math.floor(nowMin / 60) - 2 : null}
       scrollKey={date}
+      // Màn Đặt sân (md+) đặt lưới trong cột flex cao bằng màn hình ⇒ khung co lại và cuộn dọc bên trong
+      className="md:min-h-0"
     />
   );
 }
