@@ -106,7 +106,7 @@ export function OrdersScreen({ today }: { today: string }) {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Đơn đặt sân</h1>
+      <h1 className="text-xl font-bold sm:text-2xl">Đơn đặt sân</h1>
 
       <div className="space-y-3 rounded-xl border border-border bg-surface p-3 sm:p-4">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">

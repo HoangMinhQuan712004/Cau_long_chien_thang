@@ -9,9 +9,12 @@ type Props = {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** Dòng phụ dưới tiêu đề (vd ngày · giờ của booking), chữ nhỏ màu muted. */
+  subtitle?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  size?: "narrow" | "wide";
+  /** narrow 28rem · medium 32rem · wide 42rem · large: 32rem, từ md 56rem (popup thông tin booking bố cục ngang). */
+  size?: "narrow" | "medium" | "wide" | "large";
   /** Ghi đè kiểu của chân hộp thoại (ví dụ thanh dưới màu xanh ở popup sự kiện, T-028). */
   footerClassName?: string;
   /** Điện thoại: trượt từ đáy, bo góc trên 20 px (khu hội viên). Từ sm: hộp giữa màn như thường. */
@@ -21,7 +24,7 @@ type Props = {
 };
 
 /** Hộp thoại dùng <dialog> gốc: tự khóa nền, bẫy phím Tab, đóng bằng Esc. */
-export function Modal({ open, onClose, title, children, footer, size = "narrow", footerClassName, sheet = false, full = false }: Props) {
+export function Modal({ open, onClose, title, subtitle, children, footer, size = "narrow", footerClassName, sheet = false, full = false }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -53,8 +56,13 @@ export function Modal({ open, onClose, title, children, footer, size = "narrow",
           `,
         // Mỗi lần showModal phần tử đổi từ display:none ⇒ animation chạy lại
         "animate-scale-in backdrop:animate-fade-in backdrop:bg-black/45",
-        size === "wide" ? "max-w-2xl" : "max-w-md",
-        sheet && "max-w-none sm:max-w-md",
+        size === "wide" ? "max-w-2xl" : size === "large" ? "max-w-lg md:max-w-4xl" : size === "medium" ? `
+          max-w-lg
+        ` : `max-w-md`,
+        sheet && (size === "large" ? "max-w-none sm:max-w-lg md:max-w-4xl" : size === "medium" ? `
+          max-w-none
+          sm:max-w-lg
+        ` : `max-w-none sm:max-w-md`),
         full && `
           max-md:m-0 max-md:h-dvh max-md:max-h-none max-md:w-full max-md:max-w-none
           max-md:rounded-none max-md:border-0
@@ -69,9 +77,12 @@ export function Modal({ open, onClose, title, children, footer, size = "narrow",
           <div className={cn(`
             flex shrink-0 items-center justify-between gap-4 border-b border-border px-5 py-4
           `)}>
-            <h2 id={titleId} className="text-lg font-bold">
-              {title}
-            </h2>
+            <div className="min-w-0">
+              <h2 id={titleId} className="text-lg font-bold">
+                {title}
+              </h2>
+              {subtitle ? <p className="text-ui text-muted">{subtitle}</p> : null}
+            </div>
             <IconButton
               icon={<CloseIcon />}
               label="Đóng"

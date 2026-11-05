@@ -38,7 +38,7 @@ export function StaffManager({ staff, focusCode, t }: Props) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold">{t.title}</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">{t.title}</h1>
           <p className="max-w-prose text-ui text-muted">{t.intro}</p>
         </div>
         {!isCreating && (

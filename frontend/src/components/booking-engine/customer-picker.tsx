@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { formatPhone, normalizePhone } from "@/lib/phone";
 import { searchMembers } from "./requests";
 import type { CustomerPayload, MemberHit } from "./types";
-import { inputCls } from "./ui";
+import { inputCls, textareaCls } from "./ui";
 
 // Bộ chọn khách dùng chung (Đặt sân / Đăng ký vé): Hồ sơ hội viên (tìm theo mã / tên / SĐT) hoặc Hồ sơ tạm.
 // Client chỉ gửi mã hội viên hoặc thông tin hồ sơ tạm; server tự dựng snapshot (ADR-004 S8).
@@ -95,12 +95,13 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
   const noResult = searching && searched && !loading && !hits.length && !searchError;
 
   const tab = (active: boolean) =>
-    `flex-1 rounded-md px-3 py-1.5 text-sm font-medium ${active ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"}`;
+    // Phần nhìn 32px trong khung p-0.5 ⇒ cả khối 36px (bằng ô nhập); vùng chạm ẩn ≥ 40px
+    `relative h-8 flex-1 rounded-md px-3 text-sm font-medium before:absolute before:inset-x-0 before:-inset-y-1 ${active ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"}`;
 
   return (
     <div className="space-y-3">
       {memberOnly ? null : (
-      <div role="tablist" aria-label="Loại hồ sơ khách" className="flex gap-1 rounded-lg bg-background p-1">
+      <div role="tablist" aria-label="Loại hồ sơ khách" className="flex gap-0.5 rounded-lg bg-background p-0.5">
         <button type="button" role="tab" aria-selected={state.mode === "member"} onClick={() => set({ mode: "member" })} className={tab(state.mode === "member")}>
           Hồ sơ hội viên
         </button>
@@ -239,7 +240,7 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
               maxLength={500}
               placeholder="Không bắt buộc"
               onChange={(e) => set({ note: e.target.value })}
-              className={`${inputCls} min-h-16`}
+              className={`${textareaCls} min-h-16`}
             />
           </div>
         </div>

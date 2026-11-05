@@ -102,7 +102,7 @@ export function PaymentSettingsScreen({ initial, banks }: { initial: PaymentSett
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Cài đặt thanh toán online</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">Cài đặt thanh toán online</h1>
         <p className="mt-1 text-sm text-muted">Tài khoản nhận tiền khi khách đặt sân trên web, và kết nối với SePay để hệ thống tự xác nhận khi tiền về.</p>
       </div>
 

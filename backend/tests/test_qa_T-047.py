@@ -175,17 +175,14 @@ async def test_sec_writes_require_idempotency_key_and_replay_does_not_duplicate(
     assert r.status_code in (400, 422), (r.status_code, r.text)
     r = await hv.client.post(MINE, json={"speed_kmh": 200, "measured_at": now().isoformat()})
     assert r.status_code in (400, 422), (r.status_code, r.text)
-    key = idem()
-    r1 = await admin.post(ADMIN, json=body(hv, 230), headers=key)
-    r2 = await admin.post(ADMIN, json=body(hv, 230), headers=key)
+    # Dựng body một lần: now() làm tròn giây, dựng lại có thể khác nhau -> E-SEC-4 (test chập chờn)
+    key, payload = idem(), body(hv, 230)
+    r1 = await admin.post(ADMIN, json=payload, headers=key)
+    r2 = await admin.post(ADMIN, json=payload, headers=key)
     assert r1.status_code == 201 and r2.status_code == 201 and r1.json()["id"] == r2.json()["id"]
-    key = idem()
-    p1 = await hv.client.post(
-        MINE, json={"speed_kmh": 240, "measured_at": now().isoformat()}, headers=key
-    )
-    p2 = await hv.client.post(
-        MINE, json={"speed_kmh": 240, "measured_at": now().isoformat()}, headers=key
-    )
+    key, mine = idem(), {"speed_kmh": 240, "measured_at": now().isoformat()}
+    p1 = await hv.client.post(MINE, json=mine, headers=key)
+    p2 = await hv.client.post(MINE, json=mine, headers=key)
     assert p1.status_code == 201 and p2.json()["id"] == p1.json()["id"]
     async with SessionLocal() as s:
         n = len(

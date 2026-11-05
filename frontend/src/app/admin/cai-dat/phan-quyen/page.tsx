@@ -46,7 +46,7 @@ async function AccessSettings({ searchParams }: Pick<PageProps<"/admin/cai-dat/p
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold">{t.title}</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">{t.title}</h1>
         <p className="max-w-prose text-ui text-muted">{t.intro}</p>
       </div>
       <NavTabs

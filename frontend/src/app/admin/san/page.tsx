@@ -41,7 +41,7 @@ async function Courts() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Sân &amp; bảng giá</h1>
+      <h1 className="text-xl font-bold sm:text-2xl">Sân &amp; bảng giá</h1>
       <SanTabs active="list" />
       <CourtsTable
         resources={resources.data.items}

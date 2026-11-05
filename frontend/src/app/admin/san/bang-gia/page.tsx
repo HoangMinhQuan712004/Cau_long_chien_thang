@@ -42,7 +42,7 @@ async function Prices() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Sân &amp; bảng giá</h1>
+      <h1 className="text-xl font-bold sm:text-2xl">Sân &amp; bảng giá</h1>
       <SanTabs active="prices" />
       {/* key = version: sau khi lưu / tải lại, bản nháp được dựng mới từ dữ liệu server */}
       <PriceEditor key={prices.data.version} table={prices.data} resources={resources.data.items} />
