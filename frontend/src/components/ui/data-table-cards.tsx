@@ -54,7 +54,8 @@ function SlottedCard<Row>({ columns, row }: { columns: readonly Column<Row>[]; r
   );
   return (
     <div className="flex items-start justify-between gap-3">
-      <div className="flex min-w-0 flex-col gap-1">
+      {/* flex-1: cột nội dung rộng hết phần còn lại (ô "body" tự chia cột canh phải được) */}
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {titles.map((x) => (
             <div key={x.key} className="text-sm font-semibold wrap-break-word sm:text-base">

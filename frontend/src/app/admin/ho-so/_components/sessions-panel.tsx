@@ -21,12 +21,16 @@ type AdminSession = components["schemas"]["MySessionOut"];
 type T = Dictionary["adminProfile"];
 
 const fill = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (m, k: string) => String(vars[k] ?? m));
+/** Phần chung của một phiên để hiện thiết bị (dùng cả ở ngăn chi tiết nhân viên). */
+export type DeviceInfo = { device_type?: AdminSession["device_type"]; os?: string | null; browser?: string | null };
+export type DeviceTexts = Pick<T, "deviceOn" | "unknownBrowser">;
+
 /** "Chrome trên Linux"; thiếu trình duyệt ⇒ "Trình duyệt không xác định". */
-const deviceName = (s: AdminSession, t: T) => (s.browser ? (s.os ? fill(t.deviceOn, { browser: s.browser, os: s.os }) : s.browser) : t.unknownBrowser);
+export const deviceName = (s: DeviceInfo, t: DeviceTexts) => (s.browser ? (s.os ? fill(t.deviceOn, { browser: s.browser, os: s.os }) : s.browser) : t.unknownBrowser);
 const signedIn = (iso: string, t: T) => fill(t.signedInAt, { time: `${formatDayMonth(vnDate(iso))} ${formatTime(iso)}` });
 
 /** Màn hình (máy tính) / điện thoại / máy tính bảng. */
-function DeviceIcon({ type }: { type: AdminSession["device_type"] }) {
+export function DeviceIcon({ type }: { type?: AdminSession["device_type"] }) {
   if (type === "mobile") return <Svg size={20}><rect x="7" y="2.5" width="10" height="19" rx="2" /><path d="M11 18.5h2" /></Svg>;
   if (type === "tablet") return <Svg size={20}><rect x="4.5" y="2.5" width="15" height="19" rx="2" /><path d="M11 18.5h2" /></Svg>;
   return <Svg size={20}><rect x="2.5" y="4" width="19" height="12.5" rx="1.5" /><path d="M8 20.5h8M12 16.5v4" /></Svg>;

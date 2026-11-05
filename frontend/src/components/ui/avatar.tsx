@@ -22,13 +22,14 @@ function initialOf(name: string): string {
 }
 
 /** Ảnh đại diện tròn bằng chữ cái đầu của tên; trang trí (tên đã có chữ bên cạnh) nên ẩn với trình đọc màn hình. */
-export function Avatar({ name }: { name: string }) {
+export function Avatar({ name, size = "md" }: { name: string; /** "sm": 32px, dùng trong dòng bảng / thẻ. */ size?: "sm" | "md" }) {
   return (
-    <span aria-hidden // Điện thoại 44px, từ sm 56px
-      className={cn(`
-        grid size-11 shrink-0 place-items-center rounded-full text-base font-bold
-        sm:size-14 sm:text-xl
-      `, toneOf(name))}>
+    <span aria-hidden // md: điện thoại 44px, từ sm 56px; sm: 32px
+      className={cn(
+        "grid shrink-0 place-items-center rounded-full font-bold",
+        size === "sm" ? "size-8 text-sm" : "size-11 text-base sm:size-14 sm:text-xl",
+        toneOf(name),
+      )}>
       {initialOf(name)}
     </span>
   );
