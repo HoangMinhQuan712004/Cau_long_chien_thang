@@ -409,7 +409,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Admin Me */
+        /**
+         * Admin Me
+         * @description Thẻ tài khoản + quyền (đọc từ bảng Phân quyền ở mỗi request).
+         */
         get: operations["admin_me_api_v1_admin_auth_me_get"];
         put?: never;
         post?: never;
@@ -538,6 +541,70 @@ export interface paths {
          * @description Đăng xuất từ xa một phiên (``revoked_by_admin``). 404 E-STAFF-1 / E-STAFF-2.
          */
         delete: operations["revoke_staff_session_api_v1_admin_staff__staff_id__sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Roles
+         * @description Quyền của Nhân viên theo nhóm (không có roles.manage, payments.simulate).
+         */
+        get: operations["read_roles_api_v1_admin_roles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/roles/{role}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Role
+         * @description Đặt lại quyền của Nhân viên; có hiệu lực ngay. 422 E-ROLE-1 (quyền lạ) / vai khác staff.
+         */
+        put: operations["update_role_api_v1_admin_roles__role__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/menu-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Menu Order
+         * @description Lưu thứ tự chung. Thiếu / trùng mục ⇒ 422 E-MENU-1; key lạ ⇒ 422.
+         */
+        put: operations["put_menu_order_api_v1_admin_menu_order_put"];
+        post?: never;
+        /**
+         * Reset Menu Order
+         * @description Về mặc định (xóa thứ tự đã lưu).
+         */
+        delete: operations["reset_menu_order_api_v1_admin_menu_order_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2303,7 +2370,10 @@ export interface components {
              */
             session_expires_at: string;
         };
-        /** AdminSessionOut */
+        /**
+         * AdminSessionOut
+         * @description ``/admin/auth/me``: thêm quyền (đăng nhập không trả – FE gọi ``/me`` để dựng menu).
+         */
         AdminSessionOut: {
             account: components["schemas"]["AdminAccountOut"];
             /**
@@ -2311,6 +2381,16 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+            /**
+             * Perms
+             * @description Mã quyền hiện có (FE ẩn / hiện menu theo quyền)
+             */
+            perms: string[];
+            /**
+             * Menu Order
+             * @description Thứ tự menu chung (key ``MenuKey``), đủ mọi mục
+             */
+            menu_order: string[];
         };
         /** AdminSignInOut */
         AdminSignInOut: {
@@ -3832,6 +3912,16 @@ export interface components {
              */
             version: number;
         };
+        /** MenuOrderIn */
+        MenuOrderIn: {
+            /** Order */
+            order: ("baoCao" | "san" | "datSan" | "hoiVien" | "lichSu" | "thanhToan" | "nhanVien")[];
+        };
+        /** MenuOrderOut */
+        MenuOrderOut: {
+            /** Order */
+            order: ("baoCao" | "san" | "datSan" | "hoiVien" | "lichSu" | "thanhToan" | "nhanVien")[];
+        };
         /** MetricOut */
         MetricOut: {
             /** Current */
@@ -4231,6 +4321,24 @@ export interface components {
             to: string;
             /** Days */
             days: number;
+        };
+        /** PermGroupOut */
+        PermGroupOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Perms */
+            perms: components["schemas"]["PermOut"][];
+        };
+        /** PermOut */
+        PermOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Hint */
+            hint?: string | null;
         };
         /** PersonOut */
         PersonOut: {
@@ -4960,6 +5068,30 @@ export interface components {
          * @enum {string}
          */
         Role: "admin" | "staff" | "member";
+        /** RolePermsIn */
+        RolePermsIn: {
+            /** Perms */
+            perms: string[];
+        };
+        /** RolesOut */
+        RolesOut: {
+            /** Groups */
+            groups: components["schemas"]["PermGroupOut"][];
+            /**
+             * Roles
+             * @description Quyền hiện có của vai (chỉ staff)
+             */
+            roles: {
+                [key: string]: string[];
+            };
+            /**
+             * Defaults
+             * @description Quyền mặc định của vai (nút Về mặc định: FE đặt bản nháp rồi PUT)
+             */
+            defaults: {
+                [key: string]: string[];
+            };
+        };
         /**
          * RoomCard
          * @description Thẻ phòng ở Danh sách sân (AC6).
@@ -6658,6 +6790,112 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    read_roles_api_v1_admin_roles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolesOut"];
+                };
+            };
+        };
+    };
+    update_role_api_v1_admin_roles__role__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role: "staff";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RolePermsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_menu_order_api_v1_admin_menu_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MenuOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuOrderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_menu_order_api_v1_admin_menu_order_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

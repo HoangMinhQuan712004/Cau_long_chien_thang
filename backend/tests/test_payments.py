@@ -352,5 +352,6 @@ async def test_transactions_date_rules_and_permissions(admin, staff):
         params={"from": (today() - timedelta(days=91)).isoformat(), "to": today().isoformat()},
     )
     assert r.status_code == 200
+    # NV mặc định xem được Lịch sử giao dịch (người dùng chốt 2026-11-05)
     r = await staff.get(f"{BK}/transactions")
-    assert r.status_code == 403 and r.json()["detail"]["code"] == "E-AUTH-2"
+    assert r.status_code == 200, r.text

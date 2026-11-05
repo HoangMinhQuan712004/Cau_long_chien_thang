@@ -8,7 +8,7 @@ import re
 import pytest
 from fastapi.routing import APIRoute
 
-from app.core.permissions import ROLE_PERMS, Perm, require
+from app.core.permissions import DEFAULT_ROLE_PERMS, Perm, require
 from app.main import app
 from tests.conftest import idem
 
@@ -64,9 +64,22 @@ def test_every_booking_route_declares_a_permission():
 
 
 def test_quote_is_admin_and_staff_only():
-    assert Perm.BOOKING_QUOTE in ROLE_PERMS["staff"]
-    assert Perm.BOOKING_QUOTE not in ROLE_PERMS["member"]
-    assert Perm.BOOKING_CONFIG_MANAGE not in ROLE_PERMS["staff"]
+    assert Perm.BOOKING_QUOTE in DEFAULT_ROLE_PERMS["staff"]
+    assert Perm.BOOKING_QUOTE not in DEFAULT_ROLE_PERMS["member"]
+    # NV mặc định có Sân & bảng giá, Tạo / xóa sự kiện, Danh mục vợt (người dùng chốt 2026-11-05)
+    for perm in (Perm.BOOKING_CONFIG_MANAGE, Perm.BOOKING_SESSION_MANAGE, Perm.RACKET_MANAGE):
+        assert perm in DEFAULT_ROLE_PERMS["staff"]
+    # NV vẫn KHÔNG có các quyền này
+    for perm in (
+        Perm.MEMBER_STATUS,
+        Perm.PAYMENTS_SETTINGS,
+        Perm.STAFF_MANAGE,
+        Perm.REPORTS_VIEW,
+        Perm.AUDIT_LOG_VIEW,
+        Perm.ROLES_MANAGE,
+        Perm.SETTINGS_MENU,
+    ):
+        assert perm not in DEFAULT_ROLE_PERMS["staff"], perm
 
 
 @pytest.mark.parametrize(
@@ -78,7 +91,7 @@ async def test_permission_matrix(path, method, perms, anon, customer, staff, adm
     assert r.json()["detail"]["code"] == "E-AUTH-1"
 
     for role, client in (("member", customer), ("staff", staff), ("admin", admin)):
-        allowed = perms <= ROLE_PERMS[role]
+        allowed = perms <= DEFAULT_ROLE_PERMS[role]
         r = await _call(client, path, method)
         if allowed:
             assert r.status_code not in (401, 403), (role, r.text)

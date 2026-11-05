@@ -74,7 +74,8 @@ async def test_requires_admin_session(anon, customer):
 
 async def test_staff_can_set_tier_but_not_status(staff, admin, phones):
     listing = (await staff.get(M)).json()
-    assert listing["can"] == {"edit_status": False, "manage_rackets": False}
+    # NV mặc định quản lý được vợt (người dùng chốt 2026-11-05); vẫn không đổi trạng thái HV
+    assert listing["can"] == {"edit_status": False, "manage_rackets": True}
     assert (await admin.get(M)).json()["can"] == {"edit_status": True, "manage_rackets": True}
 
     row = await add_member(staff, phones)

@@ -4,14 +4,16 @@ Admin / NV xem Hồ sơ của tôi, tự đổi mật khẩu, quản lý nơi đ
 from fastapi import APIRouter, Depends, Response, status
 
 from app.core.middleware import require_origin
+from app.core.permissions import OptionalPrincipal
 from app.core.ratelimit import rate_limit
-from app.modules.auth import admin_account, cookies, member_accounts, membership
+from app.modules.auth import admin_account, cookies, member_accounts, membership, menu, sessions
 from app.modules.auth.deps import CustomerAnyState, SessionDep
 from app.modules.auth.router import AdminSessionDep
 from app.modules.auth.schemas import (
     AdminPasswordChangeIn,
     AdminProfileIn,
     AdminProfileOut,
+    AdminSessionOut,
     MySessionOut,
     PasswordChangeIn,
     RevokedOut,
@@ -110,3 +112,20 @@ async def revoke_my_session(session_id: int, current: AdminSessionDep, session: 
     """Đăng xuất một phiên khác. 400 E-AUTH-33 (phiên đang dùng) · 404 E-STAFF-2."""
     admin_session, user = current
     await admin_account.revoke_session(session, user, admin_session, session_id)
+
+
+# ---------------------------------------------------------------- /admin/auth/me
+
+admin_me_router = APIRouter(prefix="/admin/auth", tags=["admin: auth"])
+
+
+@admin_me_router.get("/me", response_model=AdminSessionOut)
+async def admin_me(current: AdminSessionDep, principal: OptionalPrincipal, session: SessionDep):
+    """Thẻ tài khoản + quyền (đọc từ bảng Phân quyền ở mỗi request)."""
+    admin_session, user = current
+    return AdminSessionOut(
+        account=sessions.to_account(user),
+        expires_at=admin_session.expires_at,
+        perms=sorted(principal.perms) if principal else [],
+        menu_order=await menu.menu_order(session),
+    )

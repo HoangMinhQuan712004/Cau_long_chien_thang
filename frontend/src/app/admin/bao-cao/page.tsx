@@ -6,8 +6,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDictionary } from "@/i18n/dictionaries";
 import { cn } from "@/lib/cn";
-import { authedApi, getAdminSession, type ReportOverview } from "@/lib/api/server";
-import { FORBIDDEN_REPORT_PARAM } from "../_components/forbidden";
+import { adminMenuOrder, adminPerms, authedApi, type ReportOverview } from "@/lib/api/server";
+import { can, FORBIDDEN_REPORT_PARAM, firstAllowedHref } from "../_components/forbidden";
 import { ChartSkeleton } from "./_components/chart-parts";
 import { presetPeriod } from "./_components/report-period";
 import { ReportScreen } from "./_components/report-screen";
@@ -24,12 +24,13 @@ export default function ReportPage() {
   );
 }
 
-const FORBIDDEN = `/admin/dat-san?${FORBIDDEN_REPORT_PARAM}`;
 
-// Chỉ Admin (BR-001): Nhân viên mở link ⇒ về Đặt sân + báo E-001; backend vẫn kiểm quyền mỗi lần lấy số liệu
+// Theo quyền reports.view (BR-001): thiếu quyền ⇒ về mục được phép + báo E-001; backend vẫn kiểm quyền mỗi lần lấy số liệu
 async function ReportLoader() {
-  const [t, session] = await Promise.all([getDictionary(), getAdminSession().catch(() => null)]);
-  if (session?.ok && session.session.account.kind !== "admin") redirect(FORBIDDEN);
+  const [t, perms, order] = await Promise.all([getDictionary(), adminPerms(), adminMenuOrder()]);
+  // Thiếu quyền ⇒ về mục đầu tiên được phép + báo E-001
+  const FORBIDDEN = `${firstAllowedHref(perms, order)}?${FORBIDDEN_REPORT_PARAM}`;
+  if (!can(perms, "reports.view")) redirect(FORBIDDEN);
 
   // Mở màn luôn là kỳ Tuần (BR-002); tải sẵn ở server để vào là có số
   const week = presetPeriod("week");

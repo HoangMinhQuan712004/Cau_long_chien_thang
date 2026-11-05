@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Alert } from "@/components/ui/alert";
 import { getDictionary } from "@/i18n/dictionaries";
 import { authedApi, getAdminSession } from "@/lib/api/server";
+import { can } from "../_components/forbidden";
 import { StaffManager } from "./_components/staff-manager";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -24,8 +25,8 @@ async function Staff({ searchParams }: Pick<PageProps<"/admin/nhan-vien">, "sear
   const result = await getAdminSession().catch(() => null);
   if (!result?.ok) return null;
 
-  // Nhân viên vào thẳng URL: báo không có quyền (backend vẫn trả 403 cho API /admin/staff)
-  if (result.session.account.kind !== "admin") {
+  // Thiếu quyền staff.manage mà vào thẳng URL: báo không có quyền (backend vẫn trả 403 cho API /admin/staff)
+  if (!can(result.session.perms, "staff.manage")) {
     return <Alert variant="error">{t.forbidden}</Alert>;
   }
 

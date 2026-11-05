@@ -72,6 +72,16 @@ class User(TimestampMixin, Base):
     member_account_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class RolePermission(Base):
+    """Quyền của Nhân viên (tab Phân quyền); Admin luôn toàn quyền, không có dòng."""
+
+    __tablename__ = "role_permission"
+    __table_args__ = (CheckConstraint("role = 'staff'", name="role"),)
+
+    role: Mapped[str] = mapped_column(String(20), primary_key=True)
+    perm: Mapped[str] = mapped_column(String(60), primary_key=True)
+
+
 class SessionEndReason(enum.StrEnum):
     LOGOUT = "logout"
     EXPIRED = "expired"

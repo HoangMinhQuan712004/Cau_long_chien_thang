@@ -36,7 +36,7 @@
     "reasons": {
       "doi-mat-khau": "Phiên đã kết thúc vì mật khẩu tài khoản của bạn vừa được đổi. Vui lòng đăng nhập lại.",
       "het-han": "Phiên đăng nhập đã hết hạn sau 12 giờ. Vui lòng đăng nhập lại.",
-      "tai-khoan-khoa": "Tài khoản đã bị khóa. Vui lòng liên hệ chủ sân."
+      "tai-khoan-khoa": "Tài khoản đã bị khóa. Vui lòng liên hệ Admin."
     },
     "phoneTaken": {
       "login": "Đăng nhập",
@@ -243,7 +243,9 @@
     "forbiddenReport": "Bạn không có quyền xem báo cáo.",
     "logoutConfirmTitle": "Đăng xuất khỏi khu quản lý?",
     "logoutConfirmBody": "Bạn sẽ cần đăng nhập lại để tiếp tục.",
-    "cancel": "Hủy"
+    "cancel": "Hủy",
+    "noPermission": "Bạn không có quyền xem mục này.",
+    "accessSettings": "Phân quyền & menu"
   },
   "auditLog": {
     "metaTitle": "Lịch sử thao tác",
@@ -669,5 +671,53 @@
     "sheetKicker": "{name} · Hồ sơ",
     "back": "Quay lại",
     "joinedSub": "Ngày tham gia"
+  },
+  "roles": {
+    "dirty": "Bạn có thay đổi chưa lưu",
+    "cancel": "Hủy",
+    "save": "Lưu thay đổi",
+    "saving": "Đang lưu…",
+    "saved": "Đã lưu phân quyền",
+    "savedSub": "Có hiệu lực từ lần tải trang kế tiếp của người dùng.",
+    "emptyTitle": "Bỏ hết quyền của Nhân viên?",
+    "emptyBody": "Nhân viên sẽ không vào được mục nào trong khu quản lý, chỉ còn Hồ sơ của tôi.",
+    "emptyConfirm": "Vẫn lưu",
+    "loadError": "Không tải được bảng phân quyền. Tải lại trang để thử lại.",
+    "network": "Mất kết nối. Vui lòng kiểm tra mạng rồi thử lại.",
+    "unavailable": "Hệ thống đang bận, vui lòng thử lại sau ít phút.",
+    "enabledCount": "Đang bật {n}/{total} quyền",
+    "countOf": "{n}/{total} quyền",
+    "reset": "Về mặc định",
+    "expandAll": "Mở tất cả",
+    "collapseAll": "Thu gọn tất cả",
+    "collapseGroup": "Thu gọn nhóm {group}",
+    "expandGroup": "Mở nhóm {group}"
+  },
+  "menuOrder": {
+    "reset": "Về mặc định",
+    "listLabel": "Thứ tự menu bên trái",
+    "keyHelp": "Kéo tay nắm để đổi vị trí. Bàn phím: nhấn Space để nhấc, mũi tên lên/xuống để di chuyển, Space để thả, Esc để hủy.",
+    "handle": "Đổi vị trí: {label}",
+    "moveUp": "Đưa {label} lên",
+    "moveDown": "Đưa {label} xuống",
+    "lifted": "Đã nhấc {label}, vị trí {pos} trên {total}.",
+    "moved": "{label}: vị trí {pos} trên {total}.",
+    "dropped": "Đã thả {label} ở vị trí {pos}.",
+    "cancelled": "Đã hủy, {label} về vị trí {pos}.",
+    "dirty": "Bạn có thay đổi chưa lưu",
+    "cancel": "Hủy",
+    "save": "Lưu",
+    "saving": "Đang lưu…",
+    "saved": "Đã lưu thứ tự menu",
+    "savedSub": "Menu bên trái của mọi tài khoản đổi theo.",
+    "network": "Mất kết nối. Vui lòng kiểm tra mạng rồi thử lại.",
+    "unavailable": "Hệ thống đang bận, vui lòng thử lại sau ít phút."
+  },
+  "accessSettings": {
+    "metaTitle": "Phân quyền & menu",
+    "title": "Phân quyền & menu",
+    "intro": "Chọn việc Nhân viên được làm và sắp thứ tự menu bên trái cho mọi tài khoản.",
+    "tabRoles": "Phân quyền nhân viên",
+    "tabMenu": "Thứ tự menu"
   }
 }

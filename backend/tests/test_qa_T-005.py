@@ -671,6 +671,12 @@ async def test_sec4_all_admin_routes_require_login_and_role(anon_c, customer_c):
         if path.startswith(f"{B}/"):
             assert _code(a) == "E-AUTH-1", f"anon {method} {path}: {a.text[:120]}"
         c = await write(customer_c, method, path, json_body={})
+        if path.startswith(f"{API}/admin/account"):
+            # Hồ sơ của tôi: chỉ cần phiên quản trị, không có Perm riêng -> khách (JWT) bị 401
+            # như /admin/auth/*, vẫn bị chặn
+            assert c.status_code == 401, f"customer {method} {path} -> {c.status_code}"
+            assert _code(c) == "E-AUTH-1", f"customer {method} {path}: {c.text[:120]}"
+            continue
         assert c.status_code == 403, f"customer {method} {path} -> {c.status_code}"
         if path.startswith(f"{B}/"):
             assert _code(c) == "E-AUTH-2", f"customer {method} {path}: {c.text[:120]}"
@@ -681,7 +687,8 @@ async def test_sec4_counter_account_cannot_use_config_api(staff_c):
     assert len(routes) >= 5
     for method, path in routes:
         r = await write(staff_c, method, path, json_body={})
-        assert r.status_code == 403, f"staff {method} {path} -> {r.status_code}"
+        # NV mặc định có Sân & bảng giá (người dùng chốt 2026-11-05) -> không bị chặn quyền
+        assert r.status_code not in (401, 403), f"staff {method} {path} -> {r.status_code}"
     assert (
         await staff_c.get(f"{B}/resources")
     ).status_code == 200  # counter may read the catalogue

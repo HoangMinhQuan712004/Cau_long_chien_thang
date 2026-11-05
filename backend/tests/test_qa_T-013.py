@@ -456,9 +456,10 @@ async def test_ac8_staff_keeps_the_previous_permission_table(admin):
     c = await staff_client(s["username"])
     today = datetime.now(settings.tz).date().isoformat()
     assert (await c.get(f"{API}/booking/calendar?date={today}")).status_code == 200
+    # NV mặc định xem được Lịch sử giao dịch (người dùng chốt 2026-11-05)
+    assert (await c.get(f"{API}/booking/transactions")).status_code == 200
     for path in (
         "/payments/settings",
-        "/booking/transactions",
         "/admin/staff",
     ):
         r = await c.get(f"{API}{path}")

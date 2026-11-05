@@ -149,9 +149,16 @@ class RevokedOut(BaseModel):
     revoked: int
 
 
-class AdminSessionOut(BaseModel):
+class _AdminSessionBase(BaseModel):
     account: AdminAccountOut
     expires_at: datetime
+
+
+class AdminSessionOut(_AdminSessionBase):
+    """``/admin/auth/me``: thêm quyền (đăng nhập không trả – FE gọi ``/me`` để dựng menu)."""
+
+    perms: list[str] = Field(description="Mã quyền hiện có (FE ẩn / hiện menu theo quyền)")
+    menu_order: list[str] = Field(description="Thứ tự menu chung (key ``MenuKey``), đủ mọi mục")
 
 
 class CustomerSignInOut(BaseModel):
@@ -159,7 +166,7 @@ class CustomerSignInOut(BaseModel):
     account: UserOut
 
 
-class AdminSignInOut(AdminSessionOut):
+class AdminSignInOut(_AdminSessionBase):
     kind: Literal["admin"] = "admin"
 
 

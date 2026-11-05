@@ -16,23 +16,24 @@ import {
 import { IconButton } from "@/components/ui/icon-button";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { cn } from "@/lib/cn";
+import { can, sortNav } from "./forbidden";
 
-type AdminRole = "admin" | "staff";
-
-// Thứ tự theo Figma (Báo cáo đầu tiên – màn đầu của Admin); Cài đặt thanh toán / Nhân viên (chưa có trong Figma) xếp sau.
-// Quyền thật do backend kiểm.
-const NAV = [
-  { href: "/admin/bao-cao", key: "baoCao", Icon: ChartIcon, roles: ["admin"] },
-  { href: "/admin/dat-san", key: "datSan", Icon: CalendarPlusIcon, roles: ["admin", "staff"] },
-  { href: "/admin/lich-su-giao-dich", key: "lichSu", Icon: ReceiptIcon, roles: ["admin"] },
-  { href: "/admin/hoi-vien", key: "hoiVien", Icon: UsersIcon, roles: ["admin", "staff"] },
-  { href: "/admin/san", key: "san", Icon: SettingsIcon, roles: ["admin"] },
-  { href: "/admin/cai-dat/thanh-toan", key: "thanhToan", Icon: CreditCardIcon, roles: ["admin"] },
-  { href: "/admin/nhan-vien", key: "nhanVien", Icon: IdCardIcon, roles: ["admin"] },
-] as const;
+// Thứ tự theo menu_order (sortNav), quyền cần có ở ADMIN_NAV (forbidden.ts); mục nào thiếu quyền thì ẩn. Quyền thật do backend kiểm.
+export const NAV_ICONS = {
+  baoCao: ChartIcon,
+  datSan: CalendarPlusIcon,
+  lichSu: ReceiptIcon,
+  hoiVien: UsersIcon,
+  san: SettingsIcon,
+  thanhToan: CreditCardIcon,
+  nhanVien: IdCardIcon,
+} as const;
 
 export type SidebarProps = {
-  role: AdminRole;
+  /** Mã quyền của phiên (`perms` từ /admin/auth/me). */
+  perms: string[];
+  /** Thứ tự menu chung (`menu_order` từ /admin/auth/me). */
+  menuOrder: string[];
   name: string;
   roleLabel: string;
   t: Dictionary["adminNav"];
@@ -47,7 +48,7 @@ export type SidebarProps = {
 };
 
 /** Nội dung sidebar nền trắng: menu có icon (mục đang mở nền xanh nhạt chữ xanh đậm). Logo + tài khoản nằm trên header (ngăn kéo điện thoại vẫn có logo + ✕). */
-export function AdminSidebar({ role, t, onNavigate, onClose, isCollapsed, onToggleCollapse }: SidebarProps) {
+export function AdminSidebar({ perms, menuOrder, t, onNavigate, onClose, isCollapsed, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname();
   return (
     <div className={cn(
@@ -93,7 +94,8 @@ export function AdminSidebar({ role, t, onNavigate, onClose, isCollapsed, onTogg
             />
           </div>
         ) : null}
-        {NAV.filter((n) => (n.roles as readonly AdminRole[]).includes(role)).map(({ href, key, Icon }) => {
+        {sortNav(menuOrder).filter((n) => can(perms, n.perm)).map(({ href, key }) => {
+          const Icon = NAV_ICONS[key];
           const isActive = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link

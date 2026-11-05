@@ -1,5 +1,10 @@
 // Cách viết số của màn Báo cáo (BR-010): tiền "99.850.000 đ", triệu "17,0" / "<0,1", phần trăm "83,3%"
 
+import { weekdayIndex } from "@/lib/format";
+
+// fill / weekdayIndex dùng chung ở lib/format (giữ export ở đây cho các file Báo cáo)
+export { fill, weekdayIndex } from "@/lib/format";
+
 const ONE_DECIMAL = new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const INTEGER = new Intl.NumberFormat("vi-VN");
 
@@ -27,11 +32,6 @@ export const hoursCount = (x: number) => (Number.isInteger(round1(x)) ? INTEGER.
 /** Thứ viết tắt theo chỉ số 0 = T2 … 6 = CN (heatmap). */
 export const WEEKDAY_SHORT = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"] as const;
 
-/** Chỉ số thứ 0 = T2 … 6 = CN của ngày YYYY-MM-DD. */
-export const weekdayIndex = (isoDate: string) => (new Date(`${isoDate}T00:00:00Z`).getUTCDay() + 6) % 7;
 
 export const isWeekend = (isoDate: string) => weekdayIndex(isoDate) >= 5;
 
-/** Điền biến vào câu mẫu: fill("Tổng {n} sân", { n: 6 }). */
-export const fill = (text: string, vars: Record<string, string | number>) =>
-  text.replace(/\{(\w+)\}/g, (all, key: string) => (key in vars ? String(vars[key]) : all));

@@ -59,3 +59,10 @@ export const formatDateTime = (iso: string) => `${formatDayMonthYear(vnDate(iso)
 /** Đồng hồ đếm ngược m:ss (giây → "4:05"). */
 export const formatCountdown = (seconds: number) =>
   `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
+/** Điền biến vào câu mẫu của vi.json: fill("Tổng {n} sân", { n: 6 }); thiếu biến ⇒ giữ nguyên "{n}". */
+export const fill = (text: string, vars: Record<string, string | number>) =>
+  text.replace(/\{(\w+)\}/g, (all, key: string) => (key in vars ? String(vars[key]) : all));
+
+/** Chỉ số thứ 0 = T2 … 6 = CN của ngày YYYY-MM-DD (không phụ thuộc múi giờ máy). */
+export const weekdayIndex = (isoDate: string) => (new Date(`${isoDate}T00:00:00Z`).getUTCDay() + 6) % 7;
