@@ -47,12 +47,12 @@ GROUPS: tuple[ActionGroup, ...] = (
     ActionGroup(
         "Tài khoản",
         (
-            # Admin / NV tự đổi mật khẩu (Hồ sơ của tôi); khách cũng ghi mã này nhưng màn chỉ
-            # hiện người làm trong ACTORS nên dòng của khách không hiện
-            _t("auth.password_changed", "Đổi mật khẩu"),
+            # Admin / NV tự đổi mật khẩu (Hồ sơ của tôi). Mã riêng – khách đổi mật khẩu ghi
+            # ``auth.password_changed``, không hiện ở màn này dù người làm "Hội viên" lọc được
+            _t("account.password_changed", "Đổi mật khẩu"),
             _t("account.update", "Sửa hồ sơ"),  # Admin tự sửa họ tên (Hồ sơ của tôi)
-            _t("roles.update", "Sửa phân quyền"),
-            _t("settings.menu_order", "Sắp xếp menu"),  # Admin đổi quyền của Nhân viên
+            _t("roles.update", "Sửa phân quyền"),  # Admin đổi quyền của Nhân viên
+            _t("settings.menu_order", "Sắp xếp menu"),
             _t("account.counter_password_change", "Đổi mật khẩu Tài khoản tại máy"),
             _t("account.counter_device_set", "Đặt máy quầy"),
             # T-021 AC3: người xác minh OTP lấy SĐT khỏi tài khoản chưa xác minh (Hệ thống làm)

@@ -84,7 +84,7 @@ async def change_password(
     audit(
         session,
         _self_actor(user),
-        "auth.password_changed",
+        "account.password_changed",
         "user",
         str(user.id),
         sessions.account_detail(user, revoked=revoked),
