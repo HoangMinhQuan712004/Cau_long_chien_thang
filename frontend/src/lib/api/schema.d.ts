@@ -296,6 +296,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Profile
+         * @description Hồ sơ của tôi: chỉ cần phiên quản trị (Admin hoặc NV), không cần quyền riêng.
+         */
+        get: operations["admin_profile_api_v1_admin_account_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Admin Rename
+         * @description Chỉ Admin tự sửa họ tên (NV -> 403 E-AUTH-2). Tên rỗng / quá 50 ký tự -> 422.
+         */
+        patch: operations["admin_rename_api_v1_admin_account_patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/account/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Change Password
+         * @description Tự đổi mật khẩu: thu hồi mọi phiên quản trị khác (``password_changed``), giữ phiên này.
+         *
+         *     Lỗi: 400 E-AUTH-28 (mật khẩu hiện tại sai) · 422 ``weak_password`` · 429 E-SEC-5.
+         */
+        post: operations["admin_change_password_api_v1_admin_account_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/account/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Sessions
+         * @description Nơi đang đăng nhập: thiết bị, hệ điều hành, trình duyệt, giờ đăng nhập (không trả IP).
+         */
+        get: operations["my_sessions_api_v1_admin_account_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/account/sessions/revoke-others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Other Sessions
+         * @description Đăng xuất mọi phiên khác của chính mình, giữ phiên này.
+         */
+        post: operations["revoke_other_sessions_api_v1_admin_account_sessions_revoke_others_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/account/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke My Session
+         * @description Đăng xuất một phiên khác. 400 E-AUTH-33 (phiên đang dùng) · 404 E-STAFF-2.
+         */
+        delete: operations["revoke_my_session_api_v1_admin_account_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/auth/me": {
         parameters: {
             query?: never;
@@ -303,7 +409,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Admin Me */
+        /**
+         * Admin Me
+         * @description Thẻ tài khoản + quyền (đọc từ bảng Phân quyền ở mỗi request).
+         */
         get: operations["admin_me_api_v1_admin_auth_me_get"];
         put?: never;
         post?: never;
@@ -432,6 +541,70 @@ export interface paths {
          * @description Đăng xuất từ xa một phiên (``revoked_by_admin``). 404 E-STAFF-1 / E-STAFF-2.
          */
         delete: operations["revoke_staff_session_api_v1_admin_staff__staff_id__sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Roles
+         * @description Quyền của Nhân viên theo nhóm (không có roles.manage, payments.simulate).
+         */
+        get: operations["read_roles_api_v1_admin_roles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/roles/{role}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Role
+         * @description Đặt lại quyền của Nhân viên; có hiệu lực ngay. 422 E-ROLE-1 (quyền lạ) / vai khác staff.
+         */
+        put: operations["update_role_api_v1_admin_roles__role__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/menu-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Menu Order
+         * @description Lưu thứ tự chung. Thiếu / trùng mục ⇒ 422 E-MENU-1; key lạ ⇒ 422.
+         */
+        put: operations["put_menu_order_api_v1_admin_menu_order_put"];
+        post?: never;
+        /**
+         * Reset Menu Order
+         * @description Về mặc định (xóa thứ tự đã lưu).
+         */
+        delete: operations["reset_menu_order_api_v1_admin_menu_order_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -836,6 +1009,47 @@ export interface paths {
          *     Lỗi: E-016 (từ > đến), E-020 (> 92 ngày).
          */
         get: operations["list_transactions_api_v1_booking_transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/resources/{code}/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resource Detail View
+         * @description Thông tin sân + giá của loại sân (chỉ xem) + tối đa 20 booking / sự kiện sắp tới.
+         */
+        get: operations["resource_detail_view_api_v1_booking_resources__code__detail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/resources/{code}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resource Stats
+         * @description Thống kê sân theo tuần / tháng / năm chứa ``date`` (mặc định hôm nay), tính tới hôm nay;
+         *     kèm kỳ trước cùng số ngày. Cách tính như màn Báo cáo.
+         */
+        get: operations["resource_stats_api_v1_booking_resources__code__stats_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2449,7 +2663,65 @@ export interface components {
             /** Staff Code */
             staff_code?: string | null;
         };
-        /** AdminSessionOut */
+        /**
+         * AdminPasswordChangeIn
+         * @description Admin / NV tự đổi mật khẩu; luôn cần mật khẩu hiện tại.
+         */
+        AdminPasswordChangeIn: {
+            /** Current Password */
+            current_password: string;
+            /**
+             * New Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            new_password: string;
+        };
+        /**
+         * AdminProfileIn
+         * @description Admin tự sửa họ tên: tối đa 50 ký tự sau khi gộp khoảng trắng.
+         */
+        AdminProfileIn: {
+            /**
+             * Full Name
+             * @description Tối đa 50 ký tự sau khi gộp khoảng trắng
+             */
+            full_name: string;
+        };
+        /**
+         * AdminProfileOut
+         * @description Hồ sơ của tôi (khu quản trị): SĐT chỉ trả cho chính người đó.
+         */
+        AdminProfileOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "admin" | "staff";
+            /** Full Name */
+            full_name: string;
+            /** Role Label */
+            role_label: string;
+            /** Staff Code */
+            staff_code?: string | null;
+            /** Username */
+            username?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Session Expires At
+             * Format: date-time
+             */
+            session_expires_at: string;
+        };
+        /**
+         * AdminSessionOut
+         * @description ``/admin/auth/me``: thêm quyền (đăng nhập không trả – FE gọi ``/me`` để dựng menu).
+         */
         AdminSessionOut: {
             account: components["schemas"]["AdminAccountOut"];
             /**
@@ -2457,6 +2729,16 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+            /**
+             * Perms
+             * @description Mã quyền hiện có (FE ẩn / hiện menu theo quyền)
+             */
+            perms: string[];
+            /**
+             * Menu Order
+             * @description Thứ tự menu chung (key ``MenuKey``), đủ mọi mục
+             */
+            menu_order: string[];
         };
         /** AdminSignInOut */
         AdminSignInOut: {
@@ -4118,6 +4400,16 @@ export interface components {
              */
             version: number;
         };
+        /** MenuOrderIn */
+        MenuOrderIn: {
+            /** Order */
+            order: ("baoCao" | "san" | "datSan" | "donDatSan" | "hoiVien" | "lichSu" | "kyLuc" | "thanhToan" | "nhanVien")[];
+        };
+        /** MenuOrderOut */
+        MenuOrderOut: {
+            /** Order */
+            order: ("baoCao" | "san" | "datSan" | "donDatSan" | "hoiVien" | "lichSu" | "kyLuc" | "thanhToan" | "nhanVien")[];
+        };
         /** MetricOut */
         MetricOut: {
             /** Current */
@@ -4162,6 +4454,35 @@ export interface components {
             bookings: number;
             /** Total Minutes */
             total_minutes: number;
+        };
+        /**
+         * MySessionOut
+         * @description Một nơi đang đăng nhập (Hồ sơ của tôi): không trả IP.
+         */
+        MySessionOut: {
+            /** Id */
+            id: number;
+            /**
+             * Device Type
+             * @enum {string}
+             */
+            device_type: "desktop" | "mobile" | "tablet" | "unknown";
+            /** Os */
+            os: string | null;
+            /** Browser */
+            browser: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Is Current */
+            is_current: boolean;
         };
         /** MySpeedRecord */
         MySpeedRecord: {
@@ -4723,6 +5044,24 @@ export interface components {
             to: string;
             /** Days */
             days: number;
+        };
+        /** PermGroupOut */
+        PermGroupOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Perms */
+            perms: components["schemas"]["PermOut"][];
+        };
+        /** PermOut */
+        PermOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Hint */
+            hint?: string | null;
         };
         /** PersonOut */
         PersonOut: {
@@ -5749,6 +6088,20 @@ export interface components {
                 string
             ][];
         };
+        /** ResourceDetailOut */
+        ResourceDetailOut: {
+            resource: components["schemas"]["ResourceOut"];
+            /**
+             * Prices
+             * @description Giá của loại sân (chỉ xem)
+             */
+            prices: components["schemas"]["ResourcePriceOut"][];
+            /**
+             * Upcoming
+             * @description Tối đa 20, sớm nhất trước
+             */
+            upcoming: components["schemas"]["UpcomingOut"][];
+        };
         /** ResourceList */
         ResourceList: {
             /** Items */
@@ -5784,12 +6137,64 @@ export interface components {
             /** @description Lịch đã lưu, áp dụng từ ngày sau (effective_from > hôm nay) */
             pending_schedule: components["schemas"]["ScheduleOut"] | null;
         };
+        /** ResourcePriceOut */
+        ResourcePriceOut: {
+            /**
+             * Day Type
+             * @enum {string}
+             */
+            day_type: "weekday" | "weekend" | "holiday";
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "offpeak" | "peak";
+            /** Price Per Hour */
+            price_per_hour: number;
+        };
         /** ResourceRef */
         ResourceRef: {
             /** Code */
             code: string;
             /** Name */
             name: string;
+        };
+        /** ResourceStatsOut */
+        ResourceStatsOut: {
+            /** Booked Hours */
+            booked_hours: number;
+            /** Revenue */
+            revenue: number;
+            /** Bookings Count */
+            bookings_count: number;
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "week" | "month" | "year";
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Until
+             * Format: date
+             * @description Ngày cuối được tính (kỳ có hôm nay -> hôm nay)
+             */
+            until: string;
+            /**
+             * Occupancy Pct
+             * @description Giờ đã đặt / giờ mở cửa × 100 (tới ``until``)
+             */
+            occupancy_pct: number;
+            /** @description Kỳ trước, cùng số ngày tính từ đầu kỳ */
+            prev: components["schemas"]["StatsFigures"];
         };
         /** ResourceTypeOut */
         ResourceTypeOut: {
@@ -5836,11 +6241,40 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** RevokedOut */
+        RevokedOut: {
+            /** Revoked */
+            revoked: number;
+        };
         /**
          * Role
          * @enum {string}
          */
         Role: "admin" | "staff" | "member";
+        /** RolePermsIn */
+        RolePermsIn: {
+            /** Perms */
+            perms: string[];
+        };
+        /** RolesOut */
+        RolesOut: {
+            /** Groups */
+            groups: components["schemas"]["PermGroupOut"][];
+            /**
+             * Roles
+             * @description Quyền hiện có của vai (chỉ staff)
+             */
+            roles: {
+                [key: string]: string[];
+            };
+            /**
+             * Defaults
+             * @description Quyền mặc định của vai (nút Về mặc định: FE đặt bản nháp rồi PUT)
+             */
+            defaults: {
+                [key: string]: string[];
+            };
+        };
         /**
          * RoomCard
          * @description Thẻ phòng ở Danh sách sân (AC6).
@@ -6503,6 +6937,15 @@ export interface components {
             /** Is Active */
             is_active?: boolean | null;
         };
+        /** StatsFigures */
+        StatsFigures: {
+            /** Booked Hours */
+            booked_hours: number;
+            /** Revenue */
+            revenue: number;
+            /** Bookings Count */
+            bookings_count: number;
+        };
         /** TempCreateIn */
         TempCreateIn: {
             /** Full Name */
@@ -6703,6 +7146,35 @@ export interface components {
             count: number | null;
             /** Capacity */
             capacity: number | null;
+        };
+        /** UpcomingOut */
+        UpcomingOut: {
+            /** Code */
+            code: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "booking" | "session";
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /**
+             * Title
+             * @description Tên khách (booking) hoặc tên sự kiện
+             */
+            title: string;
+            /**
+             * Payment Status
+             * @description Chỉ booking: unpaid / paid / …
+             */
+            payment_status: string | null;
         };
         /**
          * UserOut
@@ -7308,6 +7780,159 @@ export interface operations {
             };
         };
     };
+    admin_profile_api_v1_admin_account_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProfileOut"];
+                };
+            };
+        };
+    };
+    admin_rename_api_v1_admin_account_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminProfileIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_change_password_api_v1_admin_account_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPasswordChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_sessions_api_v1_admin_account_sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MySessionOut"][];
+                };
+            };
+        };
+    };
+    revoke_other_sessions_api_v1_admin_account_sessions_revoke_others_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedOut"];
+                };
+            };
+        };
+    };
+    revoke_my_session_api_v1_admin_account_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_me_api_v1_admin_auth_me_get: {
         parameters: {
             query?: never;
@@ -7525,6 +8150,112 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    read_roles_api_v1_admin_roles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolesOut"];
+                };
+            };
+        };
+    };
+    update_role_api_v1_admin_roles__role__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role: "staff";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RolePermsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_menu_order_api_v1_admin_menu_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MenuOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuOrderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_menu_order_api_v1_admin_menu_order_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -8317,6 +9048,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TransactionsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resource_detail_view_api_v1_booking_resources__code__detail_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resource_stats_api_v1_booking_resources__code__stats_get: {
+        parameters: {
+            query?: {
+                period?: "week" | "month" | "year";
+                date?: string | null;
+            };
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceStatsOut"];
                 };
             };
             /** @description Validation Error */

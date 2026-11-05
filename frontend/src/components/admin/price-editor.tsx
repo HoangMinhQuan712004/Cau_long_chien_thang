@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { Resource } from "@/components/admin/courts-manager";
+import type { Resource } from "@/components/admin/court-form-logic";
 import { UnsavedGuard } from "@/components/admin/unsaved-guard";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";

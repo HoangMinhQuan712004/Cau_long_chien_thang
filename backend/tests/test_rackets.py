@@ -35,8 +35,9 @@ async def racket_rows(key: str) -> list[Racket]:
 
 
 async def test_admin_manages_staff_reads(admin, staff, cleanup):
-    r = await staff.post(R, json={"name": f"Yonex {cleanup}"})
-    assert r.status_code == 403
+    # NV mặc định quản lý được vợt (người dùng chốt 2026-11-05): qua kiểm quyền, tới kiểm dữ liệu
+    r = await staff.post(R, json={"name": "   "})
+    assert r.status_code == 422
     created = await admin.post(R, json={"name": f"  Yonex   {cleanup} "})
     assert created.status_code == 201, created.text
     racket = created.json()
@@ -50,9 +51,14 @@ async def test_admin_manages_staff_reads(admin, staff, cleanup):
     assert hidden.status_code == 200 and hidden.json()["is_active"] is False
     names = lambda r: {x["name"] for x in r.json()}  # noqa: E731
     assert racket["name"] not in names(await staff.get(R))
-    assert racket["name"] not in names(await staff.get(R, params={"all": 1}))  # NV: bỏ qua all
+    assert racket["name"] in names(
+        await staff.get(R, params={"all": 1})
+    )  # NV có quyền (người dùng chốt 2026-11-05)
     assert racket["name"] in names(await admin.get(R, params={"all": 1}))
-    assert (await staff.patch(f"{R}/{racket['id']}", json={"is_active": True})).status_code == 403
+    shown = await staff.patch(
+        f"{R}/{racket['id']}", json={"is_active": True}
+    )  # người dùng chốt 2026-11-05
+    assert shown.status_code == 200 and shown.json()["is_active"] is True
 
     other = (await admin.post(R, json={"name": f"Lining {cleanup}"})).json()
     r = await admin.patch(f"{R}/{other['id']}", json={"name": f"yonex {cleanup}"})
@@ -64,7 +70,9 @@ async def test_admin_manages_staff_reads(admin, staff, cleanup):
 
 async def test_can_flag_and_anonymous(admin, staff, anon):
     assert (await admin.get(M)).json()["can"]["manage_rackets"] is True
-    assert (await staff.get(M)).json()["can"]["manage_rackets"] is False
+    assert (await staff.get(M)).json()["can"][
+        "manage_rackets"
+    ] is True  # người dùng chốt 2026-11-05
     assert (await anon.get(R)).status_code == 401
 
 

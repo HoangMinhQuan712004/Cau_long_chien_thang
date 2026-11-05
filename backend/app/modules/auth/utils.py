@@ -63,3 +63,51 @@ def password_problems(password: str) -> list[str]:
 def password_rule_message(problems: list[str]) -> str:
     head = ", ".join(problems[:-1])
     return f"Mật khẩu cần {head + ' và ' if head else ''}{problems[-1]}."
+
+
+DeviceType = Literal["desktop", "mobile", "tablet", "unknown"]
+
+# Thứ tự quan trọng: UA của Edge / Cốc Cốc / Zalo đều chứa "Chrome", Chrome chứa "Safari"
+_BROWSERS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("Zalo", re.compile(r"Zalo", re.I)),
+    ("Cốc Cốc", re.compile(r"coc_coc|CocCoc", re.I)),
+    ("Edge", re.compile(r"Edg(e|A|iOS)?/")),
+    ("Opera", re.compile(r"OPR/|Opera")),
+    ("Samsung Internet", re.compile(r"SamsungBrowser/")),
+    ("Firefox", re.compile(r"Firefox/|FxiOS/")),
+    ("Chrome", re.compile(r"Chrome/|CriOS/")),
+    ("Safari", re.compile(r"Version/[\d.]+.*Safari/")),
+)
+# iOS trước macOS (UA iPad / iPhone có "like Mac OS X"); Android trước Linux
+_OSES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("Windows", re.compile(r"Windows NT|Windows Phone")),
+    ("iOS", re.compile(r"iPhone|iPad|iPod")),
+    ("Android", re.compile(r"Android")),
+    ("ChromeOS", re.compile(r"CrOS")),
+    ("macOS", re.compile(r"Macintosh|Mac OS X")),
+    ("Linux", re.compile(r"Linux")),
+)
+
+
+def _first_match(rules: tuple[tuple[str, re.Pattern[str]], ...], ua: str) -> str | None:
+    return next((name for name, pattern in rules if pattern.search(ua)), None)
+
+
+def parse_user_agent(ua: str | None) -> tuple[DeviceType, str | None, str | None]:
+    """User agent -> (loại thiết bị, hệ điều hành, trình duyệt); không nhận ra -> unknown / None.
+
+    Chỉ để hiện "Nơi bạn đăng nhập" (gần đúng), không dùng cho kiểm tra bảo mật.
+    """
+    if not ua:
+        return "unknown", None, None
+    os_name = _first_match(_OSES, ua)
+    browser = _first_match(_BROWSERS, ua)
+    if re.search(r"iPad|Tablet", ua) or (os_name == "Android" and "Mobile" not in ua):
+        device: DeviceType = "tablet"
+    elif re.search(r"Mobi|iPhone|iPod", ua):
+        device = "mobile"
+    elif os_name in {"Windows", "macOS", "Linux", "ChromeOS"}:
+        device = "desktop"
+    else:
+        device = "unknown"
+    return device, os_name, browser

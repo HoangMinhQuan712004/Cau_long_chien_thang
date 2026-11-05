@@ -5,8 +5,8 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
 import { getDictionary } from "@/i18n/dictionaries";
-import { authedApi } from "@/lib/api/server";
-import { FORBIDDEN_PARAM } from "../_components/forbidden";
+import { adminMenuOrder, adminPerms, authedApi } from "@/lib/api/server";
+import { can, FORBIDDEN_PARAM, firstAllowedHref } from "../_components/forbidden";
 import { AuditLogScreen } from "./_components/audit-log-screen";
 import { auditQuery, readAuditParams } from "./_components/audit-params";
 
@@ -24,9 +24,11 @@ export default function AuditLogPage({ searchParams }: PageProps<"/admin/lich-su
   );
 }
 
-// Quyền do backend kiểm (BR-001): Nhân viên mở thẳng link ⇒ 403 ⇒ về Đặt sân + báo E-001
+// Theo quyền audit_log.view (BR-001): thiếu quyền ⇒ về mục được phép + báo E-001; backend vẫn trả 403
 async function AuditLogLoader({ searchParams }: Pick<PageProps<"/admin/lich-su-thao-tac">, "searchParams">) {
-  const [t, sp, api] = await Promise.all([getDictionary(), searchParams, authedApi()]);
+  const [t, sp, api, perms, order] = await Promise.all([getDictionary(), searchParams, authedApi(), adminPerms(), adminMenuOrder()]);
+  const forbidden = `${firstAllowedHref(perms, order)}?${FORBIDDEN_PARAM}`;
+  if (!can(perms, "audit_log.view")) redirect(forbidden);
   const params = readAuditParams(
     new URLSearchParams(Object.entries(sp).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : []))),
   );
@@ -36,7 +38,7 @@ async function AuditLogLoader({ searchParams }: Pick<PageProps<"/admin/lich-su-t
     api.GET("/api/v1/admin/audit-log", { params: { query: auditQuery(params) } }).catch(() => fail),
   ]);
 
-  if (catalog.response?.status === 403 || list.response?.status === 403) redirect(`/admin/dat-san?${FORBIDDEN_PARAM}`);
+  if (catalog.response?.status === 403 || list.response?.status === 403) redirect(forbidden);
   // Link sửa tay (ngày ngoài 12 tháng, loại lạ) ⇒ về mặc định
   if (list.response?.status === 422) redirect(PATH);
   if (!catalog.data) throw new Error("Không tải được danh mục lịch sử thao tác");

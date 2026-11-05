@@ -46,7 +46,7 @@ def actor_label(user: User) -> str:
 
 def to_account(user: User) -> AdminAccountOut:
     if user.role == Role.ADMIN:
-        return AdminAccountOut(kind="admin", display_name="Admin", role_label="Chủ sân")
+        return AdminAccountOut(kind="admin", display_name=user.full_name, role_label="Admin")
     return AdminAccountOut(
         kind="staff",
         display_name=user.full_name,
@@ -113,27 +113,39 @@ def active_filter(now: datetime):
 
 
 async def revoke_all(
-    session: AsyncSession, user_id: int, reason: SessionEndReason, now: datetime | None = None
+    session: AsyncSession,
+    user_id: int,
+    reason: SessionEndReason,
+    now: datetime | None = None,
+    keep_id: int | None = None,
 ) -> int:
-    """Thu hồi mọi phiên đang mở của tài khoản (chưa commit)."""
+    """Thu hồi mọi phiên đang mở của tài khoản, trừ phiên ``keep_id`` nếu có (chưa commit)."""
+    query = update(AdminSession).where(
+        AdminSession.user_id == user_id, AdminSession.revoked_at.is_(None)
+    )
+    if keep_id is not None:
+        query = query.where(AdminSession.id != keep_id)
     result = await session.execute(
-        update(AdminSession)
-        .where(AdminSession.user_id == user_id, AdminSession.revoked_at.is_(None))
-        .values(revoked_at=now or func.now(), revoked_reason=reason)
+        query.values(revoked_at=now or func.now(), revoked_reason=reason)
     )
     return result.rowcount or 0
 
 
-async def replace_password(session: AsyncSession, user: User, hashed: str | None) -> int:
+async def replace_password(
+    session: AsyncSession, user: User, hashed: str | None, keep_session_id: int | None = None
+) -> int:
     """Thay / hủy mật khẩu: gỡ khóa, thu hồi phiên quản trị, tăng ``token_version``.
 
-    Chưa commit; trả số phiên vừa thu hồi.
+    ``keep_session_id``: giữ phiên đang dùng (tự đổi mật khẩu). Chưa commit; trả số phiên vừa
+    thu hồi.
     """
     user.hashed_password = hashed
     user.token_version += 1
     user.failed_login_count = 0
     user.locked_until = None
-    revoked = await revoke_all(session, user.id, SessionEndReason.PASSWORD_CHANGED)
+    revoked = await revoke_all(
+        session, user.id, SessionEndReason.PASSWORD_CHANGED, keep_id=keep_session_id
+    )
     if revoked:
         # Hệ thống đăng xuất các phiên đang mở (SRS Lịch sử thao tác, nhóm Đăng nhập, đăng xuất)
         change = audit_change("Phiên", "Đang mở", "Đã đăng xuất do đổi mật khẩu")

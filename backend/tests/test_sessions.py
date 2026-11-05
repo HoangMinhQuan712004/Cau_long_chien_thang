@@ -87,9 +87,11 @@ async def test_create_session_spans_adjacent_courts(admin, staff):
     }
 
 
-async def test_create_session_staff_forbidden(staff):
-    r = await create_session(staff, ["S01"])
-    assert r.status_code == 403 and r.json()["detail"]["code"] == "E-AUTH-2"
+async def test_create_session_staff_forbidden(admin, staff):
+    # NV mặc định được tạo sự kiện (người dùng chốt 2026-11-05) – tên test giữ nguyên
+    court = await new_court(admin)
+    r = await create_session(staff, [court["code"]], day=today() + timedelta(days=1))
+    assert r.status_code == 201, r.text
 
 
 @pytest.mark.parametrize(
@@ -247,8 +249,9 @@ async def test_delete_session(admin, staff):
     ev = (await create_session(admin, [court["code"]], day=tomorrow)).json()
     path = f"{BK}/sessions/{ev['code']}"
 
-    r = await staff.request("DELETE", path, json={"version": 1}, headers=idem())
-    assert r.status_code == 403
+    # NV mặc định được xóa sự kiện (người dùng chốt 2026-11-05): qua kiểm quyền, tới kiểm phiên bản
+    r = await staff.request("DELETE", path, json={"version": 99}, headers=idem())
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "E-012"
     r = await admin.request("DELETE", path, json={"version": 99}, headers=idem())
     assert r.status_code == 409 and r.json()["detail"]["code"] == "E-012"
 

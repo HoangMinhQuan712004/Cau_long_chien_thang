@@ -13,7 +13,7 @@ import {
   type CustomerErrors,
   type CustomerState,
 } from "./customer-picker";
-import { BlockAdder, blockKey, hourText, MAX_BLOCKS, type Block } from "./block-adder";
+import { blockKey, hourText, type Block } from "./block";
 import { getQuote, sendCounterBooking, sendCreateSession } from "./requests";
 import type { Calendar, CounterOrder, Quote, Selection } from "./types";
 import { btnCls, btnPrimaryCls, ErrorBanner, Hint, inputCls, SummaryBox } from "./ui";
@@ -32,14 +32,14 @@ export function authFailure(error: ApiError): boolean {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Đặt sân tại quầy: một đơn gồm 1–20 khối cùng ngày (chọn ô trên lưới, rồi "+ Thêm khối" – T-019)
+// Đặt sân tại quầy: một đơn gồm 1–20 khối cùng ngày (chọn nhiều ô trên lưới – T-025; bỏ từng khối trong popup)
 // ---------------------------------------------------------------------------------------------
 
 type BookingProps = {
   selection: Selection;
   /** Chọn nhiều ô trên lưới (T-025): các khối đã gom sẵn; không có thì dùng một khối từ `selection`. */
   initialBlocks?: Block[];
-  /** Lịch đang xem: nguồn giờ trống cho "+ Thêm khối" và tên sân. */
+  /** Lịch đang xem: tên sân. */
   calendar: Calendar;
   /** Admin: có tab "Đặt sự kiện" trong popup. */
   canSession: boolean;
@@ -56,7 +56,6 @@ type BookingProps = {
 export function BookingDialog({ selection, initialBlocks, calendar, canSession, onClose, onSwitchToSession, onBooked, onStale, onRefresh }: BookingProps) {
   const [blocks, setBlocks] = useState<Block[]>(() => initialBlocks?.length ? initialBlocks : [{ resource_code: selection.resourceCodes[0], start_hour: selection.startHour, end_hour: selection.endHour }]);
   const [quotes, setQuotes] = useState<Record<string, Quote | string>>({});
-  const [adding, setAdding] = useState(false);
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [customer, setCustomer] = useState<CustomerState>(emptyCustomer);
   const [serverErrors, setServerErrors] = useState<CustomerErrors>({});
@@ -65,7 +64,7 @@ export function BookingDialog({ selection, initialBlocks, calendar, canSession, 
   const [busy, setBusy] = useState(false);
   const names = Object.fromEntries(calendar.resources.map((r) => [r.code, r.name]));
 
-  // Giá từng khối (khối mới thêm thì tính tiếp, khối đã có giữ nguyên)
+  // Giá từng khối (bỏ khối thì giữ giá các khối còn lại)
   useEffect(() => {
     let live = true;
     for (const bl of blocks) {
@@ -193,24 +192,6 @@ export function BookingDialog({ selection, initialBlocks, calendar, canSession, 
           <span className="ml-auto tabular-nums">{allQuoted ? formatVnd(total) : "đang tính giá…"}</span>
         </div>
       </SummaryBox>
-
-      {adding ? (
-        <BlockAdder
-          calendar={calendar}
-          chosen={blocks}
-          onCancel={() => setAdding(false)}
-          onAdd={(b) => {
-            setBlocks((all) => [...all, b]);
-            setAdding(false);
-          }}
-        />
-      ) : blocks.length < MAX_BLOCKS ? (
-        <button type="button" onClick={() => setAdding(true)} className={`${btnCls} h-11 w-full border-dashed sm:h-auto`}>
-          + Thêm khối
-        </button>
-      ) : (
-        <Hint>Tối đa {MAX_BLOCKS} khối một đơn.</Hint>
-      )}
 
       <CustomerPicker
         state={customer}

@@ -1,18 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 
 /**
  * Cảnh báo rời trang khi còn thay đổi chưa lưu: đóng tab / tải lại (beforeunload)
  * và bấm liên kết nội bộ (hiện hộp thoại "Rời trang?"). Next App Router không có hook chặn đổi route nên bắt ở cấp liên kết.
+ * Đã xác nhận "Rời trang" trong hộp của app ⇒ bỏ qua beforeunload rồi điều hướng nội bộ: chỉ MỘT hộp hỏi.
+ * Hộp gốc của trình duyệt chỉ còn cho đóng tab / tải lại / gõ URL (lúc đó hộp của app không hiện được).
  */
 export function UnsavedGuard({ dirty }: { dirty: boolean }) {
+  const router = useRouter();
   const [target, setTarget] = useState<string | null>(null);
+  // Đã đồng ý rời trong hộp của app ⇒ không hỏi lại bằng hộp của trình duyệt
+  const leaving = useRef(false);
 
   useEffect(() => {
     if (!dirty) return;
     const beforeUnload = (e: BeforeUnloadEvent) => {
+      if (leaving.current) return;
       e.preventDefault();
       e.returnValue = "";
     };
@@ -50,7 +57,12 @@ export function UnsavedGuard({ dirty }: { dirty: boolean }) {
             onClick={() => {
               const to = target;
               setTarget(null);
-              if (to) window.location.assign(to); // tải mới để bỏ hẳn bản nháp và tắt cảnh báo beforeunload
+              if (!to) return;
+              leaving.current = true;
+              // Điều hướng trong app (không phát beforeunload); editor bị gỡ khỏi trang ⇒ bản nháp mất theo
+              router.push(to);
+              // Vẫn ở trang cũ (vd điều hướng lỗi) ⇒ bật lại cảnh báo đóng tab
+              window.setTimeout(() => (leaving.current = false), 2000);
             }}
             className="rounded-md bg-danger px-4 py-2 text-sm font-medium text-white"
           >

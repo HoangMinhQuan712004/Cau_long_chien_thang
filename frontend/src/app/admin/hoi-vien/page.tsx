@@ -3,7 +3,8 @@ import { Suspense } from "react";
 import { Alert } from "@/components/ui/alert";
 import { PageHeader } from "@/components/ui/page-header";
 import { type Dictionary, getDictionary } from "@/i18n/dictionaries";
-import { authedApi, type MemberTierFilter } from "@/lib/api/server";
+import { adminPerms, authedApi, type MemberTierFilter } from "@/lib/api/server";
+import { can } from "../_components/forbidden";
 import { MemberList } from "./_components/member-list";
 import { readMemberParams } from "./_components/member-params";
 import { MemberSkeleton } from "./_components/member-skeleton";
@@ -20,9 +21,11 @@ export default function MembersPage({ searchParams }: PageProps<"/admin/hoi-vien
   );
 }
 
-// Chữ (cookie ngôn ngữ) có rất nhanh ⇒ tiêu đề hiện trước, danh sách chờ API trong Suspense riêng
+// Chữ (cookie ngôn ngữ) + quyền có rất nhanh ⇒ kiểm quyền trước (thiếu quyền: chỉ dòng báo, không chớp tiêu đề), rồi tiêu đề
+// hiện trước, danh sách chờ API trong Suspense riêng
 async function MembersShell({ searchParams }: Pick<PageProps<"/admin/hoi-vien">, "searchParams">) {
-  const t = (await getDictionary()).members;
+  const [{ members: t }, perms] = await Promise.all([getDictionary(), adminPerms()]);
+  if (!can(perms, "member.manage")) return <Alert variant="error">{t.forbidden}</Alert>;
   return (
     <Suspense fallback={<MemberSkeleton title={t.title} label={t.listLoading} />}>
       <Members searchParams={searchParams} t={t} />
@@ -30,7 +33,7 @@ async function MembersShell({ searchParams }: Pick<PageProps<"/admin/hoi-vien">,
   );
 }
 
-// Đọc bộ lọc trên URL rồi lấy danh sách từ API (quyền do backend kiểm: 403 ⇒ báo không có quyền)
+// Đọc bộ lọc trên URL rồi lấy danh sách từ API (backend vẫn kiểm quyền: 403 ⇒ báo không có quyền)
 async function Members({ searchParams, t }: Pick<PageProps<"/admin/hoi-vien">, "searchParams"> & { t: Dictionary["members"] }) {
   const sp = await searchParams;
   const params = readMemberParams(new URLSearchParams(Object.entries(sp).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : []))));
@@ -53,11 +56,13 @@ async function Members({ searchParams, t }: Pick<PageProps<"/admin/hoi-vien">, "
     })
     .catch(() => ({ data: undefined, response: undefined }));
 
+  // Backend chặn (403) ⇒ chỉ dòng báo, không tiêu đề (như các trang khác); lỗi tải thường vẫn có tiêu đề
+  if (response?.status === 403) return <Alert variant="error">{t.forbidden}</Alert>;
   if (!data) {
     return (
       <div className="flex flex-col gap-5">
         <PageHeader title={t.title} />
-        <Alert variant="error">{response?.status === 403 ? t.forbidden : t.loadError}</Alert>
+        <Alert variant="error">{t.loadError}</Alert>
       </div>
     );
   }

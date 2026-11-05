@@ -40,7 +40,7 @@ export function KpiCards({ data, t }: Props) {
       text: t.revenue,
       value: data ? money(data.revenue.current) : null,
       cmp: data ? compare(data.revenue.current, data.revenue.previous, days, money, false, t) : null,
-      caption: t.revenue.caption,
+      tip: t.revenue.tip,
     },
     {
       key: "bookings",
@@ -49,7 +49,8 @@ export function KpiCards({ data, t }: Props) {
       cmp: data
         ? compare(data.bookings.current, data.bookings.previous, days, (n) => fill(t.bookings.unit, { n: count(n) }), false, t)
         : null,
-      caption: fill(t.bookings.caption, { n: count(data?.bookings.tickets ?? 0) }),
+      // Số vé xé vé của kỳ nằm trong (i) (chưa có số ⇒ câu gốc)
+      tip: data ? `${t.bookings.tip} ${fill(t.bookings.tickets, { n: count(data.bookings.tickets) })}` : t.bookings.tip,
     },
     {
       key: "members",
@@ -58,14 +59,14 @@ export function KpiCards({ data, t }: Props) {
       cmp: data
         ? compare(data.new_members.current, data.new_members.previous, days, (n) => fill(t.members.unit, { n: count(n) }), true, t)
         : null,
-      caption: t.members.caption,
+      tip: t.members.tip,
     },
   ];
 
   return (
     // Điện thoại: Tổng doanh thu rộng hết hàng, 2 thẻ còn lại 2 cột; từ md 3 thẻ một hàng
     <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 lg:gap-4">
-      {cards.map(({ key, text, value, cmp, caption }) => (
+      {cards.map(({ key, text, value, cmp, tip }) => (
         <Card
           key={key}
           className={cn(
@@ -75,7 +76,7 @@ export function KpiCards({ data, t }: Props) {
         >
           <span className="flex items-center gap-1 text-xs font-semibold text-muted sm:text-ui">
             {text.label}
-            <InfoTip text={text.tip} label={t.explain} />
+            <InfoTip text={tip} label={t.explain} />
           </span>
           {value !== null && cmp ? (
             <>
@@ -92,14 +93,11 @@ export function KpiCards({ data, t }: Props) {
                   {cmp.prev ? <>{" "}<span className="whitespace-nowrap">{cmp.prev}</span></> : null}
                 </span>
               </span>
-              {/* Điện thoại bỏ chú giải (đã có (i) giải thích) cho thẻ gọn */}
-              <span className="hidden text-xs text-pretty text-muted sm:block">{caption}</span>
             </>
           ) : (
             <>
               <Skeleton className="my-1 h-6 w-32 sm:h-7 sm:w-40 xl:h-8" />
               <Skeleton className="h-4 w-full max-w-52" />
-              <Skeleton className="hidden h-3.5 w-44 max-w-full sm:block" />
             </>
           )}
         </Card>

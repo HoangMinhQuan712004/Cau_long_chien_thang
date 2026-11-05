@@ -751,10 +751,7 @@ async def test_ac13_racket_catalog_rules(admin, staff, made):
     assert dup.status_code == 409, "duplicate name is case-insensitive"
 
 
-@deviation(
-    "D15",
-    "NV được thêm vợt 'Khác' vào danh sách chung (BR-012/AC13, quyền MEMBER_MANAGE); PR chỉ Admin",
-)
+# D15 hết lệch: NV mặc định có quyền Danh mục vợt (người dùng chốt 2026-11-05)
 async def test_ac13_staff_can_add_racket(staff):
     r = await staff.post(
         f"{API}/rackets", json={"name": f"QA Khác {uuid.uuid4().hex[:6]}"}, headers=idem()

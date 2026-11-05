@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AdminRecordsScreen } from "@/components/records/admin-records-screen";
-import { getAdminSession } from "@/lib/api/server";
+import { getDictionary } from "@/i18n/dictionaries";
+import { adminPerms } from "@/lib/api/server";
+import { can } from "../_components/forbidden";
 
-// Chỉ Admin (nhân viên → thông báo; quyền thật do backend kiểm). Layout admin đã đặt noindex.
+// Theo quyền records.video.manage (thiếu ⇒ dòng báo không có quyền; backend vẫn kiểm). Layout admin đã đặt noindex.
 export const metadata: Metadata = { title: "Kỷ lục & video" };
 
 export default function AdminRecordsPage() {
@@ -15,7 +17,7 @@ export default function AdminRecordsPage() {
 }
 
 async function Loader() {
-  const session = await getAdminSession();
-  if (!session.ok || session.session.account.kind !== "admin") return <p className="text-muted">Chỉ chủ sân mới xem được mục này.</p>;
+  const [perms, { adminNav }] = await Promise.all([adminPerms(), getDictionary()]); // đọc cookie trước khi dùng giờ hiện tại
+  if (!can(perms, "records.video.manage")) return <p className="text-muted">{adminNav.noPermission}</p>;
   return <AdminRecordsScreen />;
 }

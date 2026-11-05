@@ -1,31 +1,34 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { CourtsManager } from "@/components/admin/courts-manager";
+import { CourtsTable } from "@/components/admin/courts-table";
 import { SanTabs } from "@/components/admin/san-tabs";
-import { authedApi } from "@/lib/api/server";
+import { adminPerms, authedApi } from "@/lib/api/server";
+import { getDictionary } from "@/i18n/dictionaries";
+import { can } from "../_components/forbidden";
 
 export const metadata: Metadata = { title: "Sân & bảng giá" };
 
 export default function CourtsAdminPage() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Sân &amp; bảng giá</h1>
-      <SanTabs active="list" />
-      <Suspense fallback={<p className="text-muted">Đang tải…</p>}>
-        <Courts />
-      </Suspense>
-    </div>
+    // Tiêu đề + tab chỉ hiện sau khi qua kiểm quyền (thiếu quyền chỉ còn dòng báo, như các trang khác)
+    <Suspense fallback={<p className="text-muted">Đang tải…</p>}>
+      <Courts />
+    </Suspense>
   );
 }
 
 async function Courts() {
+  // Thiếu quyền booking.config.manage ⇒ báo không có quyền, không gọi API (backend vẫn kiểm: 403 cũng báo như vậy)
+  const [perms, { adminNav }] = await Promise.all([adminPerms(), getDictionary()]);
+  const noPermission = adminNav.noPermission;
+  if (!can(perms, "booking.config.manage")) return <p className="text-muted">{noPermission}</p>;
   const api = await authedApi();
   const [resources, prices] = await Promise.all([
     api.GET("/api/v1/booking/resources"),
     api.GET("/api/v1/booking/prices"),
   ]);
   if (resources.response.status === 403 || prices.response.status === 403) {
-    return <p className="text-muted">Chỉ chủ sân mới xem được mục này.</p>;
+    return <p className="text-muted">{noPermission}</p>;
   }
   if (resources.error || prices.error || !resources.data || !prices.data) {
     throw new Error("Không tải được dữ liệu sân");
@@ -37,10 +40,14 @@ async function Courts() {
   }
 
   return (
-    <CourtsManager
-      resources={resources.data.items}
-      types={resources.data.resource_types}
-      weekdayPrice={weekdayPrice}
-    />
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Sân &amp; bảng giá</h1>
+      <SanTabs active="list" />
+      <CourtsTable
+        resources={resources.data.items}
+        types={resources.data.resource_types}
+        weekdayPrice={weekdayPrice}
+      />
+    </div>
   );
 }

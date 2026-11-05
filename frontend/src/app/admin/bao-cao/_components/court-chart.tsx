@@ -19,8 +19,8 @@ type Props = {
   t: T;
 };
 
-/** Mỗi cột tối thiểu 72px (tên sân 2 dòng đọc được; nhiều sân ⇒ cuộn ngang); khe 20% mỗi bên ⇒ cột ≈ 43px. */
-const MIN_STEP = 72;
+/** Mỗi cột tối thiểu 48px (tên sân 2 dòng, dài hơn "…" + rê xem đủ): 8 sân vừa khít một nửa màn từ 1280px; hẹp hơn / nhiều sân ⇒ cuộn ngang. */
+const MIN_STEP = 48;
 const GAP = 0.2;
 const PLOT_TOP = 22;
 /** Trục ngang: tên tối đa 2 dòng + dòng "↓" (đủ cả khi màn lớn phóng chữ 112,5%). */

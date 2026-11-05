@@ -40,7 +40,8 @@ async def test_calendar_seed_layout(staff):
     s01 = next(r for r in cal["resources"] if r["code"] == "S01")
     assert 5 not in s01["off_hours"]
     assert cal["columns"][0] <= 5 and cal["columns"][-1] >= 21
-    assert cal["can"] == {"counter_book": True, "create_session": False}
+    # NV mặc định tạo được sự kiện (người dùng chốt 2026-11-05)
+    assert cal["can"] == {"counter_book": True, "create_session": True}
     assert cal["is_past"] is False
 
 
@@ -53,10 +54,10 @@ async def test_calendar_permissions_and_range(admin, staff):
             "counter_book": False,
             "create_session": True,
         }
-    # Tài khoản tại máy: chỉ đặt hôm nay, không tạo sự kiện
+    # NV: chỉ đặt hôm nay; tạo được sự kiện (người dùng chốt 2026-11-05)
     assert (await calendar(staff, tomorrow))["can"] == {
         "counter_book": False,
-        "create_session": False,
+        "create_session": True,
     }
     past = await calendar(admin, today() - timedelta(days=3))
     assert past["is_past"] is True
@@ -256,8 +257,8 @@ async def test_counter_booking_server_rules(admin, staff):
     assert r.status_code == 422 and r.json()["detail"]["code"] == "E-CFG-10"
     r = await book(staff, court["code"], 10, 10)
     assert r.status_code == 422
-    # Sân không có
-    r = await book(staff, "S99", hour)
+    # Sân không có – mã không thể có (test khác tạo sân S01…S99+ trong cùng DB test)
+    r = await book(staff, "ZZ999", hour)
     assert r.status_code == 404 and r.json()["detail"]["code"] == "E-NOT-FOUND"
 
 

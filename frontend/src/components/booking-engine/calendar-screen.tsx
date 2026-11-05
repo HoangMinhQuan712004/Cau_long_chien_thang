@@ -7,7 +7,7 @@ import { normalizeBookingCode } from "@/lib/booking-code";
 import { toast } from "@/lib/feedback";
 import { addDaysIso, formatLongDate, formatVnd, vnDate } from "@/lib/format";
 import { AdminGrid, EVENT_RECT_HINT, isSellable, selectionBlocks, selectionRect } from "./admin-grid";
-import { MAX_BLOCKS, type Block } from "./block-adder";
+import { MAX_BLOCKS, type Block } from "./block";
 import { BookingDialog, SessionFormDialog } from "./booking-dialogs";
 import { ItemFlow } from "./item-flow";
 import { OrderFlow } from "./order-flow";
@@ -30,7 +30,8 @@ type Dialog =
 
 const REFRESH_MS = 30_000;
 
-export function CalendarScreen({ initial, role }: { initial: Calendar; role: "admin" | "staff" }) {
+/** `canRecurring`: quyền booking.recurring ⇒ hiện nút "Đặt sân định kỳ" (backend vẫn kiểm). */
+export function CalendarScreen({ initial, canRecurring }: { initial: Calendar; canRecurring: boolean }) {
   const [calendar, setCalendar] = useState(initial);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [onlyUnpaid, setOnlyUnpaid] = useState(false);
@@ -41,7 +42,8 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
   // Ô đang chọn trên lưới (bấm từng ô, T-025): khóa "mã sân|giờ"
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const dateRef = useRef(initial.date);
-  const isAdmin = role === "admin";
+  // Tạo / xóa sự kiện: cờ do backend tính theo quyền booking.session.manage (không so vai)
+  const canSession = calendar.can.create_session;
 
   const today = vnDate(calendar.now);
   const unpaidOnly = onlyUnpaid && calendar.unpaid_count > 0; // n = 0 → tự về Tất cả
@@ -175,7 +177,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
     ? "Ngày đã qua: chỉ xem, không chọn khung mới. Bấm khối để xem Thông tin booking."
     : !canPick
       ? "Tài khoản tại máy chỉ đặt sân trong hôm nay. Ngày khác do Admin đặt. Bấm khối để xem chi tiết."
-      : isAdmin
+      : canSession
         ? "Bấm từng ô trống để chọn (nhiều sân, nhiều giờ) rồi Đặt sân hoặc Tạo sự kiện · bấm khối để xem chi tiết · Esc bỏ chọn."
         : "Bấm từng ô trống để chọn (nhiều sân, nhiều giờ) rồi Đặt sân · bấm khối để xem chi tiết · Esc bỏ chọn.";
 
@@ -206,7 +208,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
           >
             ›
           </button>
-          {isAdmin ? (
+          {canRecurring ? (
             <button type="button" onClick={() => setDialog({ kind: "recurring" })} className="rounded-lg border border-primary bg-surface px-3 py-2 text-sm font-semibold text-primary hover:bg-primary-softer">
               Đặt sân định kỳ
             </button>
@@ -316,7 +318,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
             >
               Đặt sân
             </button>
-            {isAdmin ? (
+            {canSession ? (
               <button
                 type="button"
                 onClick={openSessionForm}
@@ -328,8 +330,8 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
               </button>
             ) : null}
           </div>
-          {bookReason || (isAdmin && eventReason) ? (
-            <p className="mt-1.5 text-xs text-muted">{[bookReason, isAdmin ? eventReason : ""].filter(Boolean).join(" · ")}</p>
+          {bookReason || (canSession && eventReason) ? (
+            <p className="mt-1.5 text-xs text-muted">{[bookReason, canSession ? eventReason : ""].filter(Boolean).join(" · ")}</p>
           ) : null}
         </section>
       ) : null}
@@ -340,7 +342,7 @@ export function CalendarScreen({ initial, role }: { initial: Calendar; role: "ad
           initialBlocks={dialog.blocks}
           calendar={calendar}
           onRefresh={refresh}
-          canSession={isAdmin}
+          canSession={canSession}
           onClose={() => setDialog(null)}
           onSwitchToSession={() => setDialog({ kind: "sessionForm", selection: rect ?? dialog.selection })}
           onBooked={(order) => {

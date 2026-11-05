@@ -18,8 +18,39 @@ permissions:
   contents: read
 
 jobs:
+  # Chỉ chạy phần code bị đổi: so với nhánh đích (PR) hoặc commit trước (push).
+  # Job bị bỏ qua (skipped) không làm CI đỏ -> CD vẫn chạy khi CI xanh.
+  changes:
+    name: Detect changed parts
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.diff.outputs.backend }}
+      frontend: ${{ steps.diff.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Push đầu tiên của nhánh / không có base -> chạy tất cả
+          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"; echo "frontend=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          FILES=$(git diff --name-only "$BASE" HEAD)
+          echo "$FILES"
+          # Đổi CI thì chạy tất cả
+          if echo "$FILES" | grep -q '^\.github/workflows/'; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"; echo "frontend=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "backend=$(echo "$FILES" | grep -q '^backend/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "frontend=$(echo "$FILES" | grep -q '^frontend/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
   backend:
     name: Backend (lint, migrations, tests)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -74,6 +105,8 @@ jobs:
 
   frontend:
     name: Frontend (lint, typecheck, build)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -103,6 +136,9 @@ jobs:
 
   api-contract:
     name: API types in sync with backend
+    needs: changes
+    # Lệch kiểu API chỉ xảy ra khi backend hoặc frontend đổi
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

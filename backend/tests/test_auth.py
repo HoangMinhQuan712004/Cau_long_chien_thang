@@ -53,8 +53,8 @@ async def test_admin_signs_in_by_phone(login):
         assert body["kind"] == "admin"
         assert body["account"] == {
             "kind": "admin",
-            "display_name": "Admin",
-            "role_label": "Chủ sân",
+            "display_name": "Chủ sân",  # full_name của Admin trong seed
+            "role_label": "Admin",
             "staff_code": None,
         }
         cookie = r.headers.get("set-cookie", "")
@@ -294,7 +294,8 @@ async def test_staff_permissions(staff):
     assert (await staff.get(STAFF)).status_code == 403
     r = await staff.get(f"{API}/booking/calendar", params={"date": "2030-01-01"})
     assert r.status_code == 200  # quyền NV giữ như "Tài khoản tại máy"
-    assert (await staff.get(f"{API}/booking/transactions")).status_code == 403
+    # NV mặc định xem được Lịch sử giao dịch (người dùng chốt 2026-11-05)
+    assert (await staff.get(f"{API}/booking/transactions")).status_code == 200
 
 
 async def test_staff_label_in_audit(admin):

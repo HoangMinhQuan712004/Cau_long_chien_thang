@@ -156,7 +156,8 @@ export function CourtGrid({
           onClear();
         }
       }}
-      className={`relative ${roomy ? "overflow-x-auto rounded-lg border border-border bg-surface" : "max-h-[70dvh] overflow-auto rounded-xl border border-border bg-surface"} ${busy ? "opacity-60" : ""}`}
+      // isolate: z-index của cột/hàng dính chỉ so trong lưới ⇒ không nổi đè header, ngăn kéo menu, popup của trang
+      className={`relative isolate ${roomy ? "overflow-x-auto rounded-lg border border-border bg-surface" : "max-h-[70dvh] overflow-auto rounded-xl border border-border bg-surface"} ${busy ? "opacity-60" : ""}`}
       aria-busy={busy}
     >
       <div ref={gridRef} role="group" aria-label={label} className={`relative min-w-max ${vars}`}>
@@ -263,7 +264,8 @@ export function CourtGrid({
           }
           return (
             <div key={row.code} className={`flex border-t border-border/60 ${row.muted ? "opacity-70" : ""}`}>
-              <div className={`sticky left-0 z-20 flex w-(--c0) shrink-0 ${roomy ? "flex-col justify-center border-r border-border px-3 text-sm" : "items-center overflow-hidden pr-2 pl-2 text-xs shadow-[3px_0_5px_-3px_rgb(20_40_30/0.18)] sm:text-sm"} bg-surface font-medium`}>
+              {/* -mt-px + viền riêng trên nền đặc: phủ viền trên của hàng để đường giờ hiện tại không lộ qua khe giữa các hàng */}
+              <div className={`sticky left-0 z-20 -mt-px flex w-(--c0) border-t border-border/60 shrink-0 ${roomy ? "flex-col justify-center border-r border-border px-3 text-sm" : "items-center overflow-hidden pr-2 pl-2 text-xs shadow-[3px_0_5px_-3px_rgb(20_40_30/0.18)] sm:text-sm"} bg-surface font-medium`}>
                 <span className="truncate">{row.name}</span>
                 {roomy && row.sub ? <span className="truncate text-xs font-normal text-muted">{row.sub}</span> : null}
               </div>
@@ -272,10 +274,11 @@ export function CourtGrid({
           );
         })}
 
+        {/* Đường giờ hiện tại: z-10 – trên ô booking, dưới cột sân dính (z-20) và hàng tiêu đề (--z-grid = 30 / z-40) */}
         {nowAt != null && nowAt >= first && nowAt <= first + columns.length ? (
           <div
             aria-hidden
-            className={`pointer-events-none absolute bottom-0 z-30 w-px bg-danger ${roomy ? "top-9" : "top-6"}`}
+            className={`pointer-events-none absolute bottom-0 z-10 w-px bg-danger ${roomy ? "top-9" : "top-6"}`}
             style={{ left: `calc(var(--c0) + var(--col) * ${(nowAt - first).toFixed(3)})` }}
           />
         ) : null}

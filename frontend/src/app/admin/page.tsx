@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import { getAdminSession } from "@/lib/api/server";
+import { adminMenuOrder, adminPerms } from "@/lib/api/server";
+import { firstAllowedHref } from "./_components/forbidden";
 
-// Trang vào khu quản trị (cả sau đăng nhập): Admin ⇒ Báo cáo & phân tích (BR-002); tài khoản quầy ⇒ Đặt sân.
+// Vào khu quản trị (cả sau đăng nhập) ⇒ mục đầu tiên trong menu mà người này có quyền (Admin: Báo cáo & phân tích).
 // Phiên lỗi đã được layout chuyển về đăng nhập.
 export default async function AdminIndexPage() {
-  const session = await getAdminSession().catch(() => null);
-  redirect(session?.ok && session.session.account.kind === "admin" ? "/admin/bao-cao" : "/admin/dat-san");
+  const [perms, order] = await Promise.all([adminPerms(), adminMenuOrder()]);
+  redirect(firstAllowedHref(perms, order));
 }

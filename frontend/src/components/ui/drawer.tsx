@@ -21,6 +21,8 @@ type Props = {
   resizable?: boolean;
   resizeLabel?: string;
   storageKey?: string;
+  /** Hỏi trước khi đóng bằng ✕ / bấm nền / Esc (vd đang sửa chưa lưu); trả false ⇒ giữ ngăn mở. */
+  confirmClose?: () => boolean;
 };
 
 /** Ngăn kéo cạnh màn hình dùng <dialog> như Modal: khóa nền, bẫy Tab, đóng bằng Esc / bấm nền / ✕. */
@@ -36,11 +38,16 @@ export function Drawer({
   resizable = false,
   resizeLabel = "",
   storageKey,
+  confirmClose,
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const isResizable = resizable && side === "right";
   const size = useDrawerWidth(isResizable ? storageKey : undefined);
+  const requestClose = () => {
+    if (confirmClose && !confirmClose()) return;
+    ref.current?.close();
+  };
 
   useEffect(() => {
     const el = ref.current;
@@ -54,9 +61,14 @@ export function Drawer({
       ref={ref}
       aria-labelledby={title ? titleId : undefined}
       aria-label={title ? undefined : label}
-      onClose={onClose}
+      // Chỉ nhận "close" của chính ngăn này: React truyền close của hộp con (vd ConfirmDialog) lên đây theo cây React
+      onClose={(e) => e.target === e.currentTarget && onClose()}
+      // Esc: trình duyệt phát "cancel" trước khi đóng ⇒ chặn được khi confirmClose trả false
+      onCancel={(e) => {
+        if (e.target === e.currentTarget && confirmClose && !confirmClose()) e.preventDefault();
+      }}
       onClick={(e) => {
-        if (e.target === ref.current) ref.current?.close(); // bấm vùng tối bên ngoài
+        if (e.target === ref.current) requestClose(); // bấm vùng tối bên ngoài
       }}
       className={cn(
         `
@@ -89,7 +101,7 @@ export function Drawer({
               <IconButton
                 icon={<CloseIcon />}
                 label={closeLabel}
-                onClick={() => ref.current?.close()}
+                onClick={requestClose}
                 className="-m-1"
               />
             </div>

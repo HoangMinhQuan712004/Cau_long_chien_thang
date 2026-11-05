@@ -256,7 +256,9 @@ async def test_ac1_calendar_shape_and_speed(staff):
     for k in ("date", "now", "columns", "resources", "blocks", "unpaid_count", "can"):
         assert k in data, k
     assert data["can"]["counter_book"] is True
-    assert data["can"]["create_session"] is False  # staff cannot create events
+    assert (
+        data["can"]["create_session"] is True
+    )  # NV mặc định tạo được sự kiện (người dùng chốt 2026-11-05)
 
 
 async def test_ac1_admin_can_create_session(admin):
@@ -574,7 +576,8 @@ async def test_ac13_admin_multi_resource_session_staff_forbidden(admin, staff):
             "ticket_price": 0,
         },
     )
-    assert denied.status_code == 403 and code_of(denied) == "E-AUTH-2"
+    # NV mặc định tạo được sự kiện (người dùng chốt 2026-11-05): khung đã có sự kiện -> E-010
+    assert denied.status_code == 409 and code_of(denied) == "E-010", denied.text
 
 
 @pytest.mark.parametrize(
@@ -690,8 +693,9 @@ async def test_ac16_delete_session_rules(admin, staff):
     res = await new_resource(admin)
     empty = (await new_session(admin, [res["code"]])).json()
     got = (await admin.get(f"{B}/sessions/{empty['code']}")).json()
-    denied = await w(staff, "DELETE", f"{B}/sessions/{empty['code']}", {"version": got["version"]})
-    assert denied.status_code == 403
+    # NV mặc định xóa được sự kiện (người dùng chốt 2026-11-05): sai phiên bản -> E-012
+    denied = await w(staff, "DELETE", f"{B}/sessions/{empty['code']}", {"version": 99})
+    assert denied.status_code == 409 and code_of(denied) == "E-012", denied.text
     ok = await w(admin, "DELETE", f"{B}/sessions/{empty['code']}", {"version": got["version"]})
     assert ok.status_code in (200, 204), ok.text
     codes = {b.get("code") for b in (await calendar(admin))["blocks"]}
@@ -984,7 +988,8 @@ async def test_ac22_revenue_counts_play_date_and_paid_only(admin):
 
 
 async def test_ac23_transactions_admin_only(staff, customer, anon):
-    assert (await staff.get(f"{B}/transactions")).status_code == 403
+    # NV mặc định xem được Lịch sử giao dịch (người dùng chốt 2026-11-05)
+    assert (await staff.get(f"{B}/transactions")).status_code == 200
     assert (await customer.get(f"{B}/transactions")).status_code == 403
     assert (await anon.get(f"{B}/transactions")).status_code == 401
 
@@ -1070,14 +1075,14 @@ def _matrix():
         ("GET", f"{B}/search?code={code}", None, ADMIN_STAFF),
         ("GET", f"{MEMBERS}/search?q=HV", None, ADMIN_STAFF),
         ("POST", f"{FD}/bookings", b, ADMIN_STAFF),
-        ("POST", f"{B}/sessions", sess, ADMIN_ONLY),
+        ("POST", f"{B}/sessions", sess, ADMIN_STAFF),  # NV mặc định (người dùng chốt 2026-11-05)
         ("GET", f"{B}/sessions/{code}", None, ADMIN_STAFF),
-        ("DELETE", f"{B}/sessions/{code}", {"version": 1}, ADMIN_ONLY),
+        ("DELETE", f"{B}/sessions/{code}", {"version": 1}, ADMIN_STAFF),  # như trên
         ("POST", f"{FD}/sessions/{code}/tickets", {"customer": temp()}, ADMIN_STAFF),
         ("GET", f"{B}/items/{code}", None, ADMIN_STAFF),
         ("POST", f"{B}/items/{code}/collect", {"method": "cash", "version": 1}, ADMIN_STAFF),
         ("POST", f"{B}/items/{code}/uncollectible", {"reason": "x", "version": 1}, ADMIN_STAFF),
-        ("GET", f"{B}/transactions", None, ADMIN_ONLY),
+        ("GET", f"{B}/transactions", None, ADMIN_STAFF),  # như trên
     ]
 
 
@@ -1356,8 +1361,9 @@ async def test_t008_ac31b_admin_can_create_session_on_any_future_day(admin, staf
         "capacity": 2,
         "ticket_price": 0,
     }
-    denied = await w(staff, "POST", f"{B}/sessions", body)
-    assert denied.status_code == 403 and code_of(denied) == "E-AUTH-2", denied.text
+    # NV cũng tạo được sự kiện xa (người dùng chốt 2026-11-05); khung khác để không chồng Admin
+    by_staff = await w(staff, "POST", f"{B}/sessions", {**body, "start_hour": 12, "end_hour": 13})
+    assert by_staff.status_code == 201, by_staff.text
     ok = await w(admin, "POST", f"{B}/sessions", body)
     assert ok.status_code == 201, ok.text
     blocks = [

@@ -117,6 +117,18 @@ export const getAdminSession = cache(
   },
 );
 
+/** Quyền của phiên quản trị hiện tại (rỗng nếu hết phiên). Dùng để ẩn mục / chặn sớm; backend vẫn kiểm trên từng API. */
+export async function adminPerms(): Promise<string[]> {
+  const result = await getAdminSession().catch(() => null);
+  return result?.ok ? result.session.perms : [];
+}
+
+/** Thứ tự menu trái chung (Admin sắp ở Tùy chỉnh menu); hết phiên ⇒ rỗng (dùng thứ tự mặc định). */
+export async function adminMenuOrder(): Promise<string[]> {
+  const result = await getAdminSession().catch(() => null);
+  return result?.ok ? result.session.menu_order : [];
+}
+
 /**
  * GET JSON kèm cookie người dùng cho endpoint chưa có trong schema.d.ts (booking engine T-006).
  * TODO(T-006): chuyển sang `authedApi()` khi `schema.d.ts` có đủ đường dẫn.

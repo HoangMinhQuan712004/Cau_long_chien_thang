@@ -140,6 +140,8 @@
   --animate-fade-in: fade-in 200ms ease-out both;
   --animate-slide-up: slide-up 220ms ease-out both;
   --animate-scale-in: scale-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+  /* Rung ngang báo chặn (vd ô đã đủ ký tự) */
+  --animate-shake: shake 300ms ease-in-out;
 
   @keyframes fade-in {
     from {
@@ -158,13 +160,24 @@
       transform: scale(0.96);
     }
   }
+  @keyframes shake {
+    20%,
+    60% {
+      transform: translateX(-4px);
+    }
+    40%,
+    80% {
+      transform: translateX(4px);
+    }
+  }
 }
 
 /* Giảm chuyển động ⇒ hiện ngay ở trạng thái cuối (animate-spin để người gọi tự thêm motion-reduce:animate-none) */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in,
   .animate-slide-up,
-  .animate-scale-in {
+  .animate-scale-in,
+  .animate-shake {
     animation: none;
   }
 }

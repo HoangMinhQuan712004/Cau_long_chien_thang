@@ -33,7 +33,6 @@ from app.modules.auth.deps import (
 )
 from app.modules.auth.models import AdminSession, SessionEndReason, User
 from app.modules.auth.schemas import (
-    AdminSessionOut,
     AdminSignInOut,
     CustomerSignInOut,
     GoogleSignInIn,
@@ -222,12 +221,6 @@ async def current_admin(state: AuthStateDep) -> tuple[AdminSession, User]:
 
 
 AdminSessionDep = Annotated[tuple[AdminSession, User], Depends(current_admin)]
-
-
-@admin_router.get("/me", response_model=AdminSessionOut)
-async def admin_me(current: AdminSessionDep):
-    admin_session, user = current
-    return AdminSessionOut(account=sessions.to_account(user), expires_at=admin_session.expires_at)
 
 
 @admin_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

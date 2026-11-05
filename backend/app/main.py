@@ -14,7 +14,7 @@ from app.core.db import engine
 from app.core.middleware import BodyLimitMiddleware, OriginCheckMiddleware
 from app.core.ratelimit import RateLimitMiddleware
 from app.modules.audit_log import router as audit_log
-from app.modules.auth import account_router
+from app.modules.auth import account_router, menu, roles
 from app.modules.auth import router as auth
 from app.modules.booking_engine import router as booking_engine
 from app.modules.content import router as content
@@ -60,8 +60,12 @@ app.add_middleware(RequestContextMiddleware)
 for r in (
     auth.router,
     account_router.router,
+    account_router.admin_account_router,
+    account_router.admin_me_router,  # /admin/auth/me đứng trước /logout như trước
     auth.admin_router,
     auth.staff_router,
+    roles.router,
+    menu.router,
     content.router,
     content.admin_router,
     booking_engine.router,
