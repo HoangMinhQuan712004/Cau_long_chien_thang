@@ -33,6 +33,7 @@ export function VideoScreen() {
   const [items, setItems] = useState<MemberRecordVideo[] | null>(null);
   const [error, setError] = useState("");
   const [mine, setMine] = useState<MineRecord[] | null>(null);
+  const [courts, setCourts] = useState<{ code: string; name: string }[]>([]);
   const [mineError, setMineError] = useState("");
   const [submitOpen, setSubmitOpen] = useState(false);
   const [withdraw, setWithdraw] = useState<MineRecord | null>(null);
@@ -51,7 +52,8 @@ export function VideoScreen() {
   const loadMine = useCallback(async () => {
     const res = await getMineRecords();
     if (res.ok) {
-      setMine(res.data);
+      setMine(res.data.items);
+      setCourts(res.data.resources);
       setMineError("");
     } else setMineError(errorText(res.error));
   }, []);
@@ -150,6 +152,7 @@ export function VideoScreen() {
       {submitOpen ? (
         <RecordFormDialog
           mode={{ kind: "member-submit" }}
+          courts={courts}
           onClose={() => setSubmitOpen(false)}
           onDone={() => {
             setSubmitOpen(false);

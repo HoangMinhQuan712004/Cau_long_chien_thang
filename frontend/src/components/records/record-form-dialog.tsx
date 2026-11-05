@@ -25,7 +25,8 @@ const hmOf = (iso: string) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit"
 
 type Court = { code: string; name: string };
 
-export function RecordFormDialog({ mode, onClose, onDone }: { mode: RecordFormMode; onClose: () => void; onDone: () => void }) {
+/** `courts`: danh sách sân do nơi gọi cấp (hội viên: từ /mine); bỏ trống thì lấy từ lịch công khai. */
+export function RecordFormDialog({ mode, courts: given, onClose, onDone }: { mode: RecordFormMode; courts?: Court[]; onClose: () => void; onDone: () => void }) {
   const editing = mode.kind === "admin-edit" ? mode.record : null;
   const id = useId();
   const [customer, setCustomer] = useState<CustomerState>(emptyCustomer);
@@ -34,25 +35,28 @@ export function RecordFormDialog({ mode, onClose, onDone }: { mode: RecordFormMo
   const [time, setTime] = useState(editing ? hmOf(editing.measured_at) : nowHm());
   const [court, setCourt] = useState(editing?.resource_code ?? "");
   const [url, setUrl] = useState(editing?.video?.url ?? "");
-  const [courts, setCourts] = useState<Court[]>([]);
+  const [fetched, setFetched] = useState<Court[]>([]);
+  const courts = given ?? fetched;
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   // Danh sách sân lấy từ lịch công khai (hội viên không có quyền xem danh mục sân)
   useEffect(() => {
+    if (given) return;
     let live = true;
     void getWebCalendar(todayVn()).then((res) => {
       if (!live || !res.ok) return;
       const list = res.data.resources.map((r) => ({ code: r.code, name: r.name }));
-      setCourts(list);
-      // Dòng cũ chỉ có tên sân: chọn lại theo tên
-      setCourt((cur) => cur || (editing?.resource_name ? (list.find((c) => c.name === editing.resource_name)?.code ?? "") : ""));
+      setFetched(list);
     });
     return () => {
       live = false;
     };
-  }, [editing]);
+  }, [given]);
+
+  // Dòng cũ chỉ có tên sân: chọn lại theo tên khi đã có danh sách
+  const courtValue = court || (editing?.resource_name ? (courts.find((c) => c.name === editing.resource_name)?.code ?? "") : "");
 
   const parsed = parseVideoUrl(url);
   const speedNum = Number(speed);
@@ -69,11 +73,11 @@ export function RecordFormDialog({ mode, onClose, onDone }: { mode: RecordFormMo
     if (invalid || busy) return;
     setBusy(true);
     setBanner("");
-    const body: RecordInput = { speed_kmh: speedNum, measured_at: vnIso(date, time), resource_code: court || null, video_url: url.trim() || null };
+    const body: RecordInput = { speed_kmh: speedNum, measured_at: vnIso(date, time), resource_code: courtValue || null, video_url: url.trim() || null };
     try {
       const res = await write((key) => {
         if (mode.kind === "admin-create") return sendAdminCreateRecord(key, { ...body, member_code: customer.picked!.member_code });
-        if (mode.kind === "admin-edit") return sendAdminUpdateRecord(key, mode.record.id, { ...body, ...(mode.record.version !== undefined ? { version: mode.record.version } : { updated_at: mode.record.updated_at }) });
+        if (mode.kind === "admin-edit") return sendAdminUpdateRecord(key, mode.record.id, { ...body, version: mode.record.version ?? 0 });
         return sendMemberSubmitRecord(key, body);
       });
       if (!res.ok) {
@@ -129,7 +133,7 @@ export function RecordFormDialog({ mode, onClose, onDone }: { mode: RecordFormMo
           <label htmlFor={`${id}-court`} className="mb-1 block text-sm font-medium">
             Sân (không bắt buộc)
           </label>
-          <select id={`${id}-court`} value={court} onChange={(e) => setCourt(e.target.value)} className={`${inputCls} h-11`}>
+          <select id={`${id}-court`} value={courtValue} onChange={(e) => setCourt(e.target.value)} className={`${inputCls} h-11`}>
             <option value="">Không chọn sân</option>
             {courts.map((c) => (
               <option key={c.code} value={c.code}>

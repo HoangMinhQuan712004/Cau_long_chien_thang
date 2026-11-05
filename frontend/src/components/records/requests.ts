@@ -43,7 +43,7 @@ export const getMemberVideos = (period: VideoPeriod) => read<components["schemas
 export type RecordSource = "device" | "admin" | "member";
 export type RecordStatus = "approved" | "pending" | "rejected";
 /** Dòng của Admin: các trường T-047 là tùy chọn để chạy được cả với server cũ. */
-export type AdminRecordRow = AdminSpeedRecord & { source?: RecordSource; status?: RecordStatus; reject_reason?: string | null; resource_code?: string | null; version?: number; updated_at?: string | null };
+export type AdminRecordRow = AdminSpeedRecord & { source?: RecordSource; status?: RecordStatus; reject_reason?: string | null; resource_code?: string | null; version?: number };
 
 /** Dữ liệu một số đo gửi lên (Admin thêm / sửa, hội viên gửi). `measured_at` là ISO có múi giờ +07:00. */
 export type RecordInput = { speed_kmh: number; measured_at: string; resource_code?: string | null; video_url?: string | null };
@@ -51,7 +51,7 @@ export type RecordInput = { speed_kmh: number; measured_at: string; resource_cod
 export const sendAdminCreateRecord = (key: string, body: RecordInput & { member_code: string }) => looseApi.POST(`${P}/admin/speed-records`, { body, headers: idem(key) });
 
 /** Sửa: kèm `version` (hoặc `updated_at`) của dòng đang xem để chống ghi đè. */
-export const sendAdminUpdateRecord = (key: string, id: number, body: RecordInput & { version?: number; updated_at?: string | null }) =>
+export const sendAdminUpdateRecord = (key: string, id: number, body: RecordInput & { version: number }) =>
   looseApi.PATCH(`${P}/admin/speed-records/{record_id}`, { params: { path: { record_id: id } }, body, headers: idem(key) });
 
 export const sendAdminDeleteRecord = (key: string, id: number) => looseApi.DELETE(`${P}/admin/speed-records/{record_id}`, { params: { path: { record_id: id } }, headers: idem(key) });
@@ -66,7 +66,8 @@ export const sendMemberWithdrawRecord = (key: string, id: number) => looseApi.DE
 
 /** Số đo của chính mình (mọi trạng thái), mới nhất trước. */
 export type MineRecord = { id: number; speed_kmh: number; measured_at: string; resource_name?: string | null; status: RecordStatus; reject_reason?: string | null; video?: components["schemas"]["VideoOut"] | null };
-export const getMineRecords = () =>
-  read<{ items: MineRecord[] } | MineRecord[]>(() => looseApi.GET(`${P}/member-area/speed-records/mine`, {})).then((r): Read<MineRecord[]> => (r.ok ? { ok: true, data: Array.isArray(r.data) ? r.data : r.data.items } : r));
+/** `resources`: các sân chọn được trong hộp "Gửi cú đập" (hội viên không có quyền /booking/resources). */
+export type MineRecords = { items: MineRecord[]; resources: { code: string; name: string }[] };
+export const getMineRecords = () => read<MineRecords>(() => looseApi.GET(`${P}/member-area/speed-records/mine`, {}));
 
 export const SOURCE_LABEL: Record<RecordSource, string> = { device: "Máy đo", admin: "Admin nhập", member: "Hội viên gửi" };
