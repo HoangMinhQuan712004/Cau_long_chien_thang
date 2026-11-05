@@ -21,9 +21,9 @@ const P = "/api/v1";
 const idem = (key: string) => ({ "Idempotency-Key": key });
 
 export type AdminSpeedRecord = components["schemas"]["AdminSpeedRecordRow"];
-export type AdminSpeedRecordList = components["schemas"]["AdminSpeedRecordList"];
+export type AdminSpeedRecordList = Omit<components["schemas"]["AdminSpeedRecordList"], "items"> & { items: AdminRecordRow[] };
 
-export const getAdminSpeedRecords = (f: { has_video?: boolean; page?: number; size?: number }) => {
+export const getAdminSpeedRecords = (f: { has_video?: boolean; status?: RecordStatus; source?: RecordSource; page?: number; size?: number }) => {
   const query = Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined));
   return read<AdminSpeedRecordList>(() => looseApi.GET(`${P}/admin/speed-records`, { params: { query } }));
 };
@@ -37,3 +37,36 @@ export const sendRemoveRecordVideo = (key: string, id: number) => looseApi.DELET
 export type MemberRecordVideo = components["schemas"]["RecordVideoCard"];
 export type VideoPeriod = "week" | "month" | "year" | "all";
 export const getMemberVideos = (period: VideoPeriod) => read<components["schemas"]["RecordVideoList"]>(() => looseApi.GET(`${P}/member-area/record-videos`, { params: { query: { period } } }));
+
+// ---- T-047: số đo nhập tay (Admin) + hội viên gửi chờ duyệt ----
+// Kiểu viết tay theo contract trong spec; đổi sang kiểu sinh từ schema.d.ts khi BE handoff.
+export type RecordSource = "device" | "admin" | "member";
+export type RecordStatus = "approved" | "pending" | "rejected";
+/** Dòng của Admin: các trường T-047 là tùy chọn để chạy được cả với server cũ. */
+export type AdminRecordRow = AdminSpeedRecord & { source?: RecordSource; status?: RecordStatus; reject_reason?: string | null; resource_code?: string | null; version?: number; updated_at?: string | null };
+
+/** Dữ liệu một số đo gửi lên (Admin thêm / sửa, hội viên gửi). `measured_at` là ISO có múi giờ +07:00. */
+export type RecordInput = { speed_kmh: number; measured_at: string; resource_code?: string | null; video_url?: string | null };
+
+export const sendAdminCreateRecord = (key: string, body: RecordInput & { member_code: string }) => looseApi.POST(`${P}/admin/speed-records`, { body, headers: idem(key) });
+
+/** Sửa: kèm `version` (hoặc `updated_at`) của dòng đang xem để chống ghi đè. */
+export const sendAdminUpdateRecord = (key: string, id: number, body: RecordInput & { version?: number; updated_at?: string | null }) =>
+  looseApi.PATCH(`${P}/admin/speed-records/{record_id}`, { params: { path: { record_id: id } }, body, headers: idem(key) });
+
+export const sendAdminDeleteRecord = (key: string, id: number) => looseApi.DELETE(`${P}/admin/speed-records/{record_id}`, { params: { path: { record_id: id } }, headers: idem(key) });
+
+export const sendApproveRecord = (key: string, id: number) => looseApi.POST(`${P}/admin/speed-records/{record_id}/approve`, { params: { path: { record_id: id } }, headers: idem(key) });
+
+export const sendRejectRecord = (key: string, id: number, reason: string) => looseApi.POST(`${P}/admin/speed-records/{record_id}/reject`, { params: { path: { record_id: id } }, body: { reason }, headers: idem(key) });
+
+export const sendMemberSubmitRecord = (key: string, body: RecordInput) => looseApi.POST(`${P}/member-area/speed-records`, { body, headers: idem(key) });
+
+export const sendMemberWithdrawRecord = (key: string, id: number) => looseApi.DELETE(`${P}/member-area/speed-records/{record_id}`, { params: { path: { record_id: id } }, headers: idem(key) });
+
+/** Số đo của chính mình (mọi trạng thái), mới nhất trước. */
+export type MineRecord = { id: number; speed_kmh: number; measured_at: string; resource_name?: string | null; status: RecordStatus; reject_reason?: string | null; video?: components["schemas"]["VideoOut"] | null };
+export const getMineRecords = () =>
+  read<{ items: MineRecord[] } | MineRecord[]>(() => looseApi.GET(`${P}/member-area/speed-records/mine`, {})).then((r): Read<MineRecord[]> => (r.ok ? { ok: true, data: Array.isArray(r.data) ? r.data : r.data.items } : r));
+
+export const SOURCE_LABEL: Record<RecordSource, string> = { device: "Máy đo", admin: "Admin nhập", member: "Hội viên gửi" };
