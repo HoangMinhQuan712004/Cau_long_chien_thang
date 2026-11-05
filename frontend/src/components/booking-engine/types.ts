@@ -192,12 +192,6 @@ export type Transactions = {
 /** Khách gửi lên: đúng một trong hai (server tự dựng snapshot – ADR-004 S8). */
 export type CustomerPayload = { member_code: string } | { temp: { full_name: string; phone: string; note?: string } };
 
-/** Đặt theo tháng (gói): kiểu lấy thẳng từ schema. `weekdays` theo ISO: T2 = 1 … CN = 7. */
-export type SeriesParams = Omit<Api["schemas"]["SeriesIn"], "dates" | "customer">;
-export type SeriesDate = Api["schemas"]["SeriesPreviewDate"];
-export type SeriesPreview = Api["schemas"]["SeriesPreviewOut"];
-export type SeriesDetail = Api["schemas"]["SeriesOut"];
-
 /** Vùng chọn trên lịch. */
 export type Selection = { resourceCodes: string[]; date: string; startHour: number; endHour: number };
 

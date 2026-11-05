@@ -117,61 +117,6 @@ def new_order(
     )
 
 
-async def add_block(
-    session: AsyncSession,
-    ctx: Ctx,
-    actor: Actor,
-    order: BookingOrder,
-    seq: int,
-    resource_id: int,
-    day: date,
-    start_hour: int,
-    end_hour: int,
-    items: list,
-    snapshot: dict,
-    note: str | None,
-) -> Booking:
-    """Một khối của đơn: booking Chưa thanh toán + chỗ chiếm ``active`` (exclusion constraint
-    chặn trùng – lớp gọi bắt ``IntegrityError``). Không commit."""
-    start_at = ctx.at(day, start_hour * 60)
-    end_at = ctx.at(day, end_hour * 60)
-    booking = Booking(
-        tenant_id=order.tenant_id,
-        order_id=order.id,
-        seq=seq,
-        code=child_code(order.code, seq),
-        source="counter",
-        resource_id=resource_id,
-        play_date=day,
-        start_at=start_at,
-        end_at=end_at,
-        amount=sum(i.price for i in items),
-        price_breakdown=[i.model_dump() for i in items],
-        payment_status="unpaid",
-        note=note,
-        created_by_type=actor.type,
-        created_by_id=actor.id,
-        created_by_label=actor.label,
-        version=1,
-        **snapshot,
-    )
-    session.add(booking)
-    await session.flush()
-    session.add(
-        Allocation(
-            tenant_id=order.tenant_id,
-            resource_id=resource_id,
-            time_range=Range(start_at, end_at, bounds="[)"),
-            kind="booking",
-            booking_id=booking.id,
-            owner_code=booking.code,
-            active=True,
-        )
-    )
-    await session.flush()
-    return booking
-
-
 async def find_order(session: AsyncSession, tenant_id: int, code: str) -> BookingOrder | None:
     """Đơn theo mã đơn **hoặc** mã con (AC3, AC4)."""
     order = await session.scalar(

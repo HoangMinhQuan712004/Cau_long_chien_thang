@@ -19,7 +19,7 @@ export default function BookingCalendarPage({ searchParams }: PageProps<"/admin/
 
 async function CalendarLoader({ searchParams }: Pick<PageProps<"/admin/dat-san">, "searchParams">) {
   // Đọc cookie (dữ liệu theo người dùng) trước khi dùng giờ hiện tại, để Next coi đây là nội dung động.
-  const [perms, { adminNav, series }] = await Promise.all([adminPerms(), getDictionary()]);
+  const [perms, { adminNav }] = await Promise.all([adminPerms(), getDictionary()]);
   if (!can(perms, "booking.calendar.view")) return <p className="text-muted">{adminNav.noPermission}</p>;
   const sp = await searchParams;
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayVn();
@@ -29,5 +29,5 @@ async function CalendarLoader({ searchParams }: Pick<PageProps<"/admin/dat-san">
     if (calendar.status === 403) return <p className="text-muted">{adminNav.noPermission}</p>;
     throw new Error("Không tải được lịch đặt sân");
   }
-  return <CalendarScreen initial={calendar.data} seriesT={series} canSeries={can(perms, "booking.counter.create")} />;
+  return <CalendarScreen initial={calendar.data} />;
 }

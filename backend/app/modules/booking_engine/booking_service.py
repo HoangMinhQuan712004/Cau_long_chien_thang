@@ -57,7 +57,7 @@ from app.modules.booking_engine.models import (
 )
 from app.modules.booking_engine.orders import (
     MAX_BLOCKS,
-    add_block,
+    child_code,
     conflicts_of,
     emit_created,
     find_order,
@@ -559,20 +559,43 @@ async def create_counter_order(
             session.add(order)
             await session.flush()
             for seq, (r, start_hour, end_hour, items) in enumerate(planned, start=1):
-                booking = await add_block(
-                    session,
-                    ctx,
-                    actor,
-                    order,
-                    seq,
-                    r.id,
-                    data.date,
-                    start_hour,
-                    end_hour,
-                    items,
-                    snapshot,
-                    clean_note,
+                code = child_code(order_code, seq)
+                start_at = ctx.at(data.date, start_hour * 60)
+                end_at = ctx.at(data.date, end_hour * 60)
+                booking = Booking(
+                    tenant_id=tenant_id,
+                    order_id=order.id,
+                    seq=seq,
+                    code=code,
+                    source="counter",
+                    resource_id=r.id,
+                    play_date=data.date,
+                    start_at=start_at,
+                    end_at=end_at,
+                    amount=sum(i.price for i in items),
+                    price_breakdown=[i.model_dump() for i in items],
+                    payment_status="unpaid",
+                    note=clean_note,
+                    created_by_type=actor.type,
+                    created_by_id=actor.id,
+                    created_by_label=actor.label,
+                    version=1,
+                    **snapshot,
                 )
+                session.add(booking)
+                await session.flush()
+                session.add(
+                    Allocation(
+                        tenant_id=tenant_id,
+                        resource_id=r.id,
+                        time_range=Range(start_at, end_at, bounds="[)"),
+                        kind="booking",
+                        booking_id=booking.id,
+                        owner_code=code,
+                        active=True,
+                    )
+                )
+                await session.flush()
                 blocks.append((booking, r))
     except IntegrityError as e:
         if sqlstate(e) == EXCLUSION_VIOLATION:

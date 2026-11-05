@@ -25,7 +25,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSTZRANGE, ExcludeConstraint, Range
+from sqlalchemy.dialects.postgresql import JSONB, TSTZRANGE, ExcludeConstraint, Range
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -348,48 +348,6 @@ class Hold(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-class BookingSeries(_CustomerSnapshot, Base):
-    """Gói đặt theo tháng (quầy): 1 sân, 1 khung giờ, các thứ trong tuần của một tháng.
-
-    Mỗi ngày của gói = một đơn (``booking_order.series_id``) một booking – giá, chống trùng, thu
-    tiền vẫn theo từng booking; ``total`` = tổng tiền các ngày lúc tạo. Mã ``GT-YYMM-NNN``.
-    """
-
-    __tablename__ = "booking_series"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "code"),
-        CheckConstraint("status IN ('active', 'cancelled', 'completed')", name="status"),
-        CheckConstraint(
-            "start_hour >= 0 AND start_hour < end_hour AND end_hour <= 24", name="hours"
-        ),
-        CheckConstraint("total >= 0", name="total_non_negative"),
-        CheckConstraint("customer_kind IN ('member', 'temp')", name="customer_kind"),
-        {"schema": SCHEMA},
-    )
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
-    code: Mapped[str] = mapped_column(String(30))
-    resource_id: Mapped[int] = mapped_column(
-        ForeignKey(f"{SCHEMA}.resource.id", ondelete="RESTRICT"), index=True
-    )
-    month: Mapped[date] = mapped_column(Date)  # ngày 1 của tháng
-    weekdays: Mapped[list[int]] = mapped_column(ARRAY(SmallInteger))  # ISO 1 = Thứ 2 … 7 = CN
-    start_hour: Mapped[int] = mapped_column(SmallInteger)
-    end_hour: Mapped[int] = mapped_column(SmallInteger)
-    total: Mapped[int] = mapped_column(Integer)
-    status: Mapped[str] = mapped_column(String(10), server_default=text("'active'"))
-    note: Mapped[str | None] = mapped_column(String(500))
-    created_by_type: Mapped[str] = mapped_column(String(20))
-    created_by_id: Mapped[int | None] = mapped_column(BigInteger)
-    created_by_label: Mapped[str] = mapped_column(String(100))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
-    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
-
-
 class BookingOrder(_CustomerSnapshot, Base):
     """Đơn đặt (ADR-010): một checkout online đã thanh toán, hoặc một lần bấm Đặt sân ở quầy.
 
@@ -415,10 +373,6 @@ class BookingOrder(_CustomerSnapshot, Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     created_by_label: Mapped[str] = mapped_column(String(100))
-    # Ngày của gói đặt theo tháng (None = đơn lẻ)
-    series_id: Mapped[int | None] = mapped_column(
-        ForeignKey(f"{SCHEMA}.booking_series.id", ondelete="RESTRICT"), index=True
-    )
 
 
 class Booking(_CustomerSnapshot, _Payment, Base):

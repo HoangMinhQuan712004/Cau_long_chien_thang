@@ -13,7 +13,6 @@ const TAILWIND_CHECKED = [
   "src/app/admin/lich-su-thao-tac/**/*.tsx",
   "src/app/admin/ho-so/**/*.tsx",
   "src/app/admin/cai-dat/phan-quyen/**/*.tsx",
-  "src/components/booking-engine/series-*.tsx",
 ];
 
 const eslintConfig = defineConfig([
