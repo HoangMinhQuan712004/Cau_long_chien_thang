@@ -1706,7 +1706,8 @@ export interface paths {
          * Submit Speed Record
          * @description Gửi cú đập của **chính mình** (km/h, thời điểm, sân, link video) -> "Chờ duyệt"; chưa tính
          *     hạng / kỷ lục tới khi Admin duyệt. Audit ``record.submit``.
-         *     403 E-REC-7 (hội viên Ngừng) · 422 E-REC-5 / E-REC-6 / E-REC-1 · 429 E-SEC-5 (> 5 lượt / ngày).
+         *     403 E-REC-7 (hội viên Ngừng) · 422 E-REC-5 / E-REC-6 / E-REC-1 · 429 E-SEC-5 (đã gửi 5 bản
+         *     trong ngày giờ VN – mọi trạng thái, bản đã rút lại không tính; lượt lỗi không tính).
          */
         post: operations["submit_speed_record_api_v1_member_area_speed_records_post"];
         delete?: never;

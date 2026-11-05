@@ -10,6 +10,7 @@ from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.members.models import Customer
+from app.modules.records import manual
 from app.modules.records.models import SpeedRecord
 from tests import test_play_rooms as base
 from tests.conftest import API, idem
@@ -351,3 +352,44 @@ async def test_member_submit_limits_and_validation(anon, people):
     assert (await anon.get(f"{MINE}/mine")).status_code == 401
     r = await anon.post(MINE, json={"speed_kmh": 200, "measured_at": at}, headers=idem())
     assert r.status_code == 401
+
+
+async def submitted_at(customer_id: int, created_at: datetime, n: int) -> None:
+    """``n`` bản hội viên gửi (bị từ chối – vẫn đếm) với giờ gửi ``created_at``."""
+    async with SessionLocal() as s:
+        for _ in range(n):
+            s.add(
+                SpeedRecord(
+                    customer_id=customer_id,
+                    speed_kmh=150,
+                    measured_at=created_at - timedelta(hours=1),
+                    source_ref=f"{TAG}{uuid.uuid4()}",
+                    source="member",
+                    status="rejected",
+                    reject_reason="test",
+                    created_at=created_at,
+                )
+            )
+        await s.commit()
+
+
+async def test_daily_limit_follows_vietnam_calendar_day(people):
+    hv = await person(people, "Qua Nửa Đêm")
+    start, end = manual.day_bounds(datetime.now(UTC))
+    assert start.utcoffset() == timedelta(hours=7) and end - start == timedelta(days=1)
+    # 5 bản gửi lúc 23:59:59 hôm qua (giờ VN) không tính cho hôm nay
+    await submitted_at(hv.customer_id, start - timedelta(seconds=1), 5)
+    body = {"speed_kmh": 210, "measured_at": now().isoformat()}
+    r = await hv.client.post(MINE, json=body, headers=idem())
+    assert r.status_code == 201, r.text
+    # Thêm 4 bản đúng 00:00 hôm nay (mọi trạng thái đều đếm) -> đủ 5 -> lượt thứ 6 bị chặn
+    await submitted_at(hv.customer_id, start, 4)
+    r = await hv.client.post(MINE, json=body, headers=idem())
+    assert r.status_code == 429 and code_of(r) == "E-SEC-5"
+    assert 0 < int(r.headers["Retry-After"]) <= 86400  # tới 00:00 hôm sau giờ VN
+    # Bản đã rút lại là đã xóa -> không đếm: rút lại 1 bản chờ duyệt thì gửi được thêm
+    mine = (await hv.client.get(f"{MINE}/mine")).json()["items"]
+    pending = next(i["id"] for i in mine if i["status"] == "pending")
+    assert (await hv.client.delete(f"{MINE}/{pending}", headers=idem())).status_code == 204
+    r = await hv.client.post(MINE, json=body, headers=idem())
+    assert r.status_code == 201, r.text
