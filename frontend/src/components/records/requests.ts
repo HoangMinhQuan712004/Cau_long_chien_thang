@@ -1,5 +1,5 @@
 import "client-only";
-import { looseApi } from "@/lib/api/client";
+import { api, looseApi } from "@/lib/api/client";
 import { toApiError, type ApiError } from "@/lib/api/write";
 import type { components } from "@/lib/api/schema";
 
@@ -44,6 +44,14 @@ export type RecordSource = "device" | "admin" | "member";
 export type RecordStatus = "approved" | "pending" | "rejected";
 /** Dòng của Admin: các trường T-047 là tùy chọn để chạy được cả với server cũ. */
 export type AdminRecordRow = AdminSpeedRecord & { source?: RecordSource; status?: RecordStatus; reject_reason?: string | null; resource_code?: string | null; version?: number };
+
+/** Danh sách sân của Admin (cùng nguồn với Sân & bảng giá): gồm cả sân ngừng hoạt động. */
+export type CourtOption = { code: string; name: string; is_active: boolean };
+export const getAdminCourts = () =>
+  read<CourtOption[]>(async () => {
+    const res = await api.GET("/api/v1/booking/resources");
+    return { ...res, data: res.data?.items.map((r) => ({ code: r.code, name: r.name, is_active: r.is_active })) };
+  });
 
 /** Dữ liệu một số đo gửi lên (Admin thêm / sửa, hội viên gửi). `measured_at` là ISO có múi giờ +07:00. */
 export type RecordInput = { speed_kmh: number; measured_at: string; resource_code?: string | null; video_url?: string | null };

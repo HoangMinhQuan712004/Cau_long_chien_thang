@@ -4,13 +4,12 @@ import { useEffect, useId, useState } from "react";
 import { authFailure } from "@/components/booking-engine/booking-dialogs";
 import { CustomerPicker, type CustomerState, emptyCustomer } from "@/components/booking-engine/customer-picker";
 import { btnCls, btnPrimaryCls, ErrorBanner, inputCls } from "@/components/booking-engine/ui";
-import { getWebCalendar } from "@/components/web-booking/requests";
 import { Modal } from "@/components/ui/modal";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
 import { addDaysIso, todayVn, vnDate, vnIso } from "@/lib/format";
 import { parseVideoUrl, VIDEO_LINK_HINT } from "@/lib/video";
-import { type AdminRecordRow, type RecordInput, sendAdminCreateRecord, sendAdminUpdateRecord, sendMemberSubmitRecord } from "./requests";
+import { type AdminRecordRow, getAdminCourts, type RecordInput, sendAdminCreateRecord, sendAdminUpdateRecord, sendMemberSubmitRecord } from "./requests";
 import { VideoPlayer } from "./video-player";
 
 // Hộp nhập số đo (T-047): Admin thêm / sửa, hội viên gửi cú đập (chờ duyệt). Giờ nhập theo múi giờ Việt Nam.
@@ -23,9 +22,9 @@ const MAX = 500;
 const nowHm = () => new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
 const hmOf = (iso: string) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(iso));
 
-type Court = { code: string; name: string };
+type Court = { code: string; name: string; is_active?: boolean };
 
-/** `courts`: danh sách sân do nơi gọi cấp (hội viên: từ /mine); bỏ trống thì lấy từ lịch công khai. */
+/** `courts`: danh sách sân do nơi gọi cấp (hội viên: từ /mine); bỏ trống (Admin) thì lấy từ API sân của Admin. */
 export function RecordFormDialog({ mode, courts: given, onClose, onDone }: { mode: RecordFormMode; courts?: Court[]; onClose: () => void; onDone: () => void }) {
   const editing = mode.kind === "admin-edit" ? mode.record : null;
   const id = useId();
@@ -41,14 +40,13 @@ export function RecordFormDialog({ mode, courts: given, onClose, onDone }: { mod
   const [banner, setBanner] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  // Danh sách sân lấy từ lịch công khai (hội viên không có quyền xem danh mục sân)
+  // Admin: danh mục sân thật (gồm sân ngừng); hội viên không có quyền này nên nhận danh sách từ /mine
   useEffect(() => {
     if (given) return;
     let live = true;
-    void getWebCalendar(todayVn()).then((res) => {
+    void getAdminCourts().then((res) => {
       if (!live || !res.ok) return;
-      const list = res.data.resources.map((r) => ({ code: r.code, name: r.name }));
-      setFetched(list);
+      setFetched(res.data);
     });
     return () => {
       live = false;
@@ -138,6 +136,7 @@ export function RecordFormDialog({ mode, courts: given, onClose, onDone }: { mod
             {courts.map((c) => (
               <option key={c.code} value={c.code}>
                 {c.name}
+                {c.is_active === false ? " (ngừng hoạt động)" : ""}
               </option>
             ))}
           </select>
