@@ -77,9 +77,11 @@ export function RecordFormDialog({ mode, courts: given, dailyLimit = 5, onClose,
         if (mode.kind === "admin-create") return sendAdminCreateRecord(key, { ...body, member_code: customer.picked!.member_code });
         if (mode.kind === "admin-edit") return sendAdminUpdateRecord(key, mode.record.id, { ...body, version: mode.record.version });
         return sendMemberSubmitRecord(key, body);
-      });
+        // Hết lượt trong ngày: báo ngay, không tự thử lại (Retry-After kéo dài tới 0h hôm sau)
+      }, { retryRateLimit: false });
       if (!res.ok) {
-        if (!authFailure(res.error)) setBanner(errorText(res.error));
+        if (res.error.code === "E-SEC-5") setBanner(`Hôm nay bạn đã gửi đủ ${dailyLimit} lượt, thử lại sau 0h.`);
+        else if (!authFailure(res.error)) setBanner(errorText(res.error));
         return;
       }
       if (mode.kind === "member-submit") toast("Đã gửi cú đập", "Admin sẽ duyệt trước khi tính vào bảng xếp hạng.");
