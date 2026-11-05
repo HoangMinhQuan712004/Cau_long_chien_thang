@@ -76,7 +76,7 @@ export function ReportScreen({ initial, today, t }: Props) {
   ) : isLoading ? <Skeleton className="h-4 w-60 max-w-full sm:w-80" /> : null;
 
   return (
-    <div aria-busy={isLoading} className="flex max-w-7xl flex-col gap-3 sm:gap-4 lg:gap-5">
+    <div aria-busy={isLoading} className="flex w-full flex-col gap-3 sm:gap-4 lg:gap-5">
       <PageHeader
         title={t.title}
         description={description}
@@ -110,7 +110,7 @@ export function ReportScreen({ initial, today, t }: Props) {
         <>
           <KpiCards data={shown} t={t.kpi} />
           {shown && shown.revenue.current === 0 ? <Alert variant="info">{t.errors.empty}</Alert> : null}
-          <div className="grid gap-3 lg:grid-cols-2 lg:gap-4">
+          <div className="grid gap-3 lg:gap-4 xl:grid-cols-2">
             <ChartCard
               title={t.daily.title}
               subtitle={shown ? fill(t.daily.subtitle, { range, n: shown.active_courts }) : null}

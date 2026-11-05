@@ -121,7 +121,11 @@ export function CapacityHeatmap({ heatmap, scrollLabel, t }: Props) {
                       className="p-px sm:p-0.5"
                     >
                       <span className={cn(
-                        "flex h-7 items-center justify-center rounded-sm sm:h-8 sm:rounded-md",
+                        `
+                          flex h-7 items-center justify-center rounded-sm
+                          sm:h-8 sm:rounded-md
+                          2xl:h-9
+                        `,
                         selected === label && "ring-2 ring-foreground ring-inset",
                         isClosed ? "text-subtle" : LEVEL_CLASS[level(pct)],
                       )}>

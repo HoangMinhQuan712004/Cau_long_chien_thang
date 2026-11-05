@@ -48,7 +48,7 @@ async function ReportLoader() {
 function ReportSkeleton() {
   return (
     // Cùng khung với màn thật: rộng tối đa 7xl (màn 1920 không kéo dãn quá rộng)
-    <div className="flex max-w-7xl flex-col gap-3 sm:gap-4 lg:gap-5">
+    <div className="flex w-full flex-col gap-3 sm:gap-4 lg:gap-5">
       <PageHeader
         title={<Skeleton className="h-7 w-52" />}
         description={<Skeleton className="h-4 w-80 max-w-full" />}
@@ -75,7 +75,7 @@ function ReportSkeleton() {
           </Card>
         ))}
       </div>
-      <div className="grid gap-3 lg:grid-cols-2 lg:gap-4">
+      <div className="grid gap-3 lg:gap-4 xl:grid-cols-2">
         {[0, 1].map((i) => (
           <Card key={i} className="flex flex-col gap-3 px-4 py-3.5 lg:px-4.5 lg:py-4">
             <Skeleton className="h-5 w-40" />

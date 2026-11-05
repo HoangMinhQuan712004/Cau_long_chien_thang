@@ -49,7 +49,7 @@ export const dragScrollClass = (isScrollable: boolean, isDragging: boolean) =>
   `);
 
 /** Chiều cao vùng vẽ theo cỡ màn (biểu đồ và khung chờ dùng chung ⇒ tải xong không nhảy). */
-export const CHART_HEIGHT = "h-56 sm:h-64 2xl:h-72";
+export const CHART_HEIGHT = "h-56 sm:h-64 2xl:h-72 3xl:h-80";
 
 /** Khung chờ đúng chiều cao vùng vẽ (heatmap truyền chiều cao riêng). */
 export function ChartSkeleton({ className = CHART_HEIGHT }: { className?: string }) {
