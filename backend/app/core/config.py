@@ -83,6 +83,8 @@ class Settings(BaseSettings):
     ADMIN_SESSION_HOURS: int = 12  # phiên Admin / nhân viên hết hạn cứng, không gia hạn
     LOGIN_MAX_ATTEMPTS: int = 5  # sai liên tiếp N lần -> tạm khóa tài khoản
     LOGIN_LOCK_MINUTES: int = 15
+    # Login không tồn tại: nhớ chuỗi lần sai bấy lâu (tài khoản thật đếm "liên tiếp" không hạn)
+    LOGIN_GHOST_STREAK_HOURS: int = 24
     LOGIN_IP_MAX_ATTEMPTS: int = 20  # sai từ một IP trong cửa sổ -> chặn IP
     LOGIN_IP_WINDOW_MINUTES: int = 15
     REGISTER_IP_MAX_PER_HOUR: int = 10

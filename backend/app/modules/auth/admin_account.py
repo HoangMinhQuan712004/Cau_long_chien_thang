@@ -15,7 +15,6 @@ from app.core.security import hash_password, verify_password
 from app.modules.auth import sessions
 from app.modules.auth.models import AdminSession, Role, SessionEndReason, User
 from app.modules.auth.schemas import AdminProfileOut, MySessionOut
-from app.modules.auth.utils import parse_user_agent
 
 
 def profile(admin_session: AdminSession, user: User) -> AdminProfileOut:
@@ -102,21 +101,15 @@ async def list_sessions(session: AsyncSession, current: AdminSession) -> list[My
         )
         .order_by((AdminSession.id == current.id).desc(), AdminSession.created_at.desc())
     )
-    result = []
-    for row in rows:
-        device, os_name, browser = parse_user_agent(row.user_agent)
-        result.append(
-            MySessionOut(
-                id=row.id,
-                device_type=device,
-                os=os_name,
-                browser=browser,
-                created_at=row.created_at,
-                expires_at=row.expires_at,
-                is_current=row.id == current.id,
-            )
+    return [
+        MySessionOut(
+            **MySessionOut.fields_of(row),
+            created_at=row.created_at,
+            expires_at=row.expires_at,
+            is_current=row.id == current.id,
         )
-    return result
+        for row in rows
+    ]
 
 
 def _audit_logout(session: AsyncSession, user: User, **extra: int) -> None:

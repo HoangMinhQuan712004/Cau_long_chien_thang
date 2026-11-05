@@ -5,20 +5,20 @@ Hàm ở đây **commit** (thao tác đơn lẻ của trang quản trị, không
 """
 
 from datetime import UTC, datetime
+from typing import Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor, audit
 from app.core.errors import AppError
-from app.core.privacy import mask_ip
 from app.core.security import hash_password
 from app.modules.auth import sessions
 from app.modules.auth.models import STAFF_CODE_SEQ, AdminSession, Role, SessionEndReason, User
-from app.modules.auth.schemas import NewPassword
-from app.modules.auth.utils import staff_code, staff_username
+from app.modules.auth.schemas import NewPassword, SessionDeviceOut
+from app.modules.auth.utils import USERNAME_TAIL_PATTERN, staff_code, staff_username
 
 CODE_TRIES = 5
 
@@ -30,6 +30,12 @@ class StaffCreateIn(BaseModel):
 
     full_name: str = Field(min_length=1, max_length=255)
     password: NewPassword
+    username_suffix: str | None = Field(
+        default=None,
+        pattern=USERNAME_TAIL_PATTERN,
+        description="Đuôi tên đăng nhập FE đã sinh + hiện trong xem trước (4 ký tự a-z 2-9, bỏ "
+        "0 o 1 l i). Trùng -> 409 E-STAFF-3, không tự đổi. Không gửi -> server tự sinh.",
+    )
 
 
 class StaffUpdateIn(BaseModel):
@@ -56,12 +62,31 @@ class StaffOut(BaseModel):
     active_sessions: int
 
 
-class StaffSessionOut(BaseModel):
-    id: int
+EndReason = Literal[
+    "active", "logout", "expired", "password_changed", "account_disabled", "revoked_by_admin"
+]
+
+
+class NextStaffCodeOut(BaseModel):
+    staff_code: str = Field(description="Mã dự kiến của NV kế tiếp – có thể lệch nếu tạo đồng thời")
+
+
+class StaffSessionOut(SessionDeviceOut):
+    """Thiết bị đang đăng nhập của NV – không trả IP (người dùng chốt 2026-11-05)."""
+
     created_at: datetime
     expires_at: datetime
-    user_agent: str | None
-    ip_masked: str | None
+
+
+class StaffSessionHistoryOut(SessionDeviceOut):
+    """Một lần đăng nhập của NV (đang mở hoặc đã kết thúc) – không trả IP."""
+
+    created_at: datetime = Field(description="Lúc đăng nhập")
+    ended_at: datetime | None = Field(
+        description="Lúc thu hồi, hoặc lúc hết hạn nếu đã hết hạn; null khi còn mở"
+    )
+    end_reason: EndReason
+    is_active: bool
 
 
 def _not_found() -> AppError:
@@ -118,14 +143,28 @@ async def _one(session: AsyncSession, user: User) -> StaffOut:
     return (await list_staff(session, staff_id=user.id))[0]
 
 
+async def next_staff_code(session: AsyncSession) -> NextStaffCodeOut:
+    """Mã sẽ cấp cho lần tạo kế tiếp – đọc sequence, KHÔNG tiêu thụ (không gọi nextval)."""
+    last, called = (
+        await session.execute(text("SELECT last_value, is_called FROM staff_code_seq"))
+    ).one()
+    return NextStaffCodeOut(staff_code=staff_code(last + 1 if called else last))
+
+
+async def _username_taken(session: AsyncSession, username: str) -> bool:
+    return await session.scalar(select(User.id).where(User.username == username)) is not None
+
+
 async def create_staff(session: AsyncSession, actor: AuditActor, data: StaffCreateIn) -> StaffOut:
-    """Mã ``NV…`` từ sequence (tạo song song không trùng, không dùng lại); tên trùng -> mã kế."""
+    """Mã ``NV…`` từ sequence (tạo song song không trùng, không dùng lại); tên đăng nhập
+    = họ tên + đuôi (client gửi: trùng -> 409 E-STAFF-3; không gửi: tự sinh, trùng -> sinh lại)."""
     full_name = _clean_name(data.full_name)
     hashed = hash_password(data.password)
     for _ in range(CODE_TRIES):
         code = staff_code(await session.scalar(STAFF_CODE_SEQ.next_value()))
+        username = staff_username(full_name, data.username_suffix)
         user = User(
-            username=staff_username(full_name, code),
+            username=username,
             staff_code=code,
             full_name=full_name,
             hashed_password=hashed,
@@ -137,7 +176,12 @@ async def create_staff(session: AsyncSession, actor: AuditActor, data: StaffCrea
                 session.add(user)
                 await session.flush()
         except IntegrityError:
-            continue  # tên đăng nhập trùng tài khoản cũ đặt tay -> lấy mã kế tiếp
+            if data.username_suffix and await _username_taken(session, username):
+                # Giữ đúng tên FE đã hiện cho Admin: không tự đổi đuôi, để FE sinh đuôi mới
+                raise AppError(
+                    "E-STAFF-3", "Tên đăng nhập vừa bị trùng, hãy tạo lại.", 409
+                ) from None
+            continue  # trùng -> sinh lại (mã kế tiếp + đuôi ngẫu nhiên mới)
         break
     else:
         raise RuntimeError("Không sinh được tên đăng nhập nhân viên")
@@ -199,14 +243,41 @@ async def list_staff_sessions(session: AsyncSession, staff_id: int) -> list[Staf
     )
     return [
         StaffSessionOut(
-            id=s.id,
-            created_at=s.created_at,
-            expires_at=s.expires_at,
-            user_agent=s.user_agent,
-            ip_masked=mask_ip(s.ip),
+            **StaffSessionOut.fields_of(s), created_at=s.created_at, expires_at=s.expires_at
         )
         for s in rows
     ]
+
+
+async def staff_session_history(
+    session: AsyncSession, staff_id: int, limit: int
+) -> list[StaffSessionHistoryOut]:
+    """Các lần đăng nhập gần nhất của NV, mới nhất trước."""
+    await _get_staff(session, staff_id)
+    now = datetime.now(UTC)
+    rows = await session.scalars(
+        select(AdminSession)
+        .where(AdminSession.user_id == staff_id)
+        .order_by(AdminSession.created_at.desc(), AdminSession.id.desc())
+        .limit(limit)
+    )
+    return [_history_row(s, now) for s in rows]
+
+
+def _history_row(s: AdminSession, now: datetime) -> StaffSessionHistoryOut:
+    """Thu hồi (lý do ghi lúc thu hồi; thiếu -> đăng xuất) > hết hạn > còn mở."""
+    ended_at, reason = None, "active"
+    if s.revoked_at is not None:
+        ended_at, reason = s.revoked_at, (s.revoked_reason or SessionEndReason.LOGOUT).value
+    elif s.expires_at <= now:
+        ended_at, reason = s.expires_at, "expired"
+    return StaffSessionHistoryOut(
+        **StaffSessionHistoryOut.fields_of(s),
+        created_at=s.created_at,
+        ended_at=ended_at,
+        end_reason=cast(EndReason, reason),
+        is_active=ended_at is None,
+    )
 
 
 async def revoke_staff_session(

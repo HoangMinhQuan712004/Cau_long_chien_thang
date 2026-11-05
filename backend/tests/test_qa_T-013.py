@@ -6,6 +6,7 @@ Viết theo spec ``board/tasks/T-013-dang-nhap-nhan-vien.md`` và ADR-008, khôn
 
 import asyncio
 import hashlib
+import random
 import re
 from datetime import datetime
 
@@ -151,10 +152,26 @@ async def test_ac2_unknown_and_wrong_password_look_identical(anon, customer):
     assert err(wrong)["message"] == "Số điện thoại, tên đăng nhập hoặc mật khẩu không đúng."
 
 
-async def test_ac2_unknown_account_never_locks_or_counts(anon):
-    ghost = unique_phone()
-    codes = [(await sign_in(anon, ghost, "Wrong-Pass1")).status_code for _ in range(8)]
-    assert codes == [401] * 8, "a non-existing account must not turn into 423"
+async def test_ac2_unknown_account_locks_like_a_real_one(anon, admin):
+    # Người dùng chốt 2026-11-05: login không tồn tại cũng "bị khóa" y hệt tài khoản thật,
+    # để không dò được tài khoản qua thông báo khóa (trước đây: không bao giờ 423)
+    real = await new_staff(admin)
+    seen = []
+    for login in (unique_phone(), "khong.co.ai", real["username"]):
+        rs = [await sign_in(anon, login, "Wrong-Pass1") for _ in range(6)]
+        seen.append(
+            (
+                [r.status_code for r in rs],
+                [err(r)["code"] for r in rs],
+                err(rs[4])["message"],
+                err(rs[4])["retry_after"],
+                rs[4].headers.get("retry-after"),
+            )
+        )
+        assert 1 <= err(rs[5])["retry_after"] <= 900
+    assert seen[0][:2] == ([401] * 4 + [423] * 2, ["E-AUTH-10"] * 4 + ["E-AUTH-11"] * 2)
+    assert seen[0][3:] == (900, "900")
+    assert seen[0] == seen[1] == seen[2], seen
 
 
 async def test_ac2_five_wrong_locks_for_15_minutes(anon, admin):
@@ -471,12 +488,17 @@ async def test_ac8_staff_keeps_the_previous_permission_table(admin):
 
 
 async def test_ac10_create_staff_generates_code_and_username(admin):
+    # Mã dự kiến cho hộp Thêm nhân viên: đọc sequence, không tiêu thụ (gọi 2 lần vẫn như nhau)
+    expected = (await admin.get(f"{API}/admin/staff/next-code")).json()["staff_code"]
+    assert (await admin.get(f"{API}/admin/staff/next-code")).json()["staff_code"] == expected
     a = await new_staff(admin, "Nguyễn Văn An")
+    assert a["staff_code"] == expected
     b = await new_staff(admin, "  Đặng   Thị  Bé ")
     assert re.fullmatch(r"NV\d{3}", a["staff_code"]) and re.fullmatch(r"NV\d{3}", b["staff_code"])
     assert int(b["staff_code"][2:]) > int(a["staff_code"][2:]), "codes only go up"
-    assert a["username"] == f"an.{a['staff_code'].lower()}"
-    assert b["username"] == f"be.{b['staff_code'].lower()}"
+    # Người dùng chốt 2026-11-05: cả họ tên liền không dấu + "." + 4 ký tự ngẫu nhiên (không mã NV)
+    assert re.fullmatch(r"nguyenvanan\.[a-z2-9]{4}", a["username"])
+    assert re.fullmatch(r"dangthibe\.[a-z2-9]{4}", b["username"])
     assert b["full_name"] == "Đặng Thị Bé", "whitespace normalised"
     assert a["is_active"] is True and a["active_sessions"] == 0 and a["last_login_at"] is None
     assert set(a) == {
@@ -484,6 +506,16 @@ async def test_ac10_create_staff_generates_code_and_username(admin):
         "created_at", "last_login_at", "active_sessions",
     }  # fmt: skip
     assert "password" not in str(a).lower() and "hash" not in str(a).lower()
+    # Đuôi do FE gửi (xem trước hiện đủ tên): dùng y nguyên; trùng -> 409, không tự đổi đuôi
+    tail = "".join(random.choices("abcdefghjkmnpqrstuvwxyz23456789", k=4))
+    body = {"full_name": "Lê Văn Cường", "password": "Password123", "username_suffix": tail}
+    r = await admin.post(f"{API}/admin/staff", json=body)
+    assert r.status_code == 201 and r.json()["username"] == f"levancuong.{tail}", r.text
+    r = await admin.post(f"{API}/admin/staff", json=body)
+    assert r.status_code == 409 and err(r)["code"] == "E-STAFF-3"
+    for bad in ("ab0c", "abc", "abcde", "ABCD", "abl2"):
+        r = await admin.post(f"{API}/admin/staff", json={**body, "username_suffix": bad})
+        assert r.status_code == 422, bad
 
 
 async def test_ac10_codes_are_unique_under_concurrent_creation(admin):
@@ -504,7 +536,7 @@ async def test_ac10_codes_are_unique_under_concurrent_creation(admin):
 
 async def test_ac10_username_is_at_most_30_chars(admin):
     s = await new_staff(admin, "Nguyễn " + "Rấtrấtrấtrấtrấtrấtrấtrấtrấtdài" * 3)
-    assert len(s["username"]) <= 30 and re.fullmatch(r"[a-z0-9]+\.nv\d{3}", s["username"])
+    assert len(s["username"]) <= 30 and re.fullmatch(r"[a-z0-9]+\.[a-z2-9]{4}", s["username"])
 
 
 async def test_ac10_client_cannot_choose_username_or_code(admin):
@@ -652,8 +684,8 @@ async def test_ac12_list_and_remote_logout_a_session(admin):
     rows = r.json()
     assert len(rows) == 2
     for row in rows:
-        assert set(row) == {"id", "created_at", "expires_at", "user_agent", "ip_masked"}
-        assert row["ip_masked"] is None or "xxx" in row["ip_masked"], row["ip_masked"]
+        # Người dùng chốt 2026-11-05: không trả IP, thêm loại máy / HĐH / trình duyệt
+        assert set(row) == {"id", "device_type", "os", "browser", "created_at", "expires_at"}
     sid = rows[0]["id"]  # mới nhất = c2
     assert (await admin.delete(f"{API}/admin/staff/{s['id']}/sessions/{sid}")).status_code == 204
     assert (await c2.get(f"{API}/admin/auth/me")).status_code == 401
@@ -666,6 +698,14 @@ async def test_ac12_list_and_remote_logout_a_session(admin):
     assert await q("SELECT 1 FROM audit_log WHERE action='auth.session_revoked'")
     again = await admin.delete(f"{API}/admin/staff/{s['id']}/sessions/{sid}")
     assert again.status_code == 404 and err(again)["code"] == "E-STAFF-2"
+    # Lịch sử đăng nhập (người dùng chốt 2026-11-05): mở + đã kết thúc, mới nhất trước, không IP
+    hist = (await admin.get(f"{API}/admin/staff/{s['id']}/sessions/history?limit=5")).json()
+    assert [(h["id"], h["end_reason"], h["is_active"]) for h in hist][:2] == [
+        (sid, "revoked_by_admin", False),
+        (rows[1]["id"], "active", True),
+    ]
+    assert hist[0]["ended_at"] and hist[1]["ended_at"] is None
+    assert not any("ip" in key for key in hist[0])
 
 
 # ---------------------------------------- AC13 chỉ Admin, mã lỗi
@@ -677,10 +717,12 @@ async def test_ac13_staff_cannot_touch_staff_api(admin):
     calls = [
         ("GET", "/admin/staff", None),
         ("POST", "/admin/staff", {"full_name": "X", "password": "Password123"}),
+        ("GET", "/admin/staff/next-code", None),
         ("PATCH", f"/admin/staff/{s['id']}", {"is_active": False}),
         ("POST", f"/admin/staff/{s['id']}/password", {"password": "Password123"}),
         ("GET", f"/admin/staff/{s['id']}/sessions", None),
         ("DELETE", f"/admin/staff/{s['id']}/sessions/1", None),
+        ("GET", f"/admin/staff/{s['id']}/sessions/history", None),
     ]
     for method, path, body in calls:
         r = await c.request(method, f"{API}{path}", json=body)
@@ -697,6 +739,7 @@ async def test_ac13_ids_that_are_not_staff_are_e_staff_1(admin, customer):
             ("POST", f"/admin/staff/{sid}/password", {"password": "Password123"}),
             ("GET", f"/admin/staff/{sid}/sessions", None),
             ("DELETE", f"/admin/staff/{sid}/sessions/1", None),
+            ("GET", f"/admin/staff/{sid}/sessions/history", None),
         ):
             r = await admin.request(method, f"{API}{path}", json=body)
             assert r.status_code == 404 and err(r)["code"] == "E-STAFF-1", (sid, method, path)
