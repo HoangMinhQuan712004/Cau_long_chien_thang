@@ -466,6 +466,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/staff/next-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Next Staff Code
+         * @description Mã NV dự kiến (không tiêu thụ sequence; tạo đồng thời có thể lệch).
+         */
+        get: operations["next_staff_code_api_v1_admin_staff_next_code_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/staff/{staff_id}": {
         parameters: {
             query?: never;
@@ -515,9 +535,29 @@ export interface paths {
         };
         /**
          * List Staff Sessions
-         * @description Phiên đang mở (IP đã che).
+         * @description Thiết bị đang đăng nhập (loại máy / HĐH / trình duyệt), không trả IP. 404 E-STAFF-1.
          */
         get: operations["list_staff_sessions_api_v1_admin_staff__staff_id__sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}/sessions/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Staff Session History
+         * @description Lịch sử đăng nhập: phiên đang mở + đã kết thúc, mới nhất trước; không IP. 404 E-STAFF-1.
+         */
+        get: operations["staff_session_history_api_v1_admin_staff__staff_id__sessions_history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4555,6 +4595,14 @@ export interface components {
              */
             member_code: string;
         };
+        /** NextStaffCodeOut */
+        NextStaffCodeOut: {
+            /**
+             * Staff Code
+             * @description Mã dự kiến của NV kế tiếp – có thể lệch nếu tạo đồng thời
+             */
+            staff_code: string;
+        };
         /** NotificationList */
         NotificationList: {
             /** Items */
@@ -6880,6 +6928,11 @@ export interface components {
              * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
              */
             password: string;
+            /**
+             * Username Suffix
+             * @description Đuôi tên đăng nhập FE đã sinh + hiện trong xem trước (4 ký tự a-z 2-9, bỏ 0 o 1 l i). Trùng -> 409 E-STAFF-3, không tự đổi. Không gửi -> server tự sinh.
+             */
+            username_suffix?: string | null;
         };
         /** StaffOut */
         StaffOut: {
@@ -6911,10 +6964,57 @@ export interface components {
              */
             password: string;
         };
-        /** StaffSessionOut */
+        /**
+         * StaffSessionHistoryOut
+         * @description Một lần đăng nhập của NV (đang mở hoặc đã kết thúc) – không trả IP.
+         */
+        StaffSessionHistoryOut: {
+            /** Id */
+            id: number;
+            /**
+             * Device Type
+             * @enum {string}
+             */
+            device_type: "desktop" | "mobile" | "tablet" | "unknown";
+            /** Os */
+            os: string | null;
+            /** Browser */
+            browser: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description Lúc đăng nhập
+             */
+            created_at: string;
+            /**
+             * Ended At
+             * @description Lúc thu hồi, hoặc lúc hết hạn nếu đã hết hạn; null khi còn mở
+             */
+            ended_at: string | null;
+            /**
+             * End Reason
+             * @enum {string}
+             */
+            end_reason: "active" | "logout" | "expired" | "password_changed" | "account_disabled" | "revoked_by_admin";
+            /** Is Active */
+            is_active: boolean;
+        };
+        /**
+         * StaffSessionOut
+         * @description Thiết bị đang đăng nhập của NV – không trả IP (người dùng chốt 2026-11-05).
+         */
         StaffSessionOut: {
             /** Id */
             id: number;
+            /**
+             * Device Type
+             * @enum {string}
+             */
+            device_type: "desktop" | "mobile" | "tablet" | "unknown";
+            /** Os */
+            os: string | null;
+            /** Browser */
+            browser: string | null;
             /**
              * Created At
              * Format: date-time
@@ -6925,10 +7025,6 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
-            /** User Agent */
-            user_agent: string | null;
-            /** Ip Masked */
-            ip_masked: string | null;
         };
         /** StaffUpdateIn */
         StaffUpdateIn: {
@@ -8024,6 +8120,26 @@ export interface operations {
             };
         };
     };
+    next_staff_code_api_v1_admin_staff_next_code_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextStaffCodeOut"];
+                };
+            };
+        };
+    };
     update_staff_api_v1_admin_staff__staff_id__patch: {
         parameters: {
             query?: never;
@@ -8110,6 +8226,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StaffSessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    staff_session_history_api_v1_admin_staff__staff_id__sessions_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                staff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionHistoryOut"][];
                 };
             };
             /** @description Validation Error */

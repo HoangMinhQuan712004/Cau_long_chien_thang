@@ -20,7 +20,9 @@ export default function StaffPage({ searchParams }: PageProps<"/admin/nhan-vien"
 
 async function Staff({ searchParams }: Pick<PageProps<"/admin/nhan-vien">, "searchParams">) {
   const [dictionary, sp] = await Promise.all([getDictionary(), searchParams]);
-  const t = { ...dictionary.staff, passwordRules: dictionary.passwordRules };
+  // Tên thiết bị ("Chrome trên Windows") dùng chung câu với Hồ sơ của tôi
+  const { deviceOn, unknownBrowser, signedInAt } = dictionary.adminProfile;
+  const t = { ...dictionary.staff, passwordRules: dictionary.passwordRules, device: { deviceOn, unknownBrowser, signedInAt } };
   // Hết phiên đã được StaffGate (layout) chuyển về màn đăng nhập
   const result = await getAdminSession().catch(() => null);
   if (!result?.ok) return null;
@@ -36,5 +38,8 @@ async function Staff({ searchParams }: Pick<PageProps<"/admin/nhan-vien">, "sear
 
   // ?ma=NV002 (link từ Lịch sử thao tác) ⇒ làm nổi bật dòng đó; mã lạ thì thôi
   const focusCode = typeof sp.ma === "string" ? sp.ma : null;
-  return <StaffManager staff={data} focusCode={focusCode} t={t} />;
+  // Ô tìm / lọc trạng thái giữ trên URL (?q=, ?trang-thai=) để Back / F5 không mất
+  const query = typeof sp.q === "string" ? sp.q.slice(0, 100) : "";
+  const status = sp["trang-thai"] === "active" || sp["trang-thai"] === "locked" ? sp["trang-thai"] : "all";
+  return <StaffManager staff={data} focusCode={focusCode} initialQuery={query} initialStatus={status} t={t} />;
 }

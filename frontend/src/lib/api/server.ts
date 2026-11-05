@@ -16,6 +16,7 @@ export type Post = components["schemas"]["PostOut"];
 export type User = components["schemas"]["UserOut"];
 export type Staff = components["schemas"]["StaffOut"];
 export type StaffSession = components["schemas"]["StaffSessionOut"];
+export type StaffSessionHistory = components["schemas"]["StaffSessionHistoryOut"];
 export type AdminSession = components["schemas"]["AdminSessionOut"];
 export type MemberList = components["schemas"]["MemberListOut"];
 export type MemberRow = components["schemas"]["MemberRow"];

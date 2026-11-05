@@ -1,6 +1,7 @@
 """T-013 mốc 1: đăng nhập, khóa, phiên quản trị, JWT khách, quản lý nhân viên (AC1–AC13)."""
 
 import asyncio
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -40,8 +41,14 @@ def test_normalize_and_username_helpers():
     assert normalize_phone("+84 912.345-678") == "0912345678"
     assert normalize_phone("84912345678") == "0912345678"
     assert normalize_phone("0912 345 67") is None and normalize_phone("an.nv001") is None
-    assert staff_username("Nguyễn Văn Đạt", "NV007") == "dat.nv007"
-    assert staff_username("  ", "NV008") == "nv008"
+    # Người dùng chốt 2026-11-05: cả họ tên liền không dấu + "." + 4 ký tự ngẫu nhiên
+    assert re.fullmatch(r"nguyenvandat\.[a-z2-9]{4}", staff_username("Nguyễn Văn Đạt"))
+    long_name = staff_username("Nguyễn " + "a" * 40)
+    assert len(long_name) == 30 and long_name.startswith("nguyen" + "a" * 19 + ".")
+    assert re.fullmatch(r"nv\.[a-z2-9]{4}", staff_username("  "))
+    assert staff_username("Lê Văn Cường", "k7q2") == "levancuong.k7q2"
+    tails = {staff_username("An").split(".")[1] for _ in range(200)}
+    assert len(tails) > 150 and not set("".join(tails)) & set("0o1li")
 
 
 @pytest.mark.parametrize("login", ["0912345678", "+84 912 345 678", "0912.345.678"])
@@ -316,7 +323,9 @@ async def test_staff_label_in_audit(admin):
 
 async def test_create_staff_and_list(admin):
     nv = await create_staff(admin, "Nguyễn Văn Đạt")
-    assert nv["staff_code"].startswith("NV") and nv["username"] == f"dat.{nv['staff_code'].lower()}"
+    # Tên đăng nhập: họ tên liền + đuôi ngẫu nhiên, không chứa mã NV (người dùng chốt 2026-11-05)
+    assert nv["staff_code"].startswith("NV")
+    assert re.fullmatch(r"nguyenvandat\.[a-z2-9]{4}", nv["username"])
     assert nv["is_active"] is True and nv["active_sessions"] == 0 and nv["last_login_at"] is None
     rows = (await admin.get(STAFF)).json()
     assert nv["id"] in [x["id"] for x in rows]
@@ -366,20 +375,28 @@ async def test_update_and_reset_password(admin):
         assert await audit_count(action, nv["staff_code"]) >= 1
 
 
+IPHONE_UA = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+)
+
+
 async def test_list_and_revoke_sessions(admin):
     nv = await create_staff(admin, "Phiên Từ Xa")
     async with _client() as a, _client() as b:
         await a.post(
             f"{API}/auth/sign-in",
             json={"login": nv["username"], "password": PASSWORD},
-            headers={"User-Agent": "MayA"},
+            headers={"User-Agent": IPHONE_UA},
         )
         await sign_in(b, nv["username"], PASSWORD)
         rows = (await admin.get(f"{STAFF}/{nv['id']}/sessions")).json()
         assert len(rows) == 2
         for row in rows:
-            assert set(row) == {"id", "created_at", "expires_at", "user_agent", "ip_masked"}
-        target = next(x for x in rows if x["user_agent"] == "MayA")
+            # Người dùng chốt 2026-11-05: không trả IP, thêm loại máy / HĐH / trình duyệt
+            assert set(row) == {"id", "device_type", "os", "browser", "created_at", "expires_at"}
+        target = next(x for x in rows if x["device_type"] == "mobile")
+        assert (target["os"], target["browser"]) == ("iOS", "Safari")
         r = await admin.delete(f"{STAFF}/{nv['id']}/sessions/{target['id']}")
         assert r.status_code == 204
         assert (await a.get(f"{API}/admin/auth/me")).status_code == 401

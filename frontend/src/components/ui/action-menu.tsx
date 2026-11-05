@@ -13,6 +13,8 @@ export type MenuAction = {
   icon?: React.ReactNode;
   /** Ở đầu trang / hàng tab: chỉ hiện chữ trơn (không khung, không icon), nổi lên khi rê chuột. */
   plain?: boolean;
+  /** Thao tác nguy hiểm (vd Khóa): chữ đỏ trong menu. */
+  danger?: boolean;
   onClick: () => void;
 };
 
@@ -25,7 +27,10 @@ type ActionMenuProps = {
   className?: string;
 };
 
-/** Nút ⋯ mở menu thao tác (mẫu ARIA menu button): ↑↓ Home End di chuyển, Enter chọn, Esc/Tab đóng. Nổi ở top layer. */
+/**
+ * Nút ⋯ mở menu thao tác (mẫu ARIA menu button): ↑↓ Home End di chuyển, Enter chọn, Esc/Tab đóng. Nổi ở top layer.
+ * Điện thoại: menu gọn (hàng 40px, icon 16px, ôm nội dung, không rộng quá màn − 1rem); từ sm hàng 36px.
+ */
 export function ActionMenu({ label, items, outline = false, className }: ActionMenuProps) {
   const menuId = useId();
   const [isOpen, setIsOpen] = useState(false);
@@ -97,8 +102,9 @@ export function ActionMenu({ label, items, outline = false, className }: ActionM
           style={place ? { position: "fixed", inset: "auto", ...place } : { visibility: "hidden" }}
           className={cn(
             `
-              z-50 m-0 flex min-w-48 animate-scale-in flex-col rounded-lg border bg-surface p-1
-              shadow-card
+              z-50 m-0 flex max-w-[calc(100vw-1rem)] min-w-40 animate-scale-in flex-col rounded-lg
+              border bg-surface p-1 shadow-card
+              sm:min-w-48
             `,
             place?.bottom !== undefined ? "origin-bottom-right" : "origin-top-right",
           )}
@@ -114,14 +120,18 @@ export function ActionMenu({ label, items, outline = false, className }: ActionM
                 item.onClick();
               }}
               className={cn(`
-                flex min-h-11 items-center gap-2.5 rounded-md px-3 text-left text-sm font-medium
-                outline-none
+                flex min-h-10 items-center gap-2 rounded-md px-3 text-left text-sm font-medium
+                whitespace-nowrap outline-none
                 hover:bg-primary-soft/60
                 focus-visible:bg-primary-soft/60
-                sm:min-h-9
-              `)}
+                sm:min-h-9 sm:gap-2.5
+                [&_svg]:size-4
+                sm:[&_svg]:size-4.5
+              `, item.danger && "text-danger")}
             >
-              {item.icon ? <span aria-hidden className="shrink-0 text-muted">{item.icon}</span> : null}
+              {item.icon ? <span aria-hidden className={cn("shrink-0", item.danger ? "text-danger" : `
+                text-muted
+              `)}>{item.icon}</span> : null}
               {item.label}
             </button>
           ))}

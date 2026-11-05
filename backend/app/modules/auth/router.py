@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor, audit
@@ -265,6 +265,12 @@ async def list_staff(_: StaffManager, session: SessionDep):
     return await staff.list_staff(session)
 
 
+@staff_router.get("/next-code", response_model=staff.NextStaffCodeOut)
+async def next_staff_code(_: StaffManager, session: SessionDep):
+    """Mã NV dự kiến (không tiêu thụ sequence; tạo đồng thời có thể lệch)."""
+    return await staff.next_staff_code(session)
+
+
 @staff_router.post("", response_model=staff.StaffOut, status_code=status.HTTP_201_CREATED)
 async def create_staff(data: staff.StaffCreateIn, principal: StaffManager, session: SessionDep):
     """Chỉ họ tên + mật khẩu; mã ``NV…`` + tên đăng nhập tự sinh."""
@@ -289,8 +295,19 @@ async def reset_staff_password(
 
 @staff_router.get("/{staff_id}/sessions", response_model=list[staff.StaffSessionOut])
 async def list_staff_sessions(staff_id: int, _: StaffManager, session: SessionDep):
-    """Phiên đang mở (IP đã che)."""
+    """Thiết bị đang đăng nhập (loại máy / HĐH / trình duyệt), không trả IP. 404 E-STAFF-1."""
     return await staff.list_staff_sessions(session, staff_id)
+
+
+@staff_router.get("/{staff_id}/sessions/history", response_model=list[staff.StaffSessionHistoryOut])
+async def staff_session_history(
+    staff_id: int,
+    _: StaffManager,
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+):
+    """Lịch sử đăng nhập: phiên đang mở + đã kết thúc, mới nhất trước; không IP. 404 E-STAFF-1."""
+    return await staff.staff_session_history(session, staff_id, limit)
 
 
 @staff_router.delete("/{staff_id}/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)

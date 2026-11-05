@@ -1,12 +1,17 @@
 """Tiện ích auth (port PR #17): chuẩn hóa SĐT, ô đăng nhập, quy tắc mật khẩu, mã + tên NV."""
 
 import re
+import secrets
 import unicodedata
 from typing import Literal
 
 _PHONE_CHARS = re.compile(r"^\+?[\d\s.\-]+$")
 _VN_PHONE = re.compile(r"^0\d{9}$")
 USERNAME_MAX = 30
+# Đuôi ngẫu nhiên của tên đăng nhập NV: chữ thường + số, bỏ ký tự dễ nhầm (0 o 1 l i)
+USERNAME_TAIL_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+USERNAME_TAIL_LEN = 4
+USERNAME_TAIL_PATTERN = rf"^[{USERNAME_TAIL_ALPHABET}]{{{USERNAME_TAIL_LEN}}}$"
 PASSWORD_MIN = 8
 
 
@@ -39,13 +44,15 @@ def _ascii_word(word: str) -> str:
     return re.sub(r"[^a-z0-9]", "", plain.lower())
 
 
-def staff_username(full_name: str, code: str) -> str:
-    """``<tên gọi>.<mã>`` (≤ 30 ký tự): Nguyễn Văn An, NV007 -> ``an.nv007``."""
-    suffix = code.lower()
-    words = [w for w in map(_ascii_word, full_name.split()) if w]
-    if not words:
-        return suffix
-    return f"{words[-1][: USERNAME_MAX - len(suffix) - 1]}.{suffix}"
+def staff_username(full_name: str, tail: str | None = None) -> str:
+    """``<cả họ tên liền, không dấu>.<4 ký tự ngẫu nhiên>`` (≤ 30 ký tự, cắt phần họ tên):
+    Nguyễn Văn An -> ``nguyenvanan.k7q2``; không có chữ hợp lệ -> ``nv.k7q2``.
+
+    Đuôi ngẫu nhiên thay mã NV tăng dần để khó đoán tên đăng nhập (người dùng chốt 2026-11-05;
+    tài khoản cũ giữ nguyên)."""
+    tail = tail or "".join(secrets.choice(USERNAME_TAIL_ALPHABET) for _ in range(USERNAME_TAIL_LEN))
+    name = "".join(map(_ascii_word, full_name.split())) or "nv"
+    return f"{name[: USERNAME_MAX - len(tail) - 1]}.{tail}"
 
 
 def password_problems(password: str) -> list[str]:

@@ -3,7 +3,9 @@
 - Theo IP: ≥ ``LOGIN_IP_MAX_ATTEMPTS`` lần sai / cửa sổ -> 429 ``E-AUTH-12`` (đếm Redis).
 - Theo tài khoản: sai ``LOGIN_MAX_ATTEMPTS`` lần liên tiếp -> khóa ``LOGIN_LOCK_MINUTES`` phút,
   423 ``E-AUTH-11`` (cột ``users``, khóa dòng ``FOR UPDATE`` -> sai đồng thời vẫn khóa đúng).
-- Không phân biệt "không có tài khoản" với "sai mật khẩu" (``E-AUTH-10``, so hash giả).
+- Không phân biệt "không có tài khoản" với "sai mật khẩu" (``E-AUTH-10``, so hash giả). Login
+  không tồn tại / tài khoản đã khóa cũng bị đếm (Redis, theo chuỗi login đã chuẩn hóa) và nhận
+  cùng ``E-AUTH-11`` sau đủ số lần -> không dò được tài khoản qua thông báo khóa.
 """
 
 import math
@@ -24,6 +26,7 @@ from app.modules.auth.models import AdminSession, User
 from app.modules.auth.utils import parse_login
 
 IP_SCOPE = "login.ip"
+GHOST_SCOPE = "login.ghost"  # login không ứng với tài khoản đăng nhập được
 SYSTEM = AuditActor(type="system", id=None, label="Hệ thống")
 
 
@@ -89,7 +92,16 @@ async def check_credentials(
         verify_password(password, dummy_hash())
         await session.rollback()
         await record_ip_failure(ip)
-        raise bad_credentials()
+        # Giả lập khóa như tài khoản thật: sai đủ LOGIN_MAX_ATTEMPTS lần -> E-AUTH-11 (người dùng
+        # chốt 2026-11-05: chặn dò tài khoản qua thông báo khóa); không tạo user giả trong DB
+        retry_after = await ratelimit.streak_lock(
+            GHOST_SCOPE,
+            f"{kind}:{value}",
+            settings.LOGIN_MAX_ATTEMPTS,
+            settings.LOGIN_LOCK_MINUTES * 60,
+            settings.LOGIN_GHOST_STREAK_HOURS * 3600,
+        )
+        raise locked_error(retry_after) if retry_after is not None else bad_credentials()
 
     if user.locked_until is not None:
         if user.locked_until > now:

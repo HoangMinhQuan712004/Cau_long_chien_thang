@@ -4,8 +4,14 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from pydantic_core import PydanticCustomError
 
-from app.modules.auth.models import Role
-from app.modules.auth.utils import normalize_phone, password_problems, password_rule_message
+from app.modules.auth.models import AdminSession, Role
+from app.modules.auth.utils import (
+    DeviceType,
+    normalize_phone,
+    parse_user_agent,
+    password_problems,
+    password_rule_message,
+)
 
 
 def _valid_phone(value: str) -> str:
@@ -133,13 +139,23 @@ class AdminPasswordChangeIn(_In):
     new_password: NewPassword
 
 
-class MySessionOut(BaseModel):
-    """Một nơi đang đăng nhập (Hồ sơ của tôi): không trả IP."""
+class SessionDeviceOut(BaseModel):
+    """Phần chung của phiên quản trị hiện cho người dùng: thiết bị từ user agent, không IP."""
 
     id: int
-    device_type: Literal["desktop", "mobile", "tablet", "unknown"]
+    device_type: DeviceType
     os: str | None
     browser: str | None
+
+    @staticmethod
+    def fields_of(row: AdminSession) -> dict:
+        device, os_name, browser = parse_user_agent(row.user_agent)
+        return {"id": row.id, "device_type": device, "os": os_name, "browser": browser}
+
+
+class MySessionOut(SessionDeviceOut):
+    """Một nơi đang đăng nhập (Hồ sơ của tôi): không trả IP."""
+
     created_at: datetime
     expires_at: datetime
     is_current: bool

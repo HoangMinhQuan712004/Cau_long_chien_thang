@@ -35,6 +35,14 @@ class Backend(Protocol):
         """Số lần hiện tại của khóa (không tăng)."""
         ...
 
+    async def put(self, key: str, value: float, ttl_s: int) -> None:
+        """Ghi một số (vd mốc hết khóa) kèm thời hạn."""
+        ...
+
+    async def read(self, key: str) -> float | None: ...
+
+    async def delete(self, *keys: str) -> None: ...
+
 
 class RedisBackend:
     def __init__(self, url: str):
@@ -50,12 +58,23 @@ class RedisBackend:
     async def peek(self, key: str) -> int:
         return int(await self._redis.get(key) or 0)
 
+    async def put(self, key: str, value: float, ttl_s: int) -> None:
+        await self._redis.set(key, str(value), ex=ttl_s)
+
+    async def read(self, key: str) -> float | None:
+        raw = await self._redis.get(key)
+        return float(raw) if raw is not None else None
+
+    async def delete(self, *keys: str) -> None:
+        await self._redis.delete(*keys)
+
 
 class MemoryBackend:
     """Dùng cho test / chạy cục bộ không có Redis (một tiến trình)."""
 
     def __init__(self) -> None:
         self.counts: dict[str, int] = {}
+        self.values: dict[str, float] = {}  # không tự hết hạn: người gọi so mốc với đồng hồ
 
     async def hit(self, key: str, window_s: int) -> int:
         self.counts[key] = self.counts.get(key, 0) + 1
@@ -64,8 +83,20 @@ class MemoryBackend:
     async def peek(self, key: str) -> int:
         return self.counts.get(key, 0)
 
+    async def put(self, key: str, value: float, ttl_s: int) -> None:
+        self.values[key] = value
+
+    async def read(self, key: str) -> float | None:
+        return self.values.get(key)
+
+    async def delete(self, *keys: str) -> None:
+        for key in keys:
+            self.counts.pop(key, None)
+            self.values.pop(key, None)
+
     def clear(self) -> None:
         self.counts.clear()
+        self.values.clear()
 
 
 _backend: Backend | None = None
@@ -135,6 +166,33 @@ async def record_failure(scope: str, key: str, window_s: int) -> None:
         await get_backend().hit(rl_key, window_s)
     except Exception:
         logger.warning("Rate limit backend unavailable, failure not recorded", exc_info=True)
+
+
+async def streak_lock(
+    scope: str, key: str, limit: int, lock_s: int, streak_ttl_s: int
+) -> int | None:
+    """Khóa theo chuỗi lần sai liên tiếp (không theo cửa sổ cố định), đếm + mốc khóa trên Redis.
+
+    Đang khóa -> ``Retry-After`` còn lại (không đếm thêm). Chưa khóa -> đếm 1 lần sai (bộ đếm
+    hết hạn sau ``streak_ttl_s`` không sai thêm); chạm ``limit`` -> khóa ``lock_s`` giây, trả
+    ``lock_s``.
+    Không khóa -> ``None``. Backend lỗi -> cho qua (``None``).
+    """
+    count_key, lock_key = f"streak:{scope}:{key}", f"lock:{scope}:{key}"
+    now = _clock()
+    try:
+        backend = get_backend()
+        until = await backend.read(lock_key)
+        if until is not None and until > now:
+            return max(1, math.ceil(until - now))
+        if await backend.hit(count_key, streak_ttl_s) < limit:
+            return None
+        await backend.put(lock_key, now + lock_s, lock_s + 1)
+        await backend.delete(count_key)
+    except Exception:
+        logger.warning("Rate limit backend unavailable, streak not recorded", exc_info=True)
+        return None
+    return lock_s
 
 
 def too_many(retry_after: int) -> AppError:
