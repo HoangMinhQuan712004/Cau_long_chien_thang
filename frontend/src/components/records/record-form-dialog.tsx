@@ -25,7 +25,7 @@ const hmOf = (iso: string) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit"
 type Court = { code: string; name: string; is_active?: boolean };
 
 /** `courts`: danh sách sân do nơi gọi cấp (hội viên: từ /mine); bỏ trống (Admin) thì lấy từ API sân của Admin. */
-export function RecordFormDialog({ mode, courts: given, onClose, onDone }: { mode: RecordFormMode; courts?: Court[]; onClose: () => void; onDone: () => void }) {
+export function RecordFormDialog({ mode, courts: given, dailyLimit = 5, onClose, onDone }: { mode: RecordFormMode; courts?: Court[]; dailyLimit?: number; onClose: () => void; onDone: () => void }) {
   const editing = mode.kind === "admin-edit" ? mode.record : null;
   const id = useId();
   const [customer, setCustomer] = useState<CustomerState>(emptyCustomer);
@@ -73,9 +73,9 @@ export function RecordFormDialog({ mode, courts: given, onClose, onDone }: { mod
     setBanner("");
     const body: RecordInput = { speed_kmh: speedNum, measured_at: vnIso(date, time), resource_code: courtValue || null, video_url: url.trim() || null };
     try {
-      const res = await write((key) => {
+      const res = await write<unknown>((key) => {
         if (mode.kind === "admin-create") return sendAdminCreateRecord(key, { ...body, member_code: customer.picked!.member_code });
-        if (mode.kind === "admin-edit") return sendAdminUpdateRecord(key, mode.record.id, { ...body, version: mode.record.version ?? 0 });
+        if (mode.kind === "admin-edit") return sendAdminUpdateRecord(key, mode.record.id, { ...body, version: mode.record.version });
         return sendMemberSubmitRecord(key, body);
       });
       if (!res.ok) {
@@ -110,7 +110,7 @@ export function RecordFormDialog({ mode, courts: given, onClose, onDone }: { mod
       }
     >
       {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
-      {mode.kind === "member-submit" ? <p className="text-sm text-muted">Số đo của bạn sẽ chờ Admin duyệt rồi mới tính vào bảng xếp hạng. Mỗi ngày gửi tối đa 5 lượt.</p> : null}
+      {mode.kind === "member-submit" ? <p className="text-sm text-muted">Số đo của bạn sẽ chờ Admin duyệt rồi mới tính vào bảng xếp hạng. Mỗi ngày gửi tối đa {dailyLimit} lượt.</p> : null}
       {editing ? (
         <p className="text-sm">
           {editing.member_name}

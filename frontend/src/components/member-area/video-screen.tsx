@@ -34,6 +34,7 @@ export function VideoScreen() {
   const [error, setError] = useState("");
   const [mine, setMine] = useState<MineRecord[] | null>(null);
   const [courts, setCourts] = useState<{ code: string; name: string }[]>([]);
+  const [dailyLimit, setDailyLimit] = useState(5);
   const [mineError, setMineError] = useState("");
   const [submitOpen, setSubmitOpen] = useState(false);
   const [withdraw, setWithdraw] = useState<MineRecord | null>(null);
@@ -54,6 +55,7 @@ export function VideoScreen() {
     if (res.ok) {
       setMine(res.data.items);
       setCourts(res.data.resources);
+      setDailyLimit(res.data.daily_limit);
       setMineError("");
     } else setMineError(errorText(res.error));
   }, []);
@@ -153,6 +155,7 @@ export function VideoScreen() {
         <RecordFormDialog
           mode={{ kind: "member-submit" }}
           courts={courts}
+          dailyLimit={dailyLimit}
           onClose={() => setSubmitOpen(false)}
           onDone={() => {
             setSubmitOpen(false);
@@ -226,7 +229,7 @@ function MineList({ mine, error, onRetry, onWithdraw, onSubmit }: { mine: MineRe
               {r.status === "rejected" ? <p className="text-sm text-danger">Bị từ chối{r.reject_reason ? `: ${r.reject_reason}` : ""}</p> : null}
               {r.status === "pending" ? <p className="text-xs text-muted">Đang chờ Admin duyệt, chưa tính vào bảng xếp hạng.</p> : null}
             </div>
-            {r.status === "pending" ? (
+            {r.can_withdraw ? (
               <Button variant="secondary" onClick={() => onWithdraw(r)} className="h-11 px-4 text-sm sm:h-10">
                 Rút lại
               </Button>

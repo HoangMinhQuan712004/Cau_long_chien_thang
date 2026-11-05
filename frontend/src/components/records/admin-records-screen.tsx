@@ -38,12 +38,9 @@ export function AdminRecordsScreen() {
   const [remove, setRemove] = useState<AdminSpeedRecord | null>(null);
 
   const load = useCallback(async () => {
-    const [res, wait] = await Promise.all([
-      getAdminSpeedRecords(tab === "pending" ? { status: "pending", page, size: SIZE } : { has_video: filter === "all" ? undefined : filter === "yes", page, size: SIZE }),
-      getAdminSpeedRecords({ status: "pending", page: 1, size: 1 }),
-    ]);
-    if (wait.ok) setPending(wait.data.total);
+    const res = await getAdminSpeedRecords(tab === "pending" ? { status: "pending", page, size: SIZE } : { has_video: filter === "all" ? undefined : filter === "yes", page, size: SIZE });
     if (res.ok) {
+      setPending(res.data.pending_count); // không phụ thuộc bộ lọc
       setData(res.data);
       setError("");
     } else if (!authFailure(res.error)) setError(errorText(res.error));
@@ -128,7 +125,7 @@ export function AdminRecordsScreen() {
                 <p className="flex flex-wrap items-baseline gap-x-2">
                   <b className="text-xl tabular-nums">{r.speed_kmh} km/h</b>
                   {r.video ? <span className="rounded-full bg-primary-softer px-2 py-0.5 text-xs font-semibold text-primary">{r.video.kind === "youtube" ? "YouTube" : "File video"}</span> : <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">Chưa có video</span>}
-                  {r.source ? <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">{SOURCE_LABEL[r.source]}</span> : null}
+                  <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">{SOURCE_LABEL[r.source]}</span>
                   {r.status === "pending" ? <span className="rounded-full bg-cta px-2 py-0.5 text-xs font-semibold text-cta-fg">Chờ duyệt</span> : null}
                   {r.status === "rejected" ? <span className="rounded-full bg-danger px-2 py-0.5 text-xs font-semibold text-white">Bị từ chối</span> : null}
                 </p>
@@ -159,7 +156,7 @@ export function AdminRecordsScreen() {
                     Gỡ video
                   </button>
                 ) : null}
-                {r.source && r.source !== "device" ? (
+                {r.editable ? (
                   <>
                     <button type="button" onClick={() => setForm({ kind: "admin-edit", record: r })} className={btnCls}>
                       Sửa số đo
