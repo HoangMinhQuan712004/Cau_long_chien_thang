@@ -1017,6 +1017,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking/resources/{code}/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resource Detail View
+         * @description Thông tin sân + giá của loại sân (chỉ xem) + tối đa 20 booking / sự kiện sắp tới.
+         */
+        get: operations["resource_detail_view_api_v1_booking_resources__code__detail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/resources/{code}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resource Stats
+         * @description Thống kê sân theo tuần / tháng / năm chứa ``date`` (mặc định hôm nay), tính tới hôm nay;
+         *     kèm kỳ trước cùng số ngày. Cách tính như màn Báo cáo.
+         */
+        get: operations["resource_stats_api_v1_booking_resources__code__stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/members/search": {
         parameters: {
             query?: never;
@@ -4978,6 +5019,20 @@ export interface components {
                 string
             ][];
         };
+        /** ResourceDetailOut */
+        ResourceDetailOut: {
+            resource: components["schemas"]["ResourceOut"];
+            /**
+             * Prices
+             * @description Giá của loại sân (chỉ xem)
+             */
+            prices: components["schemas"]["ResourcePriceOut"][];
+            /**
+             * Upcoming
+             * @description Tối đa 20, sớm nhất trước
+             */
+            upcoming: components["schemas"]["UpcomingOut"][];
+        };
         /** ResourceList */
         ResourceList: {
             /** Items */
@@ -5006,12 +5061,64 @@ export interface components {
             /** @description Lịch đã lưu, áp dụng từ ngày sau (effective_from > hôm nay) */
             pending_schedule: components["schemas"]["ScheduleOut"] | null;
         };
+        /** ResourcePriceOut */
+        ResourcePriceOut: {
+            /**
+             * Day Type
+             * @enum {string}
+             */
+            day_type: "weekday" | "weekend" | "holiday";
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "offpeak" | "peak";
+            /** Price Per Hour */
+            price_per_hour: number;
+        };
         /** ResourceRef */
         ResourceRef: {
             /** Code */
             code: string;
             /** Name */
             name: string;
+        };
+        /** ResourceStatsOut */
+        ResourceStatsOut: {
+            /** Booked Hours */
+            booked_hours: number;
+            /** Revenue */
+            revenue: number;
+            /** Bookings Count */
+            bookings_count: number;
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "week" | "month" | "year";
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Until
+             * Format: date
+             * @description Ngày cuối được tính (kỳ có hôm nay -> hôm nay)
+             */
+            until: string;
+            /**
+             * Occupancy Pct
+             * @description Giờ đã đặt / giờ mở cửa × 100 (tới ``until``)
+             */
+            occupancy_pct: number;
+            /** @description Kỳ trước, cùng số ngày tính từ đầu kỳ */
+            prev: components["schemas"]["StatsFigures"];
         };
         /** ResourceTypeOut */
         ResourceTypeOut: {
@@ -5659,6 +5766,15 @@ export interface components {
             /** Is Active */
             is_active?: boolean | null;
         };
+        /** StatsFigures */
+        StatsFigures: {
+            /** Booked Hours */
+            booked_hours: number;
+            /** Revenue */
+            revenue: number;
+            /** Bookings Count */
+            bookings_count: number;
+        };
         /** TempCreateIn */
         TempCreateIn: {
             /** Full Name */
@@ -5846,6 +5962,35 @@ export interface components {
             count: number | null;
             /** Capacity */
             capacity: number | null;
+        };
+        /** UpcomingOut */
+        UpcomingOut: {
+            /** Code */
+            code: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "booking" | "session";
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /**
+             * Title
+             * @description Tên khách (booking) hoặc tên sự kiện
+             */
+            title: string;
+            /**
+             * Payment Status
+             * @description Chỉ booking: unpaid / paid / …
+             */
+            payment_status: string | null;
         };
         /**
          * UserOut
@@ -7688,6 +7833,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TransactionsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resource_detail_view_api_v1_booking_resources__code__detail_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resource_stats_api_v1_booking_resources__code__stats_get: {
+        parameters: {
+            query?: {
+                period?: "week" | "month" | "year";
+                date?: string | null;
+            };
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceStatsOut"];
                 };
             };
             /** @description Validation Error */

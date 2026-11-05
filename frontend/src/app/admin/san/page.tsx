@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { CourtsManager } from "@/components/admin/courts-manager";
+import { CourtsTable } from "@/components/admin/courts-table";
 import { SanTabs } from "@/components/admin/san-tabs";
 import { adminPerms, authedApi } from "@/lib/api/server";
 import { getDictionary } from "@/i18n/dictionaries";
@@ -43,7 +43,7 @@ async function Courts() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Sân &amp; bảng giá</h1>
       <SanTabs active="list" />
-      <CourtsManager
+      <CourtsTable
         resources={resources.data.items}
         types={resources.data.resource_types}
         weekdayPrice={weekdayPrice}

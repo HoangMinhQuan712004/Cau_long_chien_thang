@@ -15,7 +15,7 @@ from app.core.db import SessionDep
 from app.core.idempotency import IdempotencyDep
 from app.core.permissions import Perm, Principal, require
 from app.core.ratelimit import rate_limit
-from app.modules.booking_engine import api
+from app.modules.booking_engine import api, resource_router
 from app.modules.booking_engine.dto import (
     Actor,
     CalendarOut,
@@ -370,3 +370,7 @@ async def list_transactions(
             page=page,
         ),
     )
+
+
+# Ngăn chi tiết sân (/admin/san): router phụ, file này đã dài
+router.include_router(resource_router.router)

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CourtGrid, cellKey, type GridCell, type GridRow } from "@/components/court-grid/court-grid";
 import { vnDate, vnMinutes } from "@/lib/format";
-import type { Block } from "./block-adder";
+import type { Block } from "./block";
 import type { Calendar, CalendarBlock, Selection } from "./types";
 
 // Lưới đặt sân của admin / nhân viên (T-025): adapter `Calendar` → `CourtGrid` dùng chung với trang khách.

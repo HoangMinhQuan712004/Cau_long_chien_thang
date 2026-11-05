@@ -549,19 +549,17 @@
       "explain": "Giải thích cách tính",
       "revenue": {
         "label": "Tổng doanh thu",
-        "tip": "Tổng tiền sân của booking và vé xé vé đã thanh toán, tính theo ngày chơi.",
-        "caption": "Chỉ tính giao dịch đã thanh toán thành công"
+        "tip": "Tổng tiền sân của booking và vé xé vé đã thanh toán, tính theo ngày chơi."
       },
       "bookings": {
         "label": "Số lượt đặt",
         "tip": "Số booking và vé xé vé đã thanh toán, tính theo ngày chơi.",
-        "caption": "Lượt đặt thanh toán thành công · gồm {n} vé xé vé",
-        "unit": "{n} lượt"
+        "unit": "{n} lượt",
+        "tickets": "Kỳ này gồm {n} vé xé vé."
       },
       "members": {
         "label": "Hội viên mới",
         "tip": "Số hội viên được tạo trong kỳ, không tính hồ sơ tạm.",
-        "caption": "Hội viên tạo trong kỳ · không tính hồ sơ tạm",
         "unit": "{n} hội viên"
       },
       "compare": "so với {n} ngày trước",

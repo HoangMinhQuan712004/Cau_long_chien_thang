@@ -7,7 +7,7 @@ import { normalizeBookingCode } from "@/lib/booking-code";
 import { toast } from "@/lib/feedback";
 import { addDaysIso, formatLongDate, formatVnd, vnDate } from "@/lib/format";
 import { AdminGrid, EVENT_RECT_HINT, isSellable, selectionBlocks, selectionRect } from "./admin-grid";
-import { MAX_BLOCKS, type Block } from "./block-adder";
+import { MAX_BLOCKS, type Block } from "./block";
 import { BookingDialog, SessionFormDialog } from "./booking-dialogs";
 import { ItemFlow } from "./item-flow";
 import { OrderFlow } from "./order-flow";

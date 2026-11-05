@@ -24,6 +24,8 @@ type SidePanelProps = {
   /** Chỉ hiện khi status "ok". */
   footer?: React.ReactNode;
   children?: React.ReactNode;
+  /** Hỏi trước khi đóng (✕ / bấm nền / Esc); trả false ⇒ giữ ngăn mở. */
+  confirmClose?: () => boolean;
 };
 
 /** Ngăn chi tiết bên phải dùng chung: kéo dãn + nhớ bề rộng, đang tải ⇒ Skeleton, lỗi ⇒ Alert, xong ⇒ nội dung. */
@@ -39,6 +41,7 @@ export function SidePanel({
   skeleton,
   footer,
   children,
+  confirmClose,
 }: SidePanelProps) {
   return (
     <Drawer
@@ -50,6 +53,7 @@ export function SidePanel({
       resizable
       resizeLabel={resizeLabel}
       storageKey={storageKey}
+      confirmClose={confirmClose}
       footer={status === "ok" ? footer : undefined}
     >
       {status === "loading" ? (
