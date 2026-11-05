@@ -105,7 +105,7 @@ export function RecordFormDialog({ mode, courts: given, dailyLimit = 5, onClose,
           <button type="button" onClick={onClose} className={btnCls} disabled={busy}>
             Hủy
           </button>
-          <button type="button" onClick={() => void save()} disabled={busy || (submitted && invalid)} className={btnPrimaryCls}>
+          <button type="button" onClick={() => void save()} disabled={busy} className={btnPrimaryCls}>
             {busy ? "Đang lưu…" : mode.kind === "member-submit" ? "Gửi" : "Lưu"}
           </button>
         </>
