@@ -1,7 +1,7 @@
 """Hồ sơ của tôi – hội viên tự xem / sửa hồ sơ (T-016, ADR-009 sửa đổi 30/10, nền PR #21).
 
 Cùng bản ghi ``customer`` mà màn Hội viên quản trị sửa: Họ tên, Trình độ (= Hạng, NULL = chưa
-xếp), Vợt (tên vợt dạng chữ, ``rackets.ensure`` thêm vào danh mục). Riêng khu hội viên: biệt danh,
+xếp), Vợt (tên vợt dạng chữ, tự nhập, không dùng danh mục – T-033). Riêng khu hội viên: biệt danh,
 email liên hệ, công tắc "Hiện trên Video & kỷ lục", ``version`` (khóa lạc quan).
 Hàm ghi **không commit** – lớp gọi (BFF ``member_area``) gộp cùng việc đồng bộ ``users.full_name``.
 """
@@ -13,7 +13,7 @@ from email_validator import EmailNotValidError, validate_email
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import AuditActor, audit, audit_changes, audit_detail
+from app.core.audit import AuditActor, audit, audit_change, audit_changes, audit_detail
 from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
 from app.modules.members import rackets
@@ -50,6 +50,8 @@ class SelfUpdate:
     racket: str | None
     show_on_records: bool
     version: int
+    # Client có gửi ``tier`` không: không gửi -> giữ hạng hiện tại (T-042: gửi thì tự đổi được)
+    tier_sent: bool = True
 
 
 @dataclass
@@ -135,14 +137,11 @@ async def _validate(
         errors.add("full_name", "E-HV-1", "Vui lòng nhập Họ tên.")
     elif len(full_name) > NAME_MAX:
         errors.add("full_name", "E-HV-1", f"Họ tên tối đa {NAME_MAX} ký tự.")
+    if data.tier_sent and data.tier is not None and data.tier not in TIERS:
+        errors.add("tier", "E-HV-1", "Trình độ không hợp lệ.")
     nickname = (data.nickname or "").strip() or None
     if nickname is not None and len(nickname) > NICKNAME_MAX:
         errors.add("nickname", "E-HV-1", f"Biệt danh tối đa {NICKNAME_MAX} ký tự.")
-    if data.tier is None:
-        if c.tier is not None:  # đang có hạng thì không bỏ trống được (BR-008)
-            errors.add("tier", "E-HV-1", "Vui lòng chọn Trình độ.")
-    elif data.tier not in TIERS:
-        errors.add("tier", "E-HV-1", "Trình độ không hợp lệ.")
     email = (data.email or "").strip() or None
     if email is not None:
         try:
@@ -178,6 +177,10 @@ SELF_LABELS = {
 }
 
 
+def _tier_text(tier: str | None) -> str:
+    return tier or "Chưa xếp hạng"
+
+
 def _shown(values: dict) -> dict:
     """Giá trị hiển thị: email che, công tắc Bật / Tắt."""
     return {
@@ -200,14 +203,14 @@ async def update_profile(
     if c.version != data.version:
         raise stale()
     full_name, nickname, email = await _validate(session, c, data)
-    # Vợt: tên chuẩn trong danh mục; chưa có -> thêm (như màn Hội viên quản trị)
-    racket = await rackets.ensure(session, data.racket, actor)
+    # Vợt: ô chữ tự nhập (T-033) – không ép / không thêm vào danh mục
+    racket = rackets.clean_racket(data.racket)
 
     after = {
         "full_name": full_name,
         "nickname": nickname,
         "email": email,
-        "tier": data.tier,
+        "tier": data.tier if data.tier_sent else c.tier,  # T-042: hội viên tự chọn
         "racket": racket,
         "show_on_records": data.show_on_records,
     }
@@ -219,6 +222,25 @@ async def update_profile(
     for name in changed:
         setattr(c, name, after[name])
     c.version += 1
+    if "tier" in changed:
+        # T-042: dòng riêng, hiện trong Lịch sử thao tác (người làm = hội viên)
+        audit(
+            session,
+            actor,
+            "member.tier_self_change",
+            "customer",
+            c.member_code,
+            audit_detail(
+                c.member_code,
+                c.full_name,
+                [audit_change("Trình độ", _tier_text(before["tier"]), _tier_text(after["tier"]))],
+            ),
+        )
+        before.pop("tier"), after.pop("tier")
+        changed.remove("tier")
+    if not changed:
+        await session.flush()
+        return await _to_profile(session, c), True
     # Định dạng Lịch sử thao tác (PR #22): "Tên ô: trước → sau"; email luôn che (T-016)
     detail = audit_detail(
         c.member_code,

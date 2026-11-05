@@ -81,7 +81,7 @@ export function LookupScreen({ hotline }: { hotline: string }) {
     <div className="mx-auto w-full max-w-xl space-y-5">
       <form onSubmit={submit} noValidate className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
         <h1 className="text-2xl font-bold">Tra cứu booking / vé</h1>
-        <p className="mt-1 text-sm text-muted">Nhập mã booking (hoặc mã vé sự kiện) và số điện thoại đã dùng khi đặt.</p>
+        <p className="mt-1 text-sm text-muted">Nhập mã booking (hoặc mã check-in của vé sự kiện) và số điện thoại đã dùng khi đặt.</p>
         <div className="mt-4 space-y-4">
           <div>
             <label htmlFor={ids.code} className="mb-1 block text-sm font-medium">
@@ -195,7 +195,7 @@ function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string })
 
       {ticket ? (
         <>
-          <h3 className="mt-4 text-xs font-semibold tracking-wide text-muted uppercase">Mã vé</h3>
+          <h3 className="mt-4 text-xs font-semibold tracking-wide text-muted uppercase">Mã check-in</h3>
           {ticket.tickets.length > 0 ? (
             <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
               {ticket.tickets.map((t) => (

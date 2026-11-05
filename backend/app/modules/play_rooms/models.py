@@ -48,6 +48,9 @@ class PlayRoom(Base):
     host_customer_id: Mapped[int] = mapped_column(Integer, index=True)
     status: Mapped[str] = mapped_column(String(10), server_default=text("'open'"))
     format: Mapped[str] = mapped_column(String(5), server_default=text("'2v2'"))
+    # Khoảng hạng do người đặt chọn lúc đặt (T-031), chụp từ đơn khi tạo phòng; NULL = mở
+    min_tier: Mapped[str | None] = mapped_column(String(20))
+    max_tier: Mapped[str | None] = mapped_column(String(20))
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

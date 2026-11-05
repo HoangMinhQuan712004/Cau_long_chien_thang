@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { TrashIcon } from "@/components/ui/icons";
 import { formatDayMonth, formatDayMonthYear } from "@/lib/format";
 import { hhmm, t5, TIMES, toMin, type Band, type Form, type ResourceType } from "./court-form-logic";
 import type { CourtFormState } from "./use-court-form";
@@ -105,28 +106,35 @@ export function CourtForm({ state, types, onReload }: { state: CourtFormState; t
           </div>
           <div>
             <span className="mb-1 block text-sm font-medium">Số khung</span>
-            <p className="py-2 text-sm">{slots} khung 30 phút mỗi ngày</p>
+            {/* Cùng khung với hai ô chọn giờ bên cạnh để ba cột thẳng hàng (dev T-044) */}
+            <p className="rounded-md border border-transparent bg-background/60 px-3 py-2 text-sm text-muted">{slots} khung 30 phút mỗi ngày</p>
           </div>
         </div>
       </div>
 
       <fieldset>
-        <legend className="mb-1 text-sm font-medium">Giờ cao điểm</legend>
+        <legend className="mb-2 text-sm font-semibold">Giờ cao điểm</legend>
         <div className="space-y-2">
           {f.peaks.map((p, i) => {
             const bad = showPeaks && (err.peaks[i] || err.overlapIdx?.includes(i));
             return (
               <div key={i}>
-                <div className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md sm:flex ${bad ? "ring-1 ring-danger" : ""}`}>
+                {/* Hàng khung giờ: Từ – Đến cùng cỡ cột Mở cửa / Đóng cửa phía trên, nút xóa là icon (dev T-044) */}
+                <div className={`grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 rounded-md sm:grid-cols-[minmax(0,10rem)_auto_minmax(0,10rem)_auto] ${bad ? "ring-1 ring-danger" : ""}`}>
                   <TimeSelect label="Từ" value={p[0]} onChange={(v) => setPeak(i, 0, v)} />
-                  <span aria-hidden>–</span>
+                  <span aria-hidden className="text-muted">
+                    –
+                  </span>
                   <TimeSelect label="Đến" value={p[1]} onChange={(v) => setPeak(i, 1, v)} />
                   <button
                     type="button"
+                    title="Xóa khung giờ"
                     onClick={() => (setTouched((t) => ({ ...t, peaks: true })), setF((cur) => ({ ...cur, peaks: cur.peaks.filter((_, k) => k !== i) })))}
-                    className="min-h-11 px-2 text-sm text-muted hover:text-danger"
+                    // Điện thoại 44px (vùng chạm), từ sm 36px như dev
+                    className="grid size-11 place-items-center rounded-md text-muted hover:bg-danger-soft hover:text-danger focus-ring sm:size-9"
                   >
-                    Xóa<span className="sr-only"> khung cao điểm {i + 1}</span>
+                    <TrashIcon size={16} />
+                    <span className="sr-only">Xóa khung cao điểm {i + 1}</span>
                   </button>
                 </div>
                 {showPeaks && err.peaks[i] ? <p className="mt-1 text-xs text-danger">{err.peaks[i]}</p> : null}
@@ -167,7 +175,7 @@ export function CourtForm({ state, types, onReload }: { state: CourtFormState; t
 
 function TimeSelect({ id, value, onChange, label, invalid, describedBy }: { id?: string; value: string; onChange: (v: string) => void; label?: string; invalid?: boolean; describedBy?: string }) {
   return (
-    <select id={id} value={value} aria-label={label} aria-invalid={invalid || undefined} aria-describedby={describedBy} onChange={(e) => onChange(e.target.value)} className={`${INPUT} sm:w-auto sm:min-w-28`}>
+    <select id={id} value={value} aria-label={label} aria-invalid={invalid || undefined} aria-describedby={describedBy} onChange={(e) => onChange(e.target.value)} className={INPUT}>
       {TIMES.map((t) => (
         <option key={t} value={t}>
           {t}

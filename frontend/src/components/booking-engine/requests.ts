@@ -8,6 +8,11 @@ import type {
   MemberHit,
   PaymentMethod,
   Quote,
+  RecurringBody,
+  RecurringPreview,
+  BookingOrderList,
+  RecurringOrderList,
+  RecurringPreviewBody,
   SearchResult,
   SessionDetail,
   Transactions,
@@ -98,3 +103,23 @@ export const sendUncollectible = (key: string, code: string, reason: string, ver
     body: { reason, version },
     headers: idem(key),
   });
+
+// ---- Đặt sân định kỳ (T-035, Admin) ----
+/** Xem trước các buổi + tiền (không ghi). Không có buổi nào thì `count = 0`. */
+export const getRecurringPreview = (body: RecurringPreviewBody, signal?: AbortSignal) =>
+  read<RecurringPreview>(() => looseApi.POST(`${P}/front-desk/recurring/preview`, { body, headers: idem(crypto.randomUUID()), signal }));
+
+/** Đặt cả đợt trong một đơn (tất cả hoặc không). Buổi lỗi → 409 E-BOOK-5 + `conflicts[{date, start, reason}]`. */
+export const sendRecurring = (key: string, body: RecurringBody) => looseApi.POST(`${P}/front-desk/recurring`, { body, headers: idem(key) });
+
+// ---- Danh sách đơn định kỳ (T-039, Admin) ----
+export const getRecurringOrders = (f: { status?: string; q?: string; page?: number; size?: number }) => {
+  const query = Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined && v !== ""));
+  return read<RecurringOrderList>(() => looseApi.GET(`${P}/front-desk/recurring`, { params: { query } }));
+};
+
+// ---- Đơn đặt sân (T-041, Admin): mọi đơn quầy / online / định kỳ, không gồm vé ----
+export const getBookingOrders = (f: { kind?: string; status?: string; q?: string; date_from?: string; date_to?: string; page?: number; size?: number }) => {
+  const query = Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined && v !== ""));
+  return read<BookingOrderList>(() => looseApi.GET(`${P}/front-desk/orders`, { params: { query } }));
+};

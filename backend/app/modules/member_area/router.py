@@ -84,8 +84,9 @@ async def get_me(member: auth.CurrentMember, session: SessionDep):
     dependencies=[Depends(require_origin), Depends(no_store)],
 )
 async def update_me(data: MemberMeIn, member: auth.CurrentMember, session: SessionDep):
-    """Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier),
-    409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi."""
+    """Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier /
+    racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
+    Hạng hội viên tự chọn (T-042); đổi hạng ghi audit ``member.tier_self_change``."""
     current = await _profile(session, member)
     profile, changed = await members.update_self_profile(
         session,
@@ -95,6 +96,7 @@ async def update_me(data: MemberMeIn, member: auth.CurrentMember, session: Sessi
             nickname=data.nickname,
             email=data.email,
             tier=data.tier,
+            tier_sent="tier" in data.model_fields_set,
             racket=data.racket,
             show_on_records=data.show_on_records,
             version=data.version,

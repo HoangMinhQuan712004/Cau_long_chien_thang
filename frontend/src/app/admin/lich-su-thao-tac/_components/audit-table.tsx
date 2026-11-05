@@ -16,10 +16,11 @@ type Props = {
   t: Dictionary["auditLog"];
 };
 
-// Người làm: Admin xanh lá, Nhân viên xanh dương, Hệ thống xám (SRS mục I.5, trường 8)
+// Người làm: Admin xanh lá, Nhân viên xanh dương, Hệ thống xám, Hội viên tự sửa (T-042) xanh dương nhạt
 const ACTOR_BADGE: Record<AuditActorKind, "success" | "info" | "neutral"> = {
   admin: "success",
   staff: "info",
+  customer: "info",
   system: "neutral",
 };
 

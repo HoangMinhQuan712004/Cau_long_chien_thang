@@ -141,8 +141,10 @@ export function CourtGrid({
 
   const rowH = roomy ? "h-16" : "h-11";
   const colW = "w-(--col)";
-  const cellBase = `m-0.5 flex ${rowH} shrink-0 flex-col items-center justify-center rounded-md border text-[11px] leading-tight`;
-  const vars = roomy ? "[--c0:8.5rem] [--col:5rem] sm:[--c0:10rem] sm:[--col:6rem]" : "[--c0:5.5rem] [--col:3.25rem] sm:[--c0:6.5rem] sm:[--col:3.5rem]";
+  // Lưới khách trên điện thoại: chữ và cột tên sân nhỏ hơn để thấy nhiều giờ hơn (người dùng 03/11)
+  const cellText = roomy ? "text-[11px]" : "text-[10px] sm:text-[11px]";
+  const cellBase = `m-0.5 flex ${rowH} shrink-0 flex-col items-center justify-center rounded-md border ${cellText} leading-tight`;
+  const vars = roomy ? "[--c0:8.5rem] [--col:5rem] sm:[--c0:10rem] sm:[--col:6rem]" : "[--c0:4.5rem] [--col:3.25rem] sm:[--c0:6.5rem] sm:[--col:3.5rem]";
   const headH = roomy ? "h-9" : "h-8";
 
   return (
@@ -159,7 +161,7 @@ export function CourtGrid({
       aria-busy={busy}
     >
       <div ref={gridRef} role="group" aria-label={label} className={`relative min-w-max ${vars}`}>
-        <div className={`flex ${headH} text-xs text-muted ${roomy ? "border-b border-border" : "sticky top-0 z-30 border-b border-border bg-surface"}`}>
+        <div className={`flex ${headH} ${roomy ? "text-xs" : "text-[11px] sm:text-xs"} text-muted ${roomy ? "border-b border-border" : "sticky top-0 z-(--z-grid) border-b border-border bg-surface"}`}>
           <div data-label className={`sticky left-0 z-40 flex w-(--c0) shrink-0 items-center bg-surface ${roomy ? "border-r border-border px-3 font-medium" : "pl-2 font-semibold"}`}>
             Sân
           </div>
@@ -263,7 +265,7 @@ export function CourtGrid({
           return (
             <div key={row.code} className={`flex border-t border-border/60 ${row.muted ? "opacity-70" : ""}`}>
               {/* -mt-px + viền riêng trên nền đặc: phủ viền trên của hàng để đường giờ hiện tại không lộ qua khe giữa các hàng */}
-              <div className={`sticky left-0 z-20 -mt-px flex w-(--c0) border-t border-border/60 shrink-0 ${roomy ? "flex-col justify-center border-r border-border px-3 text-sm" : "items-center overflow-hidden pr-2 pl-2 text-sm shadow-[3px_0_5px_-3px_rgb(20_40_30/0.18)]"} bg-surface font-medium`}>
+              <div className={`sticky left-0 z-20 -mt-px flex w-(--c0) border-t border-border/60 shrink-0 ${roomy ? "flex-col justify-center border-r border-border px-3 text-sm" : "items-center overflow-hidden pr-2 pl-2 text-xs shadow-[3px_0_5px_-3px_rgb(20_40_30/0.18)] sm:text-sm"} bg-surface font-medium`}>
                 <span className="truncate">{row.name}</span>
                 {roomy && row.sub ? <span className="truncate text-xs font-normal text-muted">{row.sub}</span> : null}
               </div>
@@ -272,7 +274,7 @@ export function CourtGrid({
           );
         })}
 
-        {/* Đường giờ hiện tại: z-10 – trên ô booking, dưới cột sân dính (z-20) và hàng tiêu đề (z-30/40) */}
+        {/* Đường giờ hiện tại: z-10 – trên ô booking, dưới cột sân dính (z-20) và hàng tiêu đề (--z-grid = 30 / z-40) */}
         {nowAt != null && nowAt >= first && nowAt <= first + columns.length ? (
           <div
             aria-hidden

@@ -297,13 +297,13 @@ async def test_ac12_all_invalid_fields_reported_once_and_nothing_saved(admin, ma
         full_name=" ",
         nickname="x" * 21,
         email="khong-hop-le",
-        tier=None,
+        tier="Hạng không có",
         racket="Vợt mới không được thêm " + tag(),
     )
     assert r.status_code == 422, r.text
     fields = {f["field"]: f["code"] for f in err(r)["fields"]}
     assert fields.get("full_name") == "E-HV-1" and fields.get("nickname") == "E-HV-1"
-    assert fields.get("email") == "E-HV-10" and fields.get("tier") == "E-HV-1", fields
+    assert fields.get("email") == "E-HV-10" and fields.get("tier") == "E-HV-1", fields  # T-042
     again = await me(c)
     assert again == cur, "có lỗi thì không lưu ô nào"
     listed = (await c.get(f"{API}/rackets")).json()
@@ -319,8 +319,10 @@ async def test_ac12_all_invalid_fields_reported_once_and_nothing_saved(admin, ma
         ({"nickname": "y" * 21}, "nickname", "E-HV-1"),
         ({"email": "a" * 250 + "@x.vn"}, "email", "E-HV-10"),
         ({"email": "thieu-a-cong.com"}, "email", "E-HV-10"),
+        # T-042: Hạng tự chọn trong 8 bậc hoặc null; giá trị lạ -> E-HV-1 (không còn E-HV-14)
         ({"tier": "Vàng"}, "tier", "E-HV-1"),
         ({"tier": ""}, "tier", "E-HV-1"),
+        ({"tier": "bán chuyên"}, "tier", "E-HV-1"),
     ],
 )
 async def test_ac12_field_rules(admin, made, over, field, code):
@@ -368,7 +370,7 @@ async def test_ac13_success_bumps_version_syncs_name_and_is_visible_elsewhere(ad
         and d["short_name"] == "Mới"
         and d["version"] == cur["version"] + 1
     )
-    assert d["tier"] == "Khá" and d["show_on_records"] is True
+    assert d["tier"] == "Khá" and d["show_on_records"] is True  # T-042: hội viên tự đổi Hạng
     assert (await q("SELECT full_name FROM users WHERE phone=:p", p=m["phone"]))[0][
         "full_name"
     ] == new_name
@@ -435,23 +437,33 @@ async def test_ac12_unknown_or_forbidden_fields_are_rejected(admin, made):
     assert (await me(c))["phone"] == m["phone"] == cur["phone"]
 
 
-async def test_ac13_racket_is_a_string_added_to_the_catalogue_once(admin, made):
+async def test_ac13_racket_is_free_text_normalised_and_never_added_to_the_catalogue(admin, made):
+    """T-033: ô chữ tự nhập – cắt 2 đầu, gộp khoảng trắng, tối đa 100, rỗng → null; không tự thêm vào danh mục vợt."""
     c, _ = await member_login(admin, made, tier="Khá")
     name = f"QA Vợt {tag()}"
-    r = await save(c, await me(c), racket=name)
-    assert r.status_code == 200 and r.json()["racket"] == name
+    before = len((await c.get(f"{API}/rackets")).json())
+    r = await save(c, await me(c), racket=f"  {name.replace(' ', '   ')}  ")
+    assert r.status_code == 200 and r.json()["racket"] == name, (
+        "chuẩn hóa: cắt 2 đầu, gộp khoảng trắng"
+    )
     listed = (await c.get(f"{API}/rackets")).json()
-    assert sum(1 for i in listed if i["name"].lower() == name.lower()) == 1
+    assert not any(i["name"].lower() == name.lower() for i in listed), "không thêm vào danh mục"
+    assert len(listed) == before
     other, _ = await member_login(admin, made, tier="Khá")
     r2 = await save(other, await me(other), racket=name.upper())
-    assert r2.status_code == 200
-    listed = (await other.get(f"{API}/rackets")).json()
-    assert sum(1 for i in listed if i["name"].lower() == name.lower()) == 1, (
-        "không nhân đôi (không phân biệt hoa thường)"
+    assert r2.status_code == 200 and r2.json()["racket"] == name.upper(), (
+        "giữ nguyên chữ người nhập"
     )
-    cleared = await save(c, r.json(), racket=None)
+    assert len((await other.get(f"{API}/rackets")).json()) == before
+    blank = await save(c, r.json(), racket="   ")
+    assert blank.status_code == 200 and blank.json()["racket"] is None, (
+        "rỗng / toàn khoảng trắng → null"
+    )
+    cleared = await save(c, blank.json(), racket=None)
     assert cleared.status_code == 200 and cleared.json()["racket"] is None
-    r3 = await save(c, cleared.json(), racket="z" * 101)
+    ok100 = await save(c, cleared.json(), racket="z" * 100)
+    assert ok100.status_code == 200 and ok100.json()["racket"] == "z" * 100, "100 ký tự là hợp lệ"
+    r3 = await save(c, ok100.json(), racket="z" * 101)
     assert r3.status_code == 422 and any(f["field"] == "racket" for f in err(r3)["fields"])
 
 
@@ -505,7 +517,7 @@ async def test_ac17_audit_before_after_masked_email_and_actor(admin, made):
     c, m = await member_login(admin, made, tier="Trung bình")
     cur = await me(c)
     mail = f"{tag().lower()}@gmail.com"
-    r = await save(c, cur, email=mail, tier="Khá", racket=f"QA Vợt {tag()}")
+    r = await save(c, cur, email=mail, nickname="Gió", tier="Khá", racket=f"QA Vợt {tag()}")
     assert r.status_code == 200, r.text
     row = (
         await q(
@@ -514,20 +526,35 @@ async def test_ac17_audit_before_after_masked_email_and_actor(admin, made):
         )
     )[0]
     assert row["actor_label"] == f"Hội viên (tự sửa) · {m['member_code']}", row["actor_label"]
-    assert "Trung bình" in row["d"] and "Khá" in row["d"], "giá trị trước → sau"
+    assert "Gió" in row["d"] and "QA Vợt" in row["d"], "giá trị trước → sau"
+    assert "Trình độ" not in row["d"], "T-042: Hạng có dòng audit riêng, không lặp ở self_update"
     assert mail not in row["d"] and re.search(r"[a-z0-9]\*\*\*@gmail\.com", row["d"]), "email che"
     assert m["phone"] not in row["d"]
 
 
-async def test_ac17_new_racket_writes_racket_create_audit(admin, made):
-    c, _ = await member_login(admin, made, tier="Khá")
+async def test_ac17_new_racket_writes_no_racket_row_or_audit_and_audit_keeps_before_after(
+    admin, made
+):
+    """T-033 AC3 + AC5: vợt lạ không sinh dòng `racket` / audit `racket.create`; audit sửa hồ sơ vẫn ghi trước → sau."""
+    c, m = await member_login(admin, made, tier="Khá")
     base = (await q("SELECT coalesce(max(id), 0) AS i FROM audit_log"))[0]["i"]
-    name = f"QA Vợt {tag()}"
-    assert (await save(c, await me(c), racket=name)).status_code == 200
-    rows = await q(
-        "SELECT detail::text AS d FROM audit_log WHERE id > :b AND action='racket.create'", b=base
+    rows_before = (await q("SELECT count(*) AS n FROM racket"))[0]["n"]
+    first, second = f"QA Vợt {tag()}", f"QA Vợt {tag()}"
+    r1 = await save(c, await me(c), racket=first)
+    assert r1.status_code == 200
+    assert (await save(c, r1.json(), racket=second)).status_code == 200
+    assert not await q("SELECT 1 FROM audit_log WHERE id > :b AND action='racket.create'", b=base)
+    assert (await q("SELECT count(*) AS n FROM racket"))[0]["n"] == rows_before, (
+        "không có dòng racket mới"
     )
-    assert rows and name in rows[0]["d"]
+    row = (
+        await q(
+            "SELECT detail::text AS d FROM audit_log WHERE action='member.self_update' AND entity_code=:c AND id > :b ORDER BY id DESC LIMIT 1",
+            c=m["member_code"],
+            b=base,
+        )
+    )[0]
+    assert first in row["d"] and second in row["d"], "audit ghi vợt trước → sau"
 
 
 async def test_ac17_failed_save_writes_no_audit(admin, made):
@@ -878,3 +905,214 @@ async def test_flow_counter_creates_member_customer_verifies_and_enters(admin, m
         assert (await c.get(f"{MA}/me")).status_code == 403
         await c.post(f"{API}/auth/password/change", json={"new_password": PW}, headers=idem())
         assert (await me(c))["member_code"] == m["member_code"]
+
+
+# ============================================================ T-042: hội viên tự chọn Hạng (đảo T-038)
+
+
+async def tier_rows(code: str, base: int) -> list[dict]:
+    return list(
+        await q(
+            "SELECT actor_type, actor_label, entity_code, detail::text AS d FROM audit_log WHERE action='member.tier_self_change' AND entity_code=:c AND id > :b ORDER BY id",
+            c=code,
+            b=base,
+        )
+    )
+
+
+async def audit_base() -> int:
+    return (await q("SELECT coalesce(max(id), 0) AS i FROM audit_log"))[0]["i"]
+
+
+async def test_t042_ac2_member_chooses_any_of_the_tiers_or_null_and_the_value_is_saved(admin, made):
+    from app.modules.members.models import TIERS
+
+    c, m = await member_login(admin, made)  # chưa xếp hạng
+    cur = await me(c)
+    assert cur["tier"] is None
+    for wanted in (*TIERS, None):
+        r = await save(c, cur, tier=wanted)
+        assert r.status_code == 200, (wanted, r.text)
+        assert r.json()["tier"] == wanted
+        stored = (await q("SELECT tier FROM customer WHERE member_code=:c", c=m["member_code"]))[0]
+        assert stored["tier"] == wanted
+        assert (await admin.get(f"{M}/{m['member_code']}")).json()["tier"] == wanted, (
+            "quản trị thấy hạng mới"
+        )
+        cur = r.json()
+
+
+async def test_t042_ac2_unknown_tier_is_422_e_hv_1_with_other_field_errors_and_nothing_saved(
+    admin, made
+):
+    c, m = await member_login(admin, made, tier="Khá")
+    cur = await me(c)
+    base = await audit_base()
+    for bad in ("Vàng", "", "khá", "KHÁ", "Khá+", "E-HV-14"):
+        r = await save(c, cur, tier=bad, nickname="Không Được Lưu")
+        assert r.status_code == 422, (bad, r.status_code)
+        assert any(f["field"] == "tier" and f["code"] == "E-HV-1" for f in err(r)["fields"]), r.text
+        assert err(r)["code"] != "E-HV-14", "đã bỏ E-HV-14"
+    both = await save(c, cur, tier="Hạng lạ", email="khong-hop-le")
+    fields = {f["field"]: f["code"] for f in err(both)["fields"]}
+    assert fields.get("tier") == "E-HV-1" and fields.get("email") == "E-HV-10", "báo cùng ô khác"
+    assert await me(c) == cur, "không lưu gì, version không đổi"
+    assert not await tier_rows(m["member_code"], base)
+    assert (await save(c, cur, tier=1)).status_code == 422, "sai kiểu"
+    assert (await save(c, cur, tier="x" * 200)).status_code == 422, "quá dài"
+    assert await me(c) == cur
+
+
+async def test_t042_omitted_tier_keeps_the_tier_and_writes_no_tier_audit(admin, made):
+    c, m = await member_login(admin, made, tier="Khá")
+    cur = await me(c)
+    base = await audit_base()
+    r = await c.put(
+        f"{MA}/me",
+        json={
+            "full_name": cur["full_name"],
+            "nickname": "Giữ Hạng",
+            "show_on_records": cur["show_on_records"],
+            "version": cur["version"],
+        },
+        headers=idem(),
+    )
+    assert r.status_code == 200 and r.json()["tier"] == "Khá", r.text
+    assert r.json()["nickname"] == "Giữ Hạng"
+    same = await save(c, r.json(), tier="Khá", nickname="Vẫn Khá")
+    assert same.status_code == 200 and same.json()["tier"] == "Khá"
+    assert not await tier_rows(m["member_code"], base), "không đổi hạng thì không có audit hạng"
+
+
+async def test_t042_ac3_each_tier_change_has_its_own_audit_row_with_member_actor(admin, made):
+    c, m = await member_login(admin, made, tier="Trung bình")
+    base = await audit_base()
+    r1 = await save(c, await me(c), tier="Khá")
+    r2 = await save(c, r1.json(), tier=None, nickname="Cùng Lúc")
+    r3 = await save(c, r2.json(), tier="Chuyên nghiệp")
+    assert [r.status_code for r in (r1, r2, r3)] == [200, 200, 200]
+    rows = await tier_rows(m["member_code"], base)
+    assert len(rows) == 3, rows
+    for row in rows:
+        assert row["actor_type"] == "customer"
+        assert row["actor_label"] == f"Hội viên (tự sửa) · {m['member_code']}"
+        assert m["phone"] not in row["d"], "không SĐT trong nhật ký"
+    assert "Trung bình" in rows[0]["d"] and "Khá" in rows[0]["d"]
+    assert "Khá" in rows[1]["d"] and "Chưa xếp hạng" in rows[1]["d"], "null hiện 'Chưa xếp hạng'"
+    assert "Chưa xếp hạng" in rows[2]["d"] and "Chuyên nghiệp" in rows[2]["d"]
+    self_rows = await q(
+        "SELECT detail::text AS d FROM audit_log WHERE action='member.self_update' AND entity_code=:c AND id > :b ORDER BY id",
+        c=m["member_code"],
+        b=base,
+    )
+    assert any("Cùng Lúc" in r["d"] for r in self_rows), "ô khác vẫn ghi ở member.self_update"
+    assert all("Trình độ" not in r["d"] for r in self_rows), "không lặp Trình độ"
+
+
+async def test_t042_ac3_tier_change_shows_in_the_action_log_with_a_member_actor(admin, made):
+    c, m = await member_login(admin, made, tier="Yếu")
+    assert (await save(c, await me(c), tier="Khá")).status_code == 200
+    log = f"{API}/admin/audit-log"
+    cat = (await admin.get(f"{log}/catalog")).json()
+    assert "Hội viên" in [a["label"] for a in cat["actors"]], "bộ lọc người làm có 'Hội viên'"
+    assert "member.tier_self_change" in [t["key"] for g in cat["groups"] for t in g["types"]]
+    r = await admin.get(log, params={"action": "member.tier_self_change", "size": 100})
+    assert r.status_code == 200, r.text
+    mine = [i for i in r.json()["items"] if i["target"]["code"] == m["member_code"]]
+    assert mine, "dòng đổi hạng hiện ở Lịch sử thao tác"
+    row = mine[0]
+    assert row["actor"] == "customer" and row["actor_label"] == "Hội viên"
+    assert row["actor_name"] == f"Hội viên (tự sửa) · {m['member_code']}"
+    assert row["actor_code"] is None and row["action_label"] == "Hội viên tự đổi hạng"
+    assert any(
+        ch["field"] == "Trình độ" and ch["before"] == "Yếu" and ch["after"] == "Khá"
+        for ch in row["changes"]
+    ), row["changes"]
+    assert m["phone"] not in r.text, "Lịch sử thao tác không lộ SĐT đầy đủ của hội viên"
+    by_actor = await admin.get(log, params={"actor": "customer", "size": 100})
+    assert by_actor.status_code == 200 and by_actor.json()["items"]
+    assert all(
+        i["actor"] == "customer" and i["action"] == "member.tier_self_change"
+        for i in by_actor.json()["items"]
+    ), "chỉ thao tác có trong danh mục"
+    shown = {i["action"] for i in (await admin.get(log, params={"size": 100})).json()["items"]}
+    assert not shown & {"member.self_update", "member.avatar_update", "member.avatar_delete"}
+
+
+async def test_t042_ac5_changing_tier_does_not_evict_a_member_already_in_a_room(admin, made):
+    """T-031 không đổi: đổi hạng khi đang ở trong phòng không đẩy người đó ra."""
+    from tests.qa_rooms import make_room
+
+    host_c, host = await member_login(admin, made, tier="Khá")
+    guest_c, _ = await member_login(admin, made, tier="Khá")
+    spec = await make_room(admin, host_c, host["member_code"])
+    rid = spec["room"]["id"]
+    d = (await guest_c.get(f"{MA}/rooms/{rid}")).json()
+    joined = await guest_c.post(
+        f"{MA}/rooms/{rid}/join-requests", json={"version": d["version"]}, headers=idem()
+    )
+    assert joined.status_code == 200, joined.text
+    req = (await host_c.get(f"{MA}/rooms/{rid}")).json()["join_requests"][0]
+    dh = (await host_c.get(f"{MA}/rooms/{rid}")).json()
+    ok = await host_c.post(
+        f"{MA}/rooms/{rid}/join-requests/{req['id']}/approve",
+        json={"version": dh["version"]},
+        headers=idem(),
+    )
+    assert ok.status_code == 200, ok.text
+    before = {mm["display_name"] for mm in ok.json()["members"]}
+    assert len(before) == 2
+    assert (await save(guest_c, await me(guest_c), tier="Yếu")).status_code == 200
+    after = {mm["display_name"] for mm in (await host_c.get(f"{MA}/rooms/{rid}")).json()["members"]}
+    assert after == before, "người đã trong phòng không bị đẩy ra khi đổi hạng"
+
+
+async def test_t042_self_registered_member_starts_unranked_and_register_rejects_tier(admin, anon):
+    from tests.conftest import register
+
+    phone = unique_phone()
+    try:
+        r = await register(anon, phone, "QA T038 Đăng Ký")
+        assert r.status_code == 201, r.text
+        mine = await me(anon)
+        assert mine["tier"] is None, "hội viên tự đăng ký mặc định Chưa xếp hạng"
+        # không có đường nhét `tier` qua đăng ký
+        r2 = await anon.post(
+            f"{API}/auth/register/request",
+            json={
+                "full_name": "QA",
+                "phone": unique_phone(),
+                "password": "Mat-Khau-1x",
+                "tier": "Chuyên nghiệp",
+            },
+        )
+        assert r2.status_code == 422
+        # nhưng đăng ký xong thì tự chọn Hạng được (T-042)
+        t = await save(anon, mine, tier="Chuyên nghiệp")
+        assert t.status_code == 200 and t.json()["tier"] == "Chuyên nghiệp", t.text
+    finally:
+        await x("DELETE FROM customer WHERE phone = :p", p=phone)
+        await x("DELETE FROM users WHERE phone = :p", p=phone)
+
+
+async def test_t042_ac4_admin_and_staff_still_change_the_tier_and_audit_has_before_after(
+    admin, staff, made
+):
+    c, m = await member_login(admin, made, tier="Trung bình")
+    base = (await q("SELECT coalesce(max(id), 0) AS i FROM audit_log"))[0]["i"]
+    cur = (await admin.get(f"{M}/{m['member_code']}")).json()
+    r = await staff.patch(
+        f"{M}/{m['member_code']}", json={"tier": "Khá", "version": cur["version"]}, headers=idem()
+    )
+    assert r.status_code == 200, r.text
+    r2 = await admin_patch(admin, m["member_code"], {"tier": "Chuyên nghiệp"})
+    assert r2.status_code == 200, r2.text
+    assert (await me(c))["tier"] == "Chuyên nghiệp", "hội viên thấy Hạng do quầy xếp"
+    rows = await q(
+        "SELECT actor_type, detail::text AS d FROM audit_log WHERE action='member.update' AND entity_code=:c AND id > :b ORDER BY id",
+        c=m["member_code"],
+        b=base,
+    )
+    assert len(rows) == 2
+    assert "Trung bình" in rows[0]["d"] and "Khá" in rows[0]["d"], "NV: trước → sau"
+    assert "Khá" in rows[1]["d"] and "Chuyên nghiệp" in rows[1]["d"], "Admin: trước → sau"

@@ -3,7 +3,7 @@
 (T-019 mã đơn/mã khối, T-016 hội viên tự sửa + ảnh, T-020 sửa hội viên), quyền riêng tư, bền vững với dòng hỏng, hiệu năng.
 
 Chấp nhận theo PR #22 (ARCHITECT 31/10, không FAIL): SĐT đầy đủ trong nhật ký (chỉ Admin xem); màn chỉ hiện người làm
-Admin / Nhân viên / Hệ thống (dòng hội viên tự sửa không hiện); "Thu cả đơn" hiện thành từng dòng "Thu tiền" theo khối.
+Admin / Nhân viên / Hệ thống / Hội viên (T-042: chỉ dòng hội viên tự đổi hạng hiện; tự sửa hồ sơ, ảnh không hiện); "Thu cả đơn" hiện thành từng dòng "Thu tiền" theo khối.
 """
 
 import datetime as dt
@@ -199,7 +199,7 @@ async def test_actor_filter_and_unknown_actor(admin, staff, anon, made, sepay):
     assert any(
         i["target"]["code"] == co["order_code"] for i in await entries(admin, actor="system")
     )
-    for bad in ("web", "customer", "root", ""):
+    for bad in ("web", "root", "", "Customer"):
         assert (await admin.get(LOG, params={"actor": bad})).status_code == 422, bad
 
 
@@ -488,7 +488,7 @@ async def test_t016_member_self_edit_and_avatar_are_not_shown_and_email_is_never
     mail = f"{t16.tag().lower()}@example.com"
     cur = await t16.me(c)
     assert (
-        await t16.save(c, cur, nickname="Gió", email=mail, tier="Bán chuyên")
+        await t16.save(c, cur, nickname="Gió", email=mail, tier="Bán chuyên")  # T-042: tự đổi Hạng
     ).status_code == 200
     assert (await t16.upload(c, t16.png(), size=200)).status_code == 200
     stored = await q(
@@ -513,6 +513,14 @@ async def test_t016_member_self_edit_and_avatar_are_not_shown_and_email_is_never
     assert not shown & {"member.self_update", "member.avatar_update", "member.avatar_delete"}, (
         "chấp nhận: hội viên tự sửa không hiện ở màn"
     )
+    # T-042: riêng việc hội viên tự đổi Hạng thì hiện, người làm = Hội viên
+    assert "member.tier_self_change" in shown
+    mine = [
+        i
+        for i in r.json()["items"]
+        if i["action"] == "member.tier_self_change" and i["target"]["code"] == m["member_code"]
+    ]
+    assert mine and mine[0]["actor"] == "customer" and mine[0]["actor_label"] == "Hội viên"
 
 
 # ============================================================ danh tính người làm + đăng nhập/đăng xuất
@@ -608,10 +616,14 @@ async def test_unknown_action_and_web_actor_rows_are_not_shown(admin):
     try:
         await x(base, a="admin", act="some.unknown.action", c=tag + "-unknown")
         await x(base, a="web", act="member.update", c=tag + "-web")
-        await x(base, a="customer", act="member.update", c=tag + "-cust")
+        # T-042: người làm "customer" chỉ hiện với thao tác trong danh mục; thao tác khác của khách vẫn ẩn
+        await x(base, a="customer", act="member.self_update", c=tag + "-cust")
         got = await entries(admin, action="member.update")
         shown = {i["target"]["code"] for i in got}
         assert not {tag + "-web", tag + "-cust", tag + "-unknown"} & shown
+        assert tag + "-cust" not in {
+            i["target"]["code"] for i in await entries(admin, actor="customer")
+        }
         assert not any(i["target"]["code"] == tag + "-unknown" for i in await entries(admin))
     finally:
         await purge(tag)

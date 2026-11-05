@@ -7,9 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.members import api as members
-from app.modules.play_rooms.common import CAPACITY, eligible, is_closed, person_out
+from app.modules.play_rooms import demo, history, tiers, views
+from app.modules.play_rooms import errors as room_errors
+from app.modules.play_rooms.common import CAPACITY, Me, eligible, is_closed, person_out
 from app.modules.play_rooms.models import PlayRoom, PlayRoomMember
-from app.modules.play_rooms.schemas import PersonOut
+from app.modules.play_rooms.schemas import PersonOut, PlayHistorySummary, RoomCard
 
 PREVIEW = 4  # số avatar xem trước
 
@@ -99,3 +101,70 @@ async def room_id_for_booking(session: AsyncSession, customer_id: int, code: str
         )
     )
     return room.id if member is not None else None
+
+
+def valid_tier_range(min_tier: str | None, max_tier: str | None) -> bool:
+    """Khoảng hạng người đặt chọn (T-031): tên hạng hợp lệ hoặc None, ``min ≤ max``."""
+    return tiers.valid_range(min_tier, max_tier)
+
+
+def bad_tier_range() -> Exception:
+    """422 E-ROOM-14 "Khoảng hạng không hợp lệ."."""
+    return room_errors.bad_tier_range()
+
+
+def tier_range_members_only() -> Exception:
+    """422 E-ROOM-14 "Khoảng hạng chỉ dùng khi đặt trong khu hội viên."."""
+    return room_errors.tier_range_members_only()
+
+
+# ------------------------------------------------------------------ Tổng quan v2 (T-036)
+
+
+async def open_rooms_today(
+    session: AsyncSession, user_id: int, customer_id: int, limit: int = 3
+) -> list[RoomCard]:
+    """ "Phòng đang trống": phòng hôm nay còn mở, **còn chỗ**, mình chưa ở trong, theo giờ bắt đầu.
+
+    Cùng shape thẻ Danh sách sân (có ``tier_range``, ``my_join_block``, ``my_join_pending``).
+    """
+    rooms = await views.list_rooms(session, Me(user_id, customer_id), "all")
+    free = [c for c in rooms.items if not c.is_mine and c.member_count < c.capacity]
+    return free[:limit]
+
+
+async def month_stats(
+    session: AsyncSession, customer_id: int, month: str | None
+) -> PlayHistorySummary:
+    """Buổi chơi / số trận / trận thắng trong tháng – cùng định nghĩa Lịch sử chơi (T-029)."""
+    return (await history.play_history(session, customer_id, month)).summary
+
+
+# ------------------------------------------------------------------ dữ liệu mẫu dev (T-034)
+
+DemoMatch = demo.DemoMatch
+
+
+async def seed_demo_room(
+    session: AsyncSession,
+    booking_code: str,
+    *,
+    member_ids: list[int],
+    pending_join: list[int] | None = None,
+    matches: list[demo.DemoMatch] | None = None,
+    close: bool = False,
+) -> int | None:
+    return await demo.seed_room(
+        session,
+        booking_code,
+        member_ids=member_ids,
+        pending_join=pending_join,
+        matches=matches,
+        close=close,
+    )
+
+
+async def purge_demo(
+    session: AsyncSession, booking_codes: list[str], customer_ids: list[int]
+) -> int:
+    return await demo.purge_demo(session, booking_codes, customer_ids)

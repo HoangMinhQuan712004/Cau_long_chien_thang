@@ -29,5 +29,5 @@ async function CalendarLoader({ searchParams }: Pick<PageProps<"/admin/dat-san">
     if (calendar.status === 403) return <p className="text-muted">{adminNav.noPermission}</p>;
     throw new Error("Không tải được lịch đặt sân");
   }
-  return <CalendarScreen initial={calendar.data} />;
+  return <CalendarScreen initial={calendar.data} canRecurring={can(perms, "booking.recurring")} />;
 }

@@ -357,7 +357,7 @@ Quầy thêm hội viên thì hệ thống tạo luôn tài khoản web cho SĐT
 2. Hệ thống đưa sang `/doi-mat-khau`, bắt đặt mật khẩu mới (không được trùng SĐT) trước khi dùng tiếp.
 3. **Trong 3 ngày** (`MEMBER_INITIAL_PASSWORD_DAYS`) phải đổi. Quá hạn thì không đăng nhập được bằng mật khẩu ban đầu nữa; hội viên bấm **Quên mật khẩu** và nhập mã OTP.
 4. SĐT đã có tài khoản (khách tự đăng ký, Admin, nhân viên) thì **không đụng**, mật khẩu giữ nguyên.
-5. **(T-026, chưa vào dev)** `POST /members` trả thêm `account_created` (`true` = vừa tạo tài khoản, mật khẩu ban đầu là SĐT; `false` = SĐT đã có tài khoản) và `initial_password_expires_at` (hạn đổi, UTC; hiển thị theo giờ Việt Nam) để màn quầy báo cho nhân viên. Mật khẩu **không** nằm trong phản hồi, log hay nhật ký. Chi tiết: `docs/booking-engine-api.md` mục 12.3. Giao diện chưa kiểm.
+5. **(T-026, đã vào `dev`)** `POST /members` trả thêm `account_created` (`true` = vừa tạo tài khoản, mật khẩu ban đầu là SĐT; `false` = SĐT đã có tài khoản) và `initial_password_expires_at` (hạn đổi, UTC; hiển thị theo giờ Việt Nam) để màn quầy báo cho nhân viên. Mật khẩu **không** nằm trong phản hồi, log hay nhật ký. Chi tiết: `docs/booking-engine-api.md` mục 12.3. Giao diện chưa kiểm.
 
 Khách tự đăng ký ở `/dang-ky` là đường khác: xem "Đăng ký tài khoản = hội viên (T-021)" bên dưới.
 
@@ -404,17 +404,19 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 - **Thông báo** của hội viên (được mời, xin vào, được duyệt, bị mời ra, thành Host mới) nằm trong hộp thư của khu hội viên; chưa gửi Zalo.
 - **Lịch sử thanh toán:** chỉ khoản **Đã thanh toán**, tính theo tháng thanh toán (giờ Việt Nam); khách chỉ thấy **mã đơn**, không thấy mã con.
 - **Worker bắt buộc chạy bản mới:** hai job `play_rooms_tick` (mỗi phút: tạo phòng còn thiếu cho booking hôm nay và ngày mai, đóng phòng quá giờ) và `purge_member_notifications` (hằng ngày 03:40). Thiếu worker thì phòng không đóng đúng giờ. Không biến môi trường hay gói mới. Migration `0cbf30ad5193` tạo bảng phòng chơi và thông báo, không backfill dữ liệu.
-- **Host tự xếp đội hình (T-027, backend xong, chưa vào `dev`):** thay cho Bốc, Host chọn tay đội A và đội B (đủ 2 người mỗi đội ở 2v2, 1 người ở 1v1) rồi lưu; trận vào trạng thái "đã bốc" như kết quả Bốc, và vẫn bắt đầu bằng "Bắt đầu trận". Không đổi thứ tự chờ của ai. API `PUT /member-area/rooms/{id}/lineup`, lỗi `E-ROOM-12`.
+- **Host tự xếp đội hình (T-027, đã vào `dev`):** thay cho Bốc, Host chọn tay đội A và đội B (đủ 2 người mỗi đội ở 2v2, 1 người ở 1v1) rồi lưu; trận vào trạng thái "đã bốc" như kết quả Bốc, và vẫn bắt đầu bằng "Bắt đầu trận". Không đổi thứ tự chờ của ai. API `PUT /member-area/rooms/{id}/lineup`, lỗi `E-ROOM-12`.
 - Chi tiết endpoint, mã lỗi `E-ROOM-1…12`, quy tắc bốc: `docs/booking-engine-api.md` mục 13.
 
 ### Lịch sử chơi và Bảng xếp hạng tốc độ (T-029, T-030)
 
-> Backend xong trên nhánh cục bộ, **chưa vào `dev`**. Giao diện chưa bàn giao nên chưa ghi tên trang hay nút.
+> Đã vào `dev`. Tên trang và nút chưa được kiểm trên giao diện nên không ghi ở đây.
 
 - **Lịch sử chơi (T-029):** `GET /member-area/play-history?month=YYYY-MM` trả các buổi hội viên đã chơi ít nhất một trận trong tháng (ngày chơi giờ VN), kèm số trận, thắng, thua. Chỉ tính trận đã kết thúc. Dùng lại dữ liệu phòng chơi, không migration.
 - **Bảng xếp hạng tốc độ (T-030 giai đoạn A):** `GET /member-area/speed-ranking?period=week|month|year` trả top 10 cú đập nhanh nhất trong kỳ và hạng của chính mình. Hội viên tắt "Hiện trên video & kỷ lục" hiện là "Hội viên ẩn danh". Hội viên Ngừng không vào bảng. `record_kmh` trong `GET /member-area/me` nay là kỷ lục mọi thời gian. Module backend mới `records`, bảng `speed_record` (migration `ee7aaa89b694`).
 - **Chưa có cách ghi số đo thật** (giai đoạn A chỉ đọc). Để thử trên máy dev, nạp số đo giả: `cd backend; .venv\Scripts\python -m app.modules.records.seed_demo` (xóa bằng `--clear`). Lệnh từ chối chạy khi `ENV=production`; biến tên là `ENV`, không phải `APP_ENV`.
-- Chi tiết: `docs/booking-engine-api.md` mục 13.5 và 13.6.
+- **Số đo nhập tay và duyệt (T-047, backend xong, chưa vào `dev`):** Admin nhập, sửa, xóa số đo tốc độ của hội viên (có thể gắn sân và video). Hội viên bấm "Gửi cú đập" để tự gửi số đo; số này **chờ Admin duyệt**, chưa tính vào bảng xếp hạng, kỷ lục hay "Video & kỷ lục". Duyệt hoặc từ chối (phải có lý do) thì hội viên nhận thông báo. Hội viên gửi tối đa 5 lượt hợp lệ mỗi 24 giờ. Số đo từ máy đo không sửa hay xóa được. Cần chạy migration `5b7e2c9d41a3` trên server.
+- **Video kỷ lục (T-046, đã vào `dev`):** Admin gắn link YouTube hoặc file `.mp4` / `.webm` (https) vào số đo; hệ thống **không tải file lên**. Hội viên xem ở trang Video & kỷ lục. Nếu sau này thêm `Content-Security-Policy`, phải cho phép `https://www.youtube-nocookie.com` (khung nhúng), `https://i.ytimg.com` (ảnh bìa) và host của file video.
+- Chi tiết: `docs/booking-engine-api.md` mục 13.5, 13.6 và 13.7.
 
 ### Đăng ký tài khoản = hội viên (T-021)
 

@@ -15,11 +15,14 @@ export const FORBIDDEN_REPORT_PARAM = `${FORBIDDEN_KEY}=${FORBIDDEN_REPORT_VALUE
 export type AdminPerm =
   | "reports.view"
   | "booking.calendar.view"
+  | "booking.orders.view"
+  | "booking.recurring"
   | "booking.transactions.view"
   | "booking.config.manage"
   | "member.manage"
   | "payments.settings"
   | "staff.manage"
+  | "records.video.manage"
   | "audit_log.view"
   | "roles.manage"
   | "settings.menu";
@@ -34,8 +37,10 @@ export const ADMIN_NAV = [
   { href: "/admin/bao-cao", key: "baoCao", perm: "reports.view" },
   { href: "/admin/san", key: "san", perm: "booking.config.manage" },
   { href: "/admin/dat-san", key: "datSan", perm: "booking.calendar.view" },
+  { href: "/admin/don-dat-san", key: "donDatSan", perm: "booking.orders.view" },
   { href: "/admin/hoi-vien", key: "hoiVien", perm: "member.manage" },
   { href: "/admin/lich-su-giao-dich", key: "lichSu", perm: "booking.transactions.view" },
+  { href: "/admin/ky-luc", key: "kyLuc", perm: "records.video.manage" },
   { href: "/admin/cai-dat/thanh-toan", key: "thanhToan", perm: "payments.settings" },
   { href: "/admin/nhan-vien", key: "nhanVien", perm: "staff.manage" },
 ] as const satisfies readonly { href: string; key: MenuKey; perm: AdminPerm }[];

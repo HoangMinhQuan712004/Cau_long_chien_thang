@@ -53,6 +53,10 @@
   --medal-bronze: #b8794a;
   --medal-fg: #3b2f08;
 
+  /* Thứ tự lớp (T-037): lưới đặt sân dính < header trang. Header phải cao hơn lưới để dropdown tài khoản không bị hàng giờ đè. */
+  --z-grid: 30;
+  --z-header: 40;
+
   /* T-028 – khu hội viên & lưới đặt sân của khách.
      CTA: một nút hành động chính mỗi màn, chữ tối trên vàng (≥ 7:1; chữ trắng trên vàng chỉ ~2:1 nên không dùng). */
   --cta: #e3b02c;
@@ -178,7 +182,9 @@
   }
 }
 
-/* T-028 AC1: thanh điều hướng dưới (điện thoại) tự ẩn khi màn có thanh hành động riêng, để không chồng hai thanh */
+/* Khu hội viên (điện thoại / máy tính bảng): thanh điều hướng dưới luôn ghim (người dùng 03/11), trừ lúc màn có thanh
+   hành động riêng (`data-bottom-bar`, vd "Bạn đang chọn" khi đang chọn giờ ở Đặt sân): tạm ẩn menu để không chồng hai thanh
+   (người dùng 03/11, sau khi thấy hai thanh chiếm gần nửa màn hình). */
 body:has([data-bottom-bar]) [data-member-nav] {
   display: none;
 }

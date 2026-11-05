@@ -28,6 +28,7 @@ from app.modules.members import racket_router
 from app.modules.members import router as members
 from app.modules.payments import router as payments
 from app.modules.play_rooms import router as play_rooms
+from app.modules.records import admin_router as records_admin
 from app.modules.records import router as records
 from app.modules.reports import router as reports
 from app.modules.web_booking import router as web_booking
@@ -75,6 +76,7 @@ for r in (
     play_rooms.router,
     member_inbox.router,
     records.router,
+    records_admin.router,
     racket_router.router,
     member_me.router,
     front_desk.router,

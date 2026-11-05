@@ -247,6 +247,8 @@ class RoomSource(BaseModel):
     resource_type_name: str
     start_at: dt.datetime
     end_at: dt.datetime
+    min_tier: str | None = Field(default=None, description="Khoảng hạng của đơn (T-031)")
+    max_tier: str | None = None
 
 
 class CustomerBookingRow(BaseModel):
@@ -599,6 +601,9 @@ class CheckoutCreate(StrictIn):
     date: dt.date
     slots: list[OnlineSlotIn] = Field(max_length=200)
     note: str | None = Field(default=None, max_length=200)
+    # Khoảng hạng phòng chơi (T-031) – lớp gọi đã kiểm (tên hạng, thứ tự); engine chỉ lưu
+    min_tier: str | None = Field(default=None, max_length=20)
+    max_tier: str | None = Field(default=None, max_length=20)
 
 
 class CheckoutItem(BaseModel):
@@ -816,3 +821,192 @@ class EventInfo(BaseModel):
     my_tickets: list[MyTicket] | None = Field(
         default=None, description="Vé của tôi – chỉ khi lớp gọi truyền refs của hội viên"
     )
+
+
+# ---------- Đặt sân định kỳ (T-035) ----------
+
+RecurringReason = Literal["booked", "event", "hold", "closed", "inactive", "past", "no_price"]
+
+
+class RecurringSessionIn(StrictIn):
+    """Một buổi tường minh (T-043): FE sinh từ lịch chung rồi áp chỉnh sửa / gợi ý; bỏ buổi = không
+    gửi buổi đó."""
+
+    date: dt.date
+    resource_code: str = Field(max_length=10)
+    start_hour: int = Field(ge=0, le=23)
+    end_hour: int = Field(ge=1, le=24)
+
+
+class RecurringIn(StrictIn):
+    """Các thứ trong tuần + khung giờ, từ ngày -> đến ngày (khách do lớp gọi dựng).
+
+    ``sessions`` (T-043): danh sách buổi tường minh, mỗi buổi một sân / giờ riêng – có thì dùng
+    thay cho lịch chung; không gửi thì sinh từ thứ + giờ + khoảng ngày trên ``resource_code``.
+    """
+
+    resource_code: str = Field(max_length=10)
+    weekdays: list[int] = Field(max_length=7, description="ISO: 1 = Thứ 2 … 7 = Chủ nhật")
+    start_hour: int = Field(ge=0, le=23)
+    end_hour: int = Field(ge=1, le=24)
+    date_from: dt.date
+    date_to: dt.date
+    discount_pct: int = Field(default=0, ge=0, le=100, description="% giảm cho cả đơn, 0–100")
+    sessions: list[RecurringSessionIn] | None = Field(
+        default=None,
+        max_length=100,
+        description="Buổi tường minh (T-043); tối đa 60 buổi, trong 92 ngày, mỗi buổi một sân",
+    )
+
+
+class RecurringSuggestion(BaseModel):
+    """Gợi ý cho buổi trùng (T-043): ``shift`` = cùng sân lệch giờ gần nhất, ``court`` = cùng giờ
+    sân khác (ưu tiên cùng loại sân). Đã kiểm giờ mở cửa, giá và chỗ trống của ngày đó."""
+
+    kind: Literal["shift", "court"]
+    resource_code: str
+    resource_name: str
+    start_hour: int
+    end_hour: int
+    price: int
+
+
+class RecurringSession(BaseModel):
+    date: dt.date
+    weekday: int = Field(description="ISO 1–7")
+    resource_code: str
+    resource_name: str
+    start_hour: int
+    end_hour: int
+    start_time: str
+    end_time: str
+    start_at: dt.datetime
+    end_at: dt.datetime
+    price: int | None = Field(description="Giá gốc theo bảng giá ngày đó; null khi không định giá")
+    price_after_discount: int | None
+    ok: bool
+    reason: RecurringReason | None = None
+    reason_text: str | None = None
+    suggestions: list[RecurringSuggestion] = Field(
+        default_factory=list,
+        description="Tối đa 2 – chỉ buổi lỗi booked / event / hold (T-043)",
+    )
+
+
+class RecurringPreview(BaseModel):
+    sessions: list[RecurringSession]
+    count: int = Field(description="Số buổi")
+    original_amount: int = Field(description="Tổng giá gốc các buổi định giá được")
+    discount_pct: int
+    discount_amount: int
+    total: int = Field(description="Phải thu = gốc − giảm")
+    conflicts_count: int = Field(description="Số buổi không đặt được")
+
+
+class RecurringCreated(BaseModel):
+    order_code: str
+    bookings: list[ItemOut]
+    original_amount: int
+    discount_pct: int
+    discount_amount: int
+    total: int
+
+
+RecurringStatus = Literal["unpaid", "paid", "uncollectible"]
+
+
+class RecurringOrderRow(BaseModel):
+    """Một đơn định kỳ (T-039). Lịch suy từ các buổi: giờ của buổi đầu, khoảng ngày buổi đầu –
+    buổi cuối, thứ = các thứ có buổi. ``customer_phone`` đầy đủ – lớp gọi phải che."""
+
+    order_code: str
+    customer_name: str
+    customer_phone: str
+    resource_code: str
+    resource_name: str
+    weekdays: list[int] = Field(description="ISO 1–7, các thứ có buổi")
+    start_hour: int
+    end_hour: int
+    date_from: dt.date = Field(description="Ngày buổi đầu")
+    date_to: dt.date = Field(description="Ngày buổi cuối")
+    sessions: int
+    original_amount: int
+    discount_pct: int
+    discount_amount: int
+    total: int = Field(description="Phải thu = tổng các buổi (sau giảm)")
+    status: RecurringStatus = Field(
+        description="unpaid: còn buổi chưa thu · paid: mọi buổi đã thu · uncollectible: không còn "
+        "buổi chưa thu và có buổi Không thu được"
+    )
+    created_at: dt.datetime
+    created_by: str
+
+
+class RecurringCounts(BaseModel):
+    all: int
+    unpaid: int
+    paid: int
+    uncollectible: int
+
+
+class RecurringOrderList(BaseModel):
+    items: list[RecurringOrderRow]
+    counts: RecurringCounts = Field(description="Theo ``q``, bỏ qua ``status``")
+    page: int
+    size: int
+    total: int = Field(description="Số đơn khớp ``status`` + ``q``")
+
+
+# ---------- Đơn đặt sân (T-041) ----------
+
+OrderKind = Literal["single", "recurring"]
+
+
+class OrderRow(RecurringOrderRow):
+    """Một đơn đặt sân bất kỳ (quầy / online / định kỳ) – không gồm vé. ``customer_phone`` đầy
+    đủ – lớp gọi phải che. Lịch suy từ các khối (``date_from`` / ``date_to`` = khối đầu / cuối)."""
+
+    kind: OrderKind = Field(description="single = đơn ngày (quầy / online) · recurring = định kỳ")
+    source: Source = Field(description="counter = tại quầy · online")
+    member_code: str | None = Field(description="Mã HV khi khách là hội viên")
+    resource_codes: list[str] = Field(description="Mọi sân của đơn (đơn ngày có thể nhiều sân)")
+    resource_names: list[str]
+    play_date: dt.date = Field(description="Ngày chơi của đơn (định kỳ: ngày buổi đầu)")
+    blocks: int = Field(description="Số khối (đơn ngày) / số buổi (định kỳ)")
+
+
+class OrderCounts(BaseModel):
+    all: RecurringCounts
+    single: RecurringCounts
+    recurring: RecurringCounts
+
+
+class OrderList(BaseModel):
+    items: list[OrderRow]
+    counts: OrderCounts = Field(description="Loại × trạng thái, theo q + ngày (bỏ qua kind/status)")
+    page: int
+    size: int
+    total: int = Field(description="Số đơn khớp kind + status + q + ngày")
+
+
+# ---------- Sự kiện sắp tới trong khu hội viên (T-045) ----------
+
+
+class UpcomingEvent(BaseModel):
+    """Sự kiện chưa bắt đầu – không có danh sách người mua."""
+
+    code: str
+    name: str
+    play_date: dt.date
+    start_at: dt.datetime
+    end_at: dt.datetime
+    start_time: str
+    end_time: str
+    resource_names: list[str]
+    ticket_price: int
+    capacity: int
+    taken: int = Field(description="Vé đã có + ghế đang giữ online")
+    remaining: int
+    can_buy: bool
+    reason: EventBuyBlock | None = Field(description="full / free (engine); online_off do lớp gọi")
+    my_ticket_count: int = Field(description="Số vé của hội viên trong sự kiện (mọi trạng thái)")

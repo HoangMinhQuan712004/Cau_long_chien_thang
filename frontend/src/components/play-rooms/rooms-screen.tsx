@@ -8,11 +8,14 @@ import { PageBanner } from "@/components/member-area/page-banner";
 import { Button } from "@/components/ui/button";
 import { errorText } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
+import { formatLongDate } from "@/lib/format";
 import { toast } from "@/lib/feedback";
 import { usePolling } from "@/hooks/use-polling";
+import { api } from "@/lib/api/client";
+import { EventCard, type EventCardData } from "./event-card";
 import { roomsApi } from "./requests";
 import { type RoomCard, type RoomList, MAX_MEMBERS } from "./types";
-import { dmy, hourRange, seatsText } from "./utils";
+import { dmy, hourRange, joinBlockText, seatsText, tierRangeText } from "./utils";
 
 // /hoi-vien/danh-sach-san (T-017 AC4–AC6): banner 3 số, lọc Tất cả / Sân của tôi, nhóm theo khung giờ, thẻ phòng.
 
@@ -20,7 +23,10 @@ export function RoomsScreen() {
   const [data, setData] = useState<RoomList | null>(null);
   const [error, setError] = useState("");
   // ?loc=cua-toi (từ "Xem tất cả" ở Tổng quan) mở sẵn bộ lọc "Sân của tôi"
-  const [scope, setScope] = useState<"all" | "mine">(useSearchParams().get("loc") === "cua-toi" ? "mine" : "all");
+  const [scope, setScope] = useState<"all" | "mine" | "events">(initialScope(useSearchParams().get("loc")));
+  // Sự kiện 14 ngày tới (T-045); tải một lần khi vào trang, tải lại khi mở tab Sự kiện
+  const [events, setEvents] = useState<EventCardData[] | null>(null);
+  const [eventsFailed, setEventsFailed] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const apply = useCallback((res: Awaited<ReturnType<typeof roomsApi.listRooms>>) => {
@@ -41,6 +47,22 @@ export function RoomsScreen() {
     };
   }, [apply]);
   usePolling(() => void load(), 5000);
+
+  const loadEvents = useCallback(async () => {
+    try {
+      const { data: d, response } = await api.GET("/api/v1/member-area/events", { params: { query: { days: 14 } } });
+      if (d) {
+        setEvents(d);
+        setEventsFailed(false);
+      } else if (response.status !== 401) setEventsFailed(true);
+    } catch {
+      setEventsFailed(true);
+    }
+  }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- tải khi vào trang và khi mở tab Sự kiện
+    void loadEvents();
+  }, [loadEvents, scope]);
 
   async function act(room: RoomCard, kind: "request" | "cancel" | "accept" | "decline") {
     if (busyId !== null) return;
@@ -100,6 +122,7 @@ export function RoomsScreen() {
             [
               ["all", `Tất cả (${data?.all_count ?? 0})`],
               ["mine", `Sân của tôi (${data?.mine_count ?? 0})`],
+              ["events", `Sự kiện${events ? ` (${events.length})` : ""}`],
             ] as const
           ).map(([k, label]) => (
             <button
@@ -114,7 +137,36 @@ export function RoomsScreen() {
           ))}
         </div>
 
-        {error && !data ? (
+        {scope === "events" ? (
+          eventsFailed && !events ? (
+            <div role="alert" className="mt-6 rounded-card bg-surface p-8 text-center shadow-card">
+              <p className="font-semibold">Không tải được sự kiện. Vui lòng thử lại.</p>
+              <Button className="mt-4" onClick={() => void loadEvents()}>
+                Thử lại
+              </Button>
+            </div>
+          ) : !events ? (
+            <p className="mt-10 text-center text-muted" aria-busy>
+              Đang tải…
+            </p>
+          ) : events.length === 0 ? (
+            <p className="mt-10 rounded-card bg-surface p-8 text-center text-muted shadow-card">Chưa có sự kiện sắp tới</p>
+          ) : (
+            eventDays(events).map((g) => (
+              <section key={g.date} className="mt-6" aria-label={formatLongDate(g.date)}>
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-muted">
+                  {formatLongDate(g.date)}
+                  <span aria-hidden className="h-px flex-1 bg-border" />
+                </h2>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {g.items.map((e) => (
+                    <EventCard key={e.code} e={e} />
+                  ))}
+                </div>
+              </section>
+            ))
+          )
+        ) : error && !data ? (
           <div role="alert" className="mt-6 rounded-card bg-surface p-8 text-center shadow-card">
             <p className="font-semibold">{error}</p>
             <Button className="mt-4" onClick={() => void load()}>
@@ -177,6 +229,7 @@ function RoomCardView({ r, busy, onAct }: { r: RoomCard; busy: boolean; onAct: (
           <div>
             <h3 className="text-lg leading-tight font-bold">{r.resource_name}</h3>
             <p className="text-xs text-muted">{r.resource_type_name}</p>
+            {tierRangeText(r.tier_range) ? <span className="mt-1.5 inline-block rounded-full bg-primary-softer px-2.5 py-0.5 text-xs font-semibold text-primary ring-1 ring-primary/25">{tierRangeText(r.tier_range)}</span> : null}
           </div>
           {mine ? <span className="rounded-full bg-primary-softer px-2.5 py-0.5 text-xs font-semibold text-primary ring-1 ring-primary/25">Bạn</span> : null}
         </div>
@@ -225,12 +278,31 @@ function RoomCardView({ r, busy, onAct }: { r: RoomCard; busy: boolean; onAct: (
               Đã đủ
             </Button>
           ) : (
-            <Button variant="secondary" block className="flex-1" onClick={() => onAct("request")} loading={busy}>
+            <Button variant="secondary" block className="flex-1" onClick={() => onAct("request")} loading={busy} disabled={Boolean(r.my_join_block)} title={joinBlockText(r.my_join_block) ?? undefined}>
               Xin vào
             </Button>
           )}
         </div>
       </div>
+      {!mine && r.my_invite_id === null && !r.my_join_pending && !full && r.my_join_block ? (
+        <p role="note" className="mt-2 text-xs text-muted">
+          {joinBlockText(r.my_join_block)}
+        </p>
+      ) : null}
     </article>
   );
 }
+
+/** Nhóm sự kiện theo ngày diễn ra (mảng BE đã sắp theo giờ bắt đầu). */
+function eventDays(events: EventCardData[]) {
+  const out: { date: string; items: EventCardData[] }[] = [];
+  for (const e of events) {
+    const g = out.find((x) => x.date === e.play_date);
+    if (g) g.items.push(e);
+    else out.push({ date: e.play_date, items: [e] });
+  }
+  return out;
+}
+
+/** `?loc=cua-toi` (từ "Xem tất cả" ở lịch sắp tới) / `?loc=su-kien` (từ khối Sự kiện ở Tổng quan) mở sẵn bộ lọc tương ứng. */
+const initialScope = (loc: string | null): "all" | "mine" | "events" => (loc === "cua-toi" ? "mine" : loc === "su-kien" ? "events" : "all");

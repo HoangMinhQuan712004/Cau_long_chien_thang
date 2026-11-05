@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CalendarIcon,
   CalendarPlusIcon,
   ChartIcon,
   CloseIcon,
-  PanelLeftIcon,
   CreditCardIcon,
   IdCardIcon,
+  PanelLeftIcon,
+  RacketIcon,
   ReceiptIcon,
   SettingsIcon,
   UsersIcon,
@@ -22,6 +24,8 @@ import { can, sortNav } from "./forbidden";
 export const NAV_ICONS = {
   baoCao: ChartIcon,
   datSan: CalendarPlusIcon,
+  donDatSan: CalendarIcon,
+  kyLuc: RacketIcon,
   lichSu: ReceiptIcon,
   hoiVien: UsersIcon,
   san: SettingsIcon,

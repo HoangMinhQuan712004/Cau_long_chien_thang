@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.members.models import Customer
 from tests.conftest import API, CUSTOMER_PASSWORD, _client, idem, new_customer, sign_in
-from tests.helpers_booking import BK, book, new_court, random_phone, safe_hour
+from tests.helpers_booking import BK, book, new_court, patch_member, random_phone, safe_hour
 from tests.helpers_web import WEB
 
 ME = f"{API}/member-area/me"
@@ -182,7 +182,7 @@ async def test_update_profile_syncs_name_and_writes_audit(staff, admin):
         booking_code = r.json()["code"]
 
         me = (await c.get(ME)).json()
-        racket = f"Vợt Riêng {uuid.uuid4().hex[:6]}"  # chưa có trong danh mục -> tự thêm
+        racket = f"Vợt Riêng {uuid.uuid4().hex[:6]}"  # tự nhập, không vào danh mục (T-033)
         email = f"Lan.{uuid.uuid4().hex[:6]}@Gmail.com"
         r = await c.put(
             ME,
@@ -191,7 +191,6 @@ async def test_update_profile_syncs_name_and_writes_audit(staff, admin):
                 full_name="  Trần Thị Lan Anh  ",
                 nickname="  Lan Smash ",
                 email=f" {email} ",
-                tier="Khá",
                 racket=f"  {racket} ",
                 show_on_records=True,
             ),
@@ -200,16 +199,16 @@ async def test_update_profile_syncs_name_and_writes_audit(staff, admin):
         out = r.json()
         assert out["full_name"] == "Trần Thị Lan Anh" and out["short_name"] == "Anh"
         assert out["nickname"] == "Lan Smash" and out["email"] == email
-        assert out["tier"] == "Khá" and out["racket"] == racket
+        assert out["tier"] == "Trung bình" and out["racket"] == racket  # hạng giữ nguyên (T-038)
         names = [r["name"] for r in (await c.get(RACKETS)).json()]
-        assert racket in names  # danh mục vợt chung (dev) – hội viên đọc được
+        assert racket not in names  # T-033: không tự thêm vào danh mục
         async with SessionLocal() as s:
             added = await s.scalar(
                 select(AuditLog).where(
                     AuditLog.action == "racket.create", AuditLog.detail["name"].astext == racket
                 )
             )
-        assert added is not None and added.actor_label == f"Hội viên (tự sửa) · {code}"
+        assert added is None
         assert out["show_on_records"] is True and out["version"] == me["version"] + 1
         assert out == (await c.get(ME)).json()
 
@@ -245,9 +244,7 @@ async def test_update_reports_every_field_error_at_once(admin):
         me = (await c.get(ME)).json()
         r = await c.put(
             ME,
-            json=body_of(
-                me, full_name="   ", nickname="x" * 21, email="khong-phai-email", tier="Vàng"
-            ),
+            json=body_of(me, full_name="   ", nickname="x" * 21, email="khong-phai-email"),
         )
         assert r.status_code == 422
         detail = r.json()["detail"]
@@ -256,7 +253,6 @@ async def test_update_reports_every_field_error_at_once(admin):
             "full_name": "E-HV-1",
             "nickname": "E-HV-1",
             "email": "E-HV-10",
-            "tier": "E-HV-1",
         }
         assert detail["code"] == "E-HV-1"
         assert (await c.get(ME)).json() == me  # không lưu ô nào
@@ -447,21 +443,53 @@ async def test_member_reads_racket_catalog(customer, admin):
     assert (await customer.get(RACKETS)).status_code == 403
 
 
-async def test_tier_null_until_chosen(admin):
-    async with linked_member(admin, tier=None) as (c, *_):
+async def test_member_chooses_own_tier_with_audit(admin):
+    """T-042: hội viên tự chọn Hạng (8 bậc hoặc null), giá trị lạ -> 422; mỗi lần đổi ghi
+    ``member.tier_self_change`` (trước -> sau) hiện trong Lịch sử thao tác, người làm = hội viên."""
+    async with linked_member(admin, tier=None) as (c, customer_id, code, _):
         me = (await c.get(ME)).json()
         assert me["tier"] is None
-        r = await c.put(ME, json=body_of(me, nickname="Chưa xếp"))
-        assert r.status_code == 200 and r.json()["tier"] is None  # giữ null được
-        r = await c.put(ME, json=body_of(r.json(), tier="Yếu"))
-        assert r.status_code == 200 and r.json()["tier"] == "Yếu"
-        r = await c.put(ME, json=body_of(r.json(), tier=None))
+        r = await c.put(ME, json=body_of(me, tier="Siêu sao"))
         assert r.status_code == 422
-        assert r.json()["detail"]["fields"][0] == {
-            "field": "tier",
-            "code": "E-HV-1",
-            "message": "Vui lòng chọn Trình độ.",
-        }
+        assert r.json()["detail"]["fields"] == [
+            {"field": "tier", "code": "E-HV-1", "message": "Trình độ không hợp lệ."}
+        ]
+        r = await c.put(ME, json=body_of(me, tier="Khá"))
+        assert r.status_code == 200 and r.json()["tier"] == "Khá"
+        r = await c.put(ME, json=body_of(r.json(), tier=None, nickname="Tự xếp"))
+        assert r.status_code == 200 and r.json()["tier"] is None  # về Chưa xếp hạng được
+        # Không gửi tier -> giữ nguyên
+        body = body_of(r.json(), nickname="Không gửi hạng")
+        body.pop("tier")
+        r = await c.put(ME, json=body)
+        assert r.status_code == 200 and r.json()["tier"] is None
+
+        async with SessionLocal() as s:
+            rows = list(
+                await s.scalars(
+                    select(AuditLog).where(AuditLog.entity_code == code).order_by(AuditLog.id)
+                )
+            )
+        tier_rows = [x for x in rows if x.action == "member.tier_self_change"]
+        assert [x.detail["changes"][0]["before"] for x in tier_rows] == ["Chưa xếp hạng", "Khá"]
+        assert [x.detail["changes"][0]["after"] for x in tier_rows] == ["Khá", "Chưa xếp hạng"]
+        assert all(x.actor_type == "customer" and code in x.actor_label for x in tier_rows)
+        self_rows = [x for x in rows if x.action == "member.self_update"]
+        assert all("Trình độ" not in str(x.detail) for x in self_rows)  # không ghi trùng
+
+        # Lịch sử thao tác (Admin) hiện dòng tự đổi hạng, người làm = Hội viên
+        log = await admin.get(
+            f"{API}/admin/audit-log", params={"action": "member.tier_self_change", "size": 50}
+        )
+        assert log.status_code == 200, log.text
+        mine = [e for e in log.json()["items"] if e["target"]["code"] == code]
+        assert len(mine) == 2
+        assert mine[0]["actor"] == "customer" and mine[0]["actor_label"] == "Hội viên"
+        assert code in mine[0]["actor_name"]
+
+        # NV / Admin vẫn đổi ở quản trị (AC4)
+        r = await patch_member(admin, code, {"tier": "Bán chuyên"})
+        assert r.status_code == 200 and r.json()["tier"] == "Bán chuyên"
 
 
 async def test_racket_name_error_is_reported_with_fields(admin):

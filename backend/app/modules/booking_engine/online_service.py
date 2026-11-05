@@ -238,6 +238,8 @@ async def create_checkout(
         amount=total,
         paid_amount=0,
         note=(data.note or "").strip() or None,
+        min_tier=data.min_tier,
+        max_tier=data.max_tier,
         status="pending",
         expires_at=expires_at,
         **snapshot_values(customer),
@@ -604,6 +606,7 @@ async def apply_online_payment(
         ONLINE_ACTOR.label,
         checkout_id=checkout.id,
     )
+    order.min_tier, order.max_tier = checkout.min_tier, checkout.max_tier
     session.add(order)
     await session.flush()
     codes = []

@@ -25,6 +25,7 @@ from app.modules.booking_engine import api as engine
 from app.modules.booking_engine.dto import CheckoutCreate, CheckoutView, CustomerSnapshot
 from app.modules.members import api as members
 from app.modules.payments import api as payments
+from app.modules.play_rooms import api as rooms
 from app.modules.web_booking.schemas import (
     CheckoutCreatedOut,
     CheckoutIn,
@@ -216,16 +217,29 @@ async def create_checkout(
     Hoạt động -> 403 E-HV-8.
     Lỗi: E-WEB-1 (dữ liệu), E-WEB-2 (khung không đặt được), E-WEB-3 (vừa có người đặt, kèm
     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng),
-    E-WEB-8 (chưa xác minh SĐT), E-019.
+    E-WEB-8 (chưa xác minh SĐT), E-019, E-ROOM-14 (T-031: khoảng hạng sai thứ tự, hoặc gửi khi
+    không ``as_member``).
     """
     await _require_online(session)
     data, full_name, phone, note = await _buyer(session, data, verified_phone, member)
+    # T-031: khoảng hạng phòng chỉ chọn trong khu hội viên; đặt công khai gửi kèm -> 422
+    min_tier, max_tier = data.min_tier, data.max_tier
+    if not data.as_member and (min_tier is not None or max_tier is not None):
+        raise rooms.tier_range_members_only()
+    if not rooms.valid_tier_range(min_tier, max_tier):
+        raise rooms.bad_tier_range()
 
     async def run() -> CheckoutCreatedOut:
         snapshot = await _snapshot(session, full_name, phone)
         created = await engine.create_checkout(
             session,
-            CheckoutCreate(date=data.date, slots=data.slots, note=note),
+            CheckoutCreate(
+                date=data.date,
+                slots=data.slots,
+                note=note,
+                min_tier=min_tier,
+                max_tier=max_tier,
+            ),
             snapshot,
             settings.ONLINE_HOLD_MINUTES,
         )

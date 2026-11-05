@@ -38,6 +38,8 @@ _GROUPS: tuple[tuple[str, str, tuple[tuple[Perm, str, str | None], ...]], ...] =
             (Perm.BOOKING_QUOTE, "Xem giá khi đặt", None),
             (Perm.BOOKING_SEARCH, "Tìm booking", None),
             (Perm.BOOKING_COUNTER_CREATE, "Đặt sân tại quầy", None),
+            (Perm.BOOKING_RECURRING, "Đặt sân định kỳ cho khách", None),
+            (Perm.BOOKING_ORDERS_VIEW, "Xem màn Đơn đặt sân", None),
             (Perm.BOOKING_ITEM_VIEW, "Xem thông tin booking / vé", None),
             (Perm.BOOKING_TICKET_CREATE, "Đăng ký vé tại quầy", None),
             (Perm.BOOKING_SESSION_VIEW, "Xem sự kiện", None),
@@ -79,6 +81,7 @@ _GROUPS: tuple[tuple[str, str, tuple[tuple[Perm, str, str | None], ...]], ...] =
         "Thanh toán",
         ((Perm.PAYMENTS_SETTINGS, "Cài đặt tài khoản nhận tiền", None),),
     ),
+    ("records", "Kỷ lục", ((Perm.RECORDS_VIDEO_MANAGE, "Gắn / gỡ video kỷ lục", None),)),
     ("audit", "Nhật ký", ((Perm.AUDIT_LOG_VIEW, "Xem lịch sử thao tác", None),)),
 )
 LABELS: dict[Perm, str] = {p: label for _, _, items in _GROUPS for p, label, _ in items}

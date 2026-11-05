@@ -166,7 +166,7 @@ function InfoDialog({
       <Kv
         rows={
           isTicket || !item.order_code
-            ? [[isTicket ? "Mã vé" : "Mã booking", <span key="c" className="font-mono">{item.code}</span>]]
+            ? [[isTicket ? "Mã check-in" : "Mã booking", <span key="c" className="font-mono">{item.code}</span>]]
             : [
                 [
                   "Mã đơn",

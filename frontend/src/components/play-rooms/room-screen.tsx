@@ -9,6 +9,7 @@ import { Avatar } from "@/components/member-area/avatar";
 import { PageBanner } from "@/components/member-area/page-banner";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { UserPlusIcon } from "@/components/ui/icons";
 import { errorText, type WriteResult } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
 import { toast } from "@/lib/feedback";
@@ -18,12 +19,13 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { Court, type CourtEditor, type EditorPlayer } from "./court";
 import { type Draft, fromMatch, idsOf, isFull, place, remove, sameLineup, type SlotRef, swap, switchTeam } from "./lineup";
 import { type DragSource, type DropTarget, useLineupDrag } from "./lineup-drag";
+import { JoinRequests } from "./join-requests";
 import { InviteDialog, ResultDialog } from "./room-dialogs";
 import { RoomHistory } from "./room-history";
 import { roomsApi } from "./requests";
 import { SlotDialog, type SlotDialogState } from "./slot-dialog";
 import { type Format, FORMAT_LABEL, FORMAT_NEED, MAX_MEMBERS, type RoomDetail, type RoomMember } from "./types";
-import { hourRange, MATCHES_READY } from "./utils";
+import { hourRange, joinBlockText, MATCHES_READY, tierRangeText } from "./utils";
 
 // /hoi-vien/phong/[id] (T-017 AC8–AC20): sân vẽ, hàng chờ, nút theo vai, popup xác nhận, Lịch sử trận / Xếp hạng.
 
@@ -65,6 +67,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
   // Đội hình Host đang xếp (T-027): bản nháp trên máy; đủ người mới gửi lên server
   const [draft, setDraft] = useState<Draft | null>(null);
   const [slotDlg, setSlotDlg] = useState<SlotDialogState | null>(null);
+  // Số trận đã lưu, hiện ở tab "Lịch sử trận đấu (n)" (T-032 AC5)
+  const [matchTotal, setMatchTotal] = useState<number | null>(null);
   // Mốc thời gian lúc tải gần nhất (để so với giờ cho phép bắt đầu trận, không đọc đồng hồ khi render)
   const [nowMs, setNowMs] = useState(0);
 
@@ -92,6 +96,14 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
     };
   }, [id, apply]);
   usePolling(() => void load(), 5000);
+  const roomVersion = room?.version;
+  useEffect(() => {
+    let off = false;
+    void roomsApi.listMatches(id, "all").then((r) => !off && r.ok && setMatchTotal(r.data.total));
+    return () => {
+      off = true;
+    };
+  }, [id, roomVersion]);
 
   /**
    * Gửi một lệnh ghi kèm version phòng. Phòng vừa đổi (E-ROOM-6) / đã đóng (E-ROOM-1): báo, tải lại, coi như xong.
@@ -209,6 +221,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
   const placedCount = lu ? idsOf(lu.base).length : 0;
   const roomName = room.resource_name.replace(/^Sân (\d+)/, "Sân số $1");
   const beforeStart = nowMs < Date.parse(room.can_start_from);
+  // E-ROOM-10: Host chỉ bắt đầu trận từ 15 phút trước giờ chơi – nói rõ giờ thay vì để nút mờ không lý do
+  const startHint = `Bắt đầu trận được từ ${formatTime(room.can_start_from)} (15 phút trước giờ chơi)`;
 
   async function leave(): Promise<string | null> {
     const r = await write((v) => roomsApi.leave(id, v));
@@ -224,10 +238,11 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
     <>
       <PageBanner
         title={`Phòng: ${roomName}`}
-        subtitle={`${room.members.length}/${MAX_MEMBERS} thành viên · Host: ${hostName} · ${hourRange(room.start_at, room.end_at)}`}
+        subtitle={`${room.members.length}/${MAX_MEMBERS} thành viên · Host: ${hostName} · ${hourRange(room.start_at, room.end_at)}${tierRangeText(room.tier_range) ? ` · ${tierRangeText(room.tier_range)}` : ""}`}
         aside={
+          // Máy tính: "Rời phòng" ở banner; điện thoại: ở cuối trang
           isMember && open ? (
-            <button type="button" onClick={() => setDialog({ kind: "leave" })} className="h-10 rounded-lg bg-surface px-4 text-sm font-semibold text-danger hover:bg-primary-softer focus-ring">
+            <button type="button" onClick={() => setDialog({ kind: "leave" })} className="h-10 rounded-lg bg-surface px-4 text-sm font-semibold text-danger hover:bg-primary-softer focus-ring max-lg:hidden">
               Rời phòng
             </button>
           ) : null
@@ -239,7 +254,9 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
               ["play", "Phòng chơi"],
               ["history", "Lịch sử trận đấu"],
             ] as const
-          ).map(([k, label]) => (
+          ).map(([k, base]) => {
+            const label = k === "history" && matchTotal !== null ? `${base} (${matchTotal})` : base;
+            return (
             <button
               key={k}
               type="button"
@@ -250,7 +267,8 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
             >
               {label}
             </button>
-          ))}
+            );
+          })}
         </div>
       </PageBanner>
 
@@ -266,7 +284,7 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                   ? "Bạn đã gửi yêu cầu vào phòng. Chờ Host duyệt."
                   : room.members.length >= MAX_MEMBERS
                     ? "Phòng đã đủ 8 người."
-                    : "Bạn chưa ở trong phòng này."}
+                    : joinBlockText(room.my_join_block) ?? "Bạn chưa ở trong phòng này."}
             </p>
             <div className="flex gap-2">
               {room.my_invite_id !== null ? (
@@ -283,7 +301,13 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                   Hủy yêu cầu
                 </Button>
               ) : (
-                <Button variant="secondary" onClick={() => void inline((v) => roomsApi.requestJoin(id, v), ["Đã gửi yêu cầu vào phòng", "Host sẽ duyệt"])} loading={busy} disabled={room.members.length >= MAX_MEMBERS}>
+                <Button
+                  variant="secondary"
+                  onClick={() => void inline((v) => roomsApi.requestJoin(id, v), ["Đã gửi yêu cầu vào phòng", "Host sẽ duyệt"])}
+                  loading={busy}
+                  disabled={room.members.length >= MAX_MEMBERS || Boolean(room.my_join_block)}
+                  title={joinBlockText(room.my_join_block) ?? undefined}
+                >
                   Xin vào
                 </Button>
               )}
@@ -294,84 +318,90 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
         {tab === "history" ? (
           <RoomHistory roomId={id} />
         ) : (
-          <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr] lg:items-start">
-            <div className="min-w-0 space-y-4">
+          <div className="space-y-4">
             <section className="overflow-hidden rounded-card bg-surface shadow-card" aria-label="Điều khiển trận">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4" hidden={!MATCHES_READY}>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-muted" id="fmt-label">
-                    Thể thức
-                  </span>
-                  <div role="group" aria-labelledby="fmt-label" className="flex rounded-lg border border-border-strong p-0.5">
-                    {(["2v2", "1v1"] as Format[]).map((f) => (
-                      <button
-                        key={f}
-                        type="button"
-                        aria-pressed={room.format === f}
-                        disabled={!isHost || playing || busy}
-                        onClick={() => room.format !== f && void inline((v) => roomsApi.setFormat(id, f, v))}
-                        className={cn(
-                          "h-8 rounded-md px-3.5 text-sm font-semibold focus-ring disabled:cursor-not-allowed",
-                          room.format === f ? "bg-primary-hover text-surface" : "text-muted enabled:hover:bg-primary-softer",
-                          playing && "opacity-50",
-                        )}
-                      >
-                        {FORMAT_LABEL[f]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <p className="min-w-0 flex-1 text-sm text-muted" role="status">
-                  {playing && cur ? (
-                    <span className="inline-flex items-center gap-2 font-medium text-foreground">
-                      <span aria-hidden className="size-2 rounded-full bg-danger" />
-                      Trận #{cur.no} đang chơi{cur.started_at ? ` · bắt đầu ${formatTime(cur.started_at)}` : ""}
+              {/* Điện thoại: hàng 1 Thể thức … Bắt đầu trận (phải), hàng 2 Bốc · trạng thái.
+                  Máy tính: hai hàng bỏ khung (lg:contents) thành một hàng Thể thức · trạng thái · Bốc · Bắt đầu */}
+              <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:gap-4" hidden={!MATCHES_READY}>
+                <div className="flex items-center justify-between gap-3 lg:contents">
+                  <div className="flex min-w-0 items-center gap-3 lg:order-1">
+                    <span className="text-sm font-semibold text-muted max-sm:sr-only" id="fmt-label">
+                      Thể thức
                     </span>
-                  ) : isHost && lu?.hasDraft && placedCount < need ? (
-                    `Cần đủ ${need} người · đã xếp ${placedCount}/${need} · bản nháp trên máy bạn, chưa lưu`
-                  ) : isHost && drawn ? (
-                    "Đội hình đã lưu · bấm “Bắt đầu trận” khi sẵn sàng · đổi thể thức sẽ xóa đội hình"
-                  ) : drawn ? (
-                    "Đổi thể thức sẽ xóa kết quả bốc · chỉ chốt khi bấm “Bắt đầu trận”"
-                  ) : isHost && placedCount > 0 ? (
-                    `Cần đủ ${need} người · đã xếp ${placedCount}/${need} · bản nháp trên máy bạn, chưa lưu`
-                  ) : waitingAll.length >= need ? (
-                    `Đủ người · ${Math.min(waitingAll.length, need)}/${need} cho ${FORMAT_LABEL[room.format]}`
-                  ) : (
-                    `Chưa đủ người · cần ${need} (đang có ${waitingAll.length})`
-                  )}
-                </p>
-                {isHost ? (
-                  <div className="flex gap-2">
-                    {playing ? (
-                      <Button variant="cta" onClick={() => setDialog({ kind: "result" })} className="h-11 px-5 sm:h-11 sm:text-sm">
+                    <div role="group" aria-labelledby="fmt-label" className="flex rounded-lg border border-border-strong p-0.5">
+                      {(["2v2", "1v1"] as Format[]).map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          aria-pressed={room.format === f}
+                          disabled={!isHost || playing || busy}
+                          onClick={() => room.format !== f && void inline((v) => roomsApi.setFormat(id, f, v))}
+                          className={cn(
+                            "h-8 rounded-md px-3 text-sm font-semibold focus-ring disabled:cursor-not-allowed sm:px-3.5",
+                            room.format === f ? "bg-primary-hover text-surface" : "text-muted enabled:hover:bg-primary-softer",
+                            playing && "opacity-50",
+                          )}
+                        >
+                          {FORMAT_LABEL[f]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {isHost ? (
+                    playing ? (
+                      <Button variant="cta" onClick={() => setDialog({ kind: "result" })} className="h-11 shrink-0 px-4 sm:h-11 sm:px-5 sm:text-sm lg:order-4">
                         Kết thúc trận
                       </Button>
                     ) : (
-                      <>
-                        <Button
-                          variant="secondary"
-                          className="h-11 sm:h-11"
-                          onClick={() => void inline((v) => roomsApi.draw(id, v)).then(() => setDraft(null))}
-                          loading={busy}
-                          disabled={waitingAll.length < need}
-                        >
-                          {drawn ? "Bốc lại" : "Bốc ngẫu nhiên"}
-                        </Button>
-                        <Button
-                          variant="cta"
-                          className="h-11 px-5 sm:h-11 sm:text-sm"
-                          onClick={() => void inline((v) => roomsApi.start(id, v))}
-                          loading={busy}
-                          disabled={!drawn || Boolean(lu?.hasDraft) || beforeStart}
-                          title={!drawn || lu?.hasDraft ? `Cần đủ ${need} người` : beforeStart ? "Chưa tới giờ bắt đầu trận." : undefined}
-                        >
-                          Bắt đầu trận
-                        </Button>
-                      </>
+                      <Button
+                        variant="cta"
+                        className="h-11 shrink-0 px-4 sm:h-11 sm:px-5 sm:text-sm lg:order-4"
+                        onClick={() => void inline((v) => roomsApi.start(id, v))}
+                        loading={busy}
+                        disabled={!drawn || Boolean(lu?.hasDraft) || beforeStart}
+                        title={!drawn || lu?.hasDraft ? `Cần đủ ${need} người` : beforeStart ? startHint : undefined}
+                      >
+                        Bắt đầu trận
+                      </Button>
+                    )
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-3 lg:contents">
+                  {isHost && !playing ? (
+                    <Button
+                      variant="secondary"
+                      className="h-11 shrink-0 sm:h-11 lg:order-3"
+                      onClick={() => void inline((v) => roomsApi.draw(id, v)).then(() => setDraft(null))}
+                      loading={busy}
+                      disabled={waitingAll.length < need}
+                    >
+                      {drawn ? "Bốc lại" : "Bốc ngẫu nhiên"}
+                    </Button>
+                  ) : null}
+                  {/* Điện thoại: bỏ câu hướng dẫn dài khi đã có đội hình; vẫn giữ giờ được bắt đầu trận */}
+                  <p className={cn("min-w-0 flex-1 text-sm text-muted lg:order-2", drawn && !(isHost && beforeStart) && "max-lg:hidden")} role="status">
+                    {playing && cur ? (
+                      <span className="inline-flex items-center gap-2 font-medium text-foreground">
+                        <span aria-hidden className="size-2 rounded-full bg-danger" />
+                        Trận #{cur.no} đang chơi{cur.started_at ? ` · bắt đầu ${formatTime(cur.started_at)}` : ""}
+                      </span>
+                    ) : isHost && lu?.hasDraft && placedCount < need ? (
+                      `Cần đủ ${need} người · đã xếp ${placedCount}/${need} · bản nháp trên máy bạn, chưa lưu`
+                    ) : isHost && drawn && beforeStart ? (
+                      `Đội hình đã lưu · ${startHint}`
+                    ) : isHost && drawn ? (
+                      "Đội hình đã lưu · bấm “Bắt đầu trận” khi sẵn sàng · đổi thể thức sẽ xóa đội hình"
+                    ) : drawn ? (
+                      "Đổi thể thức sẽ xóa kết quả bốc · chỉ chốt khi bấm “Bắt đầu trận”"
+                    ) : isHost && placedCount > 0 ? (
+                      `Cần đủ ${need} người · đã xếp ${placedCount}/${need} · bản nháp trên máy bạn, chưa lưu`
+                    ) : waitingAll.length >= need ? (
+                      `Đủ người · ${Math.min(waitingAll.length, need)}/${need} cho ${FORMAT_LABEL[room.format]}`
+                    ) : (
+                      `Chưa đủ người · cần ${need} (đang có ${waitingAll.length})`
                     )}
-                  </div>
-                ) : null}
+                  </p>
+                </div>
               </div>
               <Court
                 format={cur?.format ?? room.format}
@@ -387,34 +417,6 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                 onWaitingPick={editor ? (m) => setSlotDlg({ kind: "member", id: m.id }) : undefined}
               />
             </section>
-
-            </div>
-            <div className="min-w-0 space-y-4">
-            {isHost && room.join_requests.length > 0 ? (
-              <section className="rounded-card bg-surface p-4 shadow-card sm:p-5" aria-labelledby="req-title">
-                <h2 id="req-title" className="text-base font-bold">
-                  Yêu cầu vào phòng · {room.join_requests.length}
-                </h2>
-                <ul className="mt-3 divide-y divide-border">
-                  {room.join_requests.map((q) => (
-                    <li key={q.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
-                      <span className="flex items-center gap-2.5 font-medium">
-                        <Avatar url={q.avatar_url} name={q.display_name} size={32} />
-                        {q.display_name}
-                      </span>
-                      <span className="flex gap-2">
-                        <Button onClick={() => void inline((v) => roomsApi.decide(id, q.id, true, v), ["Đã duyệt", q.display_name])} disabled={busy || room.members.length >= MAX_MEMBERS} title={room.members.length >= MAX_MEMBERS ? "Phòng đã đủ 8 người." : undefined}>
-                          Duyệt
-                        </Button>
-                        <Button variant="secondary" onClick={() => void inline((v) => roomsApi.decide(id, q.id, false, v))} disabled={busy}>
-                          Từ chối
-                        </Button>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
 
             {isHost && room.invites.length > 0 ? (
               <section className="rounded-card bg-surface p-4 shadow-card sm:p-5" aria-labelledby="inv-title">
@@ -438,12 +440,28 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                   Thành viên · {room.members.length}/{MAX_MEMBERS}
                 </h2>
                 {isHost ? (
-                  <Button variant="secondary" onClick={() => setDialog({ kind: "invite" })} disabled={room.members.length >= MAX_MEMBERS}>
-                    + Mời người chơi
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <JoinRequests
+                      requests={room.join_requests}
+                      full={room.members.length >= MAX_MEMBERS}
+                      busy={busy}
+                      nowMs={nowMs}
+                      onDecide={(q, approve) => void inline((v) => roomsApi.decide(id, q.id, approve, v), approve ? ["Đã duyệt", q.display_name] : undefined)}
+                    />
+                    <button
+                      type="button"
+                      aria-label="Mời người chơi"
+                      title={room.members.length >= MAX_MEMBERS ? `Phòng đã đủ ${MAX_MEMBERS} người.` : "Mời người chơi"}
+                      onClick={() => setDialog({ kind: "invite" })}
+                      disabled={room.members.length >= MAX_MEMBERS}
+                      className="grid size-11 place-items-center rounded-lg border border-primary bg-surface text-primary hover:bg-primary-softer focus-ring disabled:cursor-not-allowed disabled:opacity-50 sm:size-10"
+                    >
+                      <UserPlusIcon size={20} />
+                    </button>
+                  </div>
                 ) : null}
               </div>
-              <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <ul className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {room.members.map((m) => (
                   <MemberTile
                     key={m.id}
@@ -456,16 +474,27 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
                   />
                 ))}
                 {Array.from({ length: Math.max(0, MAX_MEMBERS - room.members.length) }, (_, i) => (
-                  <li key={`empty-${i}`} className="flex h-14 items-center gap-2.5 rounded-lg border border-dashed border-border-strong px-3 text-sm text-subtle">
+                  <li key={`empty-${i}`} className="flex min-h-14 items-center gap-2.5 rounded-lg border border-dashed border-border-strong px-3 text-sm text-subtle">
                     <span aria-hidden className="size-8 rounded-full border border-dashed border-border-strong" />
                     Chỗ trống
                   </li>
                 ))}
               </ul>
             </section>
-            </div>
           </div>
         )}
+
+        {isMember && open ? (
+          <div className="flex justify-end pt-2 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setDialog({ kind: "leave" })}
+              className="h-10 rounded-lg border border-danger/40 bg-surface px-4 text-sm font-semibold text-danger hover:bg-danger-soft focus-ring"
+            >
+              Rời phòng
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {drag.ghost}
@@ -570,12 +599,12 @@ function MemberTile({ m, isMe, canManage, onKick, onTransfer, onDragStart }: { m
   return (
     <li
       onPointerDown={onDragStart}
-      className={cn("relative flex h-14 items-center gap-2.5 rounded-lg border px-3", isMe ? "border-primary/25 bg-primary-softer" : "border-border", onDragStart && "cursor-grab select-none")}
+      className={cn("relative flex min-h-14 items-center gap-2.5 rounded-lg border px-3 py-1.5", isMe ? "border-primary/25 bg-primary-softer" : "border-border", onDragStart && "cursor-grab select-none")}
     >
       <Avatar url={m.avatar_url} name={m.display_name} size={32} />
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-semibold">{m.display_name}</span>
+        <span className="block truncate text-sm font-semibold">{m.display_name}</span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-1">
           {m.role === "host" ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-accent/25 px-2 py-0.5 text-xs font-semibold">
               <Crown className="size-3" />
@@ -583,8 +612,8 @@ function MemberTile({ m, isMe, canManage, onKick, onTransfer, onDragStart }: { m
             </span>
           ) : null}
           {isMe ? <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span> : null}
+          {m.queue_state === "playing" ? <span className="text-xs text-muted">Đang chơi</span> : null}
         </span>
-        {m.queue_state === "playing" ? <span className="text-xs text-muted">Đang chơi</span> : null}
       </span>
       {canManage ? (
         <div className="relative" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setMenu(false)}>

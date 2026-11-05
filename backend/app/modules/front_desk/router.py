@@ -6,16 +6,18 @@ cùng commit hoặc cùng rollback.
 """
 
 import datetime as dt
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, status
-from pydantic import Field, model_validator
+from fastapi import APIRouter, Depends, Query, status
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
 from app.core.db import SessionDep
+from app.core.errors import AppError
 from app.core.idempotency import IdempotencyDep
 from app.core.permissions import Perm, Principal, require
+from app.core.privacy import mask_phone
 from app.core.schemas import StrictIn
 from app.modules.booking_engine import api as engine
 from app.modules.booking_engine.dto import (
@@ -25,6 +27,10 @@ from app.modules.booking_engine.dto import (
     CounterOrderOut,
     CustomerSnapshot,
     ItemOut,
+    RecurringCounts,
+    RecurringCreated,
+    RecurringIn,
+    RecurringPreview,
 )
 from app.modules.members import api as members
 from app.modules.members.api import CustomerIn
@@ -32,6 +38,8 @@ from app.modules.members.api import CustomerIn
 router = APIRouter(prefix="/front-desk", tags=["front-desk"])
 
 CounterBooker = Annotated[Principal, Depends(require(Perm.BOOKING_COUNTER_CREATE))]
+RecurringBooker = Annotated[Principal, Depends(require(Perm.BOOKING_RECURRING))]
+OrdersViewer = Annotated[Principal, Depends(require(Perm.BOOKING_ORDERS_VIEW))]
 TicketSeller = Annotated[Principal, Depends(require(Perm.BOOKING_TICKET_CREATE))]
 
 
@@ -142,3 +150,189 @@ async def register_ticket(
         return await engine.register_ticket(session, actor_of(principal), code, snapshot, note)
 
     return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
+
+
+# ------------------------------------------------------------------ đặt sân định kỳ (T-035)
+
+
+class RecurringPreviewIn(RecurringIn):
+    """Như lúc tạo; ``customer`` không bắt buộc (xem trước không dựng hồ sơ khách)."""
+
+    customer: CustomerIn | None = None
+
+
+class RecurringBookingIn(RecurringIn):
+    customer: CustomerIn
+
+
+def _recurring(data: RecurringIn) -> RecurringIn:
+    return RecurringIn(**data.model_dump(include=set(RecurringIn.model_fields)))
+
+
+@router.post("/recurring/preview", response_model=RecurringPreview)
+async def preview_recurring(
+    data: RecurringPreviewIn, _: RecurringBooker, session: SessionDep
+) -> RecurringPreview:
+    """Xem trước đặt sân định kỳ (chỉ Admin, không ghi): từng buổi (ngày, thứ, giờ, giá gốc, giá
+    sau giảm, ``ok`` / ``reason``) + tổng. ``reason``: booked · event · hold · closed · inactive ·
+    past · no_price. Lỗi 422: không chọn thứ, giờ sai, từ ngày < hôm nay, > 92 ngày, > 60 buổi,
+    % ngoài 0–100. 403 không phải Admin."""
+    return await engine.preview_recurring(session, _recurring(data))
+
+
+@router.post("/recurring", response_model=RecurringCreated, status_code=status.HTTP_201_CREATED)
+async def create_recurring(
+    data: RecurringBookingIn,
+    principal: RecurringBooker,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Đặt sân định kỳ (chỉ Admin): **một đơn** (mã theo ngày buổi đầu) + mỗi buổi một booking
+    Chưa thanh toán, giảm % phân bổ vào từng buổi. Thu tiền bằng "Thu cả đơn" (T-019).
+
+    Tất cả hoặc không: có buổi không đặt được (kể cả vừa bị người khác đặt) -> 409 ``E-BOOK-5``
+    "Có n buổi không đặt được." kèm ``conflicts: [{date, start, reason, reason_text}]``.
+    Lỗi khác như xem trước; khách: E-014 / E-018 / E-001 như đặt quầy.
+    """
+
+    async def run() -> RecurringCreated:
+        snapshot, _note = await customer_snapshot(session, data.customer, principal)
+        return await engine.create_recurring(
+            session, actor_of(principal), _recurring(data), snapshot
+        )
+
+    return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
+
+
+class RecurringOrderOut(BaseModel):
+    """Một đơn định kỳ (T-039) – SĐT đã che."""
+
+    order_code: str
+    customer_name: str
+    phone_masked: str | None
+    resource_code: str
+    resource_name: str
+    weekdays: list[int] = Field(description="ISO 1 = T2 … 7 = CN (các thứ có buổi)")
+    start_hour: int
+    end_hour: int
+    date_from: dt.date = Field(description="Ngày buổi đầu")
+    date_to: dt.date = Field(description="Ngày buổi cuối")
+    sessions: int
+    original_amount: int
+    discount_pct: int
+    discount_amount: int
+    total: int = Field(description="Phải thu (sau giảm)")
+    status: Literal["unpaid", "paid", "uncollectible"]
+    created_at: dt.datetime
+    created_by: str
+
+
+class RecurringOrderListOut(BaseModel):
+    items: list[RecurringOrderOut]
+    counts: RecurringCounts = Field(description="Theo q, bỏ qua status")
+    page: int
+    size: int
+    total: int
+
+
+@router.get("/recurring", response_model=RecurringOrderListOut)
+async def list_recurring(
+    _: RecurringBooker,
+    session: SessionDep,
+    status_: Annotated[
+        Literal["unpaid", "paid", "uncollectible"] | None, Query(alias="status")
+    ] = None,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    page: Annotated[int, Query(ge=1, le=10_000)] = 1,
+    size: Annotated[int, Query(ge=1, le=50)] = 20,
+):
+    """Màn "Đơn định kỳ" (chỉ Admin, T-039): mới nhất trước, lọc trạng thái, tìm theo mã đơn / tên
+    khách / SĐT. Thu cả đơn vẫn qua ``POST /booking/orders/{code}/collect`` (T-019)."""
+    out = await engine.list_recurring(session, status_, q, page, size)
+    return RecurringOrderListOut(
+        items=[
+            RecurringOrderOut(
+                **row.model_dump(exclude={"customer_phone"}),
+                phone_masked=mask_phone(row.customer_phone),
+            )
+            for row in out.items
+        ],
+        counts=out.counts,
+        page=out.page,
+        size=out.size,
+        total=out.total,
+    )
+
+
+# ------------------------------------------------------------------ đơn đặt sân (T-041)
+
+
+class OrderOut(RecurringOrderOut):
+    """Một đơn đặt sân (quầy / online / định kỳ) – SĐT đã che, không gồm vé."""
+
+    kind: Literal["single", "recurring"] = Field(description="single = đơn ngày · recurring")
+    source: Literal["counter", "online"]
+    member_code: str | None = Field(description="Mã HV khi khách là hội viên")
+    resource_codes: list[str]
+    resource_names: list[str] = Field(description="Đơn ngày có thể nhiều sân")
+    play_date: dt.date = Field(description="Ngày chơi (định kỳ: ngày buổi đầu)")
+    blocks: int = Field(description="Số khối (đơn ngày) / số buổi (định kỳ)")
+
+
+class OrderCountsOut(BaseModel):
+    all: RecurringCounts
+    single: RecurringCounts
+    recurring: RecurringCounts
+
+
+class OrderListOut(BaseModel):
+    items: list[OrderOut]
+    counts: OrderCountsOut = Field(description="Loại × trạng thái theo q + ngày")
+    page: int
+    size: int
+    total: int
+
+
+@router.get("/orders", response_model=OrderListOut)
+async def list_orders(
+    _: OrdersViewer,
+    session: SessionDep,
+    kind: Annotated[Literal["all", "single", "recurring"], Query()] = "all",
+    status_: Annotated[
+        Literal["unpaid", "paid", "uncollectible"] | None, Query(alias="status")
+    ] = None,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    date_from: Annotated[dt.date | None, Query(description="Ngày chơi từ (khối bất kỳ)")] = None,
+    date_to: Annotated[dt.date | None, Query(description="Ngày chơi đến")] = None,
+    page: Annotated[int, Query(ge=1, le=10_000)] = 1,
+    size: Annotated[int, Query(ge=1, le=50)] = 20,
+):
+    """Màn "Đơn đặt sân" (chỉ Admin, T-041): mọi đơn quầy / online / định kỳ (không gồm vé, không
+    gồm lượt giữ chỗ chưa trả tiền), mới nhất trước. Lọc loại × trạng thái + khoảng ngày chơi (đơn
+    có khối trong khoảng); tìm mã đơn / mã con / tên / SĐT. Thu cả đơn: ``POST
+    /booking/orders/{code}/collect`` (T-019). Ngày sai thứ tự -> 422 E-016."""
+    if date_from and date_to and date_from > date_to:
+        raise AppError("E-016", "Từ ngày không được sau Đến ngày.", 422)
+    out = await engine.list_orders(
+        session,
+        kind=None if kind == "all" else kind,
+        status=status_,
+        q=q,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        size=size,
+    )
+    return OrderListOut(
+        items=[
+            OrderOut(
+                **row.model_dump(exclude={"customer_phone"}),
+                phone_masked=mask_phone(row.customer_phone),
+            )
+            for row in out.items
+        ],
+        counts=OrderCountsOut(**out.counts.model_dump()),
+        page=out.page,
+        size=out.size,
+        total=out.total,
+    )

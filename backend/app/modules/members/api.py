@@ -10,18 +10,20 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
-from app.modules.members import avatar, enrollment, profiles, self_service, service
+from app.modules.members import avatar, demo, enrollment, profiles, self_service, service
 from app.modules.members import room_people as room_people_mod
 from app.modules.members.avatar import Crop, StoredAvatar
 from app.modules.members.enrollment import MemberEnsured
-from app.modules.members.models import Customer
+from app.modules.members.models import TIERS, Customer
 from app.modules.members.room_people import RoomPerson
-from app.modules.members.schemas import CustomerIn, CustomerProfile, MemberSearchItem
+from app.modules.members.schemas import CustomerIn, CustomerProfile, MemberSearchItem, Tier
 from app.modules.members.self_service import SelfProfile, SelfUpdate, not_member
 from app.modules.members.service import PHONE_RE, normalize_phone
 
 __all__ = [
     "Crop",
+    "Tier",
+    "tier_rank",
     "MemberEnsured",
     "ensure_member_for_phone",
     "member_of_phone",
@@ -146,6 +148,11 @@ async def room_people(session: AsyncSession, ids: set[int] | list[int]) -> dict[
     return await room_people_mod.people(session, ids)
 
 
+def tier_rank(tier: str | None) -> int | None:
+    """Thứ tự hạng theo ``TIERS`` (0 = Yếu … 7 = Chuyên nghiệp); None / tên lạ -> None (T-031)."""
+    return TIERS.index(tier) if tier in TIERS else None
+
+
 async def member_ids(session: AsyncSession) -> list[int]:
     """Id mọi hồ sơ hội viên (không gồm hồ sơ tạm) – cho script dữ liệu thử của module khác."""
     return list(await session.scalars(select(Customer.id).where(Customer.kind == "member")))
@@ -154,6 +161,15 @@ async def member_ids(session: AsyncSession) -> list[int]:
 async def customer_id_of_ref(session: AsyncSession, ref: str) -> int | None:
     """``customer_ref`` trên booking -> id hồ sơ khách (chưa có hồ sơ -> None)."""
     return await room_people_mod.id_of_ref(session, ref)
+
+
+async def member_id_by_code(session: AsyncSession, member_code: str) -> int | None:
+    """Mã HV (không phân biệt hoa thường) -> id hồ sơ hội viên; không có -> None (T-047)."""
+    return await session.scalar(
+        select(Customer.id).where(
+            Customer.kind == "member", Customer.member_code == member_code.strip().upper()
+        )
+    )
 
 
 async def booking_refs_of(session: AsyncSession, customer_id: int) -> list[str]:
@@ -175,3 +191,44 @@ async def count_new_members(session: AsyncSession, start: datetime, end: datetim
         Customer.kind == "member", Customer.created_at >= start, Customer.created_at < end
     )
     return int(await session.scalar(stmt) or 0)
+
+
+async def rackets_of(session: AsyncSession, ids: set[int] | list[int]) -> dict[int, str | None]:
+    """Vợt đang dùng (chuỗi tự nhập, T-033) của các hồ sơ – thẻ Kỷ lục mới (T-036)."""
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Customer.id, Customer.racket).where(Customer.id.in_(sorted(set(ids))))
+    )
+    return {cid: racket for cid, racket in rows}
+
+
+# ------------------------------------------------------------------ dữ liệu mẫu dev (T-034)
+
+DemoMember = demo.DemoMember
+DemoMemberSpec = demo.DemoMemberSpec
+demo_phone = demo.demo_phone
+
+
+async def demo_foreign_phones(session: AsyncSession, extra_phone: str | None = None) -> list[str]:
+    """SĐT trong dải mẫu (và ``extra_phone``) thuộc hồ sơ thật – có thì script mẫu phải dừng."""
+    return await demo.foreign_demo_phones(session, extra_phone)
+
+
+async def demo_member_phones(session: AsyncSession) -> list[str]:
+    return await demo.demo_member_phones(session)
+
+
+async def demo_member_ids(session: AsyncSession) -> list[int]:
+    return await demo.demo_member_ids(session)
+
+
+async def seed_demo_members(
+    session: AsyncSession, specs: list[demo.DemoMemberSpec], first_phone: str | None = None
+) -> list[demo.DemoMember]:
+    return await demo.seed_members(session, specs, first_phone)
+
+
+async def purge_demo(session: AsyncSession) -> int:
+    """Xóa hồ sơ hội viên mẫu (tên "Mẫu · " + SĐT 09990000xx). Không commit."""
+    return await demo.purge_demo(session)

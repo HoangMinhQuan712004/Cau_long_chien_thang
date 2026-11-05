@@ -292,6 +292,10 @@ class Checkout(_CustomerSnapshot, Base):
     tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
     token_hash: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True)
     kind: Mapped[str] = mapped_column(String(10), server_default=text("'court'"))
+    # Khoảng hạng cho phòng chơi của đơn (T-031) – lớp gọi kiểm giá trị; engine chỉ lưu và chép sang
+    # đơn khi tiền về. Cả hai NULL = không giới hạn
+    min_tier: Mapped[str | None] = mapped_column(String(20))
+    max_tier: Mapped[str | None] = mapped_column(String(20))
     pay_ref: Mapped[str] = mapped_column(String(20))
     # Mã đơn cấp lúc giữ chỗ (ADR-010); pay_ref = mã này bỏ dấu gạch. Hết hạn -> mã bỏ luôn
     order_code: Mapped[str] = mapped_column(String(30))
@@ -359,6 +363,8 @@ class BookingOrder(_CustomerSnapshot, Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "code"),
         CheckConstraint("channel IN ('online', 'counter')", name="channel"),
+        CheckConstraint("kind IN ('single', 'recurring')", name="kind"),
+        CheckConstraint("discount_pct BETWEEN 0 AND 100", name="discount_pct"),
         CheckConstraint("customer_kind IN ('member', 'temp')", name="customer_kind"),
         {"schema": SCHEMA},
     )
@@ -368,6 +374,13 @@ class BookingOrder(_CustomerSnapshot, Base):
     code: Mapped[str] = mapped_column(String(30))
     play_date: Mapped[date] = mapped_column(Date)
     channel: Mapped[str] = mapped_column(String(10))
+    # T-035: ``recurring`` = đặt sân định kỳ (Admin) – giảm % cho cả đơn, phân bổ vào từng buổi
+    kind: Mapped[str] = mapped_column(String(10), server_default=text("'single'"))
+    discount_pct: Mapped[int | None] = mapped_column(SmallInteger)
+    discount_amount: Mapped[int | None] = mapped_column(Integer)
+    # Khoảng hạng cho phòng chơi (T-031) – chỉ đơn online đặt trong khu hội viên; quầy = NULL
+    min_tier: Mapped[str | None] = mapped_column(String(20))
+    max_tier: Mapped[str | None] = mapped_column(String(20))
     checkout_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey(f"{SCHEMA}.checkout.id", ondelete="RESTRICT"), unique=True
     )
@@ -412,6 +425,8 @@ class Booking(_CustomerSnapshot, _Payment, Base):
     price_breakdown: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, server_default=text("'[]'::jsonb")
     )
+    # Giá gốc theo bảng giá khi có giảm (T-035); NULL = không giảm (``amount`` là giá gốc)
+    list_amount: Mapped[int | None] = mapped_column(Integer)
     # Booking online: lượt thanh toán đã tạo ra booking này (ADR-007)
     checkout_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey(f"{SCHEMA}.checkout.id", ondelete="RESTRICT"), index=True

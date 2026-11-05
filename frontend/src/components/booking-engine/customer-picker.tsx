@@ -49,15 +49,19 @@ type Props = {
   serverErrors?: CustomerErrors;
   /** Admin: thêm tab "Đặt sự kiện" (chỉ ở popup Đặt sân). */
   onPickSession?: () => void;
+  /** Chỉ cho chọn hội viên (không có Hồ sơ tạm), vd Thêm số đo kỷ lục. */
+  memberOnly?: boolean;
 };
 
-export function CustomerPicker({ state, onChange, submitted, serverErrors, onPickSession }: Props) {
+export function CustomerPicker({ state, onChange, submitted, serverErrors, onPickSession, memberOnly }: Props) {
   const ids = { q: useId(), name: useId(), phone: useId(), note: useId() };
   const [hits, setHits] = useState<MemberHit[]>([]);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [touched, setTouched] = useState<{ name?: boolean; phone?: boolean }>({});
+  // Đã chọn hội viên thì thu danh sách lại thành một dòng (người dùng 04/11); "Đổi" mở lại ô tìm + danh sách
+  const [listOpen, setListOpen] = useState(() => !state.picked);
   const errors = { ...customerErrors(state), ...serverErrors };
   const set = (p: Partial<CustomerState>) => onChange({ ...state, ...p });
 
@@ -95,6 +99,7 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
 
   return (
     <div className="space-y-3">
+      {memberOnly ? null : (
       <div role="tablist" aria-label="Loại hồ sơ khách" className="flex gap-1 rounded-lg bg-background p-1">
         <button type="button" role="tab" aria-selected={state.mode === "member"} onClick={() => set({ mode: "member" })} className={tab(state.mode === "member")}>
           Hồ sơ hội viên
@@ -108,8 +113,23 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
           </button>
         ) : null}
       </div>
+      )}
 
-      {state.mode === "member" ? (
+      {state.mode === "member" && state.picked && !listOpen ? (
+        <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary-softer px-3 py-2 text-sm">
+          <span className="font-mono text-xs">{state.picked.member_code}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">
+              {state.picked.name}
+              {state.picked.tier ? <span className="ml-1.5 text-xs font-normal text-muted">· {state.picked.tier}</span> : null}
+            </span>
+            <span className="block text-xs text-muted tabular-nums">{formatPhone(state.picked.phone)}</span>
+          </span>
+          <button type="button" onClick={() => setListOpen(true)} className="shrink-0 rounded-md px-2 py-1 text-sm font-semibold text-primary hover:bg-surface focus-ring">
+            Đổi
+          </button>
+        </div>
+      ) : state.mode === "member" ? (
         <div className="space-y-2">
           <label htmlFor={ids.q} className="sr-only">
             Tìm hội viên theo mã, tên hoặc số điện thoại
@@ -126,7 +146,7 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
           {searchError ? <p className="text-xs text-danger">{searchError}</p> : null}
           {noResult ? (
             <p role="alert" className="text-xs text-danger">
-              Không tìm thấy hội viên. Kiểm tra lại hoặc chọn Hồ sơ tạm.
+              {memberOnly ? "Không tìm thấy hội viên. Kiểm tra lại mã / tên / SĐT." : "Không tìm thấy hội viên. Kiểm tra lại hoặc chọn Hồ sơ tạm."}
             </p>
           ) : null}
           {shownHits.length ? (
@@ -143,10 +163,14 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
                 <tbody>
                   {shownHits.map((m) => {
                     const on = state.picked?.ref === m.ref;
+                    const pick = () => {
+                      set({ picked: m });
+                      setListOpen(false);
+                    };
                     return (
                       <tr
                         key={m.ref}
-                        onClick={() => set({ picked: m })}
+                        onClick={pick}
                         className={`cursor-pointer border-b border-border last:border-0 ${on ? "bg-primary-softer" : "hover:bg-primary-softer"}`}
                       >
                         <td className="px-3 py-2 font-mono text-xs">{m.member_code}</td>
@@ -157,7 +181,7 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
                         </td>
                         <td className="px-3 py-2">{m.tier ?? "—"}</td>
                         <td className="px-3 py-2 text-center">
-                          <input type="radio" name="member-pick" checked={on} onChange={() => set({ picked: m })} aria-label={`Chọn ${m.name}`} />
+                          <input type="radio" name="member-pick" checked={on} onChange={pick} aria-label={`Chọn ${m.name}`} />
                         </td>
                       </tr>
                     );

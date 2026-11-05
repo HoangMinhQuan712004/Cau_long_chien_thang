@@ -61,7 +61,7 @@ async def test_only_admin_can_view(anon, staff, admin):
 async def test_catalog_lists_groups_actors_and_date_bounds(admin):
     body = (await admin.get(f"{LOG}/catalog")).json()
     assert [g["label"] for g in body["groups"]][0] == "Đăng nhập, đăng xuất"
-    assert [a["label"] for a in body["actors"]] == ["Admin", "Nhân viên", "Hệ thống"]
+    assert [a["label"] for a in body["actors"]] == ["Admin", "Nhân viên", "Hệ thống", "Hội viên"]
     assert body["max_date"] == today().isoformat()
     assert body["min_date"] == today().replace(year=today().year - 1).isoformat()
 
