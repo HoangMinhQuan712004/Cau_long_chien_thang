@@ -49,9 +49,11 @@ type Props = {
   serverErrors?: CustomerErrors;
   /** Admin: thêm tab "Đặt sự kiện" (chỉ ở popup Đặt sân). */
   onPickSession?: () => void;
+  /** Chỉ cho chọn hội viên (không có Hồ sơ tạm), vd Thêm số đo kỷ lục. */
+  memberOnly?: boolean;
 };
 
-export function CustomerPicker({ state, onChange, submitted, serverErrors, onPickSession }: Props) {
+export function CustomerPicker({ state, onChange, submitted, serverErrors, onPickSession, memberOnly }: Props) {
   const ids = { q: useId(), name: useId(), phone: useId(), note: useId() };
   const [hits, setHits] = useState<MemberHit[]>([]);
   const [searched, setSearched] = useState(false);
@@ -97,6 +99,7 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
 
   return (
     <div className="space-y-3">
+      {memberOnly ? null : (
       <div role="tablist" aria-label="Loại hồ sơ khách" className="flex gap-1 rounded-lg bg-background p-1">
         <button type="button" role="tab" aria-selected={state.mode === "member"} onClick={() => set({ mode: "member" })} className={tab(state.mode === "member")}>
           Hồ sơ hội viên
@@ -110,6 +113,7 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
           </button>
         ) : null}
       </div>
+      )}
 
       {state.mode === "member" && state.picked && !listOpen ? (
         <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary-softer px-3 py-2 text-sm">
@@ -142,7 +146,7 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
           {searchError ? <p className="text-xs text-danger">{searchError}</p> : null}
           {noResult ? (
             <p role="alert" className="text-xs text-danger">
-              Không tìm thấy hội viên. Kiểm tra lại hoặc chọn Hồ sơ tạm.
+              {memberOnly ? "Không tìm thấy hội viên. Kiểm tra lại mã / tên / SĐT." : "Không tìm thấy hội viên. Kiểm tra lại hoặc chọn Hồ sơ tạm."}
             </p>
           ) : null}
           {shownHits.length ? (
