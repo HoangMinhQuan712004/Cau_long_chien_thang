@@ -163,6 +163,15 @@ async def customer_id_of_ref(session: AsyncSession, ref: str) -> int | None:
     return await room_people_mod.id_of_ref(session, ref)
 
 
+async def member_id_by_code(session: AsyncSession, member_code: str) -> int | None:
+    """Mã HV (không phân biệt hoa thường) -> id hồ sơ hội viên; không có -> None (T-047)."""
+    return await session.scalar(
+        select(Customer.id).where(
+            Customer.kind == "member", Customer.member_code == member_code.strip().upper()
+        )
+    )
+
+
 async def booking_refs_of(session: AsyncSession, customer_id: int) -> list[str]:
     """``customer_ref`` của hồ sơ trên booking / vé: id hồ sơ + ``phone:<sđt>`` (booking online
     đặt trước khi có hồ sơ). Không có hồ sơ -> []."""

@@ -1,4 +1,8 @@
-"""Bảng xếp hạng tốc độ + kỷ lục cá nhân (T-030 giai đoạn A). Chỉ đọc."""
+"""Bảng xếp hạng tốc độ + kỷ lục cá nhân (T-030 giai đoạn A). Chỉ đọc.
+
+T-047: mọi truy vấn ở đây chỉ lấy số đo **đã duyệt** (``APPROVED``) – bản chờ duyệt / bị từ chối
+không tính hạng, kỷ lục hay video.
+"""
 
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
@@ -25,6 +29,8 @@ from app.modules.records.schemas import (
 
 TOP = 10
 BAR_FLOOR_KMH = 200
+# T-047: chỉ số đo đã duyệt mới tính (máy đo, Admin nhập, hội viên gửi đã được duyệt)
+APPROVED = SpeedRecord.status == "approved"
 ANONYMOUS = "Hội viên ẩn danh"
 
 
@@ -55,7 +61,7 @@ async def _best_in(session: AsyncSession, start: datetime, end: datetime) -> lis
     """Số đo cao nhất của từng người trong [start, end) – bằng nhau lấy lần đạt sớm hơn."""
     rows = await session.execute(
         select(SpeedRecord.customer_id, SpeedRecord.speed_kmh, SpeedRecord.measured_at)
-        .where(SpeedRecord.measured_at >= start, SpeedRecord.measured_at < end)
+        .where(APPROVED, SpeedRecord.measured_at >= start, SpeedRecord.measured_at < end)
         .order_by(
             SpeedRecord.customer_id,
             SpeedRecord.speed_kmh.desc(),
@@ -127,7 +133,9 @@ async def ranking(
 async def record_kmh(session: AsyncSession, customer_id: int) -> int | None:
     """Kỷ lục mọi thời gian của một hội viên (km/h) – None khi chưa có số đo."""
     return await session.scalar(
-        select(func.max(SpeedRecord.speed_kmh)).where(SpeedRecord.customer_id == customer_id)
+        select(func.max(SpeedRecord.speed_kmh)).where(
+            APPROVED, SpeedRecord.customer_id == customer_id
+        )
     )
 
 
@@ -136,6 +144,7 @@ async def month_best(session: AsyncSession, customer_id: int, day: date) -> int 
     first, last = period_bounds("month", day)
     return await session.scalar(
         select(func.max(SpeedRecord.speed_kmh)).where(
+            APPROVED,
             SpeedRecord.customer_id == customer_id,
             SpeedRecord.measured_at >= _at(first),
             SpeedRecord.measured_at < _at(last + timedelta(days=1)),
@@ -167,7 +176,7 @@ async def club_record_breaks(
     Đi theo thời gian, mỗi số đo vượt mức cao nhất trước đó của cả cụm là một lần phá. Chỉ tính số
     đo của hội viên đủ điều kiện như Bảng xếp hạng (Hoạt động, có liên kết). Ẩn danh như T-030.
     """
-    ids = set(await session.scalars(select(SpeedRecord.customer_id).distinct()))
+    ids = set(await session.scalars(select(SpeedRecord.customer_id).where(APPROVED).distinct()))
     people = await eligible(session, ids)
     if not people:
         return []
@@ -184,7 +193,7 @@ async def club_record_breaks(
             SpeedRecord.id,
             previous.label("previous"),
         )
-        .where(SpeedRecord.customer_id.in_(sorted(people)))
+        .where(APPROVED, SpeedRecord.customer_id.in_(sorted(people)))
         .subquery()
     )
     rows = (
@@ -226,7 +235,7 @@ async def record_videos(
 ) -> RecordVideoList:
     """Số đo có video trong kỳ (tuần / tháng / năm / mọi thời gian), mới nhất trước. Chỉ hội viên
     đủ điều kiện như Bảng xếp hạng; ẩn danh như T-030 (video vẫn phát, tên ẩn)."""
-    conds = [SpeedRecord.video_url.is_not(None)]
+    conds = [APPROVED, SpeedRecord.video_url.is_not(None)]
     first = last = None
     if period != "all":
         first, last = period_bounds(period, day)

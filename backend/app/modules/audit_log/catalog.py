@@ -95,6 +95,13 @@ GROUPS: tuple[ActionGroup, ...] = (
             # T-046: Admin gắn / gỡ link video cho số đo tốc độ
             _t("record.video_set", "Gắn video kỷ lục"),
             _t("record.video_removed", "Gỡ video kỷ lục"),
+            # T-047: số đo nhập tay; hội viên gửi -> Admin duyệt / từ chối
+            _t("record.create_manual", "Nhập số đo"),
+            _t("record.update", "Sửa số đo"),
+            _t("record.delete", "Xóa số đo"),  # Admin xóa hoặc hội viên rút lại bản chờ duyệt
+            _t("record.submit", "Hội viên gửi số đo"),
+            _t("record.approve", "Duyệt số đo"),
+            _t("record.reject", "Từ chối số đo"),
         ),
     ),
 )
