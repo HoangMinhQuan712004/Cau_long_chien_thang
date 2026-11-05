@@ -1,7 +1,7 @@
 import datetime as dt
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 Period = Literal["week", "month", "year"]
 
@@ -47,14 +47,25 @@ class VideoIn(BaseModel):
     url: str = Field(max_length=1000, description="https YouTube hoặc file .mp4 / .webm")
 
 
+Source = Literal["device", "admin", "member"]
+Status = Literal["approved", "pending", "rejected"]
+
+
 class AdminSpeedRecordRow(BaseModel):
     id: int
     speed_kmh: int
     measured_at: dt.datetime
     member_code: str | None
     member_name: str
+    resource_code: str | None = Field(description="Mã sân (T-047) – null: không ghi sân")
     resource_name: str | None
     video: VideoOut | None
+    source: Source = Field(description="device: Máy đo · admin: Admin nhập · member: Hội viên gửi")
+    status: Status = Field(description="approved: tính hạng · pending: chờ duyệt · rejected")
+    reject_reason: str | None
+    editable: bool = Field(description="false với số đo máy đo (không sửa / xóa được, E-REC-2)")
+    submitted_at: dt.datetime = Field(description="Lúc nhập / gửi")
+    version: int = Field(description="Gửi kèm khi sửa (PATCH); lệch -> 409 E-REC-3")
 
 
 class AdminSpeedRecordList(BaseModel):
@@ -62,6 +73,76 @@ class AdminSpeedRecordList(BaseModel):
     page: int
     size: int
     total: int
+    pending_count: int = Field(description="Số bản chờ duyệt (tab “Chờ duyệt (n)”), không theo lọc")
+
+
+# ------------------------------------------------------------------ nhập tay / gửi (T-047)
+
+Kmh = Annotated[int, Field(ge=50, le=500, description="km/h, số nguyên 50–500")]
+MeasuredAt = Annotated[
+    AwareDatetime, Field(description="Có múi giờ; không ở tương lai, không quá 365 ngày trước")
+]
+ResourceCode = Annotated[str | None, Field(max_length=20, description="Mã sân đang có")]
+VideoUrl = Annotated[
+    str | None, Field(max_length=1000, description="YouTube / .mp4 / .webm (https), E-REC-1")
+]
+
+
+class SpeedRecordCreateIn(BaseModel):
+    """Admin nhập số đo -> duyệt ngay (``source=admin``)."""
+
+    member_code: str = Field(min_length=1, max_length=20, description="Mã HV (hội viên Hoạt động)")
+    speed_kmh: Kmh
+    measured_at: MeasuredAt
+    resource_code: ResourceCode = None
+    video_url: VideoUrl = None
+
+
+class SpeedRecordPatchIn(BaseModel):
+    """Chỉ gửi ô muốn đổi; ``resource_code`` / ``video_url`` = null -> bỏ sân / gỡ video."""
+
+    version: int = Field(ge=1)
+    speed_kmh: Kmh | None = None
+    measured_at: MeasuredAt | None = None
+    resource_code: ResourceCode = None
+    video_url: VideoUrl = None
+
+
+class RejectIn(BaseModel):
+    reason: str = Field(max_length=500, description="Bắt buộc, tối đa 200 ký tự sau khi cắt trống")
+
+
+class SpeedSubmitIn(BaseModel):
+    """Hội viên gửi cú đập của chính mình -> chờ Admin duyệt."""
+
+    speed_kmh: Kmh
+    measured_at: MeasuredAt
+    resource_code: ResourceCode = None
+    video_url: VideoUrl = None
+
+
+class MySpeedRecord(BaseModel):
+    id: int
+    speed_kmh: int
+    measured_at: dt.datetime
+    resource_code: str | None
+    resource_name: str | None
+    status: Status = Field(description="pending: “Chờ duyệt” · rejected: “Bị từ chối: {lý do}”")
+    reject_reason: str | None
+    video: VideoOut | None
+    submitted_at: dt.datetime
+    can_withdraw: bool = Field(description="true khi đang chờ duyệt (nút “Rút lại”)")
+
+
+class ResourceOption(BaseModel):
+    code: str
+    name: str
+
+
+class MySpeedRecordList(BaseModel):
+    items: list[MySpeedRecord] = Field(description="Bản tôi đã gửi, mới gửi trước (tối đa 50)")
+    resources: list[ResourceOption] = Field(description="Sân đang hoạt động (hộp “Gửi cú đập”)")
+    daily_limit: int = Field(description="Số lượt gửi tối đa / ngày")
 
 
 VideoPeriod = Literal["week", "month", "year", "all"]

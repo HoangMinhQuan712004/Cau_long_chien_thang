@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -8,8 +8,8 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 > **khách đặt online, thanh toán QR SePay, tra cứu booking, tiền về không khớp chỉ ghi vào DB, không có màn xử lý (T-008, bỏ màn ngày 02/11), Admin tự cài tài khoản nhận tiền và khóa SePay (T-012) – mục 10**.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
 > **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, đã vào `dev`) – mục 11.2 và 12.11.**
-> **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007). Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, chưa vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
-> **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), chưa vào `dev` – mục 13.5, 13.6.**
+> **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007). Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, đã vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
+> **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), đã vào `dev` – mục 13.5, 13.6. Video kỷ lục (T-046, đã vào `dev`) và số đo nhập tay / chờ duyệt (T-047, chưa vào `dev`) – mục 13.7.**
 > **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (đã vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
 > Mục 5.1, 10, 11 và 12 (kể cả phần đánh dấu **(T-021)** và mục 12.11) đã có trong `dev`. Chưa có gì trong `main`/production.
@@ -205,7 +205,7 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 
 - `columns[]`: các giờ bắt đầu (số nguyên) từ giờ mở sớm nhất đến đóng muộn nhất của các sân; tự nới khi có khối ngoài giờ.
 - `resources[]`: `{code, name, type, is_active, off_hours[], hour_prices}`; `off_hours` là các giờ ô Xám (ngoài giờ mở hoặc sân Ngừng). Sân ngừng chỉ hiện khi còn chỗ chiếm trong ngày.
-  - **`hour_prices` (T-025, chưa vào `dev`):** `{"<giờ bắt đầu>": giá VND}`, khóa là chuỗi số giờ (`"6"`…`"21"`, do JSON; giao diện đổi sang số). Có giá cho **mọi ô bán được trong ngày** của sân đang hoạt động, kể cả ô đã đặt hoặc đã qua; ô nào chọn được vẫn do `blocks` / `off_hours` / `can` quyết. **Không có khóa** khi ô ngoài giờ mở cửa, sân ngừng hoạt động, hoặc bảng giá thiếu band cho ô đó (trang khách cũng coi ô này là không bán). Cách tính giống lịch khách (loại ngày × thấp điểm / cao điểm / một phần cao điểm; hàm dùng chung `pricing.prices_for_day`, `pricing.hour_price`). Chỉ để xem trước tổng tiền; giá cuối do engine chốt lúc đặt. Không migration, không quyền mới.
+  - **`hour_prices` (T-025, đã vào `dev`):** `{"<giờ bắt đầu>": giá VND}`, khóa là chuỗi số giờ (`"6"`…`"21"`, do JSON; giao diện đổi sang số). Có giá cho **mọi ô bán được trong ngày** của sân đang hoạt động, kể cả ô đã đặt hoặc đã qua; ô nào chọn được vẫn do `blocks` / `off_hours` / `can` quyết. **Không có khóa** khi ô ngoài giờ mở cửa, sân ngừng hoạt động, hoặc bảng giá thiếu band cho ô đó (trang khách cũng coi ô này là không bán). Cách tính giống lịch khách (loại ngày × thấp điểm / cao điểm / một phần cao điểm; hàm dùng chung `pricing.prices_for_day`, `pricing.hour_price`). Chỉ để xem trước tổng tiền; giá cuối do engine chốt lúc đặt. Không migration, không quyền mới.
 - `blocks[]`: `{type: booking|session|hold, code, resource_codes[], start_time, end_time, start_hour, end_hour}` (**T-019:** booking thêm `order_code`; `code` vẫn là mã con, dùng để mở chi tiết), thêm:
   booking → `payment_status, customer_name, phone, source`; sự kiện → `name, taken, capacity, is_full, unpaid_tickets`; giữ chỗ → `expires_at` (`code` là `null`).
 - `unpaid_count`: số booking + vé Chưa thanh toán của **ngày đang xem**.
@@ -231,7 +231,7 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 - `tickets[]` (mới nhất trước): `{code, customer_name, phone, source, payment_status, amount, created_at}`. Mã vé `{mã sự kiện}-Vnn`.
 - `taken` = số vé (mọi trạng thái) + chỗ giữ online còn hạn. Đăng ký vé khóa dòng sự kiện nên 20 request tranh chỗ cuối chỉ 1 thành công, còn lại `E-024`.
 - `active_holds[]`: `{seats, expires_at}`. `can`: `{register, delete}`.
-- **(T-023, chưa vào `dev`) Vé bán online:** mỗi lượt mua giữ **một Hold `seat`** (`seats = n`, mã = mã đơn, tiền chốt = n × giá vé) gắn với `checkout` có `kind = 'ticket'`. Ghế của lượt còn `pending` tính vào `taken` **cho tới khi `expire_holds` nhả**, kể cả trong ân hạn 60 giây; nhờ vậy tiền về hợp lệ luôn còn ghế. Đăng ký vé tại quầy gọi `expire_holds` trước và không lấy được ghế đang giữ (`E-024`). Vé sinh ra khi tiền về mang `source = online`, `payment_method = online_transfer`, đã thanh toán, và cột `ticket.checkout_id`. Xem mục 10.8.
+- **(T-023, đã vào `dev`) Vé bán online:** mỗi lượt mua giữ **một Hold `seat`** (`seats = n`, mã = mã đơn, tiền chốt = n × giá vé) gắn với `checkout` có `kind = 'ticket'`. Ghế của lượt còn `pending` tính vào `taken` **cho tới khi `expire_holds` nhả**, kể cả trong ân hạn 60 giây; nhờ vậy tiền về hợp lệ luôn còn ghế. Đăng ký vé tại quầy gọi `expire_holds` trước và không lấy được ghế đang giữ (`E-024`). Vé sinh ra khi tiền về mang `source = online`, `payment_method = online_transfer`, đã thanh toán, và cột `ticket.checkout_id`. Xem mục 10.8.
 - Xóa sự kiện chỉ khi chưa có vé và chưa có chỗ giữ (xóa mềm, nhả khung); ngược lại 409 `E-023`.
 
 ### Quy tắc cần nhớ
@@ -560,9 +560,9 @@ Thiếu trường bắt buộc hoặc trường lạ → 422 định dạng mặ
 - Tham số `bank` trong `qr_url` là `short_name` của ngân hàng (ví dụ `Vietcombank`).
 - Khóa webhook lưu bằng Fernet với `PAYMENTS_ENCRYPTION_KEY`. Không giải mã được (đổi/mất khóa) → coi như chưa có khóa: webhook 503, `online_enabled=false`, `missing` có `webhook_secret`.
 
-### 10.8 Mua vé sự kiện online (T-023, chưa vào `dev`)
+### 10.8 Mua vé sự kiện online (T-023, đã vào `dev`)
 
-> Đối chiếu với code backend `be/T-023-ve-online` @ `f711b8c` (cục bộ). Giao diện chưa kiểm. Mua vé dùng cùng luồng QR SePay, `Hold`, `checkout` và `expire_holds` như đặt sân (mục 10.1). Exclusion constraint `ex_allocation_no_overlap` **không đổi**: ghế không chiếm allocation, sự kiện đã chiếm sân.
+> Đối chiếu với code backend `be/T-023-ve-online` @ `f711b8c` (nay đã vào `dev`). Giao diện chưa kiểm. Mua vé dùng cùng luồng QR SePay, `Hold`, `checkout` và `expire_holds` như đặt sân (mục 10.1). Exclusion constraint `ex_allocation_no_overlap` **không đổi**: ghế không chiếm allocation, sự kiện đã chiếm sân.
 
 **Luồng:** `GET /web/booking/events/{code}` xem sự kiện → (OTP như đặt sân, hoặc `as_member`) → `POST /web/booking/event-checkouts` → trang `/thanh-toan/{token}` (cùng `GET /checkouts/{token}`, `kind = "ticket"`) → tiền về đủ thì sinh vé.
 
@@ -819,7 +819,7 @@ Lệnh ghi cần `Origin` đúng. **(T-020)** `POST /members` và `POST /members
 | GET | `/members/search?q=` | `member.search` | Tối đa 20 hội viên `{ref, member_code, name, phone, tier, is_active}`; `q` 1–50 ký tự, tìm theo mã / tên / SĐT (≥ 3 chữ số), gồm cả Ngừng. Rate limit 60/phút/người |
 | GET | `/members?q=&kind=&status=&tier=&racket=&sort=&page=1&size=20` | `member.manage` | Danh sách |
 | GET | `/members/next-code` | `member.manage` | `{member_code}` Mã HV dự kiến (chỉ để hiển thị; mã thật cấp lúc lưu) |
-| POST | `/members` → 201 | `member.manage` | Thêm hội viên. **(T-026, chưa vào `dev`)** Phản hồi là `MemberRow` thêm `account_created` (`true`: SĐT chưa có tài khoản nên vừa tạo, mật khẩu ban đầu = SĐT; `false`: SĐT đã có tài khoản, mật khẩu hiện có giữ nguyên) và `initial_password_expires_at` (lúc tạo + `MEMBER_INITIAL_PASSWORD_DAYS` = 3 ngày; chỉ có khi `account_created`; quá hạn → `E-AUTH-30`, dùng Quên mật khẩu). Gửi lại cùng `Idempotency-Key` trả đúng body lần đầu, gồm cả hai trường. Mật khẩu **không** nằm trong response, log, nhật ký hay outbox: giao diện tự ghép "Mật khẩu ban đầu: {SĐT}" từ SĐT vừa nhập. Hạn là UTC có múi giờ, giao diện đổi sang giờ Việt Nam |
+| POST | `/members` → 201 | `member.manage` | Thêm hội viên. **(T-026, đã vào `dev`)** Phản hồi là `MemberRow` thêm `account_created` (`true`: SĐT chưa có tài khoản nên vừa tạo, mật khẩu ban đầu = SĐT; `false`: SĐT đã có tài khoản, mật khẩu hiện có giữ nguyên) và `initial_password_expires_at` (lúc tạo + `MEMBER_INITIAL_PASSWORD_DAYS` = 3 ngày; chỉ có khi `account_created`; quá hạn → `E-AUTH-30`, dùng Quên mật khẩu). Gửi lại cùng `Idempotency-Key` trả đúng body lần đầu, gồm cả hai trường. Mật khẩu **không** nằm trong response, log, nhật ký hay outbox: giao diện tự ghép "Mật khẩu ban đầu: {SĐT}" từ SĐT vừa nhập. Hạn là UTC có múi giờ, giao diện đổi sang giờ Việt Nam |
 | POST | `/members/temp` → 201 | `member.manage` | Tạo hồ sơ tạm |
 | GET | `/members/{ref}` | `member.manage` | Chi tiết; **ghi nhật ký `member.view`** mỗi lần xem |
 | PATCH | `/members/{ref}` | `member.manage` | Sửa hội viên hoặc hồ sơ tạm |
@@ -894,7 +894,7 @@ Dành cho khách đã đăng nhập **và là hội viên**: hồ sơ của tài
 `GET /member-area/me` → `{member_code, full_name, short_name, nickname, email, phone, joined_at, tier, racket, show_on_records, avatar_url, record_kmh, version}`:
 
 - `phone` và `email` đầy đủ (chỉ chính chủ thấy). `short_name` = từ cuối của Họ tên. `joined_at` = ngày tạo hồ sơ hội viên (giờ VN).
-- `tier`: một trong 8 bậc hoặc `null` (chưa xếp hạng). `racket`: tên vợt hoặc `null`. `avatar_url` đã có `?v=`, `null` nếu chưa có ảnh. `record_kmh` luôn `null` ở đợt 1; **T-030 (chưa vào `dev`)** trả kỷ lục thật, xem mục 13.6.
+- `tier`: một trong 8 bậc hoặc `null` (chưa xếp hạng). `racket`: tên vợt hoặc `null`. `avatar_url` đã có `?v=`, `null` nếu chưa có ảnh. `record_kmh` luôn `null` ở đợt 1; **T-030 (đã vào `dev`)** trả kỷ lục thật, xem mục 13.6.
 
 `PUT /member-area/me` body `{full_name, nickname, email, tier, racket, show_on_records, version}` (chuỗi rỗng = `null`; trường lạ → 422):
 
@@ -1008,7 +1008,7 @@ R1 chạy ở **4 chỗ**, luôn sau khi chính chủ SĐT nhập đúng OTP: (1
 
 **Production chưa có Zalo.** Không có kênh OTP (`OTP_TEST_MODE` tắt, thiếu Zalo) thì `/auth/register/request` trả 503 `E-AUTH-23`: production tạm không cho khách tự đăng ký cho tới khi có Zalo. Đây là hành vi đúng.
 
-## 13. Khu hội viên: tổng quan, lịch sử thanh toán, phòng chơi, thông báo, lịch sử chơi, xếp hạng tốc độ (T-017, T-018, T-027, T-029, T-030)
+## 13. Khu hội viên: tổng quan, lịch sử thanh toán, phòng chơi, thông báo, lịch sử chơi, xếp hạng tốc độ (T-017, T-018, T-027, T-029, T-030, T-046, T-047)
 
 > Đã vào `dev` (PR #24). Đối chiếu với code `dev` (`member_area/home_router.py`, `play_rooms/`, `member_inbox/`) và handoff BE T-017 mốc 1, mốc 2, T-018. Tên trang đối chiếu theo thư mục `frontend/src/app/hoi-vien/`; nút và nội dung màn chưa kiểm trên giao diện. Nếu code lệch tài liệu này, code đúng.
 
@@ -1045,7 +1045,7 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
   - `display_code`: booking = mã chung (`order_code`), vé = mã vé. `code` chỉ để gọi chi tiết, không in ra.
   - `title`: "Đặt sân · Sân 1 · 18h–19h" hoặc "Vé sự kiện · {tên} · {sân}".
 - Booking của hồ sơ có SĐT chưa liên kết (`phone:…`) vẫn nằm trong lịch sử.
-- **(T-023, chưa vào `dev`)** Vé mua online cũng hiện ở đây, có hóa đơn.
+- **(T-023, đã vào `dev`)** Vé mua online cũng hiện ở đây, có hóa đơn.
 
 **Đặt sân trong khu hội viên** (`/hoi-vien/dat-san`): giao diện dùng lại `POST /web/booking/checkouts` với `as_member: true`. Họ tên và SĐT lấy từ hồ sơ của phiên (`full_name`, `phone` gửi lên bị bỏ qua), **không** cần `phone_token`. Không phải hội viên liên kết đang Hoạt động (ẩn danh, chưa xác minh, Ngừng) → 403 `E-HV-8`. **Không gửi cờ** thì giữ nguyên như `/dat-san`: đặt hộ SĐT khác vẫn cần `phone_token`. Đơn nhiều sân hay nhiều khối: **mỗi khối một phòng**, nên giao diện gọi `by-booking` cho từng `items[].code`.
 
@@ -1072,7 +1072,7 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
 | POST | `/rooms/{id}/members/{mid}/kick` · `/transfer-host` `{version}` | Chỉ Host. `mid` = `members[].id`. Tự mời ra, chuyển cho chính mình → 404 |
 | PUT | `/rooms/{id}/format` `{format: "2v2"\|"1v1", version}` | Chỉ Host. Đã bốc → xóa kết quả bốc. Đang chơi → `E-ROOM-11` |
 | POST | `/rooms/{id}/draw` `{version}` | Bốc ngẫu nhiên hoặc bốc lại (trận `drawn`, giữ nguyên số `#n`). `E-ROOM-8` nếu Hàng chờ chưa đủ 4 (2v2) hoặc 2 (1v1); `E-ROOM-11` nếu đang chơi |
-| PUT | `/rooms/{id}/lineup` `{team_a[], team_b[], version}` **(T-027, chưa vào `dev`)** | Chỉ Host tự xếp đội hình thay cho Bốc. Cần `Idempotency-Key`. `team_a` / `team_b` là `members[].id` (cùng loại id dùng để mời ra), mỗi đội đúng 2 người (2v2) hoặc 1 người (1v1). Lưu thành trận `drawn` như kết quả Bốc: `current_match.status = "drawn"`, `team_a` / `team_b` là `[{member_id, display_name, avatar_url}]`. Xem bên dưới |
+| PUT | `/rooms/{id}/lineup` `{team_a[], team_b[], version}` **(T-027, đã vào `dev`)** | Chỉ Host tự xếp đội hình thay cho Bốc. Cần `Idempotency-Key`. `team_a` / `team_b` là `members[].id` (cùng loại id dùng để mời ra), mỗi đội đúng 2 người (2v2) hoặc 1 người (1v1). Lưu thành trận `drawn` như kết quả Bốc: `current_match.status = "drawn"`, `team_a` / `team_b` là `[{member_id, display_name, avatar_url}]`. Xem bên dưới |
 | POST | `/rooms/{id}/start` `{version}` | Trận `drawn` → `playing`, người được bốc sang "Đang chơi". `E-ROOM-10` nếu sớm hơn `can_start_from`; `E-ROOM-8` nếu chưa bốc |
 | POST | `/rooms/{id}/matches/{no}/result` `{score_a, score_b, version}` | Lưu **một lần**, không sửa: 0–99, không hòa, sai → 422 `E-ROOM-9`. Gửi lại **cùng** `Idempotency-Key` → đúng kết quả cũ; **khác** key → 409 `E-ROOM-6`. Người chơi về **cuối** Hàng chờ. Ghi nhật ký `room.match_saved` |
 | GET | `/rooms/{id}/matches?format=` | `MatchList = {total, count_2v2, count_1v1, items}`; số đếm tính mọi thể thức, `items` lọc theo `format`, mới nhất trên cùng. Mỗi item: `{no, format, started_at, ended_at, team_a[], team_b[] (tên lúc bốc), score_a, score_b, winner: a\|b}`. Chỉ trận đã lưu (không có trận bỏ dở) |
@@ -1116,9 +1116,9 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
 
 **Nhật ký:** `room.join_approved`, `room.kicked`, `room.host_transferred` (`reason`: `host_left` hoặc `transfer`), `room.match_saved` (tỉ số, đội), `room.lineup_set` (T-027). Người làm là khách.
 
-**Host tự xếp đội hình `PUT /rooms/{id}/lineup` (T-027, chưa vào `dev`):**
+**Host tự xếp đội hình `PUT /rooms/{id}/lineup` (T-027, đã vào `dev`):**
 
-> Đối chiếu với code backend `be/T-027-doi-hinh` @ `1ad3180` (cục bộ, tạo từ `dev` `d68161c`, độc lập với T-023, T-025, T-026). Giao diện chưa kiểm. **Không migration**: `play_match` đã có `team_a`, `team_b`, `names`. Không quyền hay cấu hình mới.
+> Đối chiếu với code backend `be/T-027-doi-hinh` @ `1ad3180` (nay đã vào `dev`). Giao diện chưa kiểm. **Không migration**: `play_match` đã có `team_a`, `team_b`, `names`. Không quyền hay cấu hình mới.
 
 - Body `{team_a: [member_id…], team_b: [member_id…], version}`, trả `RoomDetail` mới nhất. Cần `Origin` và `Idempotency-Key`; gửi lại cùng key → kết quả cũ, header `Idempotent-Replayed: true`. Chỉ Host.
 - Tạo hoặc **thay** trận `drawn` của phòng, dùng chung hàm với Bốc: xếp lại hoặc bốc lại giữ nguyên số trận `#n`; tên người chơi được chụp lúc xếp. Bốc sau khi xếp tay thì kết quả bốc thay cả đội hình.
@@ -1156,9 +1156,9 @@ Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no
 - Không biến môi trường hay gói mới.
 - **Worker production phải chạy bản mới** để có hai job `play_rooms_tick` và `purge_member_notifications`. Thiếu job thì phòng chỉ tạo qua sự kiện outbox, không đóng đúng giờ và không backfill.
 
-### 13.5 Lịch sử chơi (T-029, chưa vào `dev`)
+### 13.5 Lịch sử chơi (T-029, đã vào `dev`)
 
-> Đối chiếu với code backend `be/T-029-lich-su-choi` @ `5a0f584` (cục bộ). Giao diện chưa kiểm. Không migration, không quyền mới, không cấu hình mới: chỉ đọc dữ liệu phòng chơi T-017.
+> Đối chiếu với code backend `be/T-029-lich-su-choi` @ `5a0f584` (nay đã vào `dev`). Giao diện chưa kiểm. Không migration, không quyền mới, không cấu hình mới: chỉ đọc dữ liệu phòng chơi T-017.
 
 **`GET /member-area/play-history?month=YYYY-MM`** (điều kiện chung của mục 13). `month` bỏ trống = tháng này theo giờ VN.
 
@@ -1179,9 +1179,9 @@ Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no
 - Lỗi: sai định dạng (`2026-1`, `abc`) → 422 (validation); tháng không tồn tại (`2026-13`, `2026-00`) → 422 `E-001` "Tháng không hợp lệ (YYYY-MM).". **Tháng tương lai → 200 rỗng** (`summary` toàn 0, `items = []`).
 - Dòng trong lịch sử mở `/hoi-vien/phong/{room_id}`. Phòng đã ẩn theo quy tắc Host của T-017 thì `GET /rooms/{id}` trả 404 (giao diện báo "Phòng này không còn xem được"); dòng vẫn nằm trong lịch sử.
 
-### 13.6 Bảng xếp hạng tốc độ và kỷ lục (T-030 giai đoạn A, chưa vào `dev`)
+### 13.6 Bảng xếp hạng tốc độ và kỷ lục (T-030 giai đoạn A, đã vào `dev`)
 
-> Đối chiếu với code backend `be/T-030-xep-hang-toc-do` @ `092d548` (cục bộ), module mới `app/modules/records/`. Giao diện chưa kiểm. Giai đoạn A **chưa có endpoint ghi số đo**: bảng chỉ có dữ liệu thử (mục dưới).
+> Đối chiếu với code backend `be/T-030-xep-hang-toc-do` @ `092d548` (nay đã vào `dev`), module mới `app/modules/records/`. Giao diện chưa kiểm. Giai đoạn A **chưa có endpoint ghi số đo**: bảng chỉ có dữ liệu thử (mục dưới). Từ T-047, Admin nhập tay và hội viên gửi chờ duyệt: mục 13.7.
 
 **`GET /member-area/speed-ranking?period=week|month|year&date=YYYY-MM-DD`** (điều kiện chung của mục 13). Mặc định `period=month`, `date` = hôm nay giờ VN (ngày bất kỳ trong kỳ). `period` hoặc `date` sai → 422. `Cache-Control: no-store`.
 
@@ -1214,7 +1214,7 @@ Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no
 
 Index `(measured_at)` và `(customer_id, speed_kmh DESC)`. Module khác chỉ gọi `records.api.record_kmh(session, customer_id)`; tên, ảnh, trạng thái và `show_on_records` lấy qua `members.api.room_people`.
 
-**Hai nhánh cùng nối sau `0cbf30ad5193`.** T-023 (`9f73fd765c58`), T-029 (không migration) và T-030 (`ee7aaa89b694`): gộp T-023 với T-030 sẽ có **hai head** Alembic. RELEASE phải đổi `down_revision` của một migration; BACKEND đề xuất `ee7aaa89b694` nối sau `9f73fd765c58`. `alembic heads` phải ra một dòng trước khi merge.
+**Chuỗi migration trên `dev`:** `0cbf30ad5193` → `9f73fd765c58` (T-023) → `ee7aaa89b694` (T-030) → `6bf6fab236b8` (T-031) → `73296951e195` (T-035). RELEASE đã nối `ee7aaa89b694` sau `9f73fd765c58`, chỉ còn một head.
 
 **Dữ liệu thử (chỉ dev / local).** Chạy trong `backend/` (trên dev: trong container backend, khi người dùng cho phép):
 
@@ -1224,3 +1224,81 @@ python -m app.modules.records.seed_demo --clear  # xóa số đo thử
 ```
 
 Số đo thử có `source_ref = "demo:…"` và `device_id = "demo"`, nên chạy lại không tạo trùng. Lệnh **từ chối chạy khi `ENV=production`** (thoát với mã 2). Biến cấu hình tên là `ENV` (`development`, `staging`, `production`), không phải `APP_ENV`.
+
+### 13.7 Video kỷ lục (T-046) và số đo nhập tay, chờ duyệt (T-047)
+
+> **T-046 đã vào `dev`** (PR #39). **T-047 chưa vào `dev`:** đối chiếu với code backend `be/T-047-so-do-thu-cong` @ `2089407` (cục bộ, tạo từ `dev` `af1cf97`). BACKEND ghi trong handoff là **chưa chạy test cục bộ** (chờ CI) và migration `5b7e2c9d41a3` **chưa chạy up / down / check**; nếu CI đỏ thì code đúng, tài liệu này chỉnh theo. Giao diện chưa kiểm.
+
+#### Trạng thái và quy tắc tính
+
+Mỗi số đo trong `speed_record` có thêm hai trường (T-047):
+
+| Trường | Giá trị | Ý nghĩa |
+|---|---|---|
+| `source` | `device` · `admin` · `member` | Máy đo · Admin nhập · Hội viên gửi |
+| `status` | `approved` · `pending` · `rejected` | Tính hạng · chờ duyệt · bị từ chối (bắt buộc có lý do) |
+
+**Chỉ số đo `approved`** được tính vào Bảng xếp hạng (mục 13.6), `record_kmh` của `/member-area/me`, `month_best`, "Kỷ lục mới" và Video & kỷ lục. Bản `pending` và `rejected` không vào đâu cả. Số đo cũ (từ máy đo hoặc dữ liệu thử) khi chạy migration là `device` + `approved`, nên kết quả cũ không đổi.
+
+#### Link video (T-046)
+
+Chỉ `https://`, không có khoảng trắng, tối đa 500 ký tự. Sai → 422 `E-REC-1` "Chỉ nhận link YouTube hoặc file .mp4 / .webm (https).". **Hệ thống không tải file lên**, chỉ lưu link (đã cắt khoảng trắng hai đầu).
+
+- **YouTube:** `youtube.com/watch?v={id}`, `youtu.be/{id}`, `youtube.com/shorts/{id}` (cả `www.` và `m.`); `id` 11 ký tự. Playlist, kênh, link không có id hợp lệ → lỗi.
+- **File:** đường dẫn đuôi `.mp4` hoặc `.webm` (không phân biệt hoa thường), host bất kỳ.
+
+Khối `video` trả cho giao diện: `{kind: "youtube" | "file", url, embed_url, thumbnail_url}` hoặc `null`. Với `youtube`: `embed_url = https://www.youtube-nocookie.com/embed/{id}`, `thumbnail_url = https://i.ytimg.com/vi/{id}/hqdefault.jpg` (hiện ảnh bìa trước, bấm mới nạp khung nhúng). Với `file`: hai trường này là `null`, giao diện phát bằng thẻ `<video>`.
+
+#### API Admin – `/api/v1/admin/speed-records`
+
+Quyền `RECORDS_VIDEO_MANAGE` (**chỉ Admin**; Nhân viên → 403). Lệnh ghi cần `Origin` và `Idempotency-Key`. Admin thấy tên thật, không áp ẩn danh.
+
+| Method | Path | Ghi chú |
+|---|---|---|
+| GET | `?has_video=true\|false&status=&source=&page=` | Mới nhất trước, 20 dòng/trang: `{items, page, size, total, pending_count}`. `pending_count` (T-047) cho tab "Chờ duyệt (n)", **không** theo bộ lọc |
+| POST | `/` → 201 | **(T-047)** Admin nhập: `{member_code, speed_kmh, measured_at, resource_code?, video_url?}`. Lưu `source = admin`, `status = approved` ngay. Audit `record.create_manual` |
+| PATCH | `/{id}` | **(T-047)** `{version, speed_kmh?, measured_at?, resource_code?, video_url?}`. **Chỉ ô có gửi** mới đổi; `resource_code: null` bỏ sân, `video_url: null` gỡ video. Không đổi gì → trả nguyên trạng, không tăng `version`. Audit `record.update` (trước → sau) |
+| DELETE | `/{id}` → 204 | **(T-047)** Xóa thật. Audit `record.delete` giữ giá trị cũ |
+| POST | `/{id}/approve` | **(T-047)** → `approved` và gửi thông báo cho hội viên. Audit `record.approve` |
+| POST | `/{id}/reject` `{reason}` | **(T-047)** → `rejected` và gửi thông báo kèm lý do. Lý do bắt buộc, cắt khoảng trắng thừa, tối đa 200 ký tự (`E-REC-8`). Audit `record.reject` |
+| PUT | `/{id}/video` `{url}` | (T-046) Gắn hoặc sửa link. Cùng link → không ghi nhật ký. Không có số đo → 404 |
+| DELETE | `/{id}/video` | (T-046) Gỡ link. Chưa có video → trả nguyên trạng, không ghi nhật ký |
+
+- Mỗi dòng: `{id, speed_kmh, measured_at, member_code, member_name, resource_code, resource_name, video, source, status, reject_reason, editable, submitted_at, version}` (T-047 thêm `resource_code`, `source`, `status`, `reject_reason`, `editable`, `submitted_at`, `version`). `editable = false` với số đo `device`.
+- `member_code` và `resource_code` không phân biệt hoa thường. Admin chỉ nhập bằng `member_code`, không nhận `customer_id`.
+- `measured_at` phải có múi giờ; km/h từ 50 đến 500; sai → 422 do kiểm dữ liệu.
+- `version` tăng 1 mỗi lần đổi (kể cả gắn hoặc gỡ video). PATCH gửi kèm `version`; lệch → 409 `E-REC-3`.
+
+#### API hội viên – `/api/v1/member-area` (điều kiện chung của mục 13)
+
+| Method | Path | Ghi chú |
+|---|---|---|
+| GET | `/record-videos?period=week\|month\|year\|all&date=` | (T-046) Cho trang Video & kỷ lục. Mặc định `month`, hôm nay. `{period, start, end, items}` (`start`, `end` là `null` khi `all`). Chỉ số đo **có video** của hội viên đủ điều kiện như Bảng xếp hạng; mới nhất trước, tối đa 60. Mỗi item: `{speed_kmh, measured_at, display_name, avatar_url, resource_name, is_me, video}`. Người tắt "Hiện trên video & kỷ lục" hiện là "Hội viên ẩn danh", `avatar_url = null`; mình luôn thấy tên mình. `no-store` |
+| GET | `/overview` | (T-046) `recent_records[]` thêm `video` (`null` nếu không có). Video vẫn phát khi người đó ẩn danh |
+| POST | `/speed-records` → 201 | **(T-047)** Hội viên "Gửi cú đập": `{speed_kmh, measured_at, resource_code?, video_url?}`. Luôn là số đo **của chính mình** (trường lạ như `customer_id` bị bỏ qua). Lưu `pending`. Audit `record.submit` (người làm: Hội viên) |
+| GET | `/speed-records/mine` | **(T-047)** `{items, resources, daily_limit}`. `items`: tối đa 50 bản mình đã gửi, mới gửi trước; mỗi bản có `id, speed_kmh, measured_at, resource_code, resource_name, status, reject_reason, video, submitted_at, can_withdraw`. `resources`: `[{code, name}]` các sân đang hoạt động. `daily_limit = 5` |
+| DELETE | `/speed-records/{id}` → 204 | **(T-047)** Rút lại bản **chờ duyệt** của mình. Audit `record.delete`. Không có hoặc của người khác → 404 (không lộ) |
+
+Giới hạn gửi: tối đa **5 lượt hợp lệ mỗi 24 giờ** (cửa sổ 24 giờ, giống "Xin vào" phòng); quá → 429 `E-SEC-5`. Lượt bị từ chối vì dữ liệu sai (lỗi 4xx khi gửi) **không** tính.
+
+#### Mã lỗi `E-REC-*`
+
+| Mã | HTTP | Khi nào |
+|---|---|---|
+| `E-REC-1` | 422 | Link video sai (T-046) |
+| `E-REC-2` | 403 | Sửa hoặc xóa số đo từ máy đo (gắn video vẫn được) |
+| `E-REC-3` | 409 | `version` lệch: "Số đo vừa được sửa ở nơi khác…" |
+| `E-REC-4` | 409 | Duyệt, từ chối hoặc rút lại bản không còn ở trạng thái chờ duyệt |
+| `E-REC-5` | 422 | `measured_at` ở tương lai (cho lệch 1 phút) hoặc quá 365 ngày trước. Khi sửa, chỉ kiểm nếu đổi thời điểm |
+| `E-REC-6` | 422 | Mã sân không có hoặc sân đang ngừng. Khi sửa mà giữ nguyên sân cũ thì không kiểm |
+| `E-REC-7` | 422 / 403 | Admin nhập: Mã HV không có hoặc hội viên không Hoạt động (422). Hội viên đang Ngừng tự gửi (403) |
+| `E-REC-8` | 422 | Lý do từ chối trống hoặc dài quá 200 ký tự |
+| `E-SEC-5` | 429 | Hội viên gửi quá 5 lượt hợp lệ / 24 giờ |
+| `E-NOT-FOUND` | 404 | Không có số đo, hoặc rút lại bản của người khác |
+
+#### Thông báo, nhật ký, migration
+
+- **Thông báo** (mục 13.3), gửi sau commit, có link `/hoi-vien/video-ky-luc`: `record.approved` "Cú đập {kmh} km/h của bạn đã được duyệt." · `record.rejected` "Cú đập {kmh} km/h của bạn bị từ chối: {lý do}".
+- **Lịch sử thao tác**, nhóm **"Kỷ lục"**: "Gắn video kỷ lục", "Gỡ video kỷ lục" (T-046); "Nhập số đo", "Sửa số đo", "Xóa số đo", "Hội viên gửi số đo", "Duyệt số đo", "Từ chối số đo" (T-047). Action `record.delete` dùng cho cả Admin xóa và hội viên rút lại bản chờ duyệt. Không có SĐT.
+- **Migration `5b7e2c9d41a3`** (nối sau `73296951e195`, **production phải chạy**): thêm vào `speed_record` các cột `source` (mặc định `device`), `status` (mặc định `approved`), `submitted_by`, `reviewed_by`, `reviewed_at`, `reject_reason` (tối đa 200), `updated_at`, `version`; ràng buộc "rejected thì phải có lý do"; index `(status, measured_at)`. Bản ghi cũ: `device` + `approved`, `updated_at = created_at`. Downgrade **xóa các bản không `approved`** rồi bỏ cột. Không biến môi trường mới.
+- T-046 không có migration (cột `video_url` có từ T-030), thêm quyền `RECORDS_VIDEO_MANAGE`. Nếu sau này thêm `Content-Security-Policy`: `frame-src` cần `https://www.youtube-nocookie.com`, `img-src` cần `https://i.ytimg.com`, `media-src` cần host của file video.

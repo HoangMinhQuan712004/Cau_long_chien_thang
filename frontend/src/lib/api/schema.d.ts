@@ -1693,6 +1693,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/speed-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Speed Record
+         * @description Gửi cú đập của **chính mình** (km/h, thời điểm, sân, link video) -> "Chờ duyệt"; chưa tính
+         *     hạng / kỷ lục tới khi Admin duyệt. Audit ``record.submit``.
+         *     403 E-REC-7 (hội viên Ngừng) · 422 E-REC-5 / E-REC-6 / E-REC-1 · 429 E-SEC-5 (đã gửi 5 bản
+         *     trong ngày giờ VN – mọi trạng thái, bản đã rút lại không tính; lượt lỗi không tính).
+         */
+        post: operations["submit_speed_record_api_v1_member_area_speed_records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/speed-records/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Speed Records
+         * @description Bản tôi đã gửi (Chờ duyệt / Đã duyệt / Bị từ chối + lý do), mới gửi trước; kèm danh sách
+         *     sân đang hoạt động cho hộp "Gửi cú đập". Không có bản của người khác.
+         */
+        get: operations["my_speed_records_api_v1_member_area_speed_records_mine_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/speed-records/{record_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Withdraw Speed Record
+         * @description Rút lại bản **chờ duyệt** của mình (xóa). Không phải của mình -> 404 · đã duyệt / bị từ
+         *     chối -> 409 E-REC-4.
+         */
+        delete: operations["withdraw_speed_record_api_v1_member_area_speed_records__record_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/speed-records": {
         parameters: {
             query?: never;
@@ -1702,11 +1767,86 @@ export interface paths {
         };
         /**
          * List Speed Records
-         * @description Số đo mới nhất trước (20 / trang) – tên thật + Mã HV, sân, video (chỉ Admin).
+         * @description Số đo mới nhất trước (20 / trang) – tên thật + Mã HV, sân, video, nguồn, trạng thái
+         *     (chỉ Admin). ``pending_count`` cho tab "Chờ duyệt (n)".
          */
         get: operations["list_speed_records_api_v1_admin_speed_records_get"];
         put?: never;
+        /**
+         * Create Speed Record
+         * @description Admin nhập số đo (T-047) -> ``source=admin``, duyệt ngay (tính hạng / kỷ lục). Audit
+         *     ``record.create_manual``. 422: E-REC-7 (Mã HV không có / không Hoạt động), E-REC-5 (thời điểm
+         *     ở tương lai / quá 365 ngày), E-REC-6 (sân), E-REC-1 (link video).
+         */
+        post: operations["create_speed_record_api_v1_admin_speed_records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records/{record_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
         post?: never;
+        /**
+         * Delete Speed Record
+         * @description Xóa thật số đo Admin nhập / hội viên gửi (audit ``record.delete`` giữ giá trị cũ).
+         *     403 E-REC-2 (số đo máy đo) · 404.
+         */
+        delete: operations["delete_speed_record_api_v1_admin_speed_records__record_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Speed Record
+         * @description Sửa km/h, thời điểm, sân, video (chỉ ô có gửi; null = bỏ sân / gỡ video) kèm ``version``.
+         *     403 E-REC-2 (số đo máy đo) · 409 E-REC-3 (lệch ``version``) · 404. Audit ``record.update``.
+         */
+        patch: operations["update_speed_record_api_v1_admin_speed_records__record_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records/{record_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Speed Record
+         * @description Duyệt bản hội viên gửi -> tính hạng / kỷ lục; báo hội viên. 409 E-REC-4 (không còn chờ
+         *     duyệt) · 404. Audit ``record.approve``.
+         */
+        post: operations["approve_speed_record_api_v1_admin_speed_records__record_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records/{record_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Speed Record
+         * @description Từ chối + lý do (bắt buộc, ≤ 200 ký tự – 422 E-REC-8); báo hội viên kèm lý do.
+         *     409 E-REC-4 · 404. Audit ``record.reject``.
+         */
+        post: operations["reject_speed_record_api_v1_admin_speed_records__record_id__reject_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2342,6 +2482,11 @@ export interface components {
             size: number;
             /** Total */
             total: number;
+            /**
+             * Pending Count
+             * @description Số bản chờ duyệt (tab “Chờ duyệt (n)”), không theo lọc
+             */
+            pending_count: number;
         };
         /** AdminSpeedRecordRow */
         AdminSpeedRecordRow: {
@@ -2358,9 +2503,44 @@ export interface components {
             member_code: string | null;
             /** Member Name */
             member_name: string;
+            /**
+             * Resource Code
+             * @description Mã sân (T-047) – null: không ghi sân
+             */
+            resource_code: string | null;
             /** Resource Name */
             resource_name: string | null;
             video: components["schemas"]["VideoOut"] | null;
+            /**
+             * Source
+             * @description device: Máy đo · admin: Admin nhập · member: Hội viên gửi
+             * @enum {string}
+             */
+            source: "device" | "admin" | "member";
+            /**
+             * Status
+             * @description approved: tính hạng · pending: chờ duyệt · rejected
+             * @enum {string}
+             */
+            status: "approved" | "pending" | "rejected";
+            /** Reject Reason */
+            reject_reason: string | null;
+            /**
+             * Editable
+             * @description false với số đo máy đo (không sửa / xóa được, E-REC-2)
+             */
+            editable: boolean;
+            /**
+             * Submitted At
+             * Format: date-time
+             * @description Lúc nhập / gửi
+             */
+            submitted_at: string;
+            /**
+             * Version
+             * @description Gửi kèm khi sửa (PATCH); lệch -> 409 E-REC-3
+             */
+            version: number;
         };
         /** AuditCatalogOut */
         AuditCatalogOut: {
@@ -3983,6 +4163,59 @@ export interface components {
             /** Total Minutes */
             total_minutes: number;
         };
+        /** MySpeedRecord */
+        MySpeedRecord: {
+            /** Id */
+            id: number;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /** Resource Code */
+            resource_code: string | null;
+            /** Resource Name */
+            resource_name: string | null;
+            /**
+             * Status
+             * @description pending: “Chờ duyệt” · rejected: “Bị từ chối: {lý do}”
+             * @enum {string}
+             */
+            status: "approved" | "pending" | "rejected";
+            /** Reject Reason */
+            reject_reason: string | null;
+            video: components["schemas"]["VideoOut"] | null;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /**
+             * Can Withdraw
+             * @description true khi đang chờ duyệt (nút “Rút lại”)
+             */
+            can_withdraw: boolean;
+        };
+        /** MySpeedRecordList */
+        MySpeedRecordList: {
+            /**
+             * Items
+             * @description Bản tôi đã gửi, mới gửi trước (tối đa 50)
+             */
+            items: components["schemas"]["MySpeedRecord"][];
+            /**
+             * Resources
+             * @description Sân đang hoạt động (hộp “Gửi cú đập”)
+             */
+            resources: components["schemas"]["ResourceOption"][];
+            /**
+             * Daily Limit
+             * @description Số lượt gửi tối đa / ngày
+             */
+            daily_limit: number;
+        };
         /** MyTicket */
         MyTicket: {
             /** Code */
@@ -4017,7 +4250,7 @@ export interface components {
             id: number;
             /**
              * Kind
-             * @description room.invited · room.join_requested · room.join_approved · room.join_rejected · room.kicked · room.host_assigned
+             * @description room.invited · room.join_requested · room.join_approved · room.join_rejected · room.kicked · room.host_assigned · record.approved · record.rejected (T-047)
              */
             kind: string;
             /**
@@ -5457,6 +5690,14 @@ export interface components {
             /** Otp */
             otp: string;
         };
+        /** RejectIn */
+        RejectIn: {
+            /**
+             * Reason
+             * @description Bắt buộc, tối đa 200 ký tự sau khi cắt trống
+             */
+            reason: string;
+        };
         /** ReportOverviewOut */
         ReportOverviewOut: {
             period: components["schemas"]["PeriodOut"];
@@ -5514,6 +5755,13 @@ export interface components {
             items: components["schemas"]["ResourceOut"][];
             /** Resource Types */
             resource_types: components["schemas"]["ResourceTypeOut"][];
+        };
+        /** ResourceOption */
+        ResourceOption: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
         };
         /** ResourceOut */
         ResourceOut: {
@@ -6104,6 +6352,87 @@ export interface components {
             speed_kmh: number;
             /** Is Me */
             is_me: boolean;
+        };
+        /**
+         * SpeedRecordCreateIn
+         * @description Admin nhập số đo -> duyệt ngay (``source=admin``).
+         */
+        SpeedRecordCreateIn: {
+            /**
+             * Member Code
+             * @description Mã HV (hội viên Hoạt động)
+             */
+            member_code: string;
+            /**
+             * Speed Kmh
+             * @description km/h, số nguyên 50–500
+             */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             * @description Có múi giờ; không ở tương lai, không quá 365 ngày trước
+             */
+            measured_at: string;
+            /**
+             * Resource Code
+             * @description Mã sân đang có
+             */
+            resource_code?: string | null;
+            /**
+             * Video Url
+             * @description YouTube / .mp4 / .webm (https), E-REC-1
+             */
+            video_url?: string | null;
+        };
+        /**
+         * SpeedRecordPatchIn
+         * @description Chỉ gửi ô muốn đổi; ``resource_code`` / ``video_url`` = null -> bỏ sân / gỡ video.
+         */
+        SpeedRecordPatchIn: {
+            /** Version */
+            version: number;
+            /** Speed Kmh */
+            speed_kmh?: number | null;
+            /** Measured At */
+            measured_at?: string | null;
+            /**
+             * Resource Code
+             * @description Mã sân đang có
+             */
+            resource_code?: string | null;
+            /**
+             * Video Url
+             * @description YouTube / .mp4 / .webm (https), E-REC-1
+             */
+            video_url?: string | null;
+        };
+        /**
+         * SpeedSubmitIn
+         * @description Hội viên gửi cú đập của chính mình -> chờ Admin duyệt.
+         */
+        SpeedSubmitIn: {
+            /**
+             * Speed Kmh
+             * @description km/h, số nguyên 50–500
+             */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             * @description Có múi giờ; không ở tương lai, không quá 365 ngày trước
+             */
+            measured_at: string;
+            /**
+             * Resource Code
+             * @description Mã sân đang có
+             */
+            resource_code?: string | null;
+            /**
+             * Video Url
+             * @description YouTube / .mp4 / .webm (https), E-REC-1
+             */
+            video_url?: string | null;
         };
         /**
          * StaffCreateIn
@@ -9543,12 +9872,104 @@ export interface operations {
             };
         };
     };
+    submit_speed_record_api_v1_member_area_speed_records_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpeedSubmitIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MySpeedRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_speed_records_api_v1_member_area_speed_records_mine_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MySpeedRecordList"];
+                };
+            };
+        };
+    };
+    withdraw_speed_record_api_v1_member_area_speed_records__record_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_speed_records_api_v1_admin_speed_records_get: {
         parameters: {
             query?: {
                 /** @description true: có video · false: chưa có */
                 has_video?: boolean | null;
                 page?: number;
+                /** @description T-047: pending = tab Chờ duyệt */
+                status?: ("approved" | "pending" | "rejected") | null;
+                /** @description device · admin · member */
+                source?: ("device" | "admin" | "member") | null;
             };
             header?: never;
             path?: never;
@@ -9563,6 +9984,184 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminSpeedRecordList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_speed_record_api_v1_admin_speed_records_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpeedRecordCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_speed_record_api_v1_admin_speed_records__record_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_speed_record_api_v1_admin_speed_records__record_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpeedRecordPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_speed_record_api_v1_admin_speed_records__record_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_speed_record_api_v1_admin_speed_records__record_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
                 };
             };
             /** @description Validation Error */
