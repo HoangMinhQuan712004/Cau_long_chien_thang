@@ -10,10 +10,12 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import images
 from app.core.audit import AuditActor
+from app.core.images import Crop, StoredImage
 from app.modules.members import avatar, demo, enrollment, profiles, self_service, service
 from app.modules.members import room_people as room_people_mod
-from app.modules.members.avatar import Crop, StoredAvatar
+from app.modules.members.avatar import avatar_url
 from app.modules.members.enrollment import MemberEnsured
 from app.modules.members.models import TIERS, Customer
 from app.modules.members.room_people import RoomPerson
@@ -35,7 +37,7 @@ __all__ = [
     "room_people",
     "SelfProfile",
     "SelfUpdate",
-    "StoredAvatar",
+    "avatar_url",
     "delete_avatar",
     "get_self_profile",
     "load_avatar",
@@ -121,12 +123,12 @@ async def update_self_profile(
 
 async def save_avatar(
     session: AsyncSession, customer_id: int, data: bytes, crop: Crop, actor: AuditActor
-) -> StoredAvatar:
+) -> StoredImage:
     """Giải mã + mã hóa lại ảnh (thread riêng), ghi DB (không commit). 422 E-HV-13."""
     customer = await session.get(Customer, customer_id)
     if customer is None or customer.kind != "member":
         raise not_member()
-    clean = await asyncio.to_thread(avatar.process, data, crop)
+    clean = await asyncio.to_thread(images.process_square, data, crop)
     return await avatar.save(session, customer, clean, actor)
 
 
@@ -137,7 +139,7 @@ async def delete_avatar(session: AsyncSession, customer_id: int, actor: AuditAct
     return await avatar.remove(session, customer, actor)
 
 
-async def load_avatar(session: AsyncSession, customer_id: int) -> StoredAvatar | None:
+async def load_avatar(session: AsyncSession, customer_id: int) -> StoredImage | None:
     return await avatar.load(session, customer_id)
 
 

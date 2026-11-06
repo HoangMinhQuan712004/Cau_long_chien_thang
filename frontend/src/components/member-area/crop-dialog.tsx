@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { errorText } from "@/lib/api/write";
+import { errorText, type WriteResult } from "@/lib/api/write";
+import { cn } from "@/lib/cn";
 import { toast } from "@/lib/feedback";
-import { putAvatar } from "./requests";
 import type { Crop } from "./types";
 
 const VIEW = 280; // khung cắt vuông (px màn hình)
@@ -13,7 +13,17 @@ const PREVIEW = 96; // xem trước tròn, đúng cỡ hero
 const MAX_ZOOM = 4;
 
 /** Hộp cắt ảnh vuông: kéo để dời, thanh trượt để phóng to; xem trước tròn; "Lưu ảnh" lưu ngay (T-016 AC18). */
-export function CropDialog({ file, onClose, onSaved }: { file: File; onClose: () => void; onSaved: (url: string) => void }) {
+export function CropDialog({ file, upload, shape = "round", title = "Cắt ảnh đại diện", savedText = "Đã cập nhật ảnh đại diện", onClose, onSaved }: {
+  file: File;
+  /** Khung xem trước: tròn (ảnh đại diện) / vuông (logo). */
+  shape?: "round" | "square";
+  title?: string;
+  savedText?: string;
+  /** Gửi ảnh + vùng cắt (mỗi khu một API). */
+  upload: (file: File, crop: Crop) => Promise<WriteResult<{ avatar_url: string }>>;
+  onClose: () => void;
+  onSaved: (url: string) => void;
+}) {
   const [src] = useState(() => URL.createObjectURL(file));
   const [dim, setDim] = useState<{ w: number; h: number } | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -23,7 +33,14 @@ export function CropDialog({ file, onClose, onSaved }: { file: File; onClose: ()
   const drag = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
   const sending = useRef(false);
 
-  useEffect(() => () => URL.revokeObjectURL(src), [src]);
+  // Hủy URL tạm sau khi đóng hộp. Hoãn một nhịp: StrictMode (dev) chạy dọn dẹp rồi chạy lại effect, hủy ngay thì ảnh không tải được
+  const revokeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => {
+    clearTimeout(revokeTimer.current);
+    return () => {
+      revokeTimer.current = setTimeout(() => URL.revokeObjectURL(src));
+    };
+  }, [src]);
 
   // Cỡ ảnh gốc → khung mặc định: giữa ảnh, lớn nhất có thể
   useEffect(() => {
@@ -65,11 +82,11 @@ export function CropDialog({ file, onClose, onSaved }: { file: File; onClose: ()
     sending.current = true;
     setBusy(true);
     setBanner("");
-    const res = await putAvatar(file, crop());
+    const res = await upload(file, crop());
     sending.current = false;
     setBusy(false);
     if (!res.ok) return setBanner(res.error.code === "E-HV-13" ? res.error.message : errorText(res.error));
-    toast("Đã cập nhật ảnh đại diện");
+    toast(savedText);
     onSaved(res.data.avatar_url);
   }
 
@@ -79,7 +96,7 @@ export function CropDialog({ file, onClose, onSaved }: { file: File; onClose: ()
     <Modal
       open
       onClose={onClose}
-      title="Cắt ảnh đại diện"
+      title={title}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>
@@ -123,7 +140,7 @@ export function CropDialog({ file, onClose, onSaved }: { file: File; onClose: ()
         <div className="flex w-full flex-col items-center gap-4 sm:w-auto">
           <div>
             <p className="mb-1.5 text-center text-label font-semibold text-muted">Xem trước</p>
-            <div style={{ width: PREVIEW, height: PREVIEW }} className="relative overflow-hidden rounded-full bg-background ring-1 ring-border">
+            <div style={{ width: PREVIEW, height: PREVIEW }} className={cn("relative overflow-hidden bg-background ring-1 ring-border", shape === "round" ? "rounded-full" : "rounded-lg")}>
               {dim ? (
                 // eslint-disable-next-line @next/next/no-img-element -- xem trước tệp đang chọn (blob:)
                 <img src={src} alt="" draggable={false} style={{ position: "absolute", left: pos.x * k, top: pos.y * k, width: dim.w * scale * k, height: dim.h * scale * k, maxWidth: "none" }} />

@@ -51,8 +51,14 @@ GROUPS: tuple[ActionGroup, ...] = (
             # ``auth.password_changed``, không hiện ở màn này dù người làm "Hội viên" lọc được
             _t("account.password_changed", "Đổi mật khẩu"),
             _t("account.update", "Sửa hồ sơ"),  # Admin tự sửa họ tên (Hồ sơ của tôi)
+            # Admin / NV tự đổi / xóa ảnh của mình (người dùng chốt 2026-11-06)
+            _t("account.avatar_update", "Đổi ảnh đại diện"),
+            _t("account.avatar_delete", "Xóa ảnh đại diện"),
             _t("roles.update", "Sửa phân quyền"),  # Admin đổi quyền của Nhân viên
             _t("settings.menu_order", "Sắp xếp menu"),
+            _t("settings.logo_update", "Đổi logo"),
+            _t("settings.logo_delete", "Xóa logo"),
+            _t("settings.site_info", "Sửa thông tin web"),
             _t("account.counter_password_change", "Đổi mật khẩu Tài khoản tại máy"),
             _t("account.counter_device_set", "Đặt máy quầy"),
             # T-021 AC3: người xác minh OTP lấy SĐT khỏi tài khoản chưa xác minh (Hệ thống làm)

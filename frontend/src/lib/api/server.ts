@@ -3,6 +3,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import { SITE_DEFAULTS } from "@/lib/site";
 import createClient from "openapi-fetch";
 import type { MemberMe } from "@/components/member-area/types";
 import type { components, paths } from "./schema";
@@ -18,6 +19,7 @@ export type Staff = components["schemas"]["StaffOut"];
 export type StaffSession = components["schemas"]["StaffSessionOut"];
 export type StaffSessionHistory = components["schemas"]["StaffSessionHistoryOut"];
 export type AdminSession = components["schemas"]["AdminSessionOut"];
+export type SiteBranding = components["schemas"]["SiteBrandingOut"];
 export type MemberList = components["schemas"]["MemberListOut"];
 export type MemberRow = components["schemas"]["MemberRow"];
 export type MemberCreated = components["schemas"]["MemberCreatedOut"];
@@ -74,6 +76,22 @@ export async function getPost(slug: string): Promise<Post | null> {
   cacheLife("minutes");
   cacheTag("posts", `post:${slug}`);
   return safe(() => serverApi.GET("/api/v1/posts/{slug}", { params: { path: { slug } } }), null);
+}
+
+/** Logo + favicon công khai (null ⇒ biểu tượng mặc định). Đổi logo xong màn Logo web xóa tag này để trang khách thấy ngay. */
+export async function getBranding(): Promise<SiteBranding> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag("site-branding");
+  // API lỗi ⇒ giá trị mặc định trong site.ts, không làm hỏng trang
+  return safe(() => serverApi.GET("/api/v1/site/branding"), {
+    ...SITE_DEFAULTS,
+    map_url: null,
+    lat: null,
+    lng: null,
+    logo_url: null,
+    favicon_url: null,
+  });
 }
 
 // ---------- Dữ liệu theo người dùng: đọc cookie, KHÔNG cache, phải nằm sau <Suspense> ----------

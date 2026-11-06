@@ -1,3 +1,4 @@
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { type Column, DataTable, type SortDir } from "@/components/ui/data-table";
 import { IconButton } from "@/components/ui/icon-button";
@@ -41,12 +42,15 @@ export function MemberTable({ rows, sortDir, onSort, onAction, empty, t }: Props
       card: "title",
       // Tên là nút mở Chi tiết (cho bàn phím); chuột / chạm thì bấm đâu trên dòng cũng được
       cell: (r) => (
-        <button type="button" className={NAME} onClick={() => onAction("detail", r)}>
-          {r.full_name}
-          {r.kind === "member" && r.source === "self_register" ? (
-            <span className="ml-2 align-middle text-xs font-normal text-muted">{t.drawer.sourceSelf}</span>
-          ) : null}
-        </button>
+        <span className="flex min-w-0 items-center gap-2.5">
+          <Avatar name={r.full_name} url={r.avatar_url} size="sm" />
+          <button type="button" className={NAME} onClick={() => onAction("detail", r)}>
+            {r.full_name}
+            {r.kind === "member" && r.source === "self_register" ? (
+              <span className="ml-2 align-middle text-xs font-normal text-muted">{t.drawer.sourceSelf}</span>
+            ) : null}
+          </button>
+        </span>
       ),
     },
     { key: "phone", header: c.phone, className: "whitespace-nowrap tabular-nums", card: "subtitle", cell: (r) => formatPhone(r.phone) },

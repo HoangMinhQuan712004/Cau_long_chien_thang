@@ -25,7 +25,8 @@ export type AdminPerm =
   | "records.video.manage"
   | "audit_log.view"
   | "roles.manage"
-  | "settings.menu";
+  | "settings.menu"
+  | "settings.site";
 
 export const can = (perms: readonly string[], perm: AdminPerm) => perms.includes(perm);
 

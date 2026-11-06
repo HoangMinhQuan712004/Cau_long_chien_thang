@@ -4,15 +4,18 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { FeedbackHost } from "@/components/feedback/feedback-host";
 import { getDictionary } from "@/i18n/dictionaries";
-import { type AdminSessionError, getAdminSession } from "@/lib/api/server";
-import { site } from "@/lib/site";
+import { type AdminSessionError, getAdminSession, getBranding } from "@/lib/api/server";
+import { adminBrand } from "@/lib/site";
 import { AdminShell } from "./_components/admin-shell";
 import { MENU_COLLAPSED, MENU_COOKIE } from "./_components/menu-cookie";
 
-export const metadata: Metadata = {
-  title: { default: "Quản lý", template: `%s | Quản lý ${site.shortName}` },
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { name } = await getBranding();
+  return {
+    title: { default: "Quản trị", template: `%s | Quản trị ${name}` },
+    robots: { index: false, follow: false },
+  };
+}
 
 // Lý do hết phiên ⇒ câu giải thích ở màn đăng nhập (?ly-do=…): hết 12 giờ, đổi mật khẩu, Admin khóa tài khoản
 const REASON_PARAM: Partial<Record<AdminSessionError, string>> = {
@@ -54,9 +57,10 @@ async function Shell({ children }: { children: React.ReactNode }) {
     const reason = result ? REASON_PARAM[result.reason] : undefined;
     redirect(`/dang-nhap?next=/admin${reason ? `&ly-do=${reason}` : ""}`);
   }
-  const { account, perms, menu_order: menuOrder } = result.session;
-  const [t, cookieStore] = await Promise.all([
+  const { account, avatar_url: avatarUrl, perms, menu_order: menuOrder } = result.session;
+  const [t, { name: siteName, logo_url: logoUrl }, cookieStore] = await Promise.all([
     getDictionary(),
+    getBranding(),
     // Lựa chọn thu gọn menu (đọc trong phần động đã nằm trong Suspense)
     cookies(),
   ]);
@@ -66,6 +70,9 @@ async function Shell({ children }: { children: React.ReactNode }) {
       perms={perms}
       menuOrder={menuOrder}
       name={account.display_name}
+      avatarUrl={avatarUrl}
+      logoUrl={logoUrl}
+      brand={adminBrand(t.adminNav.brand, siteName)}
       roleLabel={account.role_label}
       initialCollapsed={cookieStore.get(MENU_COOKIE)?.value === MENU_COLLAPSED}
       t={t.adminNav}

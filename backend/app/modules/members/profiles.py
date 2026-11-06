@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
+from app.modules.members.avatar import avatar_url, etag_of_customer
 from app.modules.members.models import Customer
 from app.modules.members.schemas import MemberRow
 from app.modules.members.service import member_phone_taken
@@ -42,7 +43,7 @@ async def bookings_of(session: AsyncSession, customers: list[Customer]) -> dict[
     return {c.id: sum(stats[r].bookings for r in booking_refs(c) if r in stats) for c in customers}
 
 
-def to_row(c: Customer, bookings: int) -> MemberRow:
+def to_row(c: Customer, bookings: int, avatar_etag: str | None) -> MemberRow:
     return MemberRow(
         ref=ref_of(c),
         kind=c.kind,
@@ -57,7 +58,14 @@ def to_row(c: Customer, bookings: int) -> MemberRow:
         created_at=c.created_at,
         version=c.version,
         source=c.source,
+        avatar_url=avatar_url(c.id, avatar_etag),
     )
+
+
+async def row_of(session: AsyncSession, c: Customer) -> MemberRow:
+    """Dòng của một hồ sơ (response sau khi tạo / sửa)."""
+    bookings = (await bookings_of(session, [c]))[c.id]
+    return to_row(c, bookings, await etag_of_customer(session, c.id))
 
 
 async def by_ref(session: AsyncSession, ref: str, lock: bool = False) -> Customer:

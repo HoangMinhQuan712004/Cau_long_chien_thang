@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getPosts } from "@/lib/api/server";
+import { getBranding, getPosts } from "@/lib/api/server";
 import { formatDate } from "@/lib/format";
-import { site } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "Tin tức & kinh nghiệm chơi cầu lông",
-  description: `Tin tức, khuyến mãi và kinh nghiệm chơi cầu lông từ ${site.name}.`,
-  alternates: { canonical: "/tin-tuc" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { name } = await getBranding();
+  return {
+    title: "Tin tức & kinh nghiệm chơi cầu lông",
+    description: `Tin tức, khuyến mãi và kinh nghiệm chơi cầu lông từ ${name}.`,
+    alternates: { canonical: "/tin-tuc" },
+  };
+}
 
 export default async function NewsPage() {
   const posts = await getPosts();

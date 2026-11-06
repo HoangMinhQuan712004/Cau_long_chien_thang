@@ -5,20 +5,17 @@ import { TIERS } from "@/app/admin/hoi-vien/_components/member-params";
 import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Input } from "@/components/ui/input";
-import { Modal } from "@/components/ui/modal";
 import { errorText } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
 import { toast } from "@/lib/feedback";
 import { Avatar } from "./avatar";
-import { CropDialog } from "./crop-dialog";
+import { AvatarEditor } from "./avatar-editor";
 import { useMember } from "./member-shell";
-import { deleteAvatar, getMe, putMe } from "./requests";
+import { deleteAvatar, getMe, putAvatar, putMe } from "./requests";
 import { formatPhone, type MemberMe, type MeInput, NICKNAME_MAX } from "./types";
 
 // /hoi-vien/ho-so (T-016 AC7–AC19): hero + hai thẻ; Lưu / Hủy mờ khi chưa sửa; lỗi dưới ô; E-006 / E-007 / E-010 / E-011.
 
-const MAX_FILE = 5 * 1024 * 1024;
-const FILE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function ProfileScreen() {
@@ -57,102 +54,21 @@ export function ProfileScreen() {
 
 function Hero({ me }: { me: MemberMe }) {
   const { setMe } = useMember();
-  const [menu, setMenu] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
-
-  function pick(f: File | undefined) {
-    // Menu 📷 luôn đóng khi đã có tệp (kể cả khi tệp được đưa vào ô chọn tệp mà không bấm mục menu)
-    setMenu(false);
-    if (!f) return;
-    if (!FILE_TYPES.includes(f.type) || f.size > MAX_FILE) {
-      toast("Ảnh phải là JPG, PNG hoặc WebP, tối đa 5 MB.", undefined, "error");
-      return;
-    }
-    setFile(f);
-  }
-
-  async function remove() {
-    if (busy) return;
-    setBusy(true);
-    setMenu(false);
-    const res = await deleteAvatar();
-    setBusy(false);
-    if (!res.ok) {
-      toast(errorText(res.error), undefined, "error");
-      return;
-    }
-    // Chỉ đổi ảnh: không đụng phiên bản / các ô đang sửa
-    setMe((m) => ({ ...m, avatar_url: null }));
-    setConfirmDelete(false);
-    toast("Đã xóa ảnh đại diện");
-  }
-
   const joined = `${me.joined_at.slice(5, 7)}/${me.joined_at.slice(0, 4)}`;
 
   return (
     <section aria-label="Thông tin hội viên" className="relative overflow-hidden bg-appbar text-surface">
       <CourtLines />
       <div className="relative mx-auto flex max-w-6xl items-center gap-4 px-4 py-8 sm:gap-6 sm:py-10">
-        <div className="relative shrink-0" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setMenu(false)}>
+        <AvatarEditor
+          hasImage={Boolean(me.avatar_url)}
+          upload={putAvatar}
+          remove={deleteAvatar}
+          // Chỉ đổi ảnh: không đụng phiên bản / các ô đang sửa
+          onChange={(url) => setMe((m) => ({ ...m, avatar_url: url }))}
+        >
           <Avatar url={me.avatar_url} name={me.short_name} size={96} className="ring-4 ring-surface/25" />
-          <button
-            type="button"
-            aria-label="Đổi ảnh đại diện"
-            aria-haspopup="menu"
-            aria-expanded={menu}
-            onClick={() => setMenu((o) => !o)}
-            onKeyDown={(e) => e.key === "Escape" && setMenu(false)}
-            className="absolute right-0 bottom-0 grid size-8 place-items-center rounded-full bg-surface text-foreground shadow-card hover:bg-primary-softer focus-ring"
-          >
-            <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-              <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h1.6l1-1.5h5.8l1 1.5h1.6A1.5 1.5 0 0 1 17 7.5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" />
-              <circle cx="10" cy="10.5" r="2.6" />
-            </svg>
-          </button>
-          {menu ? (
-            <div role="menu" className="absolute top-full left-0 z-20 mt-2 w-44 rounded-card bg-surface p-1.5 text-sm text-foreground shadow-card ring-1 ring-border">
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenu(false);
-                  input.current?.click();
-                }}
-                className="w-full rounded-lg px-3 py-2 text-left hover:bg-primary-softer focus-ring"
-              >
-                Tải ảnh lên
-              </button>
-              {me.avatar_url ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenu(false);
-                    setConfirmDelete(true);
-                  }}
-                  className="w-full rounded-lg px-3 py-2 text-left hover:bg-primary-softer hover:text-danger focus-ring"
-                >
-                  Xóa ảnh
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          <input
-            ref={input}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="sr-only"
-            tabIndex={-1}
-            aria-hidden
-            onChange={(e) => {
-              pick(e.target.files?.[0]);
-              e.target.value = ""; // chọn lại cùng tệp vẫn nhận
-            }}
-          />
-        </div>
+        </AvatarEditor>
 
         <div className="min-w-0">
           <h1 className="text-xl font-bold break-words sm:text-2xl">{me.full_name}</h1>
@@ -167,34 +83,6 @@ function Hero({ me }: { me: MemberMe }) {
         </div>
       </div>
 
-      {file ? (
-        <CropDialog
-          file={file}
-          onClose={() => setFile(null)}
-          onSaved={(url) => {
-            setMe((m) => ({ ...m, avatar_url: url }));
-            setMenu(false);
-            setFile(null);
-          }}
-        />
-      ) : null}
-      <Modal
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        title="Xóa ảnh đại diện?"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setConfirmDelete(false)} disabled={busy}>
-              Hủy
-            </Button>
-            <Button onClick={() => void remove()} loading={busy}>
-              {busy ? "Đang xóa…" : "Xóa ảnh"}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-muted">Ảnh sẽ được thay bằng chữ cái đầu tên của bạn ở mọi nơi.</p>
-      </Modal>
     </section>
   );
 }

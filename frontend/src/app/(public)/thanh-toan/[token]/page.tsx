@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PaymentScreen } from "@/components/web-booking/payment-screen";
-import { site } from "@/lib/site";
+import { getBranding } from "@/lib/api/server";
 
 // Trang chứa token lượt giữ chỗ: không index, không cache (header `no-store` đặt ở next.config.ts).
 export const metadata: Metadata = {
@@ -18,6 +18,6 @@ export default function PaymentPage({ params }: PageProps<"/thanh-toan/[token]">
 }
 
 async function PaymentLoader({ params }: Pick<PageProps<"/thanh-toan/[token]">, "params">) {
-  const { token } = await params;
-  return <PaymentScreen token={token} hotline={site.phone} />;
+  const [{ token }, { phone }] = await Promise.all([params, getBranding()]);
+  return <PaymentScreen token={token} hotline={phone} />;
 }

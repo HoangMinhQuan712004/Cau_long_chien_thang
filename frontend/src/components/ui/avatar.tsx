@@ -1,3 +1,7 @@
+"use client";
+
+import Image from "next/image";
+import { useState } from "react";
 import { cn } from "@/lib/cn";
 
 // Cặp nền nhạt / chữ đậm từ token sẵn có (không thêm màu mới)
@@ -21,16 +25,25 @@ function initialOf(name: string): string {
   return last.charAt(0).toLocaleUpperCase("vi") || "?";
 }
 
-/** Ảnh đại diện tròn bằng chữ cái đầu của tên; trang trí (tên đã có chữ bên cạnh) nên ẩn với trình đọc màn hình. */
-export function Avatar({ name, size = "md" }: { name: string; /** "sm": 32px, dùng trong dòng bảng / thẻ. */ size?: "sm" | "md" }) {
+/** Ảnh nếu có; chưa có ảnh hoặc ảnh lỗi ⇒ `fallback`. Nơi gọi tự lo khung tròn (`overflow-hidden`). `unoptimized`: ảnh đã do server cắt, cần cookie phiên. */
+export function AvatarImage({ url, fallback }: { url?: string | null; fallback: React.ReactNode }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  if (!url || url === failedUrl) return fallback;
+  return <Image src={url} alt="" width={96} height={96} unoptimized onError={() => setFailedUrl(url)} className="
+    size-full object-cover
+  " />;
+}
+
+/** Ảnh đại diện tròn: có ảnh thì hiện ảnh, không thì chữ cái đầu của tên; trang trí (tên đã có chữ bên cạnh) nên ẩn với trình đọc màn hình. */
+export function Avatar({ name, url, size = "md" }: { name: string; url?: string | null; /** "sm": 32px, dùng trong dòng bảng / thẻ. */ size?: "sm" | "md" }) {
   return (
     <span aria-hidden // md: điện thoại 44px, từ sm 56px; sm: 32px
       className={cn(
-        "grid shrink-0 place-items-center rounded-full font-bold",
+        "grid shrink-0 place-items-center overflow-hidden rounded-full font-bold",
         size === "sm" ? "size-8 text-sm" : "size-11 text-base sm:size-14 sm:text-xl",
         toneOf(name),
       )}>
-      {initialOf(name)}
+      <AvatarImage url={url} fallback={initialOf(name)} />
     </span>
   );
 }

@@ -14,15 +14,14 @@ from app.modules.members import rackets
 from app.modules.members.audit_fields import member_detail, snapshot, temp_detail
 from app.modules.members.models import Customer
 from app.modules.members.profiles import (
-    bookings_of,
     by_ref,
     commit_or_conflict,
     ensure_phone_free,
     forbidden,
     next_code,
     ref_of,
+    row_of,
     stale,
-    to_row,
 )
 from app.modules.members.schemas import (
     MemberCan,
@@ -69,7 +68,7 @@ async def create_member(
     # Hai máy lưu cùng SĐT: UNIQUE bắt ở flush -> báo trùng như kiểm trước
     await commit_or_conflict(session, phone, flush_only=True)
     await session.refresh(c)
-    row = to_row(c, (await bookings_of(session, [c]))[c.id])
+    row = await row_of(session, c)
     return MemberCreatedOut(
         **row.model_dump(),
         account_created=expires_at is not None,
@@ -112,7 +111,7 @@ async def update_profile(
         audit(session, actor, action, "customer", ref_of(c), member_detail(c, before))
     await session.commit()  # SĐT không đổi -> không có xung đột UNIQUE
     await session.refresh(c)
-    return to_row(c, (await bookings_of(session, [c]))[c.id])
+    return await row_of(session, c)
 
 
 async def create_temp(session: AsyncSession, actor: AuditActor, data: TempCreateIn) -> MemberRow:
@@ -125,4 +124,4 @@ async def create_temp(session: AsyncSession, actor: AuditActor, data: TempCreate
     detail = temp_detail(full_name, phone, data.gender)
     audit(session, actor, "member.temp.create", "customer", str(c.public_id), detail)
     await session.refresh(c)
-    return to_row(c, (await bookings_of(session, [c]))[c.id])
+    return await row_of(session, c)

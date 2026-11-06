@@ -8,6 +8,7 @@ import { authedApi } from "@/lib/api/server";
 import { cn } from "@/lib/cn";
 import { formatDayMonthYear, vnDate } from "@/lib/format";
 import { ChangeOwnPassword } from "./_components/change-own-password";
+import { ProfileAvatar } from "./_components/profile-avatar";
 import { ProfileName } from "./_components/profile-name";
 import { ProfileRow } from "./_components/profile-sheet";
 import { SessionsPanel } from "./_components/sessions-panel";
@@ -39,6 +40,7 @@ const COLUMN = "mx-auto flex w-full max-w-3xl flex-col gap-4";
 const CARD = "overflow-hidden rounded-card bg-surface shadow-card";
 const SECTION_TITLE = "text-label font-semibold tracking-wide text-muted uppercase";
 const AVATAR = "grid size-16 shrink-0 place-items-center rounded-full -mt-8 ring-4 ring-surface sm:size-20 sm:-mt-10";
+const AVATAR_IMAGE = "grid size-16 place-items-center overflow-hidden rounded-full bg-primary-soft text-xl font-bold text-primary-hover shadow-card ring-4 ring-surface sm:size-20 sm:text-2xl";
 
 /** Đường kẻ sân cầu lông mờ trên dải đầu hồ sơ (trang trí). */
 function CourtLines() {
@@ -126,13 +128,13 @@ async function Profile() {
             flex flex-col gap-3 pb-6
             sm:flex-row sm:items-end sm:gap-5
           `)}>
-            {/* Avatar đè lên mép dải xanh */}
-            <span aria-hidden className={cn(AVATAR, `
-              relative z-10 bg-primary-soft text-xl font-bold text-primary-hover shadow-card
-              sm:text-2xl
-            `)}>
-              {initials(a.full_name)}
-            </span>
+            {/* Avatar đè lên mép dải xanh; khung ngoài z-10 để nút máy ảnh + menu nổi trên nội dung */}
+            <ProfileAvatar
+              url={a.avatar_url}
+              initials={initials(a.full_name)}
+              className="z-10 -mt-8 w-fit sm:-mt-10"
+              imageClassName={AVATAR_IMAGE}
+            />
             <ProfileName name={a.full_name} roleLabel={a.role_label} isAdmin={a.kind === "admin"} t={t} />
           </section>
 

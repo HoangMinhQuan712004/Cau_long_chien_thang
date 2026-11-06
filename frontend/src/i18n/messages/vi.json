@@ -1,7 +1,5 @@
 {
-  "auth": {
-    "brand": "SÂN CẦU LÔNG"
-  },
+  "auth": {},
   "login": {
     "metaTitle": "Đăng nhập",
     "title": "Đăng nhập",
@@ -270,7 +268,7 @@
     "network": "Không kết nối được máy chủ, vui lòng thử lại"
   },
   "adminNav": {
-    "brand": "QUẢN LÝ SÂN CẦU LÔNG",
+    "brand": "Quản trị {name}",
     "navLabel": "Quản lý",
     "openMenu": "Mở menu",
     "closeMenu": "Đóng menu",
@@ -293,16 +291,12 @@
       "thanhToan": "Cài đặt thanh toán",
       "nhanVien": "Nhân viên"
     },
-    "brandLines": [
-      "QUẢN LÝ SÂN",
-      "CẦU LÔNG"
-    ],
     "forbiddenReport": "Bạn không có quyền xem báo cáo.",
     "logoutConfirmTitle": "Đăng xuất khỏi khu quản lý?",
     "logoutConfirmBody": "Bạn sẽ cần đăng nhập lại để tiếp tục.",
     "cancel": "Hủy",
     "noPermission": "Bạn không có quyền xem mục này.",
-    "accessSettings": "Phân quyền & menu"
+    "settings": "Cài đặt"
   },
   "auditLog": {
     "metaTitle": "Lịch sử thao tác",
@@ -767,10 +761,77 @@
     "unavailable": "Hệ thống đang bận, vui lòng thử lại sau ít phút."
   },
   "accessSettings": {
-    "metaTitle": "Phân quyền & menu",
-    "title": "Phân quyền & menu",
-    "intro": "Chọn việc Nhân viên được làm và sắp thứ tự menu bên trái cho mọi tài khoản.",
-    "tabRoles": "Phân quyền nhân viên",
-    "tabMenu": "Thứ tự menu"
+    "metaTitle": "Phân quyền & menu"
+  },
+  "siteLogo": {
+    "statusCustom": "Logo đã tải lên",
+    "statusDefault": "Biểu tượng mặc định",
+    "hint": "Ảnh JPG, PNG hoặc WebP, tối đa 5 MB.",
+    "previewTitle": "Xem trước trên đầu trang",
+    "cacheLater": "Đã lưu logo. Trang khách sẽ cập nhật trong ít phút.",
+    "editor": {
+      "change": "Đổi logo",
+      "removeItem": "Xóa",
+      "cropTitle": "Cắt logo",
+      "saved": "Đã cập nhật logo",
+      "removed": "Đã xóa logo, trở về biểu tượng mặc định",
+      "confirmTitle": "Xóa logo?",
+      "confirmBody": "Mọi nơi sẽ hiện lại biểu tượng quả cầu lông.",
+      "confirmRemove": "Xóa logo"
+    },
+    "title": "Logo"
+  },
+  "settingsPage": {
+    "title": "Cài đặt",
+    "navLabel": "Các mục cài đặt",
+    "back": "Cài đặt",
+    "pick": "Chọn một mục ở bên trái để bắt đầu.",
+    "groups": {
+      "access": "Quyền và menu",
+      "brand": "Trang web"
+    },
+    "items": {
+      "roles": {
+        "label": "Phân quyền nhân viên",
+        "description": "Việc Nhân viên được làm"
+      },
+      "menu": {
+        "label": "Sắp xếp menu",
+        "description": "Thứ tự menu bên trái"
+      },
+      "info": {
+        "label": "Thông tin web",
+        "description": "Logo, địa chỉ, bản đồ, liên hệ"
+      }
+    }
+  },
+  "siteInfo": {
+    "labels": {
+      "name": "Tên sân",
+      "address": "Địa chỉ",
+      "phone": "Hotline",
+      "email": "Email",
+      "mapLink": "Link Google Maps"
+    },
+    "hints": {
+      "mapLink": "Trên Google Maps, bấm Chia sẻ rồi Sao chép đường liên kết, dán vào đây."
+    },
+    "saved": "Đã lưu thông tin web.",
+    "stale": "Thông tin vừa được đổi ở nơi khác. Tải lại để xem bản mới rồi sửa tiếp; thay đổi của bạn chưa được lưu.",
+    "reload": "Tải lại",
+    "loadError": "Không tải được thông tin web. Tải lại trang để thử lại.",
+    "cacheLater": "Đã lưu. Trang khách sẽ cập nhật trong ít phút.",
+    "bar": {
+      "dirty": "Bạn có thay đổi chưa lưu",
+      "cancel": "Hủy",
+      "save": "Lưu thay đổi",
+      "saving": "Đang lưu…"
+    },
+    "title": "Thông tin sân",
+    "mapTitle": "Bản đồ: {address}",
+    "reading": "Đang đọc link…",
+    "clearLink": "Xóa link",
+    "mapTitleSection": "Vị trí",
+    "contactTitle": "Liên hệ"
   }
 }

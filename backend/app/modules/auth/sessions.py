@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import SYSTEM_ACTOR, Value, audit, audit_change, audit_detail
 from app.core.config import settings
-from app.modules.auth.models import AdminSession, Role, SessionEndReason, User
+from app.modules.auth.models import AdminSession, Role, SessionEndReason, User, UserAvatar
 from app.modules.auth.schemas import AdminAccountOut
 
 ADMIN_ROLES = {Role.ADMIN, Role.STAFF}
@@ -42,6 +42,18 @@ def actor_label(user: User) -> str:
     if user.role == Role.STAFF:
         return f"{user.staff_code} · {user.full_name}" if user.staff_code else user.full_name
     return "Khách"
+
+
+def avatar_url(user_id: int, etag: str | None) -> str | None:
+    """Link ảnh đại diện tài khoản quản trị, gồm ``?v={etag}`` để phá cache; chưa có ảnh -> None."""
+    if etag is None:
+        return None
+    return f"{settings.API_PREFIX}/admin/auth/avatars/{user_id}?v={etag}"
+
+
+async def my_avatar_url(session: AsyncSession, user_id: int) -> str | None:
+    etag = await session.scalar(select(UserAvatar.etag).where(UserAvatar.user_id == user_id))
+    return avatar_url(user_id, etag)
 
 
 def to_account(user: User) -> AdminAccountOut:

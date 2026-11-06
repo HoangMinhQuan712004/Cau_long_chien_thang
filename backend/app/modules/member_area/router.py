@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, Path, Response, Uplo
 from fastapi.responses import Response as RawResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import images
 from app.core.audit import AuditActor
 from app.core.config import settings
 from app.core.db import SessionDep
@@ -22,17 +23,9 @@ from app.modules.records import api as records
 
 router = APIRouter(prefix="/member-area", tags=["member-area"])
 
-AVATAR_CACHE = "public, max-age=31536000, immutable"
-
 
 def no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
-
-
-def avatar_url(customer_id: int, etag: str | None) -> str | None:
-    if etag is None:
-        return None
-    return f"{settings.API_PREFIX}/member-area/avatars/{customer_id}?v={etag}"
 
 
 def short_name(full_name: str) -> str:
@@ -52,7 +45,7 @@ def to_out(p: members.SelfProfile, record_kmh: int | None = None) -> MemberMeOut
         tier=p.tier,
         racket=p.racket,
         show_on_records=p.show_on_records,
-        avatar_url=avatar_url(p.customer_id, p.avatar_etag),
+        avatar_url=members.avatar_url(p.customer_id, p.avatar_etag),
         record_kmh=record_kmh,
         version=p.version,
     )
@@ -138,7 +131,7 @@ async def upload_avatar(
         _actor(member, current.member_code),
     )
     await session.commit()
-    return AvatarOut(avatar_url=avatar_url(member.customer_id, stored.etag))
+    return AvatarOut(avatar_url=members.avatar_url(member.customer_id, stored.etag))
 
 
 @router.delete(
@@ -168,16 +161,4 @@ async def get_avatar(
 ):
     """Ảnh đại diện (công khai). ``v`` = etag để phá cache; trả cache 1 năm, ``nosniff``."""
     stored = await members.load_avatar(session, customer_id)
-    if stored is None:
-        return RawResponse(status_code=404, headers={"Cache-Control": "no-store"})
-    etag = f'"{stored.etag}"'
-    headers = {
-        "ETag": etag,
-        "Cache-Control": AVATAR_CACHE,
-        "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "default-src 'none'; sandbox",
-        "Content-Disposition": "inline",
-    }
-    if if_none_match and etag in [t.strip() for t in if_none_match.split(",")]:
-        return RawResponse(status_code=304, headers=headers)
-    return RawResponse(content=stored.data, media_type=stored.content_type, headers=headers)
+    return images.image_response(stored, if_none_match, images.CACHE_IMMUTABLE)

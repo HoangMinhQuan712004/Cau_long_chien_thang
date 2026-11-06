@@ -1,23 +1,28 @@
-"""Hồ sơ của tôi (khu quản trị): xem, Admin tự sửa họ tên, Admin / NV tự đổi mật khẩu,
-xem / đăng xuất các nơi đang đăng nhập.
+"""Hồ sơ của tôi (khu quản trị): xem, Admin tự sửa họ tên, Admin / NV tự đổi mật khẩu, tự đổi /
+xóa ảnh đại diện, xem / đăng xuất các nơi đang đăng nhập.
 
 Hàm ghi ở đây **commit** (thao tác đơn lẻ của trang quản trị).
 """
 
+import asyncio
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import images
 from app.core.audit import AuditActor, audit, audit_change
 from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
 from app.modules.auth import sessions
-from app.modules.auth.models import AdminSession, Role, SessionEndReason, User
+from app.modules.auth.models import AdminSession, Role, SessionEndReason, User, UserAvatar
 from app.modules.auth.schemas import AdminProfileOut, MySessionOut
 
 
-def profile(admin_session: AdminSession, user: User) -> AdminProfileOut:
+async def profile(
+    session: AsyncSession, admin_session: AdminSession, user: User
+) -> AdminProfileOut:
     """Hồ sơ của chính người đang đăng nhập khu quản trị."""
     account = sessions.to_account(user)
     return AdminProfileOut(
@@ -29,6 +34,7 @@ def profile(admin_session: AdminSession, user: User) -> AdminProfileOut:
         phone=user.phone,
         created_at=user.created_at,
         session_expires_at=admin_session.expires_at,
+        avatar_url=await sessions.my_avatar_url(session, user.id),
     )
 
 
@@ -89,6 +95,56 @@ async def change_password(
         sessions.account_detail(user, revoked=revoked),
     )
     await session.commit()
+
+
+async def save_avatar(session: AsyncSession, user_id: int, data: bytes, crop: images.Crop) -> str:
+    """Tự đổi ảnh đại diện (ghi đè), trả etag. Giải mã ở thread riêng, trước khi khóa dòng."""
+    clean = await asyncio.to_thread(images.process_square, data, crop)
+    user = await _lock_self(session, user_id)
+    etag = images.etag_of(clean)
+    # Đã khóa dòng tài khoản -> đọc trạng thái cũ không lệch với lần đổi song song
+    had_avatar = await sessions.my_avatar_url(session, user.id) is not None
+    values = {"content_type": images.CONTENT_TYPE, "bytes": clean, "etag": etag}
+    await session.execute(
+        insert(UserAvatar)
+        .values(user_id=user.id, **values)
+        .on_conflict_do_update(
+            index_elements=[UserAvatar.user_id], set_={**values, "updated_at": func.now()}
+        )
+    )
+    change = audit_change("Ảnh đại diện", "Có ảnh" if had_avatar else None, "Ảnh mới")
+    audit(
+        session,
+        _self_actor(user),
+        "account.avatar_update",
+        "user",
+        str(user.id),
+        sessions.account_detail(user, [change]),
+    )
+    await session.commit()
+    return etag
+
+
+async def delete_avatar(session: AsyncSession, user_id: int) -> None:
+    """Tự xóa ảnh -> về chữ cái; chưa có ảnh -> không làm gì, không ghi nhật ký."""
+    user = await _lock_self(session, user_id)
+    result = await session.execute(delete(UserAvatar).where(UserAvatar.user_id == user.id))
+    if result.rowcount:
+        change = audit_change("Ảnh đại diện", "Có ảnh", None)
+        audit(
+            session,
+            _self_actor(user),
+            "account.avatar_delete",
+            "user",
+            str(user.id),
+            sessions.account_detail(user, [change]),
+        )
+    await session.commit()
+
+
+async def load_avatar(session: AsyncSession, user_id: int) -> images.StoredImage | None:
+    row = await session.scalar(select(UserAvatar).where(UserAvatar.user_id == user_id))
+    return images.StoredImage(row.bytes, row.etag, row.content_type) if row else None
 
 
 async def list_sessions(session: AsyncSession, current: AdminSession) -> list[MySessionOut]:

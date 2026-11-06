@@ -6,10 +6,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { SiteLogo } from "@/components/site-logo";
 import { api } from "@/lib/api/client";
 import { cn } from "@/lib/cn";
 import { formatLongDate, vnDate, vnMinutes } from "@/lib/format";
-import { site } from "@/lib/site";
+import type { SiteBranding } from "@/lib/api/server";
 import { Avatar } from "./avatar";
 import { NotificationBell } from "./notification-bell";
 import { maskPhone, type MemberMe } from "./types";
@@ -77,7 +78,7 @@ const SCREENS: { prefix: string; title: string; back: string }[] = [
   { prefix: "/hoi-vien/lich-su-thanh-toan", title: "Lịch sử thanh toán", back: HOME_HREF },
 ];
 
-export function MemberShell({ initial, children }: { initial: MemberMe; children: React.ReactNode }) {
+export function MemberShell({ initial, branding, children }: { initial: MemberMe; branding: Pick<SiteBranding, "name" | "logo_url">; children: React.ReactNode }) {
   const [me, setMe] = useState(initial);
   const [asking, setAsking] = useState(false);
   const dirtyRef = useRef(false);
@@ -116,7 +117,7 @@ export function MemberShell({ initial, children }: { initial: MemberMe; children
 
   return (
     <MemberCtx.Provider value={value}>
-      <MemberHeader />
+      <MemberHeader branding={branding} />
       {/* Chừa chỗ cho thanh điều hướng dưới (điện thoại); thanh tự ẩn khi màn có thanh hành động riêng */}
       <main className="flex-1 pb-24 lg:pb-0 [body:has([data-bottom-bar])_&]:pb-32 lg:[body:has([data-bottom-bar])_&]:pb-0">{children}</main>
       <BottomNav />
@@ -183,7 +184,7 @@ const greetingOf = (nowMs: number) => {
   return hour >= 5 && hour < 11 ? "sáng" : hour >= 11 && hour < 18 ? "chiều" : "tối";
 };
 
-function MemberHeader() {
+function MemberHeader({ branding }: { branding: Pick<SiteBranding, "name" | "logo_url"> }) {
   const pathname = usePathname();
   const go = useGo();
 
@@ -196,10 +197,8 @@ function MemberHeader() {
       <header className="sticky top-0 z-(--z-header) hidden border-b border-border bg-surface lg:block">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 xl:gap-8">
           <Link href={HOME_HREF} onClick={go(HOME_HREF)} className="flex min-w-0 items-center gap-2 font-bold text-primary">
-            <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-xs text-surface">
-              CL
-            </span>
-            <span className="truncate">{site.shortName}</span>
+            <SiteLogo url={branding.logo_url} className="size-8" />
+            <span className="truncate" title={branding.name}>{branding.name}</span>
           </Link>
 
           <nav aria-label="Khu hội viên" className="flex h-full items-stretch gap-1">

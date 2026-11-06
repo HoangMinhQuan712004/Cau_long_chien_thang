@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { FeedbackHost } from "@/components/feedback/feedback-host";
 import { MemberShell } from "@/components/member-area/member-shell";
-import { getMemberMe, readCurrentUser } from "@/lib/api/server";
+import { getBranding, getMemberMe, readCurrentUser } from "@/lib/api/server";
 import { safeNext } from "@/lib/safe-next";
 
 export const metadata: Metadata = {
@@ -49,5 +49,6 @@ async function Gate({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  return <MemberShell initial={res.data}>{children}</MemberShell>;
+  const branding = await getBranding();
+  return <MemberShell initial={res.data} branding={branding}>{children}</MemberShell>;
 }

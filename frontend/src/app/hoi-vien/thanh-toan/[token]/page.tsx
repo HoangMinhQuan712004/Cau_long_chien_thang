@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PaymentScreen } from "@/components/web-booking/payment-screen";
-import { site } from "@/lib/site";
+import { getBranding } from "@/lib/api/server";
 
 export const metadata: Metadata = { title: "Thanh toán" };
 
@@ -15,10 +15,10 @@ export default function Page({ params }: PageProps<"/hoi-vien/thanh-toan/[token]
 }
 
 async function Loader({ params }: Pick<PageProps<"/hoi-vien/thanh-toan/[token]">, "params">) {
-  const { token } = await params;
+  const [{ token }, { phone }] = await Promise.all([params, getBranding()]);
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
-      <PaymentScreen token={token} hotline={site.phone} member />
+      <PaymentScreen token={token} hotline={phone} member />
     </div>
   );
 }

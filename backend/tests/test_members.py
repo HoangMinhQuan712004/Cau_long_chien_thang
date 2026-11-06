@@ -5,14 +5,14 @@ import datetime as dt
 import uuid
 
 import pytest
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, event, func, select, update
 
 from app.core.audit import AuditLog
 from app.core.config import settings
-from app.core.db import SessionLocal
+from app.core.db import SessionLocal, engine
 from app.modules.booking_engine.api import customer_stats
 from app.modules.booking_engine.models import Checkout
-from app.modules.members.models import Customer
+from app.modules.members.models import Customer, CustomerAvatar
 from tests.conftest import API, idem
 from tests.helpers_booking import (
     BK,
@@ -426,3 +426,47 @@ async def test_inactive_member_ticket_and_online_still_attach(admin, staff, anon
     async with SessionLocal() as s:
         co = await s.scalar(select(Checkout).where(Checkout.customer_phone == phone))
     assert co.customer_kind == "member" and co.member_code == m["member_code"]
+
+
+# ------------------------------------------------------------------ ảnh đại diện trên màn Admin
+
+
+async def test_admin_member_screens_show_avatar_without_loading_bytes(admin, phones):
+    a = await add_member(admin, phones)
+    b = await add_member(admin, phones)
+    assert a["avatar_url"] is None, "hồ sơ mới chưa có ảnh"
+    async with SessionLocal() as s:
+        customer_id = await s.scalar(
+            select(Customer.id).where(Customer.member_code == a["member_code"])
+        )
+        s.add(
+            CustomerAvatar(
+                customer_id=customer_id, content_type="image/webp", bytes=b"x", etag="abc123"
+            )
+        )
+        await s.commit()
+    url = f"/api/v1/member-area/avatars/{customer_id}?v=abc123"
+
+    statements: list[str] = []
+
+    def capture(_conn, _cursor, statement, *_rest) -> None:
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", capture)
+    try:
+        for params in ({"size": 100}, {"size": 100, "sort": "bookings"}):
+            statements.clear()
+            r = await admin.get(M, params=params)
+            assert r.status_code == 200
+            rows = {x["ref"]: x for x in r.json()["items"]}
+            assert rows[a["member_code"]]["avatar_url"] == url
+            assert rows[b["member_code"]]["avatar_url"] is None
+            touching = [q for q in statements if "customer_avatar" in q]
+            assert len(touching) == 1, "một truy vấn gộp, không N+1"
+            assert "customer_avatar.bytes" not in touching[0], "không tải bytes của ảnh"
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", capture)
+
+    assert (await admin.get(f"{M}/{a['member_code']}")).json()["avatar_url"] == url
+    r = await patch_member(admin, a["member_code"], {"racket": "Yonex"})
+    assert r.status_code == 200 and r.json()["avatar_url"] == url, "sửa hồ sơ không làm mất ảnh"

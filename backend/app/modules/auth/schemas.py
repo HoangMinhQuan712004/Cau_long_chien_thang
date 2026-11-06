@@ -105,6 +105,11 @@ class AdminProfileOut(BaseModel):
     phone: str | None = None
     created_at: datetime
     session_expires_at: datetime
+    avatar_url: str | None = Field(description="Đã gồm ?v={etag}; null -> hiện chữ cái")
+
+
+class AdminAvatarOut(BaseModel):
+    avatar_url: str
 
 
 ADMIN_NAME_MAX = 50
@@ -175,6 +180,7 @@ class AdminSessionOut(_AdminSessionBase):
 
     perms: list[str] = Field(description="Mã quyền hiện có (FE ẩn / hiện menu theo quyền)")
     menu_order: list[str] = Field(description="Thứ tự menu chung (key ``MenuKey``), đủ mọi mục")
+    avatar_url: str | None = Field(description="Đã gồm ?v={etag}; null -> hiện chữ cái")
 
 
 class CustomerSignInOut(BaseModel):

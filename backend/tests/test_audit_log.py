@@ -2,14 +2,17 @@
 
 import asyncio
 import datetime as dt
+import io
 import uuid
 
 import pytest
+from PIL import Image
 from sqlalchemy import delete, select
 
 from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.core.settings_store import AppSetting
 from app.modules.auth.models import User
 from app.modules.members.models import Customer
 from tests.conftest import API, STAFF_NAME, idem, vn_today
@@ -430,3 +433,104 @@ async def test_password_never_logged(admin):
     for row in rows:
         text = str(row.detail)
         assert new_password not in text and "Old-pass12" not in text and hashed not in text
+
+
+# ------------------------------------------------------------------ đổi / xóa ảnh đại diện
+
+
+def _avatar_files() -> dict:
+    buf = io.BytesIO()
+    Image.new("RGB", (300, 300), (9, 99, 199)).save(buf, "PNG")
+    return {"file": ("a.png", buf.getvalue(), "image/png")}
+
+
+CROP = {"crop_x": 0, "crop_y": 0, "crop_size": 300}
+
+
+def _assert_avatar_row(row: dict, label: str, before: str | None, after: str | None) -> None:
+    assert row["action_label"] == label
+    assert row["changes"] == [{"field": "Ảnh đại diện", "before": before, "after": after}]
+    assert "webp" not in str(row).lower() and "RIFF" not in str(row), "không lộ dữ liệu ảnh"
+
+
+@pytest.mark.parametrize(
+    ("who", "actor", "label"), [("admin", "admin", "Admin"), ("staff", "staff", "Nhân viên")]
+)
+async def test_admin_and_staff_avatar_rows(admin, staff, who, actor, label):
+    client = {"admin": admin, "staff": staff}[who]
+    avatar = f"{API}/admin/auth/me/avatar"
+    r = await client.put(avatar, files=_avatar_files(), data=CROP)
+    assert r.status_code == 200, r.text
+    updated = await entries(admin, action="account.avatar_update", actor=actor)
+    _assert_avatar_row(updated[0], "Đổi ảnh đại diện", None, "Ảnh mới")
+    # Đổi khi đã có ảnh: trước = "Có ảnh", không phải trống
+    r = await client.put(avatar, files=_avatar_files(), data=CROP)
+    assert r.status_code == 200, r.text
+    assert (await client.delete(avatar)).status_code == 204
+    updated = await entries(admin, action="account.avatar_update", actor=actor)
+    deleted = await entries(admin, action="account.avatar_delete", actor=actor)
+    _assert_avatar_row(updated[0], "Đổi ảnh đại diện", "Có ảnh", "Ảnh mới")
+    _assert_avatar_row(deleted[0], "Xóa ảnh đại diện", "Có ảnh", None)
+    for row in (updated[0], deleted[0]):
+        assert row["actor"] == actor and row["actor_label"] == label
+    if who == "staff":
+        assert updated[0]["actor_name"] == STAFF_NAME and updated[0]["actor_code"]
+
+
+async def test_logo_rows_show_admin_as_actor(admin):
+    logo = f"{API}/admin/site/logo"
+    r = await admin.put(logo, files=_avatar_files(), data=CROP)
+    assert r.status_code == 200, r.text
+    first = (await entries(admin, action="settings.logo_update"))[0]
+    assert first["changes"] == [{"field": "Logo", "before": None, "after": "Ảnh mới"}]
+    # Đổi khi đã có logo: trước = "Có ảnh", không phải trống
+    r = await admin.put(logo, files=_avatar_files(), data=CROP)
+    assert r.status_code == 200, r.text
+    assert (await admin.delete(logo)).status_code == 200
+    updated = (await entries(admin, action="settings.logo_update"))[0]
+    deleted = (await entries(admin, action="settings.logo_delete"))[0]
+    assert updated["action_label"] == "Đổi logo" and deleted["action_label"] == "Xóa logo"
+    assert updated["actor"] == deleted["actor"] == "admin"
+    assert updated["target"]["name"] == "Logo web"
+    assert updated["changes"] == [{"field": "Logo", "before": "Có ảnh", "after": "Ảnh mới"}]
+    assert deleted["changes"] == [{"field": "Logo", "before": "Có ảnh", "after": None}]
+
+
+async def test_site_info_row_lists_changed_fields_only(admin):
+    info = f"{API}/admin/site/info"
+    current = (await admin.get(info)).json()
+    action = "settings.site_info"
+    try:
+        body = {**current, "name": "Sân Nhật Ký", "phone": "0912345678"}
+        before = len(await entries(admin, action=action))
+        r = await admin.put(info, json=body)
+        assert r.status_code == 200, r.text
+        rows = await entries(admin, action=action)
+        assert len(rows) == before + 1
+        row = rows[0]
+        assert row["action_label"] == "Sửa thông tin web" and row["actor"] == "admin"
+        assert row["target"]["name"] == "Thông tin web"
+        assert row["changes"] == [
+            {"field": "Tên sân", "before": current["name"], "after": "Sân Nhật Ký"},
+            {"field": "Hotline", "before": current["phone"], "after": "0912 345 678"},
+        ]
+        # Không đổi gì -> không ghi
+        r = await admin.put(info, json={**body, "version": r.json()["version"]})
+        assert r.status_code == 200
+        assert len(await entries(admin, action=action)) == before + 1
+        # Bản đồ: một dòng "Bản đồ" trước -> sau, không ghi lại khi không đổi
+        link = "https://maps.app.goo.gl/abc"
+        coords = {"map_url": link, "lat": 21.5, "lng": 105.25}
+        r = await admin.put(info, json={**body, **coords, "version": r.json()["version"]})
+        assert r.status_code == 200, r.text
+        rows = await entries(admin, action=action)
+        assert rows[0]["changes"] == [
+            {"field": "Bản đồ", "before": None, "after": f"{link} (21.5, 105.25)"}
+        ]
+        r = await admin.put(info, json={**body, **coords, "version": r.json()["version"]})
+        assert r.status_code == 200
+        assert len(await entries(admin, action=action)) == len(rows)
+    finally:
+        async with SessionLocal() as s:
+            await s.execute(delete(AppSetting).where(AppSetting.key == "site_info"))
+            await s.commit()

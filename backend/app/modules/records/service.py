@@ -91,9 +91,7 @@ async def eligible(session: AsyncSession, ids: set[int]) -> dict[int, members.Ro
 
 
 def _avatar_url(person: members.RoomPerson) -> str | None:
-    if person.avatar_etag is None:
-        return None
-    return f"{settings.API_PREFIX}/member-area/avatars/{person.customer_id}?v={person.avatar_etag}"
+    return members.avatar_url(person.customer_id, person.avatar_etag)
 
 
 async def ranking(

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { getDictionary } from "@/i18n/dictionaries";
+import { SiteLogo } from "@/components/site-logo";
+import { getBranding } from "@/lib/api/server";
 import { cn } from "@/lib/cn";
 
 // Khung các màn đăng nhập / quên mật khẩu: logo + thẻ canh giữa, không header/footer
@@ -25,21 +26,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   );
 }
 
-// Logo "CL" + tên hệ thống (chữ theo ngôn ngữ trong cookie)
+// Logo + tên sân
 async function Brand() {
-  const label = (await getDictionary()).auth.brand;
+  const { name, logo_url: logoUrl } = await getBranding();
   return (
-    <div className="flex items-center gap-2.5 text-ui font-extrabold tracking-wide">
-      <span
-        aria-hidden
-        className={cn(
-          "grid size-7.5 shrink-0 place-items-center rounded-lg bg-primary text-xs font-extrabold",
-          "text-surface",
-        )}
-      >
-        CL
-      </span>
-      {label}
+    <div className="flex max-w-full items-center gap-2.5 text-ui font-extrabold tracking-wide">
+      <SiteLogo url={logoUrl} className="size-7.5" />
+      <span className="truncate" title={name}>{name.toLocaleUpperCase("vi")}</span>
     </div>
   );
 }

@@ -27,6 +27,7 @@ HIDDEN = frozenset(
     {
         Perm.ROLES_MANAGE,
         Perm.SETTINGS_MENU,
+        Perm.SETTINGS_SITE,
         Perm.PAYMENTS_SIMULATE,
         Perm.CONTENT_MANAGE,
         Perm.BOOKING_CANCEL,

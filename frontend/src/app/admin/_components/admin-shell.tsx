@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { SiteLogo } from "@/components/site-logo";
 import { Drawer } from "@/components/ui/drawer";
 import { IconButton } from "@/components/ui/icon-button";
 import { MenuIcon } from "@/components/ui/icons";
@@ -15,6 +16,10 @@ import { useSidebarCollapsed } from "./use-sidebar-collapsed";
 type Props = Omit<SidebarProps, "onNavigate" | "onClose" | "isCollapsed" | "onToggleCollapse"> & {
   /** Thu gọn menu lúc đầu (cookie, server đọc). */
   initialCollapsed: boolean;
+  /** Ảnh đại diện trên nút tài khoản. */
+  avatarUrl: string | null;
+  /** Logo web; null ⇒ icon quả cầu lông. */
+  logoUrl: string | null;
   children: React.ReactNode;
 };
 
@@ -22,7 +27,7 @@ type Props = Omit<SidebarProps, "onNavigate" | "onClose" | "isCollapsed" | "onTo
  * Khung quản trị: header trắng rộng hết màn, dính trên cùng (nút menu, logo + tên, tài khoản + Đăng xuất).
  * Máy tính: sidebar dính trái, thu gọn được thành cột icon (nhớ lựa chọn); điện thoại: nút ☰ mở ngăn kéo menu.
  */
-export function AdminShell({ children, initialCollapsed, ...sidebar }: Props) {
+export function AdminShell({ children, initialCollapsed, avatarUrl, logoUrl, ...sidebar }: Props) {
   const { t } = sidebar;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCollapsed, toggleCollapsed] = useSidebarCollapsed(initialCollapsed);
@@ -49,10 +54,11 @@ export function AdminShell({ children, initialCollapsed, ...sidebar }: Props) {
         <Link href="/admin" className={cn(`
           flex min-w-0 items-center gap-2 rounded-lg pr-1 focus-ring-inverse
         `)}>
-          <span className="truncate text-sm font-bold">{t.brand}</span>
+          <SiteLogo url={logoUrl} onDark className="size-7.5" />
+          <span className="truncate text-sm font-bold" title={sidebar.brand}>{sidebar.brand}</span>
         </Link>
         <div className="ml-auto shrink-0">
-          <AccountMenu perms={sidebar.perms} name={sidebar.name} roleLabel={sidebar.roleLabel} t={t} />
+          <AccountMenu perms={sidebar.perms} name={sidebar.name} avatarUrl={avatarUrl} roleLabel={sidebar.roleLabel} t={t} />
         </div>
       </header>
 

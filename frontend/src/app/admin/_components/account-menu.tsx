@@ -1,31 +1,28 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/play-rooms/confirm-dialog";
+import { AvatarImage } from "@/components/ui/avatar";
 import { adminLogout } from "@/lib/api/auth";
+import { firstSettingsHref } from "../cai-dat/_components/settings-nav";
 import { can } from "./forbidden";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { cn } from "@/lib/cn";
-import { ChevronDownIcon, HistoryIcon, LogOutIcon, Svg, UserIcon } from "@/components/ui/icons";
+import { ChevronDownIcon, HistoryIcon, LogOutIcon, SettingsIcon, UserIcon } from "@/components/ui/icons";
 
 type Props = {
   /** Mã quyền của phiên: "Lịch sử thao tác" chỉ hiện khi có audit_log.view. */
   perms: string[];
   name: string;
+  /** Ảnh đại diện; null ⇒ chữ viết tắt. */
+  avatarUrl: string | null;
   roleLabel: string;
   t: Dictionary["adminNav"];
 };
 
-/** Khiên (mục Phân quyền & menu); bộ icon chung chưa có. */
-const ShieldIcon = () => (
-  <Svg size={16}>
-    <path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z" />
-    <path d="M9 12l2 2 4-4" />
-  </Svg>
-);
-
-/** Mục link trong menu tài khoản (Phân quyền & menu). */
+/** Mục link trong menu tài khoản. */
 const MENU_ITEM = "mt-1 flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm font-medium focus-ring hover:bg-primary-soft/60 hover:text-primary";
 
 // "Nguyễn Văn An" ⇒ "VA"; "Admin" ⇒ "AD"
@@ -35,13 +32,15 @@ function initials(name: string): string {
   return letters.join("").toLocaleUpperCase("vi");
 }
 
-/** Tài khoản trên header: bấm mở menu nhỏ (tên, vai trò, Hồ sơ của tôi, Lịch sử thao tác – theo quyền audit_log.view, Phân quyền & menu – roles.manage, Đăng xuất có hỏi xác nhận); đóng bằng Esc hoặc bấm ra ngoài. */
-export function AccountMenu({ perms, name, roleLabel, t }: Props) {
+/** Tài khoản trên header: bấm mở menu nhỏ (tên, vai trò, Hồ sơ của tôi, Lịch sử thao tác – theo quyền audit_log.view, Cài đặt – khi có quyền ít nhất một tab, Đăng xuất có hỏi xác nhận); đóng bằng Esc hoặc bấm ra ngoài. */
+export function AccountMenu({ perms, name, avatarUrl, roleLabel, t }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+  const router = useRouter();
+  const settingsHref = firstSettingsHref(perms);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -84,10 +83,10 @@ export function AccountMenu({ perms, name, roleLabel, t }: Props) {
         )}
       >
         <span aria-hidden className={cn(`
-          grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-active text-xs
-          font-semibold text-sidebar
+          grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-sidebar-active
+          text-xs font-semibold text-sidebar
         `)}>
-          {initials(name)}
+          <AvatarImage url={avatarUrl} fallback={initials(name)} />
         </span>
         <span className="hidden min-w-0 flex-col sm:flex">
           <span className="max-w-40 truncate text-sm/tight font-semibold">{name}</span>
@@ -112,11 +111,7 @@ export function AccountMenu({ perms, name, roleLabel, t }: Props) {
           <Link
             href="/admin/ho-so"
             onClick={() => setIsOpen(false)}
-            className={cn(`
-              mt-1 flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm font-medium
-              focus-ring
-              hover:bg-primary-soft/60 hover:text-primary
-            `)}
+            className={MENU_ITEM}
           >
             <UserIcon size={16} />
             {t.profile}
@@ -125,20 +120,26 @@ export function AccountMenu({ perms, name, roleLabel, t }: Props) {
             <Link
               href="/admin/lich-su-thao-tac"
               onClick={() => setIsOpen(false)}
-              className={cn(`
-                mt-1 flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm font-medium
-                focus-ring
-                hover:bg-primary-soft/60 hover:text-primary
-              `)}
+              className={MENU_ITEM}
             >
               <HistoryIcon size={16} />
               {t.auditLog}
             </Link>
           ) : null}
-          {can(perms, "roles.manage") ? (
-            <Link href="/admin/cai-dat/phan-quyen" onClick={() => setIsOpen(false)} className={MENU_ITEM}>
-              <ShieldIcon />
-              {t.accessSettings}
+          {settingsHref ? (
+            <Link
+              href="/admin/cai-dat"
+              onClick={(e) => {
+                setIsOpen(false);
+                // Máy tính vào thẳng mục đầu (có cột danh sách); điện thoại mở danh sách mục
+                if (!window.matchMedia("(min-width: 64rem)").matches) return;
+                e.preventDefault();
+                router.push(settingsHref);
+              }}
+              className={MENU_ITEM}
+            >
+              <SettingsIcon size={16} />
+              {t.settings}
             </Link>
           ) : null}
           {/* Đăng xuất: đóng menu, hỏi xác nhận trước (chỉ menu admin; LogoutButton dùng chung giữ nguyên) */}

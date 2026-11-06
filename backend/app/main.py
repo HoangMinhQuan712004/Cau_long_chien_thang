@@ -15,7 +15,7 @@ from app.core.db import engine
 from app.core.middleware import BodyLimitMiddleware, OriginCheckMiddleware
 from app.core.ratelimit import RateLimitMiddleware
 from app.modules.audit_log import router as audit_log
-from app.modules.auth import account_router, menu, roles
+from app.modules.auth import account_router, menu, roles, site_info, site_logo
 from app.modules.auth import router as auth
 from app.modules.booking_engine import router as booking_engine
 from app.modules.content import router as content
@@ -67,6 +67,10 @@ for r in (
     auth.staff_router,
     roles.router,
     menu.router,
+    site_logo.admin_router,
+    site_logo.public_router,
+    site_info.admin_router,
+    site_info.public_router,
     content.router,
     content.admin_router,
     booking_engine.router,

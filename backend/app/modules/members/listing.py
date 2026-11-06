@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import AuditActor, audit
 from app.modules.booking_engine import api as engine
 from app.modules.members import rackets
-from app.modules.members.models import Customer
+from app.modules.members.avatar import etag_of_customer
+from app.modules.members.models import Customer, CustomerAvatar
 from app.modules.members.profiles import (
     RECENT_LIMIT,
     booking_refs,
@@ -77,20 +78,29 @@ async def list_members(
     if kind is not None:
         conds.append(Customer.kind == kind)
     total = counts.all if kind is None else getattr(counts, kind)
-    stmt = select(Customer).where(*conds).order_by(Customer.created_at.desc(), Customer.id.desc())
+    # Ảnh: chỉ lấy etag bằng join (một truy vấn, không tải bytes)
+    stmt = (
+        select(Customer, CustomerAvatar.etag)
+        .outerjoin(CustomerAvatar, CustomerAvatar.customer_id == Customer.id)
+        .where(*conds)
+        .order_by(Customer.created_at.desc(), Customer.id.desc())
+    )
     offset = (page - 1) * size
     if sort is not None:
         # Lượt đặt nằm ở engine (không JOIN chéo module): tính cho cả tập lọc rồi cắt trang
-        customers = list(await session.scalars(stmt))
+        rows = (await session.execute(stmt)).all()
+        customers = [c for c, _ in rows]
         bookings = await bookings_of(session, customers)
         sign = 1 if sort == "bookings_asc" else -1
         customers.sort(key=lambda c: sign * bookings[c.id])
         customers = customers[offset : offset + size]
     else:
-        customers = list(await session.scalars(stmt.offset(offset).limit(size)))
+        rows = (await session.execute(stmt.offset(offset).limit(size))).all()
+        customers = [c for c, _ in rows]
         bookings = await bookings_of(session, customers)
+    etags = {c.id: etag for c, etag in rows}
     return MemberListOut(
-        items=[to_row(c, bookings[c.id]) for c in customers],
+        items=[to_row(c, bookings[c.id], etags[c.id]) for c in customers],
         total=total,
         page=page,
         size=size,
@@ -108,7 +118,9 @@ async def get_detail(
     stats = await engine.customer_stats(session, refs)
     recent = await engine.customer_bookings(session, refs, RECENT_LIMIT)
     detail = MemberDetail(
-        **to_row(c, sum(s.bookings for s in stats.values())).model_dump(),
+        **to_row(
+            c, sum(s.bookings for s in stats.values()), await etag_of_customer(session, c.id)
+        ).model_dump(),
         note=c.note,
         total_minutes=sum(s.minutes for s in stats.values()),
         recent_bookings=[
