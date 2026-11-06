@@ -2093,12 +2093,12 @@ export interface paths {
          * Speed Ranking
          * @description Top 10 cú đập nhanh nhất trong kỳ (tuần T2→CN / tháng / năm, giờ VN) + hạng của tôi.
          *
-         *     Mỗi hội viên lấy số đo cao nhất trong kỳ, bằng nhau thì ai đạt trước xếp trên. Chỉ hội viên
-         *     Hoạt động có tài khoản liên kết. Tắt "Hiện trên kỷ lục" -> "Hội viên ẩn danh" (mình luôn thấy
-         *     tên mình). Không trả id của người khác. ``period`` / ``date`` sai -> 422.
+         *     Xếp theo từng cú (T-053): một người chiếm được nhiều bậc; bằng km/h thì cú đạt trước xếp trên.
+         *     Hạng của tôi là hạng cú tốt nhất của mình. Chỉ hội viên Hoạt động có tài khoản liên kết. Tắt
+         *     "Hiện trên kỷ lục" -> "Hội viên ẩn danh" (mình luôn thấy tên mình). Không trả id của người
+         *     khác. ``period`` / ``date`` sai -> 422.
          *
-         *     T-049: ``video`` là video của đúng số đo xếp hạng (ẩn danh vẫn phát); số đo đó không có video
-         *     thì null, không lấy video của số đo khác.
+         *     T-049: ``video`` là video của đúng cú đó (ẩn danh vẫn phát).
          */
         get: operations["speed_ranking_api_v1_member_area_speed_ranking_get"];
         put?: never;
@@ -5317,11 +5317,16 @@ export interface components {
         };
         /**
          * OverviewRanking
-         * @description Bảng xếp hạng tốc độ **tháng này** (như T-030).
+         * @description Bảng xếp hạng tốc độ **tháng này**, xếp theo từng cú đập (T-053).
          */
         OverviewRanking: {
             /** Total Members */
             total_members: number;
+            /**
+             * Total Records
+             * @description Số cú đập trong tháng – mẫu của “#n / m”
+             */
+            total_records: number;
             /** @description null: mình chưa có số đo trong tháng */
             me: components["schemas"]["OverviewRankingMe"] | null;
             /** Top3 */
@@ -7520,8 +7525,18 @@ export interface components {
         };
         /** SpeedMe */
         SpeedMe: {
-            /** Rank */
+            /**
+             * Rank
+             * @description Hạng cú tốt nhất của mình trong kỳ (T-053)
+             */
             rank: number;
+            /**
+             * Display Name
+             * @description Cùng tên với bục và danh sách: biệt danh trước
+             */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
             /**
              * Speed Kmh
              * @description Số đo cao nhất của mình trong kỳ
@@ -7565,8 +7580,13 @@ export interface components {
              */
             total_members: number;
             /**
+             * Total Records
+             * @description Số cú đập trong kỳ – mẫu của “#n / m” (T-053)
+             */
+            total_records: number;
+            /**
              * Top
-             * @description Tối đa 10, hạng 1 trước
+             * @description Tối đa 10 **cú đập**, hạng 1 trước; một người có thể chiếm nhiều bậc
              */
             top: components["schemas"]["SpeedRankingRow"][];
             /** @description null: mình chưa có số đo trong kỳ */
@@ -7596,9 +7616,14 @@ export interface components {
             /**
              * Measured At
              * Format: date-time
-             * @description Lúc đo của số đo xếp hạng trong kỳ
+             * @description Lúc đo của đúng cú đập này
              */
             measured_at: string;
+            /**
+             * Resource Name
+             * @description Sân của đúng cú đập này (T-053)
+             */
+            resource_name?: string | null;
             /** Is Me */
             is_me: boolean;
             /** @description Video của đúng số đo xếp hạng; số đo đó không có thì null, không lấy số đo khác. Ẩn danh vẫn phát */

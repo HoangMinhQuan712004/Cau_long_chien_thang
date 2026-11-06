@@ -75,6 +75,7 @@ async def test_month_stats_records_ranking_and_etag(staff, admin, people):
     assert (d["month_record_kmh"], d["record_kmh"]) == (210, 260)
     me = d["ranking"]["me"]
     assert me["speed_kmh"] == 210 and me["rank"] >= 1
+    assert d["ranking"]["total_records"] >= 1
     assert len(d["ranking"]["top3"]) <= 3 and d["ranking"]["total_members"] >= 1
     assert all("customer_id" not in row for row in d["ranking"]["top3"])
     # Trường T-018 vẫn còn
