@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -9,7 +9,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
 > **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, đã vào `dev`) – mục 11.2 và 12.11.**
 > **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007). Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, đã vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
-> **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), đã vào `dev` – mục 13.5, 13.6. Video kỷ lục (T-046) và số đo nhập tay / chờ duyệt (T-047), đã vào `dev` – mục 13.7. Dòng thời gian phá kỷ lục (T-048, chưa vào `dev`) – mục 13.8.**
+> **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), đã vào `dev` – mục 13.5, 13.6. Video kỷ lục (T-046) và số đo nhập tay / chờ duyệt (T-047), đã vào `dev` – mục 13.7. Dòng thời gian phá kỷ lục (T-048, đã vào `dev`) – mục 13.8.**
 > **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (đã vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
 > Mục 5.1, 10, 11 và 12 (kể cả phần đánh dấu **(T-021)** và mục 12.11) đã có trong `dev`. Chưa có gì trong `main`/production.
@@ -1265,26 +1265,28 @@ Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no
 - **Buổi đã hủy (T-051, T-052):** phòng có trận `finished` vẫn nằm trong lịch sử và thống kê tháng, mở được ở chế độ chỉ đọc (mục 5.2).
 - Dòng trong lịch sử mở `/hoi-vien/phong/{room_id}`. Phòng đã ẩn theo quy tắc Host của T-017 thì `GET /rooms/{id}` trả 404 (giao diện báo "Phòng này không còn xem được"); dòng vẫn nằm trong lịch sử.
 
-### 13.6 Bảng xếp hạng tốc độ và kỷ lục (T-030 giai đoạn A, đã vào `dev`)
+### 13.6 Bảng xếp hạng tốc độ và kỷ lục (T-030 giai đoạn A, đã vào `dev`; quy tắc xếp hạng đổi ở T-053)
 
 > Đối chiếu với code backend `be/T-030-xep-hang-toc-do` @ `092d548` (nay đã vào `dev`), module mới `app/modules/records/`. Giao diện chưa kiểm. Giai đoạn A **chưa có endpoint ghi số đo**: bảng chỉ có dữ liệu thử (mục dưới). Từ T-047, Admin nhập tay và hội viên gửi chờ duyệt: mục 13.7.
 
 **`GET /member-area/speed-ranking?period=week|month|year&date=YYYY-MM-DD`** (điều kiện chung của mục 13). Mặc định `period=month`, `date` = hôm nay giờ VN (ngày bất kỳ trong kỳ). `period` hoặc `date` sai → 422. `Cache-Control: no-store`.
 
 ```json
-{ "period": "month", "start": "2026-11-01", "end": "2026-11-30", "total_members": 14,
+{ "period": "month", "start": "2026-11-01", "end": "2026-11-30", "total_members": 14, "total_records": 37,
   "top": [ { "rank": 1, "display_name": "Minh", "avatar_url": "…", "speed_kmh": 312,
-             "measured_at": "…", "is_me": false, "video": null } ],
-  "me": { "rank": 11, "speed_kmh": 268, "measured_at": "…", "gap_to_top10": 9, "video": null },
+             "measured_at": "…", "resource_name": "Sân 2", "is_me": false, "video": null } ],
+  "me": { "rank": 11, "display_name": "Minh", "avatar_url": "…", "speed_kmh": 268,
+          "measured_at": "…", "gap_to_top10": 9, "video": null },
   "bar_floor_kmh": 200 }
 ```
 
 - Kỳ theo giờ VN: tuần T2 → CN, tháng dương lịch, năm dương lịch. `start` và `end` là ngày, `end` tính cả ngày đó.
 - `top` tối đa 10 dòng. `me = null` khi mình chưa có số đo trong kỳ. `gap_to_top10` = km/h hạng 10 − km/h của mình; `null` khi đã trong top 10. `bar_floor_kmh` = 200, mốc đầu thanh tốc độ cho giao diện.
-- **Xếp hạng:** mỗi hội viên lấy số đo cao nhất trong kỳ. Bằng km/h thì ai đạt trước xếp trên. Không có đồng hạng: hạng là 1..n liên tục. `total_members` = số hội viên có số đo trong kỳ, sau khi loại người không đủ điều kiện.
+- **Xếp hạng theo từng cú đập (T-053, chưa vào `dev`; thay quy tắc "mỗi hội viên một số đo cao nhất" của T-030):** mỗi **cú đập** (số đo `approved` trong kỳ) là một dòng. Thứ tự: km/h giảm dần, bằng nhau thì cú đo sớm hơn xếp trên, rồi tới `id`. Mỗi cú một hạng, không đồng hạng: hạng là 1..n liên tục, và **một người có thể chiếm nhiều bậc** (kể cả cả top 3). `total_records` = số cú trong kỳ (mẫu của "#n / m"); `total_members` giữ nghĩa là số hội viên có số đo trong kỳ, sau khi loại người không đủ điều kiện.
 - **Loại khỏi bảng** (và khỏi `total_members`): hội viên **Ngừng**, hoặc không còn tài khoản liên kết đã xác minh (cùng điều kiện như phòng chơi).
 - **Riêng tư:** hội viên tắt "Hiện trên video & kỷ lục" (`show_on_records = false`) hiện là `display_name = "Hội viên ẩn danh"`, `avatar_url = null`, nhưng vẫn được xếp hạng. Mình luôn thấy tên mình (`is_me = true`). Không trả `customer_id` hay mã hội viên của ai.
-- **Video của dòng xếp hạng (T-049, chưa vào `dev`):** mỗi dòng của `top` có thêm `measured_at` (lúc đo của số đo xếp hạng) và `video`; `me` có thêm `video`. `video` là khối như mục 13.7, của **đúng số đo xếp hạng**: số đo cao nhất của người đó trong kỳ, bằng nhau lấy lần sớm hơn, chỉ bản `approved`. Số đo đó không có video thì `video = null`, **kể cả khi số đo khác của người đó có video**. Giao diện chỉ cho bấm xem khi `video` khác `null`. Chỉ thêm trường, không phá vỡ: `display_name` vẫn là biệt danh trước (khác `record-breaks`, mục 13.8). Người ẩn danh vẫn có `video` phát được, tên "Hội viên ẩn danh", `avatar_url = null`; dòng xếp hạng không có id hay định danh nào. Đổi kỳ dùng tham số `period` và `date` sẵn có. `GET /member-area/overview` trả `ranking.top3` cùng kiểu nên cũng có hai trường mới (giao diện Tổng quan không cần đổi). Đối chiếu code `be/T-049-ranking-video` @ `1960e8a` (cục bộ, tạo từ nhánh T-048); không migration, không cấu hình mới. BACKEND chưa chạy cả bộ test cục bộ, chờ CI.
+- **Thay đổi trường (T-053, chưa vào `dev`; chỉ thêm, không phá vỡ):** `SpeedRanking.total_records`; `SpeedRankingRow.resource_name` (sân của đúng cú đó; `measured_at` và `video` cũng theo đúng cú đó); `SpeedMe.display_name` và `avatar_url` (biệt danh trước, cùng tên với bục và danh sách). `me.rank` là hạng **cú tốt nhất** của mình trong kỳ; `gap_to_top10` = km/h hạng 10 trừ km/h cú tốt nhất của mình, `null` khi cú đó đã trong top 10. Vẫn chỉ `approved` và hội viên Hoạt động có liên kết. Ẩn danh: mỗi bậc của người đó đều là "Hội viên ẩn danh", không có id. `GET /member-area/overview`: `ranking.total_records` mới; `top3` và `me` theo quy tắc mới. Không migration. Đối chiếu `be/T-053-ranking-per-record` @ `331e131` (cục bộ); BACKEND ghi 1 test QA đỏ đúng dự kiến (`test_qa_T-030::test_ac2_order_best_per_member_…` còn kiểm quy tắc cũ, QA phải sửa) và chưa chạy cả bộ test.
+- **Video của dòng xếp hạng (T-049, đã vào `dev`):** mỗi dòng của `top` có thêm `measured_at` (lúc đo của số đo xếp hạng) và `video`; `me` có thêm `video`. `video` là khối như mục 13.7, của **đúng cú đập ở dòng đó** (từ T-053 mỗi dòng là một cú; `me` là cú tốt nhất của mình), chỉ bản `approved`. Cú đó không có video thì `video = null`, **kể cả khi cú khác của người đó có video**. Giao diện chỉ cho bấm xem khi `video` khác `null`. Chỉ thêm trường, không phá vỡ: `display_name` vẫn là biệt danh trước (khác `record-breaks`, mục 13.8). Người ẩn danh vẫn có `video` phát được, tên "Hội viên ẩn danh", `avatar_url = null`; dòng xếp hạng không có id hay định danh nào. Đổi kỳ dùng tham số `period` và `date` sẵn có. `GET /member-area/overview` trả `ranking.top3` cùng kiểu nên cũng có hai trường mới (giao diện Tổng quan không cần đổi). Đối chiếu code `be/T-049-ranking-video` @ `1960e8a` (cục bộ, tạo từ nhánh T-048); không migration, không cấu hình mới. BACKEND chưa chạy cả bộ test cục bộ, chờ CI.
 - Nợ kỹ thuật đã được ARCHITECT chấp nhận cho đợt này: `avatar_url` của người hiện tên là `/api/v1/member-area/avatars/{customer_id}?v=…`, giống phòng chơi (lộ id nội bộ trong đường dẫn ảnh).
 
 **`GET /member-area/me`:** `record_kmh` nay là kỷ lục mọi thời gian của hội viên, `null` khi chưa có số đo (trước đó luôn `null`, xem mục 12.6). Giao diện hiện lại chip "Kỷ lục n km/h".
@@ -1391,7 +1393,7 @@ Giới hạn gửi: tối đa **5 lượt hợp lệ mỗi 24 giờ** (cửa s�
 - **Migration `5b7e2c9d41a3`** (nối sau `73296951e195`, **production phải chạy**; trên `dev` được gộp head bằng `d5cf1587486a`): thêm vào `speed_record` các cột `source` (mặc định `device`), `status` (mặc định `approved`), `submitted_by`, `reviewed_by`, `reviewed_at`, `reject_reason` (tối đa 200), `updated_at`, `version`; ràng buộc "rejected thì phải có lý do"; index `(status, measured_at)`. Bản ghi cũ: `device` + `approved`, `updated_at = created_at`. Downgrade **xóa các bản không `approved`** rồi bỏ cột. Không biến môi trường mới.
 - T-046 không có migration (cột `video_url` có từ T-030), thêm quyền `RECORDS_VIDEO_MANAGE`. Nếu sau này thêm `Content-Security-Policy`: `frame-src` cần `https://www.youtube-nocookie.com`, `img-src` cần `https://i.ytimg.com`, `media-src` cần host của file video.
 
-### 13.8 Dòng thời gian phá kỷ lục và ngày dán video (T-048, chưa vào `dev`)
+### 13.8 Dòng thời gian phá kỷ lục và ngày dán video (T-048, đã vào `dev`)
 
 > Đối chiếu với code backend `be/T-048-video-timeline` @ `2a35245` (cục bộ, tạo từ `dev` `01feeb7`). BACKEND đã chạy trên DB thật: ruff, `alembic check` (một head `a4c91e7d2f58`), migration up / down / up, và 55 test của nhóm T-048. **Chưa chạy xong cả bộ test** (dừng ở khoảng 12%); phần còn lại chờ CI. Giao diện chưa kiểm. Không biến cấu hình mới.
 
