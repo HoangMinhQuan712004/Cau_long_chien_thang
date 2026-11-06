@@ -35,6 +35,29 @@ export const sendRemoveRecordVideo = (key: string, id: number) => looseApi.DELET
 
 /** Video ở màn hội viên "Video & kỷ lục": chỉ số đo có video, tối đa 60; tên theo quy tắc ẩn danh T-030. */
 export type MemberRecordVideo = components["schemas"]["RecordVideoCard"];
+
+// ---- T-048: dòng thời gian phá kỷ lục. TẠM: kiểu viết tay theo spec, thay bằng kiểu sinh sau khi merge nhánh BE ----
+export type RecordBreakItem = {
+  id: number;
+  speed_kmh: number;
+  delta_kmh: number | null;
+  previous_kmh: number | null;
+  is_current: boolean;
+  is_baseline: boolean;
+  held_days: number;
+  measured_at: string;
+  label_date: string;
+  display_name: string;
+  nickname: string | null;
+  tier: string | null;
+  avatar_url: string | null;
+  racket: string | null;
+  resource_name: string | null;
+  is_me: boolean;
+  video: components["schemas"]["VideoOut"] | null;
+};
+export type RecordBreakList = { period: VideoPeriod; start: string | null; end: string | null; items: RecordBreakItem[] };
+export const getRecordBreaks = (period: VideoPeriod) => read<RecordBreakList>(() => looseApi.GET(`${P}/member-area/record-breaks`, { params: { query: { period } } }));
 export type VideoPeriod = "week" | "month" | "year" | "all";
 export const getMemberVideos = (period: VideoPeriod) => read<components["schemas"]["RecordVideoList"]>(() => looseApi.GET(`${P}/member-area/record-videos`, { params: { query: { period } } }));
 
