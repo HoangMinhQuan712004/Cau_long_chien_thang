@@ -181,7 +181,7 @@ async def _close_any_cancelled(session: AsyncSession, now: datetime) -> int:
             select(PlayRoom.booking_code).where(PlayRoom.status == "open", PlayRoom.end_at > now)
         )
     )
-    gone = await engine.cancelled_booking_codes(session, codes)
+    gone = await engine.cancelled_before_end_codes(session, codes)
     return await close_cancelled(session, sorted(gone), now)
 
 

@@ -936,7 +936,11 @@ async def test_past_paid_booking_cancels_without_touching_the_room(admin, staff,
     mine = [n["text"] for n in (await notifications(owner.client))["items"]]
     assert sum(f"({b['order_code']}) đã bị sân hủy." in t for t in mine) == 1
     assert not any(closed in t or REASON in t for t in mine)
-    # Không có trận đã xong: ẩn như T-051
+    # Phòng dùng tiếp trong ân hạn; đóng rồi mà không có trận đã xong thì ẩn như T-051
+    assert (await owner.client.get(f"{MA}/rooms/{room.id}")).status_code == 200
+    async with SessionLocal() as s:
+        await s.execute(update(PlayRoom).where(PlayRoom.id == room.id).values(status="closed"))
+        await s.commit()
     assert (await owner.client.get(f"{MA}/rooms/{room.id}")).status_code == 404
 
 
@@ -1040,3 +1044,48 @@ async def test_cancel_and_save_result_race_stays_consistent(admin, staff, people
         match = await s.scalar(select(PlayMatch).where(PlayMatch.room_id == room.id))
         assert (await s.get(PlayRoom, room.id)).status == "closed"
     assert match.status == ("finished" if saved.status_code == 200 else "abandoned")
+
+
+@pytest.mark.parametrize(
+    ("minute_at", "writable"),
+    [((10, 59), False), ((11, 0), True)],
+    ids=["one_minute_before_end", "exactly_at_end"],
+)
+async def test_room_write_after_cancel_depends_on_end_time(
+    admin, staff, people, clock, minute_at, writable
+):
+    """Hủy trước giờ kết thúc: phòng dừng ngay (E-ROOM-1). Từ giờ kết thúc trở đi chỉ là trừ tiền:
+    trận vừa đánh vẫn lưu được tới khi hết ân hạn; sự kiện và job đều không đóng phòng này."""
+    host = await people("Chủ Phòng")
+    b, room = await _room_of(admin, staff, host)
+    await add_match(room.id, 1, [host.customer_id], [-1], status="finished", win="a")
+    await add_match(room.id, 2, [host.customer_id], [-1], status="playing", win="a")
+    assert (await collect(admin, b["code"])).status_code == 200
+
+    clock(*minute_at)
+    r = await cancel(admin, b["code"], version=2, refund_confirmed=True)
+    assert r.status_code == 200, r.text
+    version = (await host.client.get(f"{MA}/rooms/{room.id}")).json()["version"]
+    saved = await post(
+        host.client,
+        f"/{room.id}/matches/2/result",
+        {"score_a": 21, "score_b": 15, "version": version},
+    )
+    if writable:
+        assert saved.status_code == 200, saved.text
+    else:
+        assert saved.status_code == 409 and code_of(saved) == "E-ROOM-1", saved.text
+
+    await events.publish(
+        events.BOOKING_CANCELLED, {"tenant_id": 1, **await outbox_payload(b["code"])}
+    )
+    async with SessionLocal() as s:
+        await lifecycle._close_any_cancelled(s, datetime.now(UTC))
+        await s.commit()
+    async with SessionLocal() as s:
+        status = (await s.get(PlayRoom, room.id)).status
+        match = await s.scalar(
+            select(PlayMatch).where(PlayMatch.room_id == room.id, PlayMatch.no == 2)
+        )
+    assert status == ("open" if writable else "closed")
+    assert match.status == ("finished" if writable else "abandoned")

@@ -414,6 +414,13 @@ async def cancelled_booking_codes(
     return await rooms_feed.cancelled_codes(session, _tid(tenant_id), codes)
 
 
+async def cancelled_before_end_codes(
+    session: AsyncSession, codes: list[str], *, tenant_id: int | None = None
+) -> set[str]:
+    """Mã booking bị hủy trước giờ kết thúc – phòng dừng ngay (T-052)."""
+    return await rooms_feed.cancelled_before_end_codes(session, _tid(tenant_id), codes)
+
+
 async def collect(
     session: AsyncSession, actor: Actor, code: str, data: CollectIn, *, tenant_id: int | None = None
 ) -> ItemOut:
