@@ -175,7 +175,16 @@ export function PaymentsScreen() {
                               </span>
                             </span>
                             <span className="hidden rounded-full bg-background px-2.5 py-0.5 text-xs font-semibold ring-1 ring-border sm:inline">{it.method}</span>
-                            <span className="text-sm font-bold whitespace-nowrap tabular-nums">{formatVnd(it.amount)}</span>
+                            {it.cancelled ? (
+                              <span className="text-right">
+                                <span className="block text-sm font-bold whitespace-nowrap text-muted tabular-nums line-through">{formatVnd(it.amount)}</span>
+                                <span className="mt-0.5 inline-block rounded-full bg-danger-soft px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-danger">
+                                  Đã hủy{it.refund_amount > 0 ? ` · Đã hoàn ${formatVnd(it.refund_amount)}` : ""}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="text-sm font-bold whitespace-nowrap tabular-nums">{formatVnd(it.amount)}</span>
+                            )}
                           </button>
                         </li>
                       ))}

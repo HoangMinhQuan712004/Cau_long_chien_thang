@@ -224,6 +224,8 @@ def _item(p: engine.PaidItem) -> PaymentItem:
         paid_at=p.paid_at,
         method="Tiền mặt" if p.payment_method == "cash" else "QR",
         channel=p.channel,
+        cancelled=p.cancelled,
+        refund_amount=p.refund_amount,
     )
 
 
@@ -242,15 +244,16 @@ async def payments(
             session, refs, dt.datetime(2000, 1, 1, tzinfo=dt.UTC), settings.tz
         )
     }
-    bookings = [p for p in paid if p.kind == "booking"]
-    tickets = [p for p in paid if p.kind == "ticket"]
+    kept = [p for p in paid if not p.cancelled]  # đã hủy vẫn hiện nhưng không cộng vào tổng
+    bookings = [p for p in kept if p.kind == "booking"]
+    tickets = [p for p in kept if p.kind == "ticket"]
     hours = sum((p.end_at - p.start_at).total_seconds() for p in bookings) / 3600
     return PaymentList(
         month=_ym(start),
         months=sorted(months, reverse=True)[:MONTHS_MAX],
         summary=PaymentSummary(
-            total=sum(p.amount for p in paid),
-            count=len(paid),
+            total=sum(p.amount for p in kept),
+            count=len(kept),
             bookings=BookingSummary(count=len(bookings), hours=round(hours, 2)),
             tickets=TicketSummary(count=len(tickets), total=sum(p.amount for p in tickets)),
         ),

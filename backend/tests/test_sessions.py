@@ -157,6 +157,10 @@ async def test_register_ticket_and_session_detail(admin, staff):
         "uncollectible_reason": None,
         "marked_by": None,
         "marked_at": None,
+        "cancel_reason": None,
+        "cancelled_at": None,
+        "cancelled_by_label": None,
+        "refund_amount": 0,
     }
     assert t1["schedule"]["session"] == {"code": ev["code"], "name": ev["name"]}
     assert t1["customer"]["name"] == "Khách lẻ <script>alert(1)</script>"

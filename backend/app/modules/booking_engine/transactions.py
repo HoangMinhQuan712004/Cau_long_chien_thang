@@ -1,6 +1,6 @@
 """Lịch sử giao dịch (T-006 §3 BR-020, FR-010).
 
-Mỗi dòng = 1 booking hoặc 1 vé, lọc theo ngày chơi; 3 thẻ tổng theo đúng bộ lọc.
+Mỗi dòng = 1 booking hoặc 1 vé, lọc theo ngày chơi; 4 thẻ tổng theo đúng bộ lọc.
 """
 
 import re
@@ -90,6 +90,9 @@ async def list_transactions(
             Booking.payment_status,
             Booking.payment_method,
             Booking.source,
+            Booking.cancel_reason,
+            Booking.cancelled_by_label,
+            Booking.refund_amount,
         )
         .join(Resource, Resource.id == Booking.resource_id)
         .join(BookingOrder, BookingOrder.id == Booking.order_id)
@@ -131,6 +134,9 @@ async def list_transactions(
             Ticket.payment_status,
             Ticket.payment_method,
             Ticket.source,
+            Ticket.cancel_reason,
+            Ticket.cancelled_by_label,
+            Ticket.refund_amount,
         )
         .join(EventSession, EventSession.id == Ticket.session_id)
         .where(
@@ -141,7 +147,10 @@ async def list_transactions(
     )
     u = union_all(bookings, tickets).subquery("tx")
 
-    cards = {s: TransactionCard(amount=0, count=0) for s in ("paid", "unpaid", "uncollectible")}
+    cards = {
+        s: TransactionCard(amount=0, count=0)
+        for s in ("paid", "unpaid", "uncollectible", "cancelled")
+    }
     for status, amount, count in await session.execute(
         select(u.c.payment_status, func.coalesce(func.sum(u.c.amount), 0), func.count()).group_by(
             u.c.payment_status
@@ -175,6 +184,9 @@ async def list_transactions(
                 payment_status=r.payment_status,
                 payment_method=r.payment_method,
                 source=r.source,
+                cancel_reason=r.cancel_reason,
+                cancelled_by=r.cancelled_by_label,
+                refund_amount=r.refund_amount,
             )
             for r in rows
         ],

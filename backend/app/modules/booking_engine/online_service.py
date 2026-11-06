@@ -337,8 +337,11 @@ async def checkout_view(session: AsyncSession, ctx: Ctx, checkout: Checkout) -> 
         .join(Resource, Resource.id == Booking.resource_id)
         .where(Booking.checkout_id == checkout.id)
     )
+    cancelled: set[str] = set()
     for b, r in rows:
         ranges[b.code] = (r, b.start_at, b.end_at)
+        if b.payment_status == "cancelled":  # lượt vẫn ``paid``: tiền về trễ đi đường cần hoàn
+            cancelled.add(b.code)
 
     items = []
     for h in holds:
@@ -359,6 +362,7 @@ async def checkout_view(session: AsyncSession, ctx: Ctx, checkout: Checkout) -> 
                 end_hour=e_min // 60,
                 hours=(e_min - s_min) // 60,
                 amount=h.amount or 0,
+                cancelled=h.code in cancelled,
             )
         )
     items.sort(key=lambda i: i.code)
@@ -417,8 +421,12 @@ def _not_found_booking() -> AppError:
 
 
 def _order_status(statuses: list[str]) -> str:
-    """Trạng thái chung của đơn: còn khối chưa thu -> unpaid; tất cả đã thu -> paid;
-    còn lại (có khối Không thu được) -> uncollectible. Từng khối có trạng thái riêng."""
+    """Trạng thái chung của đơn, bỏ qua khối đã hủy: còn khối chưa thu -> unpaid; tất cả đã thu
+    -> paid; còn lại (có khối Không thu được) -> uncollectible; hủy hết -> cancelled. Từng khối có
+    trạng thái riêng."""
+    statuses = [s for s in statuses if s != "cancelled"]
+    if not statuses:
+        return "cancelled"
     if "unpaid" in statuses:
         return "unpaid"
     if all(s == "paid" for s in statuses):
@@ -454,14 +462,15 @@ async def _lookup_order(
         )
     paid = [b for b in blocks if b.payment_status == "paid"]
     methods = {b.payment_method for b in paid}
+    live = [b.code for b in blocks if b.payment_status != "cancelled"]
     return LookupResult(
         order_code=order.code,
         status=_order_status([b.payment_status for b in blocks]),
         play_date=order.play_date,
-        hours=sum(i.hours for i in items),
+        hours=sum(i.hours for i in items if i.code in live),
         customer_name=order.customer_name,
         customer_phone=order.customer_phone,
-        amount=sum(b.amount for b in blocks),
+        amount=sum(b.amount for b in blocks if b.code in live),
         payment_method=methods.pop() if len(methods) == 1 else None,
         paid_at=max((b.paid_at for b in paid if b.paid_at), default=None),
         items=items,

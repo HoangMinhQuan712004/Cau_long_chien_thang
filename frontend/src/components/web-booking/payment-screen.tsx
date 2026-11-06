@@ -160,8 +160,9 @@ function PaidView({ checkout, member, bookPath }: { checkout: Checkout; member: 
   if (ticket) return <PaidTicketView checkout={checkout} ticket={ticket} member={member} bookPath={bookPath} />;
   const names = [...new Set(checkout.items.map((i) => i.resource_name))].join(", ");
   const date = checkout.items[0]?.play_date;
+  const allCancelled = checkout.items.length > 0 && checkout.items.every((i) => i.cancelled); // T-051: sân đã hủy, không nêu lý do
   return (
-    <Card banner={<PaidBanner title="Đặt sân thành công" />}>
+    <Card banner={<PaidBanner title={allCancelled ? "Đơn đã bị hủy" : "Đặt sân thành công"} />}>
       <div className="flex flex-col items-center text-center">
         <p className="flex flex-wrap items-center justify-center gap-2">
           <span className="text-sm text-muted">Mã booking</span>
@@ -175,14 +176,20 @@ function PaidView({ checkout, member, bookPath }: { checkout: Checkout; member: 
         {date ? <Row label="Ngày" value={formatLongDate(date)} /> : null}
         <Row
           label="Khung giờ"
-          value={checkout.items.map((i) => `${checkout.items.length > 1 ? `${i.resource_name}: ` : ""}${hhmm(i.start_time)} – ${hhmm(i.end_time)} (${i.hours} giờ)`).join("; ")}
+          value={checkout.items.map((i) => `${checkout.items.length > 1 ? `${i.resource_name}: ` : ""}${hhmm(i.start_time)} – ${hhmm(i.end_time)} (${i.hours} giờ)${i.cancelled ? " · Đã hủy" : ""}`).join("; ")}
         />
         <Row label="Người đặt" value={`${checkout.customer.full_name} · ${checkout.customer.phone_masked ?? "—"}`} />
         <Row label="Đã thanh toán" value={`${formatVnd(checkout.amount)} · Chuyển khoản`} />
       </dl>
 
-      <p className="mt-4 text-sm text-muted">Lưu mã booking để tra cứu. Vui lòng đến trước giờ chơi và báo mã tại quầy.</p>
-      {member ? <RoomLinks items={checkout.items} /> : null}
+      {checkout.items.some((i) => i.cancelled) ? (
+        <p role="status" className="mt-4 rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">
+          {allCancelled ? "Sân đã hủy đơn này." : "Sân đã hủy một số khung giờ của đơn này."} Vui lòng liên hệ sân để được hỗ trợ.
+        </p>
+      ) : (
+        <p className="mt-4 text-sm text-muted">Lưu mã booking để tra cứu. Vui lòng đến trước giờ chơi và báo mã tại quầy.</p>
+      )}
+      {member && !allCancelled ? <RoomLinks items={checkout.items.filter((i) => !i.cancelled)} /> : null}
       <div className="mt-4 grid grid-cols-2 gap-3">
         <Link href={member ? "/hoi-vien/lich-su-thanh-toan" : "/tra-cuu"} className="rounded-lg border border-border px-4 py-3 text-center text-sm font-semibold hover:bg-primary-softer">
           {member ? "Lịch sử thanh toán" : "Tra cứu booking"}
@@ -203,8 +210,10 @@ function PaidView({ checkout, member, bookPath }: { checkout: Checkout; member: 
 
 function PaidTicketView({ checkout, ticket, member, bookPath }: { checkout: Checkout; ticket: TicketInfo; member: boolean; bookPath: string }) {
   const codes = ticket.ticket_codes ?? [];
+  const cancelled = new Set(ticket.cancelled_ticket_codes ?? []);
+  const allCancelled = codes.length > 0 && codes.every((c) => cancelled.has(c)); // T-051: vé bị sân hủy
   return (
-    <Card banner={<PaidBanner title="Mua vé thành công" />}>
+    <Card banner={<PaidBanner title={allCancelled ? "Vé đã bị hủy" : "Mua vé thành công"} />}>
       <div className="flex flex-col items-center text-center">
         <p className="flex flex-wrap items-center justify-center gap-2">
           <span className="text-sm text-muted">Mã đơn</span>
@@ -218,12 +227,18 @@ function PaidTicketView({ checkout, ticket, member, bookPath }: { checkout: Chec
         <Row label="Ngày" value={formatLongDate(ticket.play_date)} />
         <Row label="Giờ" value={`${hhmm(ticket.start_time)} – ${hhmm(ticket.end_time)}`} />
         <Row label="Số vé" value={String(ticket.seats)} />
-        {codes.length > 0 ? <Row label="Mã check-in" value={codes.join(", ")} /> : null}
+        {codes.length > 0 ? <Row label="Mã check-in" value={codes.map((c) => (cancelled.has(c) ? `${c} (đã hủy)` : c)).join(", ")} /> : null}
         <Row label="Người mua" value={`${checkout.customer.full_name} · ${checkout.customer.phone_masked ?? "—"}`} />
         <Row label="Đã thanh toán" value={`${formatVnd(checkout.amount)} · Chuyển khoản`} />
       </dl>
 
-      <p className="mt-4 text-sm text-muted">Lưu mã đơn hoặc mã check-in để tra cứu. Vui lòng đến trước giờ bắt đầu và báo mã check-in tại quầy.</p>
+      {cancelled.size > 0 ? (
+        <p role="status" className="mt-4 rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">
+          {allCancelled ? "Sân đã hủy vé của đơn này." : "Sân đã hủy một số vé của đơn này."} Vui lòng liên hệ sân để được hỗ trợ.
+        </p>
+      ) : (
+        <p className="mt-4 text-sm text-muted">Lưu mã đơn hoặc mã check-in để tra cứu. Vui lòng đến trước giờ bắt đầu và báo mã check-in tại quầy.</p>
+      )}
       <div className="mt-4 grid grid-cols-2 gap-3">
         <Link href={member ? "/hoi-vien/lich-su-thanh-toan" : "/tra-cuu"} className="rounded-lg border border-border px-4 py-3 text-center text-sm font-semibold hover:bg-primary-softer">
           {member ? "Lịch sử thanh toán" : "Tra cứu vé"}

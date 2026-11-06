@@ -6,6 +6,7 @@ from arq import cron
 from arq.connections import RedisSettings
 
 import app.models  # noqa: F401
+import app.modules.member_area.handlers  # noqa: F401
 import app.modules.member_inbox.handlers  # noqa: F401
 import app.modules.members.handlers  # noqa: F401  (handler nhận sự kiện outbox)
 import app.modules.notifications.handlers  # noqa: F401

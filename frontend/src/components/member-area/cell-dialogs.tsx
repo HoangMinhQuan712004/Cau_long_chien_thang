@@ -11,7 +11,7 @@ import { getMyBooking, type MyBooking } from "./cell-requests";
 
 // T-023 AC2: hộp thoại "Sân của bạn" mở từ ô đã đặt của chính hội viên trên /hoi-vien/dat-san (popup sự kiện: web-booking/event-dialog.tsx).
 
-const PAY_LABEL: Record<PayStatus, string> = { unpaid: "Chưa thanh toán", paid: "Đã thanh toán", uncollectible: "Không thu được" };
+const PAY_LABEL: Record<PayStatus, string> = { unpaid: "Chưa thanh toán", paid: "Đã thanh toán", uncollectible: "Không thu được", cancelled: "Đã hủy" };
 
 const slotRange = (a: string, b: string) => `${hhmm(a)} – ${hhmm(b)}`;
 

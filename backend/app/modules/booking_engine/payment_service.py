@@ -1,6 +1,7 @@
 """Thu tiền mặt, Không thu được (T-006 §3: BR-013, BR-014, BR-015; FR-007…009).
 
-Trạng thái một chiều ``unpaid -> paid | uncollectible``. Khóa dòng booking / vé (``FOR UPDATE``):
+Trạng thái một chiều ``unpaid -> paid | uncollectible`` (hủy: ``cancel_service``). Khóa dòng
+booking / vé (``FOR UPDATE``):
 máy thứ hai đọc bản mới nhất sau khi máy đầu commit -> ``E-012``, không ghi đè.
 Hàm ở đây **không commit**.
 """
@@ -29,7 +30,7 @@ REASON_MAX = 200
 METHOD_LABELS = {"cash": "Tiền mặt", "transfer": "Chuyển khoản"}
 
 
-async def _lock(
+async def lock_item(
     session: AsyncSession, tenant_id: int, raw_code: str
 ) -> tuple[Booking | Ticket, datetime]:
     """Khóa booking hoặc vé theo mã; trả kèm giờ bắt đầu chơi."""
@@ -50,12 +51,27 @@ async def _lock(
     return t, ev.start_at
 
 
+def not_cancellable() -> AppError:
+    return AppError("E-PAY-6", "Đã ở trạng thái Đã hủy hoặc Không thu được, không thể hủy.", 409)
+
+
+def clean_reason(raw: str) -> str:
+    reason = raw.strip()
+    if not reason:
+        raise AppError("E-001", "Vui lòng nhập Lý do.", 422)
+    if len(reason) > REASON_MAX:
+        raise AppError("E-001", f"Lý do tối đa {REASON_MAX} ký tự.", 422)
+    return reason
+
+
 def _check_fresh(item: Booking | Ticket, version: int) -> None:
+    if item.payment_status == "cancelled":
+        raise not_cancellable()
     if item.payment_status != "unpaid" or item.version != version:
         raise AppError("E-012", STALE_ITEM, 409)
 
 
-async def _view(session: AsyncSession, ctx: Ctx, item: Booking | Ticket) -> ItemOut:
+async def view_of(session: AsyncSession, ctx: Ctx, item: Booking | Ticket) -> ItemOut:
     await session.flush()
     await session.refresh(item)
     if isinstance(item, Booking):
@@ -63,7 +79,7 @@ async def _view(session: AsyncSession, ctx: Ctx, item: Booking | Ticket) -> Item
     return await ticket_item(session, ctx, item)
 
 
-def _entity(item: Booking | Ticket) -> str:
+def entity_of(item: Booking | Ticket) -> str:
     return "booking" if isinstance(item, Booking) else "ticket"
 
 
@@ -90,7 +106,7 @@ def mark_paid(
         session,
         audit_actor(actor),
         "payment.collect",
-        _entity(item),
+        entity_of(item),
         item.code,
         audit_detail(
             item.code,
@@ -104,7 +120,7 @@ def mark_paid(
         session,
         tenant_id,
         "payment.collected",
-        {"code": item.code, "kind": _entity(item), "method": "cash", "amount": item.amount},
+        {"code": item.code, "kind": entity_of(item), "method": "cash", "amount": item.amount},
     )
 
 
@@ -114,10 +130,10 @@ async def collect(
     """Thu tiền mặt: số tiền = ``amount`` (không sửa, thu đủ 1 lần); người thu = người thao tác."""
     cash_only(data)
     ctx = await context(session, tenant_id)
-    item, _ = await _lock(session, tenant_id, code)
+    item, _ = await lock_item(session, tenant_id, code)
     _check_fresh(item, data.version)
     mark_paid(session, ctx, tenant_id, actor, item)
-    return await _view(session, ctx, item)
+    return await view_of(session, ctx, item)
 
 
 async def mark_uncollectible(
@@ -127,13 +143,9 @@ async def mark_uncollectible(
 
     Khung **không** trống lại (allocation giữ active); vé vẫn chiếm chỗ của sự kiện.
     """
-    reason = data.reason.strip()
-    if not reason:
-        raise AppError("E-001", "Vui lòng nhập Lý do.", 422)
-    if len(reason) > REASON_MAX:
-        raise AppError("E-001", f"Lý do tối đa {REASON_MAX} ký tự.", 422)
+    reason = clean_reason(data.reason)
     ctx = await context(session, tenant_id)
-    item, start_at = await _lock(session, tenant_id, code)
+    item, start_at = await lock_item(session, tenant_id, code)
     _check_fresh(item, data.version)
     if item.source != "counter":
         raise AppError(
@@ -154,7 +166,7 @@ async def mark_uncollectible(
         session,
         audit_actor(actor),
         "payment.uncollectible",
-        _entity(item),
+        entity_of(item),
         item.code,
         audit_detail(
             item.code,
@@ -170,6 +182,6 @@ async def mark_uncollectible(
         session,
         tenant_id,
         "payment.uncollectible",
-        {"code": item.code, "kind": _entity(item), "amount": item.amount},
+        {"code": item.code, "kind": entity_of(item), "amount": item.amount},
     )
-    return await _view(session, ctx, item)
+    return await view_of(session, ctx, item)

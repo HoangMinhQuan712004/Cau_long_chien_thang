@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -98,6 +98,10 @@ vẫn là 422 mặc định của FastAPI, khi đó `detail` là **mảng**.
 | E-BOOK-4 | 409 | **(T-019)** "Đơn không còn khối nào chưa thanh toán." (thu cả đơn) |
 | E-PAY-0 | 422 | Thu chuyển khoản tại quầy – chưa hỗ trợ (chờ T-007); cả với thu cả đơn |
 | E-PAY-1 | 422 | Đánh dấu Không thu được với booking online, hoặc chưa tới giờ chơi |
+| E-PAY-5 | 422 | **(T-051)** Hủy buổi đã bắt đầu hoặc đã qua |
+| E-PAY-6 | 409 | **(T-051)** Mục đã Đã hủy / Không thu được: không hủy được; `collect` hoặc `uncollectible` lên mục đã hủy |
+| E-PAY-7 | 422 | **(T-051)** Hủy khoản đã thu mà chưa xác nhận hoàn tiền (`refund_confirmed`) |
+| E-PAY-8 | 422 | **(T-051)** Buổi đã có trận trong phòng chơi, không hủy được |
 
 Thông báo thành công (E-005, E-006, E-008, E-011, E-022, E-026) không có trong API: giao diện tự dựng từ response.
 
@@ -121,6 +125,7 @@ Quyền khai báo tập trung ở `backend/app/core/permissions.py`. Router dùn
 | `booking.session.manage` | ✔ | | Tạo và xóa sự kiện |
 | `booking.collect` | ✔ | ✔ | Thu tiền |
 | `booking.uncollectible` | ✔ | ✔ | Đánh dấu Không thu được |
+| `booking.cancel` (T-051) | ✔ | | Hủy booking, vé, đơn chưa bắt đầu (`/front-desk/items/{code}/cancel`, `/front-desk/orders/{order_code}/cancel-preview` và `/cancel`). Chỉ Admin, không gán được; ẩn ở tab Phân quyền |
 | `booking.transactions.view` | ✔ | | Lịch sử giao dịch |
 | `member.search` | ✔ | ✔ | `GET /members/search` |
 | `member.manage` (PR #21) | ✔ | ✔ | Màn Hội viên: danh sách, chi tiết, thêm, sửa, hồ sơ tạm; đọc danh mục vợt (mục 12) |
@@ -218,9 +223,9 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 
 - `customer`: `{name, phone, profile_label, kind, member_code, tier}`.
 - `schedule`: `{resource_codes[], resource_names[], play_date, start_time, end_time, session?}`.
-- `payment`: `{amount, payment_status, payment_method?, paid_at?, collected_by?, uncollectible_reason?, marked_by?, marked_at?}`.
-- `payment_status`: `unpaid` → `paid` hoặc `unpaid` → `uncollectible`. Hai trạng thái cuối **không đổi** (không hủy, không hoàn tiền).
-- `actions[]`: chỉ gồm thao tác được phép **lúc này** và người đang đăng nhập có quyền (`collect`, `uncollectible`).
+- `payment`: `{amount, payment_status, payment_method?, paid_at?, collected_by?, uncollectible_reason?, marked_by?, marked_at?, cancel_reason?, cancelled_at?, cancelled_by_label?, refund_amount? (T-051)}`.
+- `payment_status`: `unpaid` → `paid` hoặc `unpaid` → `uncollectible`. Hai trạng thái cuối **không đổi**. **(T-051, chưa vào `dev`)** Có thêm `unpaid` hoặc `paid` → `cancelled` (Admin, trước giờ bắt đầu), cũng là trạng thái cuối; xem mục 5.2.
+- `actions[]`: chỉ gồm thao tác được phép **lúc này** và người đang đăng nhập có quyền (`collect`, `uncollectible`, và `cancel` cho Admin, T-051).
 - `price_breakdown[]`: `{start_time, end_time, band, label, price}` – giá từng khung chốt lúc đặt (vé: mảng rỗng).
 - Gửi `collect`/`uncollectible` với `version` cũ hoặc khi đã đổi trạng thái → 409 `E-012`, không ghi đè.
 
@@ -274,6 +279,82 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
   (chọn phương thức ⇒ chỉ lấy `paid`; "Chuyển khoản" gồm cả online), `q` (mã booking/vé, tên, SĐT), `page` (8 dòng/trang).
 - Trả `{date_from, date_to, rows[], page, page_size: 8, total, cards:{paid, unpaid, uncollectible}}`, mỗi thẻ có `{amount, count}`, tính đúng theo bộ lọc.
 - Sắp xếp: giờ chơi mới nhất → mã sân → mã. **(T-019)** Mỗi dòng thêm `order_code` (mã đơn + mã con).
+
+### 5.2 Hủy booking, vé và đơn (T-051, ADR-013, chưa vào `dev`)
+
+> Đối chiếu với code backend `be/T-051-cancel-booking` @ `794c127` (cục bộ, tạo từ `dev` `9c6602b`). BACKEND đã chạy trên DB thật: 19 + 2 test hủy, `alembic check` sạch (một head `c7e2a91f4d36`) và 851 test `test_qa_*`; **chưa chạy cả bộ test backend**, chờ CI. Giao diện chưa kiểm. Spec: `board/tasks/T-051-huy-booking-va-ve.md`, quyết định: `board/decisions/ADR-013-huy-thanh-toan.md`.
+
+**Quy tắc thay đổi.** Trước đây `payment_status` chỉ có `unpaid → paid` hoặc `unpaid → uncollectible`, hai trạng thái cuối. Từ T-051 có thêm trạng thái cuối thứ ba **`cancelled` (Đã hủy)**:
+
+| Từ | Sang | Điều kiện |
+|---|---|---|
+| `unpaid` | `cancelled` | Chưa tới giờ bắt đầu |
+| `paid` | `cancelled` | Chưa tới giờ bắt đầu |
+| `uncollectible` | | **Không hủy được** (chỉ có sau giờ chơi) |
+| `cancelled` | | Trạng thái cuối, **không khôi phục** |
+
+- **Chỉ hủy buổi chưa bắt đầu** (so giờ hiện tại với giờ bắt đầu), và chưa có trận `playing` hoặc `finished` trong phòng chơi của buổi đó.
+- **Chỉ Admin.** Quyền mới `booking.cancel` thuộc nhóm chỉ Admin: không gán được cho Nhân viên hay Tài khoản tại máy, và ẩn khỏi tab Phân quyền. Nhân viên không thấy `cancel` trong `actions[]`.
+- **Nhả chỗ ngay:** `allocation.active = false` cùng transaction. Exclusion constraint `ex_allocation_no_overlap` **không đổi** (có test so định nghĩa trước và sau); khung trống lại nhờ điều kiện `WHERE active` sẵn có. Mã booking và vé **không dùng lại**.
+- **Tiền: chỉ trừ số liệu, không tự hoàn.** Với khoản đã thu, `refund_amount` = toàn bộ `amount`; `paid_at` và `payment_method` giữ nguyên. Hệ thống **không hoàn qua SePay**: Admin tự trả tiền cho khách ngoài hệ thống, và `refund_amount` chỉ là ghi nhận theo xác nhận của Admin, không phải bằng chứng đã chuyển tiền. Không hoàn một phần. Doanh thu chỉ tính `paid` nên tự giảm; Báo cáo tính theo ngày chơi, mà buổi hủy chưa diễn ra, nên số liệu các ngày đã qua không đổi.
+
+#### Endpoint (tiền tố `/api/v1/front-desk`, quyền `booking.cancel`, lệnh ghi cần `Idempotency-Key` và `Origin`)
+
+| Method | Path | Ghi chú |
+|---|---|---|
+| POST | `/items/{code}/cancel` | Hủy **một** booking hoặc vé. Body `{reason, version, refund_confirmed}` → `ItemOut` |
+| GET | `/orders/{order_code}/cancel-preview` | Xem trước hủy cả đơn: `{cancellable: [{code, play_date, start_at, resource_name, amount, payment_status}], skipped: [{code, reason}], refund_total, unpaid_total}`. `refund_total` = tổng các khối **đã thu** sẽ hủy (trừ khỏi doanh thu); `unpaid_total` = tổng các khối chưa thu sẽ hủy. 404 `E-BOOK-3` nếu không có đơn |
+| POST | `/orders/{order_code}/cancel` | Hủy các khối `codes` của đơn. Body `{reason, refund_confirmed, codes}` (`codes` lấy từ xem trước, tối đa 99). Trả `{cancelled: [mã], skipped: [{code, reason}], refund_total}` |
+
+- `reason`: **bắt buộc**, tối đa 200 ký tự sau khi cắt khoảng trắng. Trống hoặc quá dài → 422 `E-001`.
+- `refund_confirmed` (mặc định `false`): Admin xác nhận đã hoặc sẽ tự hoàn tiền. **Bắt buộc `true` khi hủy khoản đã thu**, nếu không → 422 `E-PAY-7`.
+- `version`: số phiên bản của `ItemOut`; lệch → 409 `E-012`.
+- `skipped[].reason`: `started` (đã tới giờ bắt đầu) · `played` (đã có trận trong phòng) · `cancelled` (đã hủy) · `uncollectible` (Không thu được).
+- **Hủy cả đơn kiểm lại từng khối lúc hủy:** khối đã bắt đầu hoặc có trận sau lúc xem trước vào `skipped`, buổi đã chơi giữ nguyên. Nếu có khối đã thu mà chưa tick `refund_confirmed` thì **chặn cả lệnh** (`E-PAY-7`), không hủy một phần. `codes` rỗng hoặc có mã ngoài đơn → 422 `E-001`.
+- Khối hủy ở `ItemOut`: `payment.payment_status = "cancelled"` và các trường `payment.cancel_reason`, `cancelled_at`, `cancelled_by_label`, `refund_amount` (cạnh `uncollectible_reason`, không ở cấp ngoài cùng). `actions[]` có `cancel` khi được phép **nhưng chưa xét trận** (engine không biết phòng): booking đã có trận vẫn hiện `cancel`, bấm thì nhận `E-PAY-8`. Xem trước cả đơn đã xét trận.
+- `collect` hoặc `uncollectible` lên mục đã hủy → 409 `E-PAY-6`.
+
+| Mã lỗi | HTTP | Khi nào |
+|---|---|---|
+| `E-PAY-5` | 422 | "Buổi chơi đã bắt đầu hoặc đã qua, không thể hủy." |
+| `E-PAY-6` | 409 | "Đã ở trạng thái Đã hủy hoặc Không thu được, không thể hủy." (cũng khi `collect` / `uncollectible` mục đã hủy) |
+| `E-PAY-7` | 422 | "Vui lòng xác nhận việc hoàn tiền cho khách." (khoản đã thu mà `refund_confirmed = false`; hủy cả đơn thì chặn cả lệnh) |
+| `E-PAY-8` | 422 | "Buổi này đã có trận đấu trong phòng chơi, không thể hủy." |
+| `E-001` | 422 | Lý do trống hoặc quá 200 ký tự; `codes` rỗng hoặc có mã ngoài đơn |
+| `E-012` | 409 | `version` lệch |
+| `E-BOOK-3` | 404 | Không có đơn |
+
+#### Chỗ khác đọc trạng thái `cancelled`
+
+| Nơi | Hành vi |
+|---|---|
+| Lịch quầy, lịch public, lịch hội viên | Không hiện buổi đã hủy; khung đặt được ngay |
+| Sự kiện: `session_counts` | Không đếm vé hủy (trả chỗ, không cản xóa sự kiện); mã vé mới vẫn tăng tiếp. Popup sự kiện của Admin vẫn liệt kê vé hủy với `payment_status: cancelled` |
+| `my_tickets`, `my_ticket_count` | Ẩn vé đã hủy |
+| Lịch sử giao dịch | Thẻ `cards.cancelled` (cộng cả khoản đã thu và chưa thu), lọc `status=cancelled`; mỗi dòng có `cancel_reason`, `cancelled_by`, `refund_amount` |
+| Báo cáo doanh thu, chi tiết sân | Không đổi code; có test khóa doanh thu và công suất |
+| Màn Đơn đặt sân / Đơn định kỳ | Tổng, số khối, giảm giá tính theo khối **chưa hủy**; `status` và `counts` có thêm `cancelled`. Đơn hủy hết: `total`, `sessions`, `blocks` bằng 0, ngày / giờ / sân vẫn lấy theo mọi khối để dòng còn đọc được |
+| Tra cứu (`/web/booking/lookup`) | Bỏ qua khối hủy; hủy hết → `status = cancelled`, `amount` và `hours` = 0, từng khối vẫn hiện số gốc; **không lộ lý do** |
+| Trang thanh toán `/thanh-toan/{token}` | Lượt giữ vẫn `paid`; đánh dấu từng khối (`items[].cancelled`) và vé (`event.cancelled_ticket_codes`) |
+| Lịch sử thanh toán hội viên | Có `cancelled` + `refund_amount`; **không cộng** vào `summary`; chưa thu rồi hủy thì không hiện |
+| Hồ sơ hội viên | `MemberBooking.is_cancelled`; thống kê không đếm buổi hủy; `GET /me/member/bookings` có `total` gồm cả dòng hủy để phân trang đúng |
+| Buổi sắp tới (Tổng quan) | Loại buổi hủy |
+| Phòng chơi | 404 ngay sau commit hủy (trước khi worker chạy); loại khỏi danh sách phòng, phòng của tôi, Lịch sử chơi, thống kê tháng |
+| Tiền về trễ cho lượt đã `paid` | `outcome = refund_needed`, không tạo booking, không chiếm chỗ |
+
+#### Sự kiện và thông báo
+
+- Outbox **`booking.cancelled`**, payload `{code, order_code, kind, play_date, start_at, end_at, resource_name, was_paid, refund_amount}`; **không có** `customer_ref`.
+- **Phòng chơi** (`play_rooms`): đóng phòng; yêu cầu xin vào và lời mời → `cancelled`; trận `drawn` hoặc `playing` → `abandoned`; thông báo `room.cancelled` cho thành viên, người xin vào và người được mời, **trừ chủ đơn**. Phát lại không báo hai lần. Có thêm job mỗi phút đóng phòng còn mở mà booking đã hủy, phòng khi lỡ sự kiện.
+- **Chủ đơn** (`member_area/handlers.py`, mới; đã đăng ký ở `main.py` và `worker.py`): nếu là hội viên có tài khoản liên kết thì nhận thông báo `booking.cancelled` (dùng mã đơn, có số tiền hoàn khi đã thu, không có lý do). Hai kind mới `booking.cancelled`, `room.cancelled` đều không có `link`.
+- **Nhật ký:** `payment.cancelled`, mỗi khối một dòng (người làm: Admin).
+
+#### Migration `c7e2a91f4d36` (nối sau `a4c91e7d2f58`, **production phải chạy**)
+
+- Bảng `booking` và `ticket` thêm `cancel_reason`, `cancelled_at`, `cancelled_by_type`, `cancelled_by_id`, `cancelled_by_label`, `refund_amount` (mặc định 0).
+- Check: `payment_status` thêm giá trị `cancelled`; đã hủy phải có lý do và thời điểm; `refund_amount` trong khoảng 0 đến `amount`.
+- **Downgrade từ chối chạy khi đã có dòng `cancelled`** (không có trạng thái cũ nào đúng để trả về). RELEASE kiểm lại chỉ còn một head trước khi gộp.
+- Không biến môi trường mới.
 
 ## 6. Biến môi trường
 
