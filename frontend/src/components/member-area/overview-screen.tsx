@@ -160,7 +160,7 @@ export function OverviewScreen() {
                 <UpcomingEvents events={data.upcoming_events} />
               </div>
 
-              <RankCard ranking={data.ranking as Parameters<typeof RankCard>[0]["ranking"]} month={month} />
+              <RankCard ranking={data.ranking} month={month} />
             </div>
 
             <RecordCards records={data.recent_records} />
@@ -333,8 +333,7 @@ function OpenRooms({ rooms, busyId, onJoin }: { rooms: RoomCard[]; busyId: numbe
 
 const MEDAL = ["bg-medal-gold", "bg-medal-silver", "bg-medal-bronze"];
 
-// TẠM (T-053): `total_records` theo contract, bỏ phần giao này sau khi merge nhánh BE.
-function RankCard({ ranking, month }: { ranking: Overview["ranking"] & { total_records: number }; month: number }) {
+function RankCard({ ranking, month }: { ranking: Overview["ranking"]; month: number }) {
   const { me, top3, total_records } = ranking;
   const bar = me ? (me.gap_to_top10 === null || !me.top10_kmh ? 100 : Math.min(100, Math.round((me.speed_kmh / me.top10_kmh) * 100))) : 0;
   const inTop3 = top3.some((r) => r.is_me);
@@ -392,7 +391,7 @@ function RankCard({ ranking, month }: { ranking: Overview["ranking"] & { total_r
                       </span>
                       <span className="block truncate text-xs font-normal text-muted tabular-nums">
                         {formatDayMonth(vnDate(r.measured_at))}
-                        {(r as typeof r & { resource_name?: string | null }).resource_name ? ` · ${(r as typeof r & { resource_name?: string | null }).resource_name}` : ""}
+                        {r.resource_name ? ` · ${r.resource_name}` : ""}
                       </span>
                     </span>
                     <span className="text-sm font-bold tabular-nums">{r.speed_kmh} km/h</span>

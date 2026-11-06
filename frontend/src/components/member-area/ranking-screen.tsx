@@ -15,10 +15,9 @@ import type { RecordVideo } from "@/lib/video";
 // /hoi-vien/bang-xep-hang (T-030): top 10 cú đập nhanh nhất theo tuần / tháng / năm, bục top 3, hạng của tôi, hạng 4–10 có thanh tốc độ.
 // T-049: dòng / bục / thẻ "Hạng của tôi" có video thì bấm được và mở popup với trình phát của T-048 (không tự phát); không có video thì giữ nguyên, không bấm được.
 
-// TẠM (T-053): trường mới theo contract, bỏ phần giao này sau khi merge nhánh BE (schema.d.ts đã có).
-type Ranking = components["schemas"]["SpeedRanking"] & { total_records: number };
-type Row = components["schemas"]["SpeedRankingRow"] & { resource_name: string | null };
-type Me = components["schemas"]["SpeedMe"] & { display_name: string; avatar_url: string | null };
+type Ranking = components["schemas"]["SpeedRanking"];
+type Row = components["schemas"]["SpeedRankingRow"];
+type Me = components["schemas"]["SpeedMe"];
 
 /** "25/10 · Sân 5": ngày đạt (giờ VN) + sân; sân null thì chỉ ngày. Phân biệt các bậc của cùng một người (T-053 AC2). */
 const hitText = (r: Pick<Row, "measured_at" | "resource_name">) => `${dm(vnDate(r.measured_at))}${r.resource_name ? ` · ${r.resource_name}` : ""}`;
@@ -149,7 +148,7 @@ export function RankingScreen() {
         return;
       }
       if (d) {
-        setData(d as Ranking); // TẠM (T-053): ép kiểu tới khi schema.d.ts có trường mới
+        setData(d);
         setNowMs(Date.now());
       } else setFailed(true);
     } catch {
@@ -165,12 +164,11 @@ export function RankingScreen() {
   const today = nowMs ? vnDate(new Date(nowMs).toISOString()) : "";
   const canNext = Boolean(data && today && data.end < today);
   const noun = PERIODS.find((x) => x.key === period)?.noun ?? "";
-  const rows = (data?.top ?? []) as Row[]; // TẠM (T-053): ép kiểu tới khi schema.d.ts có trường mới
-  const top3 = rows.slice(0, 3);
-  const rest = rows.slice(3, 10);
+  const top3 = (data?.top ?? []).slice(0, 3);
+  const rest = (data?.top ?? []).slice(3, 10);
   const best = data?.top[0]?.speed_kmh ?? 0;
   const floor = data?.bar_floor_kmh ?? 200;
-  const me = (data?.me ?? null) as Me | null; // TẠM (T-053)
+  const me: Me | null = data?.me ?? null;
 
   return (
     <>
