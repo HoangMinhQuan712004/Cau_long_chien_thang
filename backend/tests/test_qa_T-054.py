@@ -271,7 +271,10 @@ async def test_ac8_ended_rooms_are_read_only_labelled_and_show_the_tier_range(st
     assert "tier_range" in card, "thẻ hiện khoảng hạng (T-050)"
     again = await post(seeker.client, f"/{room.id}/join-requests", {"version": room.version})
     assert again.status_code == 409 and code_of(again) == "E-ROOM-1"
-    assert (await seeker.client.get(f"{ROOMS}/{room.id}")).status_code == 200, "vào xem được"
+    # Chỉ xin vào, chưa từng ở trong phòng: không xem được; Host xem được (AC10)
+    assert card["can_view"] is False
+    assert (await seeker.client.get(f"{ROOMS}/{room.id}")).status_code == 404
+    assert (await host.client.get(f"{ROOMS}/{room.id}")).status_code == 200, "Host vào xem được"
     # 2) hết giờ + ân hạn nhưng job chưa kịp đóng
     await set_room(
         room.id,

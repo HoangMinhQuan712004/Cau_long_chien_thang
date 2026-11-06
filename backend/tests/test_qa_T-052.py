@@ -189,9 +189,9 @@ async def test_ac3_past_cancel_deducts_only_the_play_day_and_capacity(admin, sta
     assert cards_a["paid"]["amount"] == cards_b["paid"]["amount"] - amount
     assert cards_a["cancelled"]["amount"] == cards_b["cancelled"]["amount"] + amount
     assert cards_a["cancelled"]["count"] == cards_b["cancelled"]["count"] + 1
-    rows = (await admin.get(f"{BK}/transactions", params={**params, "status": "cancelled"})).json()[
-        "rows"
-    ]
+    # Lọc theo mã: bảng 8 dòng / trang, các test khác cũng hủy buổi cùng ngày trên CSDL dùng chung
+    filtered = {**params, "status": "cancelled", "q": past["code"]}
+    rows = (await admin.get(f"{BK}/transactions", params=filtered)).json()["rows"]
     row = next(x for x in rows if x["code"] == past["code"])
     assert row["cancel_reason"] == REASON and row["refund_amount"] == amount and row["cancelled_by"]
     assert await audits(past["code"]) == 1
@@ -559,7 +559,14 @@ async def test_room_writes_after_cancel_depend_on_which_side_of_end_at(
     ask = await post(guest.client, f"/{room.id}/join-requests", {"version": room.version})
     if writable:
         assert status == "open", "hủy từ end_at: sự kiện và job đều không đóng phòng"
-        assert ask.status_code == 200, ask.text
+        # Người trong phòng còn ghi được, nhưng không nhận thêm người (T-054: booking đã hủy = kết thúc)
+        assert ask.status_code == 409 and code_of(ask) == "E-ROOM-1", ask.text
+        fmt = await host.client.put(
+            f"{MA}/rooms/{room.id}/format",
+            json={"format": "1v1", "version": room.version},
+            headers=idem(),
+        )
+        assert fmt.status_code == 200, fmt.text
     else:
         assert status == "closed"
         assert ask.status_code in (404, 409), ask.text
