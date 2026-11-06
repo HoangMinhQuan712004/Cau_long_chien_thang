@@ -18,6 +18,7 @@ from app.modules.records.schemas import (
     MySpeedRecord,
     MySpeedRecordList,
     Period,
+    RecordBreakList,
     RecordVideoList,
     SpeedRanking,
     SpeedSubmitIn,
@@ -45,6 +46,9 @@ async def speed_ranking(
     Mỗi hội viên lấy số đo cao nhất trong kỳ, bằng nhau thì ai đạt trước xếp trên. Chỉ hội viên
     Hoạt động có tài khoản liên kết. Tắt "Hiện trên kỷ lục" -> "Hội viên ẩn danh" (mình luôn thấy
     tên mình). Không trả id của người khác. ``period`` / ``date`` sai -> 422.
+
+    T-049: ``video`` là video của đúng số đo xếp hạng (ẩn danh vẫn phát); số đo đó không có video
+    thì null, không lấy video của số đo khác.
     """
     today = dt.datetime.now(settings.tz).date()
     return await service.ranking(session, member.customer_id, period, day or today)
@@ -63,6 +67,22 @@ async def record_videos(
     giờ VN), mới nhất trước, tối đa 60. Ẩn danh như Bảng xếp hạng (video vẫn phát)."""
     today = dt.datetime.now(settings.tz).date()
     return await service.record_videos(session, member.customer_id, period, day or today)
+
+
+@router.get("/record-breaks", response_model=RecordBreakList, dependencies=[Depends(no_store)])
+async def record_breaks(
+    member: auth.CurrentMember,
+    session: SessionDep,
+    period: Annotated[VideoPeriod, Query()] = "all",
+):
+    """Các lần phá kỷ lục toàn cụm (T-048), mới nhất trước, gồm cả lần chưa có video.
+
+    Kỳ tuần T2→CN / tháng / năm (giờ VN) chứa hôm nay chỉ lọc theo ngày đo: ``delta_kmh``,
+    ``previous_kmh``, ``held_days`` vẫn tính trên toàn chuỗi. Mốc đầu chỉ có ở ``all``. Ẩn danh như
+    Bảng xếp hạng (video vẫn phát). ``period`` sai -> 422.
+    """
+    today = dt.datetime.now(settings.tz).date()
+    return await service.record_breaks(session, member.customer_id, period, today)
 
 
 # ------------------------------------------------------------------ hội viên gửi cú đập (T-047)

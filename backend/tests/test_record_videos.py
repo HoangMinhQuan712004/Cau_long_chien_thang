@@ -37,9 +37,9 @@ async def record(cid: int, kmh: int, at: datetime, url: str | None = None) -> in
             customer_id=cid,
             speed_kmh=kmh,
             measured_at=at,
-            video_url=url,
             source_ref=f"{TAG}{uuid.uuid4()}",
         )
+        r.set_video(url, datetime.now(UTC))
         s.add(r)
         await s.commit()
         return r.id

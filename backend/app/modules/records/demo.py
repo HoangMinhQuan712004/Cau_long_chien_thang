@@ -73,19 +73,22 @@ async def seed_breaks(
     video_urls: list[str],
 ) -> int:
     """3 lần phá kỷ lục cụm gần đây (331 → 335 → 340 km/h, cao hơn mọi số đo ngẫu nhiên ≤ 330)
-    cho khối "Kỷ lục mới" (T-036); gắn lần lượt ``video_urls`` (T-046, nếu có) vào các lần phá."""
+    cho khối "Kỷ lục mới" (T-036); gắn lần lượt ``video_urls`` (T-046, nếu có) vào các lần phá.
+    Link được "dán" một ngày sau lần đo, để thấy nhãn "Kỷ lục ngày dd/mm" đi theo ngày dán (T-048).
+    """
     rows = []
     for k, (cid, kmh) in enumerate(zip(customer_ids, (331, 335, 340), strict=False)):
-        rows.append(
-            SpeedRecord(
-                customer_id=cid,
-                speed_kmh=kmh,
-                measured_at=(now - timedelta(days=3 - k, hours=1)).astimezone(UTC),
-                device_id="demo",
-                video_url=video_urls[k] if k < len(video_urls) else None,
-                source_ref=f"{DEMO_PREFIX}break:{cid}:{k}",
-            )
+        measured_at = (now - timedelta(days=3 - k, hours=1)).astimezone(UTC)
+        row = SpeedRecord(
+            customer_id=cid,
+            speed_kmh=kmh,
+            measured_at=measured_at,
+            device_id="demo",
+            source_ref=f"{DEMO_PREFIX}break:{cid}:{k}",
         )
+        url = video_urls[k] if k < len(video_urls) else None
+        row.set_video(url, measured_at + timedelta(days=1))
+        rows.append(row)
     session.add_all(rows)
     await session.flush()
     return len(rows)

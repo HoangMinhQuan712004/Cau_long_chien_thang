@@ -4,16 +4,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/member-area/avatar";
 import { useMember } from "@/components/member-area/member-shell";
 import { PageBanner } from "@/components/member-area/page-banner";
+import { RecordPlayer } from "@/components/records/record-player";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { cn } from "@/lib/cn";
 import { addDaysIso, formatDayMonthYear, vnDate } from "@/lib/format";
+import type { RecordVideo } from "@/lib/video";
 
 // /hoi-vien/bang-xep-hang (T-030): top 10 cú đập nhanh nhất theo tuần / tháng / năm, bục top 3, hạng của tôi, hạng 4–10 có thanh tốc độ.
+// T-049: dòng / bục / thẻ "Hạng của tôi" có video thì bấm được và mở popup với trình phát của T-048 (không tự phát); không có video thì giữ nguyên, không bấm được.
 
 type Ranking = components["schemas"]["SpeedRanking"];
 type Row = components["schemas"]["SpeedRankingRow"];
+type Me = components["schemas"]["SpeedMe"];
+
+/** Cú đập đang mở trong popup. */
+type Clip = { name: string; speed: number; measuredAt?: string; video: RecordVideo };
 type Period = Ranking["period"];
 
 const PERIODS: { key: Period; label: string; noun: string }[] = [
@@ -41,6 +49,35 @@ const Crown = () => (
   </svg>
 );
 
+const PlayBadge = () => (
+  <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-full bg-cta text-cta-fg shadow-card">
+    <svg viewBox="0 0 24 24" className="size-3.5 translate-x-px" fill="currentColor">
+      <path d="M8 5.5v13l11-6.5z" />
+    </svg>
+  </span>
+);
+
+/** Có video: nút bấm được (cả bàn phím, tối thiểu 44 px); không có: khối thường, hiển thị như trước. */
+function Playable({ video, label, onPlay, className, children }: { video: RecordVideo | null | undefined; label: string; onPlay: () => void; className?: string; children: React.ReactNode }) {
+  if (!video) return <div className={className}>{children}</div>;
+  return (
+    <button type="button" onClick={onPlay} aria-label={label} className={cn("min-h-11 cursor-pointer text-left focus-ring", className)}>
+      {children}
+    </button>
+  );
+}
+
+const clipOf = (name: string, speed: number, measuredAt: string | undefined, video: RecordVideo | null | undefined): Clip | null => (video ? { name, speed, measuredAt, video } : null);
+
+/** Popup xem video của một cú đập (T-049 AC2–AC4): dựng khi mở, gỡ khi đóng nên video dừng; <dialog> gốc trả focus về nút vừa bấm. */
+function ClipDialog({ clip, onClose }: { clip: Clip; onClose: () => void }) {
+  return (
+    <Modal open onClose={onClose} size="wide" title={clip.name} subtitle={`${clip.speed} km/h${clip.measuredAt ? ` · đạt ${formatDayMonthYear(vnDate(clip.measuredAt))}` : ""}`}>
+      <RecordPlayer video={clip.video} speed={clip.speed} name={clip.name} />
+    </Modal>
+  );
+}
+
 /** Người trong bảng: hiện tên + ảnh; ẩn danh thì chữ "?" trên nền xám. */
 function Person({ row, size }: { row: Row; size: number }) {
   return <Avatar url={row.avatar_url} name={row.display_name} size={size} className={row.avatar_url ? "" : "bg-primary-hover"} />;
@@ -52,27 +89,38 @@ const PODIUM: Record<1 | 2 | 3, { block: string; ring: string; h: string; order:
   3: { block: "bg-medal-bronze", ring: "ring-medal-bronze", h: "h-16 sm:h-20", order: "order-3" },
 };
 
-function PodiumPlace({ row, place }: { row: Row; place: 1 | 2 | 3 }) {
+function PodiumPlace({ row, place, onPlay }: { row: Row; place: 1 | 2 | 3; onPlay: (c: Clip) => void }) {
   const p = PODIUM[place];
   const first = place === 1;
   return (
     <li className={cn("flex min-w-0 flex-1 flex-col items-center", p.order)} aria-label={`Hạng ${place}: ${row.display_name}, ${row.speed_kmh} ki-lô-mét một giờ${row.is_me ? ", là bạn" : ""}`}>
-      {first ? <Crown /> : null}
-      <span className={cn("rounded-full ring-4", p.ring)}>
-        <Person row={row} size={first ? 72 : 56} />
-      </span>
-      <span className="mt-2 max-w-full truncate px-1 text-center text-sm font-semibold sm:text-base">
-        {row.display_name}
-        {row.is_me ? <span className="ml-1 text-xs font-normal text-surface/80">(Bạn)</span> : null}
-      </span>
-      <span className={cn("mt-1 inline-flex items-center gap-1 rounded-full px-3 py-1 font-bold tabular-nums", first ? "bg-accent text-medal-fg text-xl" : "bg-surface/15 text-lg")}>
-        <Bolt />
-        {row.speed_kmh}
-        <span className="text-xs font-medium opacity-80">km/h</span>
-      </span>
-      <span aria-hidden className={cn("mt-3 grid w-full max-w-40 place-items-start justify-items-center rounded-t-lg pt-2 text-3xl font-bold text-medal-fg", p.block, p.h)}>
-        {place}
-      </span>
+      <Playable
+        video={row.video}
+        label={`Hạng ${place}: ${row.display_name}, ${row.speed_kmh} ki-lô-mét một giờ. Xem video`}
+        onPlay={() => {
+          const c = clipOf(row.display_name, row.speed_kmh, row.measured_at, row.video);
+          if (c) onPlay(c);
+        }}
+        className="flex w-full min-w-0 flex-col items-center rounded-lg"
+      >
+        {first ? <Crown /> : null}
+        <span className={cn("rounded-full ring-4", p.ring)}>
+          <Person row={row} size={first ? 72 : 56} />
+        </span>
+        <span className="mt-2 max-w-full truncate px-1 text-center text-sm font-semibold sm:text-base">
+          {row.display_name}
+          {row.is_me ? <span className="ml-1 text-xs font-normal text-surface/80">(Bạn)</span> : null}
+        </span>
+        <span className={cn("mt-1 inline-flex items-center gap-1 rounded-full px-3 py-1 font-bold tabular-nums", first ? "bg-accent text-medal-fg text-xl" : "bg-surface/15 text-lg")}>
+          <Bolt />
+          {row.speed_kmh}
+          <span className="text-xs font-medium opacity-80">km/h</span>
+          {row.video ? <PlayBadge /> : null}
+        </span>
+        <span aria-hidden className={cn("mt-3 grid w-full max-w-40 place-items-start justify-items-center rounded-t-lg pt-2 text-3xl font-bold text-medal-fg", p.block, p.h)}>
+          {place}
+        </span>
+      </Playable>
     </li>
   );
 }
@@ -84,6 +132,7 @@ export function RankingScreen() {
   const [data, setData] = useState<Ranking | null>(null);
   const [failed, setFailed] = useState(false);
   const [nowMs, setNowMs] = useState(0);
+  const [clip, setClip] = useState<Clip | null>(null);
   const seq = useRef(0);
 
   const load = useCallback(async (p: Period, date: string | undefined) => {
@@ -117,7 +166,7 @@ export function RankingScreen() {
   const rest = (data?.top ?? []).slice(3, 10);
   const best = data?.top[0]?.speed_kmh ?? 0;
   const floor = data?.bar_floor_kmh ?? 200;
-  const me = data?.me ?? null;
+  const me: Me | null = data?.me ?? null;
 
   return (
     <>
@@ -168,7 +217,7 @@ export function RankingScreen() {
         {top3.length > 0 ? (
           <ol className="relative mx-auto flex max-w-2xl items-end gap-2 px-4 pt-6 sm:gap-6" aria-label="Top 3">
             {top3.map((r, i) => (
-              <PodiumPlace key={r.rank} row={r} place={(i + 1) as 1 | 2 | 3} />
+              <PodiumPlace key={r.rank} row={r} place={(i + 1) as 1 | 2 | 3} onPlay={setClip} />
             ))}
           </ol>
         ) : null}
@@ -211,6 +260,21 @@ export function RankingScreen() {
                     <b className="tabular-nums">{me.speed_kmh} km/h</b>
                     <span className="ml-1 text-xs text-muted">đạt {formatDayMonthYear(vnDate(me.measured_at))}</span>
                   </p>
+                  {me.video ? (
+                    <Button
+                      variant="secondary"
+                      className="h-11 px-4 text-sm"
+                      onClick={() => {
+                        const c = clipOf(profile.short_name, me.speed_kmh, me.measured_at, me.video);
+                        if (c) setClip(c);
+                      }}
+                    >
+                      <span className="mr-2 inline-flex">
+                        <PlayBadge />
+                      </span>
+                      Xem video
+                    </Button>
+                  ) : null}
                   {me.gap_to_top10 !== null ? (
                     <p className="rounded-xl border border-accent bg-surface px-4 py-2 text-center">
                       <span className="block text-xs text-accent-fg">Cách top 10</span>
@@ -235,19 +299,30 @@ export function RankingScreen() {
                   {rest.map((r) => {
                     const pct = best > floor ? Math.max(4, Math.min(100, Math.round(((r.speed_kmh - floor) / (best - floor)) * 100))) : 100;
                     return (
-                      <li key={r.rank} className={cn("grid grid-cols-[2rem_1fr_auto] items-center gap-x-3 gap-y-1 py-2.5 sm:grid-cols-[2.5rem_12rem_1fr_4.5rem]", r.is_me && "rounded-lg bg-primary-softer px-2")}>
-                        <span className="grid size-7 place-items-center rounded-full bg-background text-xs font-bold tabular-nums ring-1 ring-border">{r.rank}</span>
-                        <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                          <Person row={r} size={28} />
-                          <span className="truncate">{r.display_name}</span>
-                          {r.is_me ? <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span> : null}
-                        </span>
-                        <span aria-hidden className="col-span-2 col-start-2 row-start-2 h-2.5 overflow-hidden rounded-full bg-border sm:col-span-1 sm:col-start-auto sm:row-start-auto">
-                          <span className="block h-full rounded-full bg-linear-to-r from-primary-hover to-accent" style={{ width: `${pct}%` }} />
-                        </span>
-                        <span className="text-right text-sm font-bold tabular-nums">
-                          {r.speed_kmh} <span className="text-xs font-normal text-muted">km/h</span>
-                        </span>
+                      <li key={r.rank} className={cn(r.is_me && "rounded-lg bg-primary-softer px-2")}>
+                        <Playable
+                          video={r.video}
+                          label={`Hạng ${r.rank}: ${r.display_name}, ${r.speed_kmh} ki-lô-mét một giờ. Xem video`}
+                          onPlay={() => {
+                            const c = clipOf(r.display_name, r.speed_kmh, r.measured_at, r.video);
+                            if (c) setClip(c);
+                          }}
+                          className="grid w-full grid-cols-[2rem_1fr_auto] items-center gap-x-3 gap-y-1 py-2.5 sm:grid-cols-[2.5rem_12rem_1fr_4.5rem]"
+                        >
+                          <span className="grid size-7 place-items-center rounded-full bg-background text-xs font-bold tabular-nums ring-1 ring-border">{r.rank}</span>
+                          <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                            <Person row={r} size={28} />
+                            <span className="truncate">{r.display_name}</span>
+                            {r.is_me ? <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span> : null}
+                            {r.video ? <PlayBadge /> : null}
+                          </span>
+                          <span aria-hidden className="col-span-2 col-start-2 row-start-2 h-2.5 overflow-hidden rounded-full bg-border sm:col-span-1 sm:col-start-auto sm:row-start-auto">
+                            <span className="block h-full rounded-full bg-linear-to-r from-primary-hover to-accent" style={{ width: `${pct}%` }} />
+                          </span>
+                          <span className="text-right text-sm font-bold tabular-nums">
+                            {r.speed_kmh} <span className="text-xs font-normal text-muted">km/h</span>
+                          </span>
+                        </Playable>
                       </li>
                     );
                   })}
@@ -257,6 +332,7 @@ export function RankingScreen() {
           </>
         )}
       </div>
+      {clip ? <ClipDialog clip={clip} onClose={() => setClip(null)} /> : null}
     </>
   );
 }
