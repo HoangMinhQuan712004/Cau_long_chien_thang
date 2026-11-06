@@ -23,6 +23,8 @@ const post = <T = unknown>(path: string, body: Record<string, unknown> = {}): Pr
 
 export type RoomsApi = {
   listRooms(scope: "all" | "mine"): Promise<Read<RoomList>>;
+  /** Tìm theo đúng mã booking (T-054): mọi phòng, mọi ngày; sai định dạng / không thấy ⇒ `items: []`. */
+  searchRooms(q: string): Promise<Read<RoomList>>;
   getRoom(id: number): Promise<Read<RoomDetail>>;
   listMatches(id: number, format: Format | "all"): Promise<Read<MatchList>>;
   getRanking(id: number, format: Format | "all"): Promise<Read<Ranking>>;
@@ -46,6 +48,7 @@ export type RoomsApi = {
 
 const real: RoomsApi = {
   listRooms: (scope) => read(() => looseApi.GET(`${P}/rooms`, { params: { query: { scope } } })),
+  searchRooms: (q) => read(() => looseApi.GET(`${P}/rooms`, { params: { query: { q } } })),
   getRoom: (id) => read(() => looseApi.GET(`${P}/rooms/{id}`, { params: { path: { id } } })),
   listMatches: (id, format) =>
     read(() => looseApi.GET(`${P}/rooms/{id}/matches`, { params: { path: { id }, query: format === "all" ? {} : { format } } })),
