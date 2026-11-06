@@ -4,6 +4,7 @@ Hàm ghi **không commit**; người gọi sở hữu transaction.
 """
 
 import asyncio
+from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import func, select
@@ -201,6 +202,29 @@ async def rackets_of(session: AsyncSession, ids: set[int] | list[int]) -> dict[i
         select(Customer.id, Customer.racket).where(Customer.id.in_(sorted(set(ids))))
     )
     return {cid: racket for cid, racket in rows}
+
+
+@dataclass(frozen=True)
+class RecordCard:
+    """Phần hồ sơ trên thẻ kỷ lục (T-048). Có **họ tên thật** – người gọi phải xét ẩn danh trước
+    khi trả ra; chỉ màn Video & kỷ lục dùng (người dùng chốt 06/11)."""
+
+    full_name: str
+    nickname: str | None
+    tier: str | None
+    racket: str | None
+
+
+async def record_cards(session: AsyncSession, ids: set[int] | list[int]) -> dict[int, RecordCard]:
+    """Họ tên, biệt danh, trình độ, vợt đang dùng của các hồ sơ – thẻ Video & kỷ lục (T-048)."""
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(
+            Customer.id, Customer.full_name, Customer.nickname, Customer.tier, Customer.racket
+        ).where(Customer.id.in_(sorted(set(ids))))
+    )
+    return {cid: RecordCard(*card) for cid, *card in rows}
 
 
 # ------------------------------------------------------------------ dữ liệu mẫu dev (T-034)
