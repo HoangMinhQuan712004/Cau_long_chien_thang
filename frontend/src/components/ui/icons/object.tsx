@@ -57,6 +57,20 @@ export function ClockIcon(props: IconProps) {
 }
 
 /** Vợt cầu lông: mặt vợt bầu dục có lưới, cán chéo xuống trái (tự vẽ cùng kiểu nét Lucide). */
+/** Quả cầu lông nghiêng 45° (vẽ riêng cho dự án): váy lông xòe lên phải, đế tròn dưới trái. Logo mặc định của web. */
+export function ShuttlecockIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <g transform="rotate(45 12 12)">
+        <path d="M9.6 15.5 6 3.5h12l-3.6 12" />
+        <path d="M12 3.5v12" />
+        <path d="M7.6 9.5h8.8" />
+        <path d="M9.6 15.5h4.8v2.1a2.4 2.4 0 0 1-4.8 0z" fill="currentColor" />
+      </g>
+    </Svg>
+  );
+}
+
 export function RacketIcon(props: IconProps) {
   return (
     <Svg {...props}>

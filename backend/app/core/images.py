@@ -19,7 +19,9 @@ MAX_PIXELS = 40_000_000
 OUT_SIZE = 512
 # Link ảnh có ``?v={etag}``: nội dung không đổi
 CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
+FAVICON_SIZE = 64
 CONTENT_TYPE = "image/webp"
+FAVICON_CONTENT_TYPE = "image/png"
 _BAD_IMAGE = (
     UnidentifiedImageError,
     Image.DecompressionBombError,
@@ -104,6 +106,28 @@ def process_square(data: bytes, crop: Crop) -> bytes:
         # Không truyền exif / icc -> ảnh ra không mang metadata
         square.save(out, "WEBP", quality=85, method=4)
         return out.getvalue()
+    except _BAD_IMAGE:
+        raise _rejected() from None
+
+
+def process_logo(data: bytes, crop: Crop) -> tuple[bytes, bytes]:
+    """Tệp gốc -> (WebP vuông ≤ 512 px, PNG favicon) đều giữ nền trong suốt, không metadata.
+
+    Đổi sang RGBA **trước** khi thu nhỏ: ảnh bảng màu (PNG 8-bit) thu nhỏ trực tiếp bị răng cưa.
+    """
+    square = _decode_square(data, crop)
+    try:
+        rgba = square.convert("RGBA")
+        rgba.info.clear()  # PNG tự chép ICC / văn bản từ ``info`` nếu không xóa
+        main = rgba
+        if crop.size > OUT_SIZE:
+            main = rgba.resize((OUT_SIZE, OUT_SIZE), Image.Resampling.LANCZOS)
+        webp = io.BytesIO()
+        main.save(webp, "WEBP", quality=90, method=4)
+        favicon = rgba.resize((FAVICON_SIZE, FAVICON_SIZE), Image.Resampling.LANCZOS)
+        png = io.BytesIO()
+        favicon.save(png, "PNG", optimize=True)
+        return webp.getvalue(), png.getvalue()
     except _BAD_IMAGE:
         raise _rejected() from None
 

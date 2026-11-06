@@ -21,8 +21,8 @@ const csp = [
   "img-src 'self' data: blob: https://qr.sepay.vn https://i.ytimg.com",
   "font-src 'self' data:",
   `connect-src 'self'${GSI && ` ${GSI}`}`,
-  // Video kỷ lục (T-046): YouTube chỉ nạp iframe khi bấm phát; file .mp4 / .webm do Admin dán link https
-  `frame-src 'self' https://www.youtube-nocookie.com${GSI && ` ${GSI}`}`,
+  // Video kỷ lục (T-046): YouTube chỉ nạp iframe khi bấm phát; file .mp4 / .webm do Admin dán link https. Google: bản đồ địa chỉ sân
+  `frame-src 'self' https://www.youtube-nocookie.com https://www.google.com${GSI && ` ${GSI}`}`,
   "media-src 'self' https:",
   "object-src 'none'",
   "base-uri 'self'",

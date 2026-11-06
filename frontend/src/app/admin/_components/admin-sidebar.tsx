@@ -40,6 +40,8 @@ export type SidebarProps = {
   menuOrder: string[];
   name: string;
   roleLabel: string;
+  /** Tên khu quản trị theo tên sân (ngăn kéo điện thoại). */
+  brand: string;
   t: Dictionary["adminNav"];
   /** Bấm một mục (điện thoại: đóng ngăn kéo). */
   onNavigate?: () => void;
@@ -52,7 +54,7 @@ export type SidebarProps = {
 };
 
 /** Nội dung sidebar nền trắng: menu có icon (mục đang mở nền xanh nhạt chữ xanh đậm). Logo + tài khoản nằm trên header (ngăn kéo điện thoại vẫn có logo + ✕). */
-export function AdminSidebar({ perms, menuOrder, t, onNavigate, onClose, isCollapsed, onToggleCollapse }: SidebarProps) {
+export function AdminSidebar({ perms, menuOrder, brand, t, onNavigate, onClose, isCollapsed, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname();
   return (
     <div className={cn(
@@ -70,9 +72,7 @@ export function AdminSidebar({ perms, menuOrder, t, onNavigate, onClose, isColla
             <span className={cn("flex flex-col text-sm/normal font-semibold", isCollapsed && `
               sr-only
             `)}>
-              {t.brandLines.map((line) => (
-                <span key={line}>{line}</span>
-              ))}
+              <span className="line-clamp-2 wrap-anywhere">{brand}</span>
             </span>
           </Link>
           {onClose ? (

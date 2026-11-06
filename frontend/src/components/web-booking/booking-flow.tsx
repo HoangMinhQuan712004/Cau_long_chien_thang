@@ -14,7 +14,8 @@ import { errorText, write } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
 import { formatLongDate, formatVnd } from "@/lib/format";
 import { TIERS } from "@/app/admin/hoi-vien/_components/member-params";
-import { fullAddress, phoneHref, site } from "@/lib/site";
+import type { SiteBranding } from "@/lib/api/server";
+import { phoneHref } from "@/lib/site";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { DayStrip } from "./day-strip";
 import { EventDialog } from "./event-dialog";
@@ -72,17 +73,20 @@ function summarize(calendar: WebCalendar, cells: Cell[], price: Map<string, numb
 /** Đặt trong khu hội viên (T-018 AC4): họ tên + SĐT lấy từ hồ sơ, khóa; bỏ OTP; server nhận `as_member`. */
 export type MemberIdentity = { name: string; phone: string };
 
+/** Thông tin sân cần cho luồng đặt (trang server truyền xuống từ getBranding). */
+export type BookingVenue = Pick<SiteBranding, "name" | "address" | "phone">;
+
 type Props = {
   initialDate: string;
   today: string;
-  hotline: string;
+  venue: BookingVenue;
   texts: Dictionary["phoneVerify"];
   member?: MemberIdentity;
   /** `?event=` (T-023 AC18): tự mở popup sự kiện này khi vào trang */
   initialEvent?: string | null;
 };
 
-export function WebBookingFlow({ initialDate, today, hotline, texts, member, initialEvent = null }: Props) {
+export function WebBookingFlow({ initialDate, today, venue, texts, member, initialEvent = null }: Props) {
   const router = useRouter();
   // Phiên đặt trong khu hội viên lưu riêng, không lẫn với /dat-san công khai
   const storageKey = member ? `${STORAGE_KEY}:member` : STORAGE_KEY;
@@ -448,10 +452,10 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
           <h3 id="venue-title" className="text-sm font-bold text-primary">
             Thông tin sân
           </h3>
-          <p className="mt-2 font-semibold">{site.name}</p>
-          <p className="text-sm text-muted">{fullAddress}</p>
-          <a href={phoneHref} className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline focus-ring">
-            {site.phone}
+          <p className="mt-2 font-semibold">{venue.name}</p>
+          <p className="text-sm text-muted">{venue.address}</p>
+          <a href={phoneHref(venue.phone)} className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline focus-ring">
+            {venue.phone}
           </a>
         </section>
 
@@ -593,7 +597,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
           )}
           <p className="mt-2 text-center text-xs text-muted">Khung giờ được giữ {holdMinutes} phút để thanh toán, bắt đầu sau khi bạn xác minh số điện thoại.</p>
           {onlineOff ? (
-            <p className="mt-2 text-center text-xs text-danger">Đặt online đang tạm ngưng. Vui lòng gọi hotline {hotline}.</p>
+            <p className="mt-2 text-center text-xs text-danger">Đặt online đang tạm ngưng. Vui lòng gọi hotline {venue.phone}.</p>
           ) : null}
         </section>
 
@@ -662,7 +666,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
         )}
         {onlineOff ? (
           <p role="status" className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
-            Đặt online đang tạm ngưng. Vui lòng gọi hotline {hotline}.
+            Đặt online đang tạm ngưng. Vui lòng gọi hotline {venue.phone}.
           </p>
         ) : null}
       </section>
@@ -729,7 +733,7 @@ export function WebBookingFlow({ initialDate, today, hotline, texts, member, ini
         eventCode={cellDialog?.kind === "event" ? cellDialog.code : null}
         date={date}
         member={member}
-        hotline={hotline}
+        venue={venue}
         texts={texts}
         onClose={closeCellDialog}
         onChanged={() => void load(dateRef.current, true)}

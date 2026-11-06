@@ -4,7 +4,8 @@ import { Suspense } from "react";
 import { LocalBusinessJsonLd } from "@/components/local-business-json-ld";
 import { PriceTable } from "@/components/price-table";
 import { openingText, WithPublicPrices } from "@/components/public-prices";
-import { fullAddress, phoneHref, site } from "@/lib/site";
+import { getBranding } from "@/lib/api/server";
+import { phoneHref, siteDescription } from "@/lib/site";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -12,21 +13,22 @@ export const metadata: Metadata = {
 
 // Vỏ trang (tiêu đề, địa chỉ, nút gọi) prerender tĩnh; mọi số liệu từ booking engine (giá, giờ mở cửa, số sân)
 // nằm trong <Suspense> và đọc lúc chạy, nên build không cần backend.
-export default function HomePage() {
+export default async function HomePage() {
+  const info = await getBranding();
   return (
     <>
       <Suspense fallback={null}>
-        <WithPublicPrices>{(data) => <LocalBusinessJsonLd data={data} />}</WithPublicPrices>
+        <WithPublicPrices>{(data) => <LocalBusinessJsonLd data={data} info={info} />}</WithPublicPrices>
       </Suspense>
 
       <section className="grid items-center gap-8 py-8 md:grid-cols-2">
         <div>
           <h1 className="text-3xl font-bold leading-tight sm:text-4xl">
-            {site.name}
+            {info.name}
             <span className="block text-primary">Giá rõ ràng, đặt sân online</span>
           </h1>
-          <p className="mt-4 text-muted">{site.description}</p>
-          <p className="mt-2 text-sm text-muted">📍 {fullAddress}</p>
+          <p className="mt-4 text-muted">{siteDescription(info.name)}</p>
+          <p className="mt-2 text-sm text-muted">📍 {info.address}</p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/dat-san" className="rounded-md bg-primary px-5 py-3 font-medium text-white">
               Đặt sân
@@ -37,8 +39,8 @@ export default function HomePage() {
           </div>
           <p className="mt-3 text-sm text-muted">
             Đặt sân online, thanh toán bằng chuyển khoản QR — hoặc đặt tại quầy, gọi{" "}
-            <a href={phoneHref} className="font-medium text-primary">
-              {site.phone}
+            <a href={phoneHref(info.phone)} className="font-medium text-primary">
+              {info.phone}
             </a>
             .
             <Suspense fallback={null}>

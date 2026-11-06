@@ -4,16 +4,20 @@ import asyncio
 import io
 import re
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
+import httpx
 import pytest
 from PIL import Image
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 
 from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.security import create_token
-from app.modules.auth.models import AdminSession, User
+from app.core.settings_store import AppSetting, SiteLogo
+from app.modules.auth import site_map
+from app.modules.auth.models import AdminSession, RolePermission, User
 from app.modules.auth.utils import normalize_phone, staff_username
 from app.modules.members.models import Customer
 from tests.conftest import API, _client, register, sign_in, unique_phone
@@ -526,3 +530,467 @@ async def test_admin_avatar_body_limit_allows_large_image_blocks_oversize(admin,
     r = await _upload_avatar(admin, noisy.getvalue())
     assert r.status_code in (413, 422) and r.json()["detail"]["code"] == "E-HV-13"
     assert (await admin.delete(AVATAR)).status_code == 204
+
+
+# ------------------------------------------------------------------ logo web
+
+LOGO = f"{API}/admin/site/logo"
+BRANDING = f"{API}/site/branding"
+
+
+def _transparent_png(size: int = 800, **save) -> bytes:
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    img.paste((200, 30, 30, 255), (size // 4, size // 4, size // 2, size // 2))
+    buf = io.BytesIO()
+    img.save(buf, "PNG", **save)
+    return buf.getvalue()
+
+
+async def _upload_logo(c, data: bytes, size: int = 800, headers: dict | None = None):
+    return await c.put(
+        LOGO,
+        files={"file": ("logo.png", data, "image/png")},
+        data={"crop_x": 0, "crop_y": 0, "crop_size": size},
+        headers=headers,
+    )
+
+
+async def test_logo_public_urls_alpha_cache_and_delete(admin, anon):
+    before = (await anon.get(BRANDING)).json()
+    assert before["logo_url"] is None and before["favicon_url"] is None
+    icc = b"\0" * 128  # ảnh gốc mang metadata: ảnh ra không được giữ
+    r = await _upload_logo(admin, _transparent_png(icc_profile=icc))
+    assert r.status_code == 200, r.text
+    saved = r.json()
+    assert saved["cache_tag"] == "site-branding"
+    assert re.fullmatch(r"/api/v1/site/logo\?v=[0-9a-f]{16}", saved["logo_url"])
+    assert re.fullmatch(r"/api/v1/site/favicon\?v=[0-9a-f]{16}", saved["favicon_url"])
+
+    # Công khai: không cần phiên, trang khách đọc được
+    branding = await anon.get(BRANDING)
+    assert branding.json()["logo_url"] == saved["logo_url"]
+    assert branding.json()["favicon_url"] == saved["favicon_url"]
+    logo = await anon.get(saved["logo_url"])
+    assert logo.status_code == 200 and logo.headers["content-type"] == "image/webp"
+    assert "immutable" in logo.headers["cache-control"]
+    img = Image.open(io.BytesIO(logo.content))
+    assert img.size == (512, 512) and img.mode == "RGBA"
+    assert img.getpixel((0, 0))[3] == 0, "giữ nền trong suốt"
+    assert "icc_profile" not in img.info
+
+    favicon = await anon.get(saved["favicon_url"])
+    assert favicon.status_code == 200 and favicon.headers["content-type"] == "image/png"
+    small = Image.open(io.BytesIO(favicon.content))
+    assert small.size == (64, 64) and small.getpixel((0, 0))[3] == 0
+    assert "icc_profile" not in small.info
+
+    again = await anon.get(saved["logo_url"], headers={"If-None-Match": logo.headers["etag"]})
+    assert again.status_code == 304
+    # Link không có ?v= đúng: cache ngắn, đổi logo là thấy
+    assert "immutable" not in (await anon.get(f"{API}/site/logo")).headers["cache-control"]
+
+    assert (await _upload_logo(admin, _transparent_png(400), size=400)).status_code == 200
+    async with SessionLocal() as s:
+        rows = await s.scalar(select(func.count()).select_from(SiteLogo))
+    assert rows == 1, "chỉ một dòng logo"
+
+    r = await admin.delete(LOGO)
+    assert r.status_code == 200
+    assert r.json() == {"logo_url": None, "favicon_url": None, "cache_tag": "site-branding"}
+    assert (await anon.get(BRANDING)).json()["logo_url"] is None
+    assert (await anon.get(saved["logo_url"])).status_code == 404
+    assert (await anon.get(saved["favicon_url"])).status_code == 404
+    assert (await admin.delete(LOGO)).status_code == 200, "chưa có logo vẫn 200"
+
+
+async def test_logo_keeps_alpha_of_palette_png(admin, anon):
+    img = Image.new("RGBA", (600, 600), (0, 0, 0, 0))
+    img.paste((10, 200, 10, 255), (0, 0, 300, 300))
+    buf = io.BytesIO()
+    img.convert("P", palette=Image.Palette.ADAPTIVE).save(buf, "PNG", transparency=0)
+    r = await _upload_logo(admin, buf.getvalue(), size=600)
+    assert r.status_code == 200, r.text
+    logo = await anon.get(r.json()["logo_url"])
+    assert Image.open(io.BytesIO(logo.content)).convert("RGBA").getchannel("A").getextrema()[0] == 0
+    assert (await admin.delete(LOGO)).status_code == 200
+
+
+async def test_logo_admin_only_and_rejects_bad_files(admin, staff, anon, customer):
+    # NV không làm được dù dòng quyền bị thêm tay vào bảng Phân quyền
+    async with SessionLocal() as s:
+        s.add(RolePermission(role="staff", perm="settings.site"))
+        await s.commit()
+    try:
+        assert (await _upload_logo(staff, _transparent_png())).status_code == 403
+        assert (await staff.delete(LOGO)).status_code == 403
+    finally:
+        async with SessionLocal() as s:
+            await s.execute(delete(RolePermission).where(RolePermission.perm == "settings.site"))
+            await s.commit()
+    assert (await _upload_logo(anon, _transparent_png())).status_code == 401
+    assert (await _upload_logo(customer, _transparent_png())).status_code in (401, 403)
+
+    svg = await _upload_logo(admin, b"<svg xmlns='http://www.w3.org/2000/svg'></svg>")
+    assert svg.status_code == 422 and svg.json()["detail"]["code"] == "E-HV-13"
+    assert svg.json()["detail"]["message"] == "Ảnh phải là JPG, PNG hoặc WebP, tối đa 5 MB."
+    crop = await _upload_logo(admin, _transparent_png(100), size=300)
+    assert crop.status_code == 422 and crop.json()["detail"]["code"] == "E-HV-13"
+    evil = await _upload_logo(admin, _transparent_png(), headers={"Origin": "https://evil.example"})
+    assert evil.status_code == 403
+    assert (await anon.get(BRANDING)).json()["logo_url"] is None
+
+
+async def test_logo_body_limit_allows_large_image(admin, monkeypatch):
+    monkeypatch.setattr(settings, "MAX_BODY_BYTES", 1_000)
+    noisy = io.BytesIO()
+    Image.effect_noise((300, 300), 100).convert("RGB").save(noisy, "PNG")
+    assert len(noisy.getvalue()) > 1_000
+    assert (await _upload_logo(admin, noisy.getvalue(), size=300)).status_code == 200
+    assert (await admin.delete(LOGO)).status_code == 200
+
+
+# ------------------------------------------------------------------ thông tin web
+
+SITE_INFO = f"{API}/admin/site/info"
+INFO_DEFAULT = {
+    "name": "Sân Cầu Lông ABC",
+    "address": "123 Đường ABC, Phường XYZ, Quận Cầu Giấy, Hà Nội",
+    "phone": "0900 000 000",
+    "email": "lienhe@example.com",
+    "map_url": None,
+    "lat": None,
+    "lng": None,
+}
+
+
+@pytest.fixture
+async def clean_site_info():
+    """Mỗi test bắt đầu + kết thúc khi chưa lưu thông tin web (các test khác dùng mặc định)."""
+
+    async def clear() -> None:
+        async with SessionLocal() as s:
+            await s.execute(delete(AppSetting).where(AppSetting.key == "site_info"))
+            await s.commit()
+
+    await clear()
+    yield
+    await clear()
+
+
+async def test_site_info_defaults_save_and_public(admin, anon, clean_site_info):
+    # Chưa lưu: đúng thông tin đang có ở frontend/src/lib/site.ts
+    current = (await admin.get(SITE_INFO)).json()
+    assert current == {**INFO_DEFAULT, "version": 0}
+    public = (await anon.get(BRANDING)).json()
+    assert {k: public[k] for k in INFO_DEFAULT} == INFO_DEFAULT and "version" not in public
+
+    body = {
+        "name": "  Sân   Mới ",
+        "address": "1 Đường A,\n Quận B",
+        "phone": "0912345678",
+        "email": "Lien.He@Example.com",
+        "version": 0,
+    }
+    r = await admin.put(SITE_INFO, json=body)
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["cache_tag"] == "site-branding" and out["version"] == 1
+    assert out["name"] == "Sân Mới" and out["address"] == "1 Đường A, Quận B", "trim, một dòng"
+    assert out["phone"] == "0912 345 678", "server tách 4-3-3"
+    public = (await anon.get(BRANDING)).json()
+    assert public["name"] == "Sân Mới" and "short_name" not in public
+    assert (await admin.get(SITE_INFO)).json()["version"] == 1
+
+    # Không đổi gì: không tăng version, vẫn trả tag
+    same = await admin.put(SITE_INFO, json={**body, "version": 1})
+    assert same.status_code == 200 and same.json()["version"] == 1
+    # Version cũ -> không ghi đè
+    stale = await admin.put(SITE_INFO, json={**body, "name": "Ghi Đè", "version": 0})
+    assert stale.status_code == 409 and stale.json()["detail"]["code"] == "E-012"
+    assert (await anon.get(BRANDING)).json()["name"] == "Sân Mới"
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("name", "   ", "Vui lòng nhập Tên sân."),
+        ("name", "x" * 101, "Tên sân tối đa 100 ký tự."),
+        ("address", "", "Vui lòng nhập Địa chỉ."),
+        ("phone", "   ", "Vui lòng nhập Hotline."),
+        ("email", "khong-phai-email", "Email không hợp lệ."),
+    ],
+)
+async def test_site_info_validation(admin, clean_site_info, field, value, message):
+    r = await admin.put(SITE_INFO, json={**INFO_DEFAULT, "version": 0, field: value})
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"]["code"] == "E-001" and r.json()["detail"]["message"] == message
+    assert (await admin.get(SITE_INFO)).json()["version"] == 0
+
+
+# Người dùng chốt 2026-11-06: chỉ di động 10 số; server tách 4-3-3, nhập số liền vẫn được
+@pytest.mark.parametrize(
+    ("phone", "saved"),
+    [
+        ("0912345678", "0912 345 678"),
+        ("09 12 34 56 78", "0912 345 678"),
+        ("0312345678", "0312 345 678"),
+        ("0512345678", "0512 345 678"),
+        ("0712345678", "0712 345 678"),
+        ("0812345678", "0812 345 678"),
+        ("0912 345 678", "0912 345 678"),
+    ],
+)
+async def test_site_info_formats_hotline(admin, anon, clean_site_info, phone, saved):
+    r = await admin.put(SITE_INFO, json={**INFO_DEFAULT, "phone": phone, "version": 0})
+    assert r.status_code == 200, r.text
+    assert r.json()["phone"] == saved
+    assert (await anon.get(BRANDING)).json()["phone"] == saved
+
+
+@pytest.mark.parametrize(
+    ("phone", "message"),
+    [
+        ("+84 912 345 678", "Hotline chỉ gồm chữ số."),
+        ("0912.345.678", "Hotline chỉ gồm chữ số."),
+        ("0912-345-678", "Hotline chỉ gồm chữ số."),
+        ("abc", "Hotline chỉ gồm chữ số."),
+        ("٠٩١٢٣٤٥٦٧٨", "Hotline chỉ gồm chữ số."),  # chữ số không phải ASCII
+        ("091234567", "Hotline phải là số di động 10 số."),  # thiếu số
+        ("09123456789", "Hotline phải là số di động 10 số."),  # thừa số
+        ("0112345678", "Hotline phải là số di động 10 số."),  # đầu số lạ
+        ("0612345678", "Hotline phải là số di động 10 số."),
+        ("02431234567", "Hotline phải là số di động 10 số."),  # máy bàn
+        ("0243 123 4567", "Hotline phải là số di động 10 số."),
+        ("19001234", "Hotline phải là số di động 10 số."),  # tổng đài
+        ("1800 1234", "Hotline phải là số di động 10 số."),
+        ("1900123456", "Hotline phải là số di động 10 số."),
+        ("1" * 30, "Hotline phải là số di động 10 số."),
+    ],
+)
+async def test_site_info_rejects_bad_hotline(admin, clean_site_info, phone, message):
+    r = await admin.put(SITE_INFO, json={**INFO_DEFAULT, "phone": phone, "version": 0})
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"]["code"] == "E-001" and r.json()["detail"]["message"] == message
+
+
+async def test_site_info_same_hotline_written_differently_is_no_change(admin, clean_site_info):
+    # Mặc định "0900 000 000" hợp lệ: gửi lại kiểu số liền -> không đổi
+    r = await admin.put(SITE_INFO, json={**INFO_DEFAULT, "phone": "0900000000", "version": 0})
+    assert r.status_code == 200 and r.json()["version"] == 0
+    r = await admin.put(SITE_INFO, json={**INFO_DEFAULT, "phone": "0912345678", "version": 0})
+    assert r.json()["version"] == 1
+    before = await audit_count("settings.site_info")
+    r = await admin.put(SITE_INFO, json={**INFO_DEFAULT, "phone": "0912 34 56 78", "version": 1})
+    assert r.status_code == 200 and r.json()["version"] == 1, "không tăng version"
+    assert r.json()["phone"] == "0912 345 678"
+    assert await audit_count("settings.site_info") == before, "không ghi nhật ký"
+
+
+SHORT_LINK = "https://maps.app.goo.gl/AYnKCiQugfAs5ro87"
+PLACE_LINK = (
+    "https://www.google.com/maps/place/B%E1%BB%87nh+vi%E1%BB%87n+E/@21.045782,105.7904939,16.51z"
+    "/data=!4m6!3m5!1s0x3135ab!8m2!3d21.0503396!4d105.7888586!16s"
+)
+RESOLVE = f"{API}/admin/site/map/resolve"
+
+
+@pytest.fixture
+def google(monkeypatch):
+    """Giả Google, KHÔNG gọi mạng: ``routes`` = URL -> phản hồi; ghi lại mọi URL đã gọi."""
+    routes: dict[str, httpx.Response | Exception] = {}
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        answer = routes[str(request.url)]
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(
+        site_map,
+        "_client",
+        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=False),
+    )
+    return SimpleNamespace(routes=routes, seen=seen)
+
+
+def _redirect(to: str) -> httpx.Response:
+    return httpx.Response(302, headers={"location": to})
+
+
+@pytest.mark.parametrize(
+    ("link", "coords"),
+    [
+        (PLACE_LINK, (21.0503396, 105.7888586)),  # !3d!4d thắng @ (tâm khung nhìn)
+        ("https://www.google.com/maps/search/21.046572,+105.790910", (21.046572, 105.79091)),
+        (
+            "https://www.google.com/maps/search/21.046572,%20105.790910?hl=vi",
+            (21.046572, 105.79091),
+        ),
+        ("https://maps.google.com/?q=21.5,105.25", (21.5, 105.25)),
+        ("https://www.google.com/maps?q=21.5,105.25&z=16", (21.5, 105.25)),
+        ("https://www.google.com/maps/@21.5,105.25,16z", (21.5, 105.25)),
+        ("https://www.google.com/maps/place/San+ABC", None),
+        ("https://www.google.com/maps?q=San+ABC", None),
+        ("https://www.google.com/maps/@91.5,105.25,16z", None),  # ngoài khoảng
+    ],
+)
+def test_map_coords_in_link(link, coords):
+    assert site_map.coords_in_link(link) == coords
+
+
+async def test_map_resolve_short_link_writes_nothing(admin, google, clean_site_info):
+    google.routes[SHORT_LINK] = _redirect(PLACE_LINK)
+    google.routes[PLACE_LINK] = httpx.Response(200, text="<html>")
+    r = await admin.post(RESOLVE, json={"input": f"  {SHORT_LINK} "})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"map_url": SHORT_LINK, "lat": 21.0503396, "lng": 105.7888586}
+    assert (await admin.get(SITE_INFO)).json()["map_url"] is None, "không ghi DB"
+
+    # Link dài đã có tọa độ: không cần gọi mạng
+    google.seen.clear()
+    r = await admin.post(RESOLVE, json={"input": PLACE_LINK})
+    assert r.json()["lat"] == 21.0503396 and google.seen == []
+    # Link hợp lệ, không có tọa độ: giữ link
+    r = await admin.post(RESOLVE, json={"input": "https://www.google.com/maps/place/San+ABC"})
+    assert r.status_code == 200
+    assert r.json() == {
+        "map_url": "https://www.google.com/maps/place/San+ABC",
+        "lat": None,
+        "lng": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        "khong phai link",
+        "http://maps.app.goo.gl/abc",
+        "https://evil.example/maps",
+        "https://maps.app.goo.gl.evil.example/abc",
+        "https://www.google.com@evil.example/maps",
+        "https://user:pw@maps.google.com/maps",
+        "https://www.google.com:8443/maps",
+        "https://www.google.com/search?q=1",
+        "https://www.google.com/maps/../url?q=https://evil.example",
+        "https://www.google.com\\@evil.example/maps",
+        "https://169.254.169.254/latest/meta-data",
+        "javascript:alert(1)",
+        # Không nhận mã nhúng (người dùng chốt 2026-11-06)
+        "https://www.google.com/maps/embed?pb=!1m18!2d105.7!3d21.0",
+        '<iframe src="https://www.google.com/maps/embed?pb=!1m18"></iframe>',
+        "<script>alert(1)</script>",
+    ],
+)
+async def test_map_resolve_rejects_without_network(admin, google, text):
+    r = await admin.post(RESOLVE, json={"input": text})
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"]["code"] == "E-001"
+    assert r.json()["detail"]["message"] == "Link Google Maps không hợp lệ."
+    assert google.seen == [], "không gọi mạng khi link không qua allowlist"
+
+
+@pytest.mark.parametrize(
+    "target",
+    ["https://evil.example/x", "http://www.google.com/maps/x", "http://169.254.169.254/latest"],
+)
+async def test_map_resolve_redirect_to_foreign_host_is_not_followed(admin, google, target):
+    google.routes[SHORT_LINK] = _redirect(target)
+    r = await admin.post(RESOLVE, json={"input": SHORT_LINK})
+    assert r.status_code == 422
+    assert r.json()["detail"]["message"] == "Link Google Maps không hợp lệ."
+    assert google.seen == [SHORT_LINK], "kiểm allowlist trước khi đi tiếp"
+
+
+async def test_map_resolve_google_failures_ask_to_retry(admin, google):
+    retry = "Chưa đọc được link, hãy thử lại."
+
+    async def expect_retry() -> None:
+        r = await admin.post(RESOLVE, json={"input": SHORT_LINK})
+        assert r.status_code == 422 and r.json()["detail"]["message"] == retry, r.text
+
+    google.routes[SHORT_LINK] = httpx.ConnectTimeout("hết giờ")
+    await expect_retry()
+    google.routes[SHORT_LINK] = httpx.ConnectError("mạng lỗi")
+    await expect_retry()
+    google.routes[SHORT_LINK] = httpx.Response(500)
+    await expect_retry()
+    # Chuyển hướng quá 3 lần: dừng, không gọi lần thứ 5
+    hops = [f"https://maps.google.com/maps/{i}" for i in range(5)]
+    google.routes[SHORT_LINK] = _redirect(hops[0])
+    for here, there in zip(hops, hops[1:], strict=False):
+        google.routes[here] = _redirect(there)
+    google.seen.clear()
+    await expect_retry()
+    assert len(google.seen) == 4, google.seen
+
+
+async def test_map_resolve_admin_only(admin, staff, anon, google):
+    body = {"input": PLACE_LINK}
+    assert (await anon.post(RESOLVE, json=body)).status_code == 401
+    assert (await staff.post(RESOLVE, json=body)).status_code == 403
+    evil = await admin.post(RESOLVE, json=body, headers={"Origin": "https://evil.example"})
+    assert evil.status_code == 403
+
+
+async def test_site_info_saves_map_with_server_side_checks(admin, anon, google, clean_site_info):
+    body = {**INFO_DEFAULT, "version": 0}
+    assert (await anon.get(BRANDING)).json()["map_url"] is None, "mặc định không có bản đồ"
+    saved = {"map_url": SHORT_LINK, "lat": 21.03334567891, "lng": 105.8}
+    r = await admin.put(SITE_INFO, json={**body, **saved})
+    assert r.status_code == 200, r.text
+    assert r.json()["lat"] == 21.0333457, "làm tròn 7 chữ số"
+    public = (await anon.get(BRANDING)).json()
+    assert public["map_url"] == SHORT_LINK and public["lng"] == 105.8
+    assert "embed_url" not in public
+    assert google.seen == [], "lưu không gọi mạng"
+    # Link không có tọa độ vẫn lưu được
+    r = await admin.put(SITE_INFO, json={**body, "version": 1, "map_url": SHORT_LINK})
+    assert r.status_code == 200 and r.json()["lat"] is None
+    # Không gửi = bỏ bản đồ
+    r = await admin.put(SITE_INFO, json={**body, "version": 2})
+    assert r.status_code == 200 and r.json()["map_url"] is None and r.json()["version"] == 3
+
+    for bad in (
+        {"map_url": "https://evil.example/maps"},
+        {"map_url": "http://maps.app.goo.gl/abc"},
+        {"map_url": "https://www.google.com/maps/embed?pb=!1m18"},
+        {"lat": 21.0, "lng": 105.0},  # tọa độ không kèm link
+        {"map_url": SHORT_LINK, "lat": 21.0},  # thiếu một trong hai
+        {"map_url": SHORT_LINK, "lat": 90.1, "lng": 0},
+        {"map_url": SHORT_LINK, "lat": 0, "lng": -180.1},
+    ):
+        r = await admin.put(SITE_INFO, json={**body, "version": 3, **bad})
+        assert r.status_code == 422 and r.json()["detail"]["code"] == "E-001", bad
+    extra = await admin.put(SITE_INFO, json={**body, "version": 3, "embed_url": "x"})
+    assert extra.status_code == 422, "không còn trường embed_url"
+
+
+async def test_site_info_admin_only_and_origin(admin, staff, anon, clean_site_info):
+    body = {**INFO_DEFAULT, "name": "Sân Khác", "version": 0}
+    assert (await anon.get(SITE_INFO)).status_code == 401
+    assert (await anon.put(SITE_INFO, json=body)).status_code == 401
+    assert (await staff.get(SITE_INFO)).status_code == 403
+    assert (await staff.put(SITE_INFO, json=body)).status_code == 403
+    evil = await admin.put(SITE_INFO, json=body, headers={"Origin": "https://evil.example"})
+    assert evil.status_code == 403
+    assert (await admin.put(SITE_INFO, json={**body, "hack": 1})).status_code == 422
+    # Chỉ dùng một tên (người dùng chốt 2026-11-06): short_name là trường lạ
+    assert (await admin.put(SITE_INFO, json={**body, "short_name": "A"})).status_code == 422
+    assert (await admin.get(SITE_INFO)).json()["version"] == 0
+
+
+async def test_site_info_concurrent_first_save_one_wins(admin, clean_site_info):
+    """Chưa có dòng để khóa: UNIQUE key của ``app_setting`` chặn người sau."""
+    rs = await asyncio.gather(
+        *[
+            admin.put(SITE_INFO, json={**INFO_DEFAULT, "name": f"Sân {i}", "version": 0})
+            for i in range(4)
+        ]
+    )
+    codes = sorted(r.status_code for r in rs)
+    assert codes == [200, 409, 409, 409], [r.text for r in rs]
+    winner = next(r for r in rs if r.status_code == 200).json()
+    assert (await admin.get(SITE_INFO)).json()["name"] == winner["name"]

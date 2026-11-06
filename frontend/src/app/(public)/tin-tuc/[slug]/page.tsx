@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { JsonLd } from "@/components/json-ld";
-import { getPost } from "@/lib/api/server";
+import { getBranding, getPost } from "@/lib/api/server";
 import { formatDate } from "@/lib/format";
 import { site } from "@/lib/site";
 
@@ -38,7 +38,7 @@ export default function PostPage({ params }: PageProps<"/tin-tuc/[slug]">) {
 
 async function PostContent({ params }: Pick<PageProps<"/tin-tuc/[slug]">, "params">) {
   const { slug } = await params;
-  const post = await getPost(slug);
+  const [post, { name }] = await Promise.all([getPost(slug), getBranding()]);
   if (!post) notFound();
 
   return (
@@ -52,7 +52,7 @@ async function PostContent({ params }: Pick<PageProps<"/tin-tuc/[slug]">, "param
           datePublished: post.published_at,
           dateModified: post.updated_at,
           image: post.cover_url ?? undefined,
-          publisher: { "@type": "Organization", name: site.name, url: site.url },
+          publisher: { "@type": "Organization", name, url: site.url },
           mainEntityOfPage: `${site.url}/tin-tuc/${post.slug}`,
         }}
       />

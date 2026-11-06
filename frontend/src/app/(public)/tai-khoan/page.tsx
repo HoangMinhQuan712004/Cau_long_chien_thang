@@ -5,8 +5,8 @@ import { Suspense } from "react";
 import { LogoutButton } from "@/components/logout-button";
 import { Alert } from "@/components/ui/alert";
 import { getDictionary } from "@/i18n/dictionaries";
-import { getCurrentUser } from "@/lib/api/server";
-import { phoneHref, site } from "@/lib/site";
+import { getBranding, getCurrentUser } from "@/lib/api/server";
+import { phoneHref } from "@/lib/site";
 import { AccountPhone } from "./_components/account-phone";
 
 export const metadata: Metadata = {
@@ -23,6 +23,7 @@ export default function AccountPage() {
 }
 
 async function Account() {
+  const { phone } = await getBranding();
   const user = await getCurrentUser();
   if (!user) redirect("/dang-nhap?next=/tai-khoan");
   if (user.must_change_password) redirect("/doi-mat-khau");
@@ -121,8 +122,8 @@ async function Account() {
             Tra cứu booking
           </Link>
           . Cần hỗ trợ, gọi{" "}
-          <a href={phoneHref} className="font-medium text-primary">
-            {site.phone}
+          <a href={phoneHref(phone)} className="font-medium text-primary">
+            {phone}
           </a>
           .
         </p>

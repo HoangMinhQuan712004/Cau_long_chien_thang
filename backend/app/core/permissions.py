@@ -53,11 +53,12 @@ class Perm(enum.StrEnum):
     REPORTS_VIEW = "reports.view"  # Báo cáo & phân tích (chỉ Admin, SRS Báo cáo BR-001)
     ROLES_MANAGE = "roles.manage"  # tab Phân quyền: chỉ Admin, không gán được cho NV
     SETTINGS_MENU = "settings.menu"  # sắp thứ tự menu khu quản trị: chỉ Admin
+    SETTINGS_SITE = "settings.site"  # logo web: chỉ Admin, không gán được cho NV
 
 
 ALL_PERMS = frozenset(Perm)
 # Chỉ Admin có, không gán được cho NV
-ADMIN_ONLY = frozenset({Perm.ROLES_MANAGE, Perm.SETTINGS_MENU})
+ADMIN_ONLY = frozenset({Perm.ROLES_MANAGE, Perm.SETTINGS_MENU, Perm.SETTINGS_SITE})
 
 # Quyền mặc định (= dữ liệu seed của migration role_permission) – lúc chạy đọc từ bảng.
 # Vai: admin = Admin, staff = nhân viên (NV001…), member = khách

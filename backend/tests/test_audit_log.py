@@ -12,6 +12,7 @@ from sqlalchemy import delete, select
 from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.core.settings_store import AppSetting
 from app.modules.auth.models import User
 from app.modules.members.models import Customer
 from tests.conftest import API, STAFF_NAME, idem, vn_today
@@ -474,3 +475,62 @@ async def test_admin_and_staff_avatar_rows(admin, staff, who, actor, label):
         assert row["actor"] == actor and row["actor_label"] == label
     if who == "staff":
         assert updated[0]["actor_name"] == STAFF_NAME and updated[0]["actor_code"]
+
+
+async def test_logo_rows_show_admin_as_actor(admin):
+    logo = f"{API}/admin/site/logo"
+    r = await admin.put(logo, files=_avatar_files(), data=CROP)
+    assert r.status_code == 200, r.text
+    first = (await entries(admin, action="settings.logo_update"))[0]
+    assert first["changes"] == [{"field": "Logo", "before": None, "after": "Ảnh mới"}]
+    # Đổi khi đã có logo: trước = "Có ảnh", không phải trống
+    r = await admin.put(logo, files=_avatar_files(), data=CROP)
+    assert r.status_code == 200, r.text
+    assert (await admin.delete(logo)).status_code == 200
+    updated = (await entries(admin, action="settings.logo_update"))[0]
+    deleted = (await entries(admin, action="settings.logo_delete"))[0]
+    assert updated["action_label"] == "Đổi logo" and deleted["action_label"] == "Xóa logo"
+    assert updated["actor"] == deleted["actor"] == "admin"
+    assert updated["target"]["name"] == "Logo web"
+    assert updated["changes"] == [{"field": "Logo", "before": "Có ảnh", "after": "Ảnh mới"}]
+    assert deleted["changes"] == [{"field": "Logo", "before": "Có ảnh", "after": None}]
+
+
+async def test_site_info_row_lists_changed_fields_only(admin):
+    info = f"{API}/admin/site/info"
+    current = (await admin.get(info)).json()
+    action = "settings.site_info"
+    try:
+        body = {**current, "name": "Sân Nhật Ký", "phone": "0912345678"}
+        before = len(await entries(admin, action=action))
+        r = await admin.put(info, json=body)
+        assert r.status_code == 200, r.text
+        rows = await entries(admin, action=action)
+        assert len(rows) == before + 1
+        row = rows[0]
+        assert row["action_label"] == "Sửa thông tin web" and row["actor"] == "admin"
+        assert row["target"]["name"] == "Thông tin web"
+        assert row["changes"] == [
+            {"field": "Tên sân", "before": current["name"], "after": "Sân Nhật Ký"},
+            {"field": "Hotline", "before": current["phone"], "after": "0912 345 678"},
+        ]
+        # Không đổi gì -> không ghi
+        r = await admin.put(info, json={**body, "version": r.json()["version"]})
+        assert r.status_code == 200
+        assert len(await entries(admin, action=action)) == before + 1
+        # Bản đồ: một dòng "Bản đồ" trước -> sau, không ghi lại khi không đổi
+        link = "https://maps.app.goo.gl/abc"
+        coords = {"map_url": link, "lat": 21.5, "lng": 105.25}
+        r = await admin.put(info, json={**body, **coords, "version": r.json()["version"]})
+        assert r.status_code == 200, r.text
+        rows = await entries(admin, action=action)
+        assert rows[0]["changes"] == [
+            {"field": "Bản đồ", "before": None, "after": f"{link} (21.5, 105.25)"}
+        ]
+        r = await admin.put(info, json={**body, **coords, "version": r.json()["version"]})
+        assert r.status_code == 200
+        assert len(await entries(admin, action=action)) == len(rows)
+    finally:
+        async with SessionLocal() as s:
+            await s.execute(delete(AppSetting).where(AppSetting.key == "site_info"))
+            await s.commit()

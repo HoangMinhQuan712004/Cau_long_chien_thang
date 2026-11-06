@@ -80,11 +80,12 @@ class OriginCheckMiddleware:
 _IMAGE_UPLOADS = {
     f"{settings.API_PREFIX}/member-area/me/avatar",
     f"{settings.API_PREFIX}/admin/auth/me/avatar",
+    f"{settings.API_PREFIX}/admin/site/logo",
 }
 
 
 def upload_limit(path: str) -> int | None:
-    """Đường tải ảnh được phép body lớn hơn ``MAX_BODY_BYTES`` (ảnh đại diện)."""
+    """Đường tải ảnh được phép body lớn hơn ``MAX_BODY_BYTES`` (ảnh đại diện, logo)."""
     if path in _IMAGE_UPLOADS:
         return settings.AVATAR_MAX_BYTES + settings.MAX_BODY_BYTES
     return None

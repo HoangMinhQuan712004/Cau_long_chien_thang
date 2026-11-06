@@ -9,17 +9,20 @@ import { cn } from "@/lib/cn";
 type Props = {
   t: { dirty: string; cancel: string; save: string; saving: string };
   isSaving: boolean;
+  /** Chưa cho lưu (vd đang đọc link). */
+  saveDisabled?: boolean;
+  className?: string;
   onCancel: () => void;
   onSave: () => void;
 };
 
-export function UnsavedBar({ t, isSaving, onCancel, onSave }: Props) {
+export function UnsavedBar({ t, isSaving, saveDisabled = false, className, onCancel, onSave }: Props) {
   return (
     <div data-bottom-bar className={cn(`
       sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-t
       bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-card
       lg:-mx-6 lg:px-6
-    `)}>
+    `, className)}>
       <p className="basis-full text-sm font-semibold sm:basis-auto">{t.dirty}</p>
       <div className={cn(`
         flex w-full justify-end gap-2
@@ -28,7 +31,7 @@ export function UnsavedBar({ t, isSaving, onCancel, onSave }: Props) {
         sm:[&>button]:h-9.5 sm:[&>button]:flex-none
       `)}>
         <Button variant="secondary" onClick={onCancel} disabled={isSaving}>{t.cancel}</Button>
-        <Button onClick={onSave} loading={isSaving}>{isSaving ? t.saving : t.save}</Button>
+        <Button onClick={onSave} loading={isSaving} disabled={saveDisabled}>{isSaving ? t.saving : t.save}</Button>
       </div>
     </div>
   );

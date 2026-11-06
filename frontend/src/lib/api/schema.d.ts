@@ -696,6 +696,140 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/site/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload Logo
+         * @description Đổi logo (chỉ Admin): cắt vuông theo khung, giữ nền trong suốt, sinh kèm favicon PNG.
+         *
+         *     422 / 413 E-HV-13 (định dạng / dung lượng / vùng cắt) · 429 E-SEC-5.
+         */
+        put: operations["upload_logo_api_v1_admin_site_logo_put"];
+        post?: never;
+        /**
+         * Remove Logo
+         * @description Xóa logo (chỉ Admin) -> về icon mặc định. Chưa có logo -> vẫn 200.
+         */
+        delete: operations["remove_logo_api_v1_admin_site_logo_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/site/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Site Logo
+         * @description Ảnh logo WebP (công khai). ``v`` = etag: đúng thì cache 1 năm, không thì cache ngắn.
+         */
+        get: operations["site_logo_api_v1_site_logo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/site/favicon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Site Favicon
+         * @description Favicon PNG 64 px (công khai). ``v`` như ``/site/logo``.
+         */
+        get: operations["site_favicon_api_v1_site_favicon_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/site/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Site Info
+         * @description Thông tin web cho form Cài đặt (chỉ Admin), kèm ``version``.
+         */
+        get: operations["get_site_info_api_v1_admin_site_info_get"];
+        /**
+         * Put Site Info
+         * @description Lưu thông tin web (chỉ Admin). 422 E-001 (thiếu / sai định dạng) · 409 E-012 (máy khác vừa
+         *     lưu). Bỏ bản đồ: không gửi / null cả ``map_url``, ``lat``, ``lng``.
+         */
+        put: operations["put_site_info_api_v1_admin_site_info_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/site/map/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Site Map
+         * @description Đọc link Google Maps để xem trước, không ghi gì (chỉ Admin). Link không có tọa độ: giữ
+         *     ``map_url``, ``lat`` / ``lng`` null.
+         *
+         *     422 E-001: "Link Google Maps không hợp lệ." · "Chưa đọc được link, hãy thử lại." (Google lỗi).
+         */
+        post: operations["resolve_site_map_api_v1_admin_site_map_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/site/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Site Branding
+         * @description Thông tin web + link logo, favicon (null khi chưa có logo). Không cần đăng nhập.
+         */
+        get: operations["site_branding_api_v1_site_branding_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/posts": {
         parameters: {
             query?: never;
@@ -3094,6 +3228,20 @@ export interface components {
             /**
              * File
              * @description JPG / PNG / WebP ≤ 5 MB
+             */
+            file: string;
+            /** Crop X */
+            crop_x: number;
+            /** Crop Y */
+            crop_y: number;
+            /** Crop Size */
+            crop_size: number;
+        };
+        /** Body_upload_logo_api_v1_admin_site_logo_put */
+        Body_upload_logo_api_v1_admin_site_logo_put: {
+            /**
+             * File
+             * @description JPG / PNG / WebP ≤ 5 MB; không nhận SVG
              */
             file: string;
             /** Crop X */
@@ -6812,6 +6960,205 @@ export interface components {
             /** Amount */
             amount: number;
         };
+        /**
+         * SiteBrandingOut
+         * @description Dữ liệu công khai cho header, chân trang.
+         */
+        SiteBrandingOut: {
+            /**
+             * Map Url
+             * @description Link Admin dán; null = chưa có bản đồ
+             */
+            map_url: string | null;
+            /**
+             * Lat
+             * @description Vĩ độ; cùng có hoặc cùng null với lng
+             */
+            lat: number | null;
+            /**
+             * Lng
+             * @description Kinh độ
+             */
+            lng: number | null;
+            /**
+             * Name
+             * @description Tên sân, dùng chung cho mọi nơi hiển thị
+             */
+            name: string;
+            /**
+             * Address
+             * @description Một dòng
+             */
+            address: string;
+            /**
+             * Phone
+             * @description Hotline: số di động, đã tách 4-3-3 (0912 345 678)
+             */
+            phone: string;
+            /** Email */
+            email: string;
+            /**
+             * Logo Url
+             * @description Đã gồm ?v={etag}; null -> FE hiện icon mặc định
+             */
+            logo_url: string | null;
+            /**
+             * Favicon Url
+             * @description PNG nhỏ, đã gồm ?v={etag}; null khi chưa có logo
+             */
+            favicon_url: string | null;
+        };
+        /** SiteBrandingSavedOut */
+        SiteBrandingSavedOut: {
+            /**
+             * Logo Url
+             * @description Đã gồm ?v={etag}; null -> FE hiện icon mặc định
+             */
+            logo_url: string | null;
+            /**
+             * Favicon Url
+             * @description PNG nhỏ, đã gồm ?v={etag}; null khi chưa có logo
+             */
+            favicon_url: string | null;
+            /**
+             * Cache Tag
+             * @description Tag FE cần xóa (revalidateTag) để trang khách thấy logo
+             */
+            cache_tag: string;
+        };
+        /**
+         * SiteInfoIn
+         * @description Độ dài, định dạng kiểm ở ``_clean_info``, bản đồ ở ``site_map`` (lỗi E-001 tiếng Việt).
+         */
+        SiteInfoIn: {
+            /** Name */
+            name: string;
+            /** Address */
+            address: string;
+            /** Phone */
+            phone: string;
+            /** Email */
+            email: string;
+            /** Map Url */
+            map_url?: string | null;
+            /** Lat */
+            lat?: number | null;
+            /** Lng */
+            lng?: number | null;
+            /** Version */
+            version: number;
+        };
+        /** SiteInfoOut */
+        SiteInfoOut: {
+            /**
+             * Map Url
+             * @description Link Admin dán; null = chưa có bản đồ
+             */
+            map_url: string | null;
+            /**
+             * Lat
+             * @description Vĩ độ; cùng có hoặc cùng null với lng
+             */
+            lat: number | null;
+            /**
+             * Lng
+             * @description Kinh độ
+             */
+            lng: number | null;
+            /**
+             * Name
+             * @description Tên sân, dùng chung cho mọi nơi hiển thị
+             */
+            name: string;
+            /**
+             * Address
+             * @description Một dòng
+             */
+            address: string;
+            /**
+             * Phone
+             * @description Hotline: số di động, đã tách 4-3-3 (0912 345 678)
+             */
+            phone: string;
+            /** Email */
+            email: string;
+            /**
+             * Version
+             * @description Gửi lại khi lưu – khóa lạc quan; 0 = chưa lưu lần nào
+             */
+            version: number;
+        };
+        /** SiteInfoSavedOut */
+        SiteInfoSavedOut: {
+            /**
+             * Map Url
+             * @description Link Admin dán; null = chưa có bản đồ
+             */
+            map_url: string | null;
+            /**
+             * Lat
+             * @description Vĩ độ; cùng có hoặc cùng null với lng
+             */
+            lat: number | null;
+            /**
+             * Lng
+             * @description Kinh độ
+             */
+            lng: number | null;
+            /**
+             * Name
+             * @description Tên sân, dùng chung cho mọi nơi hiển thị
+             */
+            name: string;
+            /**
+             * Address
+             * @description Một dòng
+             */
+            address: string;
+            /**
+             * Phone
+             * @description Hotline: số di động, đã tách 4-3-3 (0912 345 678)
+             */
+            phone: string;
+            /** Email */
+            email: string;
+            /**
+             * Version
+             * @description Gửi lại khi lưu – khóa lạc quan; 0 = chưa lưu lần nào
+             */
+            version: number;
+            /**
+             * Cache Tag
+             * @description Tag FE cần xóa (revalidateTag) để trang khách thấy mới
+             */
+            cache_tag: string;
+        };
+        /** SiteMapOut */
+        SiteMapOut: {
+            /**
+             * Map Url
+             * @description Link Admin dán; null = chưa có bản đồ
+             */
+            map_url: string | null;
+            /**
+             * Lat
+             * @description Vĩ độ; cùng có hoặc cùng null với lng
+             */
+            lat: number | null;
+            /**
+             * Lng
+             * @description Kinh độ
+             */
+            lng: number | null;
+        };
+        /** SiteMapResolveIn */
+        SiteMapResolveIn: {
+            /**
+             * Input
+             * @description Link Google Maps
+             */
+            input: string;
+        };
         /** SpecialDayIn */
         SpecialDayIn: {
             /**
@@ -8600,6 +8947,259 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    upload_logo_api_v1_admin_site_logo_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_logo_api_v1_admin_site_logo_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteBrandingSavedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_logo_api_v1_admin_site_logo_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteBrandingSavedOut"];
+                };
+            };
+        };
+    };
+    site_logo_api_v1_site_logo_get: {
+        parameters: {
+            query?: {
+                v?: string | null;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": unknown;
+                };
+            };
+            /** @description Not Modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    site_favicon_api_v1_site_favicon_get: {
+        parameters: {
+            query?: {
+                v?: string | null;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": unknown;
+                };
+            };
+            /** @description Not Modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_site_info_api_v1_admin_site_info_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteInfoOut"];
+                };
+            };
+        };
+    };
+    put_site_info_api_v1_admin_site_info_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SiteInfoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteInfoSavedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_site_map_api_v1_admin_site_map_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SiteMapResolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteMapOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    site_branding_api_v1_site_branding_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteBrandingOut"];
+                };
             };
         };
     };

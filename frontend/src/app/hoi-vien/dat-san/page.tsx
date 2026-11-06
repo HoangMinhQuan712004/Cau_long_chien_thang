@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { MemberBooking } from "@/components/member-area/member-booking";
 import { getDictionary } from "@/i18n/dictionaries";
 import { todayVn } from "@/lib/format";
-import { site } from "@/lib/site";
+import { getBranding } from "@/lib/api/server";
 
 export const metadata: Metadata = { title: "Đặt sân" };
 
@@ -25,6 +25,6 @@ async function Loader({ searchParams }: Pick<PageProps<"/hoi-vien/dat-san">, "se
   const rawDate = typeof sp.date === "string" ? sp.date : sp.ngay;
   const wanted = typeof rawDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : today;
   const initialEvent = typeof sp.event === "string" && /^BK-\d{8}-\d{3}$/.test(sp.event) ? sp.event : null;
-  const { phoneVerify } = await getDictionary();
-  return <MemberBooking initialDate={wanted < today ? today : wanted} today={today} hotline={site.phone} texts={phoneVerify} initialEvent={initialEvent} />;
+  const [{ phoneVerify }, venue] = await Promise.all([getDictionary(), getBranding()]);
+  return <MemberBooking initialDate={wanted < today ? today : wanted} today={today} venue={venue} texts={phoneVerify} initialEvent={initialEvent} />;
 }

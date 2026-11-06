@@ -12,7 +12,7 @@ import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
 import { formatLongDate, formatVnd, hhmm } from "@/lib/format";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
-import { fullAddress, site } from "@/lib/site";
+import type { BookingVenue } from "./booking-flow";
 import { MemberHint } from "./member-hint";
 import { BookingPhoneOtp, type VerifiedAccount } from "./phone-otp";
 import { getEventDetail, requestBookingPhone, sendEventCheckout } from "./requests";
@@ -39,7 +39,7 @@ export function EventDialog({
   eventCode,
   date,
   member,
-  hotline,
+  venue,
   texts,
   onClose,
   onChanged,
@@ -49,7 +49,7 @@ export function EventDialog({
   /** Ngày đang xem trên lưới – để dựng `next` cho đăng nhập / đăng ký */
   date: string;
   member?: Member;
-  hotline: string;
+  venue: BookingVenue;
   texts: Dictionary["phoneVerify"];
   onClose: () => void;
   /** Chỗ / giờ đã đổi (409) ⇒ lưới cần tải lại */
@@ -241,8 +241,8 @@ export function EventDialog({
               🏸
             </span>
             <div className="min-w-0 text-sm">
-              <p className="font-semibold">{site.name}</p>
-              <p className="text-xs text-muted">{fullAddress}</p>
+              <p className="font-semibold">{venue.name}</p>
+              <p className="text-xs text-muted">{venue.address}</p>
             </div>
           </section>
 
@@ -414,7 +414,7 @@ export function EventDialog({
             </>
           ) : (
             <p role="status" className="rounded-lg border border-border bg-background p-3 text-sm">
-              {reason === "online_off" ? `${REASON_TEXT.online_off} Vui lòng gọi hotline ${hotline}.` : reason ? REASON_TEXT[reason] : "Hiện chưa mua vé online được."}
+              {reason === "online_off" ? `${REASON_TEXT.online_off} Vui lòng gọi hotline ${venue.phone}.` : reason ? REASON_TEXT[reason] : "Hiện chưa mua vé online được."}
             </p>
           )}
         </>
