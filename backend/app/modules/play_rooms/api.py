@@ -6,11 +6,12 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.booking_engine import api as engine
 from app.modules.members import api as members
 from app.modules.play_rooms import demo, history, tiers, views
 from app.modules.play_rooms import errors as room_errors
 from app.modules.play_rooms.common import CAPACITY, Me, eligible, is_closed, person_out
-from app.modules.play_rooms.models import PlayRoom, PlayRoomMember
+from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember
 from app.modules.play_rooms.schemas import PersonOut, PlayHistorySummary, RoomCard
 
 PREVIEW = 4  # số avatar xem trước
@@ -45,7 +46,8 @@ async def my_rooms(session: AsyncSession, customer_id: int) -> list[MyRoom]:
         if not is_closed(r, now)
     ]
     ok = await eligible(session, {r.host_customer_id for r in rooms})
-    rooms = [r for r in rooms if r.host_customer_id in ok]
+    gone = await engine.cancelled_booking_codes(session, [r.booking_code for r in rooms])
+    rooms = [r for r in rooms if r.host_customer_id in ok and r.booking_code not in gone]
     if not rooms:
         return []
     by_room: dict[int, list[PlayRoomMember]] = {r.id: [] for r in rooms}
@@ -88,12 +90,32 @@ async def booking_codes_with_room(session: AsyncSession, codes: list[str]) -> se
     )
 
 
+async def played_booking_codes(session: AsyncSession, codes: list[str]) -> set[str]:
+    """Mã booking nào đã có trận ``playing`` / ``finished`` trong phòng – không hủy được (T-051).
+    Trận mới bốc (``drawn``) không tính. Chỉ đọc."""
+    if not codes:
+        return set()
+    return set(
+        await session.scalars(
+            select(PlayRoom.booking_code)
+            .join(PlayMatch, PlayMatch.room_id == PlayRoom.id)
+            .where(
+                PlayRoom.booking_code.in_(sorted(set(codes))),
+                PlayMatch.status.in_(("playing", "finished")),
+            )
+            .distinct()
+        )
+    )
+
+
 async def room_id_for_booking(session: AsyncSession, customer_id: int, code: str) -> int | None:
     """Phòng của khối booking ``code`` nếu đã tạo, Host đủ điều kiện và mình đang ở trong phòng."""
     room = await session.scalar(select(PlayRoom).where(PlayRoom.booking_code == code))
     if room is None or room.host_customer_id not in await eligible(
         session, {room.host_customer_id}
     ):
+        return None
+    if await engine.cancelled_booking_codes(session, [code]):
         return None
     member = await session.scalar(
         select(PlayRoomMember.id).where(

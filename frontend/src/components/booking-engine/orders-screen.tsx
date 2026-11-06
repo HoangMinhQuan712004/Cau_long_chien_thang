@@ -27,12 +27,13 @@ const STATUSES: { key: "all" | BookingOrderStatus; label: string }[] = [
   { key: "unpaid", label: "Chưa thanh toán" },
   { key: "paid", label: "Đã thanh toán" },
   { key: "uncollectible", label: "Không thu được" },
+  { key: "cancelled", label: "Đã hủy" },
 ];
 const pad = (n: number) => String(n).padStart(2, "0");
 const dm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 const SOURCE: Record<string, string> = { counter: "Quầy", online: "Online" };
 
-type Dialog = { kind: "order"; code: string } | { kind: "item"; code: string } | { kind: "collect"; row: BookingOrderRow };
+type Dialog = { kind: "order"; code: string; cancel?: boolean } | { kind: "item"; code: string } | { kind: "collect"; row: BookingOrderRow };
 
 /** Chữ "sân chính (+n sân khác)" (đơn định kỳ có thể có buổi ở nhiều sân, T-043). */
 const courtText = (o: BookingOrderRow) => {
@@ -244,11 +245,18 @@ export function OrdersScreen({ today }: { today: string }) {
                     {formatDate(o.created_at)}
                     {o.created_by ? ` · ${o.created_by}` : ""}
                   </p>
-                  {o.status === "unpaid" ? (
-                    <button type="button" onClick={() => setDialog({ kind: "collect", row: o })} className={`${btnPrimaryCls} mt-2`}>
-                      Thu cả đơn
-                    </button>
-                  ) : null}
+                  <div className="mt-2 flex flex-wrap justify-end gap-2">
+                    {o.status !== "cancelled" ? (
+                      <button type="button" onClick={() => setDialog({ kind: "order", code: o.order_code, cancel: true })} className={`${btnCls} border-danger text-danger enabled:hover:bg-danger/10`} aria-label={`Hủy đơn ${o.order_code}`}>
+                        Hủy đơn
+                      </button>
+                    ) : null}
+                    {o.status === "unpaid" ? (
+                      <button type="button" onClick={() => setDialog({ kind: "collect", row: o })} className={btnPrimaryCls}>
+                        Thu cả đơn
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </li>
@@ -293,7 +301,7 @@ export function OrdersScreen({ today }: { today: string }) {
         </Modal>
       ) : null}
       {dialog?.kind === "order" ? (
-        <OrderFlow key={dialog.code} orderCode={dialog.code} onClose={() => setDialog(null)} onChanged={() => void load()} onOpenItem={(code) => setDialog({ kind: "item", code })} />
+        <OrderFlow key={`${dialog.code}-${dialog.cancel ? "cancel" : "view"}`} orderCode={dialog.code} startCancel={dialog.cancel} onClose={() => setDialog(null)} onChanged={() => void load()} onOpenItem={(code) => setDialog({ kind: "item", code })} />
       ) : null}
       {dialog?.kind === "item" ? (
         <ItemFlow

@@ -3,6 +3,10 @@ online chưa trả tiền (chưa thành đơn).
 
 Không lưu thêm lịch lúc tạo: thứ / giờ / khoảng ngày **suy từ các buổi / khối** của đơn. Trạng thái
 đơn tính từ trạng thái thanh toán các khối (T-039 AC7).
+
+T-051: tổng, số khối, giảm giá, trạng thái chỉ tính khối **chưa hủy**. Hủy hết -> ``cancelled``;
+lịch
+và sân lúc đó lấy theo mọi khối để dòng vẫn đọc được.
 """
 
 import re
@@ -27,7 +31,7 @@ from app.modules.booking_engine.dto import (
 from app.modules.booking_engine.models import Booking, BookingOrder, Resource
 
 MAX_SIZE = 50
-STATUSES: tuple[RecurringStatus, ...] = ("unpaid", "paid", "uncollectible")
+STATUSES: tuple[RecurringStatus, ...] = ("unpaid", "paid", "uncollectible", "cancelled")
 
 
 def _like(text: str) -> str:
@@ -60,18 +64,28 @@ async def list_all(
     unpaid = func.count().filter(Booking.payment_status == "unpaid")
     uncollectible = func.count().filter(Booking.payment_status == "uncollectible")
     weekday = cast(func.extract("isodow", Booking.play_date), Integer)
+    live = Booking.payment_status != "cancelled"
+    live_blocks = func.count().filter(live)
+    weekdays = func.array_agg(aggregate_order_by(distinct(weekday), weekday))
+
+    def live_or_all(agg_fn, column):
+        return func.coalesce(agg_fn(column).filter(live), agg_fn(column))
+
     agg = (
         select(
             Booking.order_id.label("order_id"),
-            func.count().label("blocks"),
-            func.sum(Booking.amount).label("total"),
-            func.sum(func.coalesce(Booking.list_amount, Booking.amount)).label("original"),
-            func.min(Booking.play_date).label("date_from"),
-            func.max(Booking.play_date).label("date_to"),
-            func.min(Booking.start_at).label("first_start"),
-            func.min(Booking.end_at).label("first_end"),
-            func.array_agg(aggregate_order_by(distinct(weekday), weekday)).label("weekdays"),
+            live_blocks.label("blocks"),
+            func.coalesce(func.sum(Booking.amount).filter(live), 0).label("total"),
+            func.coalesce(
+                func.sum(func.coalesce(Booking.list_amount, Booking.amount)).filter(live), 0
+            ).label("original"),
+            live_or_all(func.min, Booking.play_date).label("date_from"),
+            live_or_all(func.max, Booking.play_date).label("date_to"),
+            live_or_all(func.min, Booking.start_at).label("first_start"),
+            live_or_all(func.min, Booking.end_at).label("first_end"),
+            func.coalesce(weekdays.filter(live), weekdays).label("weekdays"),
             case(
+                (live_blocks == 0, "cancelled"),
                 (unpaid > 0, "unpaid"),
                 (uncollectible > 0, "uncollectible"),
                 else_="paid",
@@ -137,21 +151,25 @@ async def list_all(
 
     # Sân của từng đơn (đơn ngày có thể nhiều sân), theo thứ tự hiển thị
     courts: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    live_courts: dict[int, list[tuple[str, str]]] = defaultdict(list)
     if rows:
-        for order_id, rcode, rname in await session.execute(
-            select(Booking.order_id, Resource.code, Resource.name)
+        for order_id, rcode, rname, is_live in await session.execute(
+            select(Booking.order_id, Resource.code, Resource.name, live)
             .join(Resource, Resource.id == Booking.resource_id)
             .where(Booking.order_id.in_([r[0].id for r in rows]))
             .distinct()
             .order_by(Booking.order_id, Resource.code)
         ):
-            courts[order_id].append((rcode, rname))
+            if (rcode, rname) not in courts[order_id]:
+                courts[order_id].append((rcode, rname))
+            if is_live:
+                live_courts[order_id].append((rcode, rname))
 
     items = []
     for order, *values in rows:
         a = dict(zip(agg.c.keys(), values, strict=True))
         first_day = a["date_from"]
-        here = courts.get(order.id) or [("", "")]
+        here = live_courts.get(order.id) or courts.get(order.id) or [("", "")]
         items.append(
             OrderRow(
                 order_code=order.code,
@@ -174,7 +192,8 @@ async def list_all(
                 blocks=a["blocks"],
                 original_amount=int(a["original"]),
                 discount_pct=order.discount_pct or 0,
-                discount_amount=order.discount_amount or 0,
+                # Từ các khối chưa hủy; cột lưu trên booking_order không đổi khi hủy
+                discount_amount=int(a["original"]) - int(a["total"]),
                 total=int(a["total"]),
                 status=a["status"],
                 created_at=order.created_at,

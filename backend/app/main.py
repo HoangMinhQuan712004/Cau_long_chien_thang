@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 import app.models  # noqa: F401  (đăng ký toàn bộ model)
+import app.modules.member_area.handlers  # noqa: F401  (đăng ký event handler)
 import app.modules.member_inbox.handlers  # noqa: F401  (đăng ký event handler)
 import app.modules.members.handlers  # noqa: F401  (đăng ký event handler)
 import app.modules.notifications.handlers  # noqa: F401  (đăng ký event handler)

@@ -185,7 +185,7 @@ class QuoteOut(BaseModel):
 # ---------- Khách (snapshot do server dựng) ----------
 
 CustomerKind = Literal["member", "temp"]
-PaymentStatus = Literal["unpaid", "paid", "uncollectible"]
+PaymentStatus = Literal["unpaid", "paid", "uncollectible", "cancelled"]
 PaymentMethod = Literal["cash", "transfer", "online_transfer"]
 Source = Literal["counter", "online"]
 
@@ -204,8 +204,9 @@ class CustomerSnapshot(BaseModel):
 class CustomerStats(BaseModel):
     """Thống kê đặt sân của một ``customer_ref`` (không tính vé)."""
 
-    bookings: int
+    bookings: int = Field(description="Số lượt, không tính lượt đã hủy (T-051)")
     minutes: int
+    listed: int = Field(default=0, description="Số dòng lịch sử, gồm cả lượt đã hủy")
 
 
 class PaidItem(BaseModel):
@@ -223,6 +224,8 @@ class PaidItem(BaseModel):
     paid_at: dt.datetime
     payment_method: PaymentMethod | None
     channel: Source
+    cancelled: bool = Field(default=False, description="Đã từng thu rồi bị hủy (T-051)")
+    refund_amount: int = 0
 
 
 class UpcomingBooking(BaseModel):
@@ -376,6 +379,10 @@ class ItemPayment(BaseModel):
     uncollectible_reason: str | None = None
     marked_by: str | None = None
     marked_at: dt.datetime | None = None
+    cancel_reason: str | None = None
+    cancelled_at: dt.datetime | None = None
+    cancelled_by_label: str | None = None
+    refund_amount: int = Field(default=0, description="Số Admin xác nhận hoàn tay (T-051)")
 
 
 class ItemOut(BaseModel):
@@ -393,7 +400,7 @@ class ItemOut(BaseModel):
     note: str | None = None
     created_by: str
     created_at: dt.datetime
-    actions: list[Literal["collect", "uncollectible"]]
+    actions: list[Literal["collect", "uncollectible", "cancel"]]
 
 
 class CollectIn(StrictIn):
@@ -404,6 +411,52 @@ class CollectIn(StrictIn):
 class UncollectibleIn(StrictIn):
     reason: str = Field(default="", max_length=500)
     version: int
+
+
+# ---------- Hủy booking / vé (T-051) ----------
+
+CancelSkipReason = Literal["started", "played", "cancelled", "uncollectible"]
+
+
+class CancelIn(StrictIn):
+    reason: str = Field(default="", max_length=500, description="Bắt buộc, tối đa 200 ký tự")
+    version: int
+    refund_confirmed: bool = Field(
+        default=False, description="Khoản đã thu: Admin xác nhận đã / sẽ tự hoàn tiền"
+    )
+
+
+class OrderCancelIn(StrictIn):
+    reason: str = Field(default="", max_length=500, description="Bắt buộc, tối đa 200 ký tự")
+    refund_confirmed: bool = False
+    codes: list[str] = Field(max_length=99, description="Mã con lấy từ xem trước")
+
+
+class CancelPreviewItem(BaseModel):
+    code: str
+    play_date: dt.date
+    start_at: dt.datetime
+    resource_name: str
+    amount: int
+    payment_status: PaymentStatus
+
+
+class CancelSkipped(BaseModel):
+    code: str
+    reason: CancelSkipReason
+
+
+class CancelPreview(BaseModel):
+    cancellable: list[CancelPreviewItem]
+    skipped: list[CancelSkipped]
+    refund_total: int = Field(description="Tổng các khối đã thu sẽ hủy (trừ khỏi doanh thu)")
+    unpaid_total: int = Field(description="Tổng các khối chưa thu sẽ hủy")
+
+
+class OrderCancelOut(BaseModel):
+    cancelled: list[str]
+    skipped: list[CancelSkipped]
+    refund_total: int
 
 
 # ---------- Sự kiện ----------
@@ -499,6 +552,9 @@ class TransactionRow(BaseModel):
     payment_status: PaymentStatus
     payment_method: PaymentMethod | None
     source: Source
+    cancel_reason: str | None = None
+    cancelled_by: str | None = None
+    refund_amount: int = 0
 
 
 class TransactionCard(BaseModel):
@@ -510,6 +566,7 @@ class TransactionCards(BaseModel):
     paid: TransactionCard
     unpaid: TransactionCard
     uncollectible: TransactionCard
+    cancelled: TransactionCard = Field(description="Cộng cả khoản đã thu và chưa thu đã hủy")
 
 
 class TransactionsOut(BaseModel):
@@ -617,6 +674,7 @@ class CheckoutItem(BaseModel):
     end_hour: int
     hours: int
     amount: int
+    cancelled: bool = Field(default=False, description="Khối đã bị sân hủy sau khi trả (T-051)")
 
 
 class CheckoutEvent(BaseModel):
@@ -631,6 +689,9 @@ class CheckoutEvent(BaseModel):
     seats: int = Field(description="Số vé của lượt")
     ticket_price: int = Field(description="Giá một vé, chốt lúc giữ chỗ")
     ticket_codes: list[str] = Field(description="Mã vé ``{mã sự kiện}-Vnn`` – rỗng khi chưa trả")
+    cancelled_ticket_codes: list[str] = Field(
+        default_factory=list, description="Vé trong ``ticket_codes`` đã bị sân hủy (T-051)"
+    )
 
 
 class CheckoutView(BaseModel):
@@ -670,7 +731,7 @@ class LookupItem(BaseModel):
     end_time: str
     hours: int
     amount: int
-    status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
+    status: Literal["paid", "unpaid", "uncollectible", "cancelled", "pending", "expired"]
     matched: bool = Field(description="Khối có mã con đúng mã khách nhập")
 
 
@@ -698,7 +759,7 @@ class LookupResult(BaseModel):
 
     kind: Literal["court", "ticket"] = "court"
     order_code: str
-    status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
+    status: Literal["paid", "unpaid", "uncollectible", "cancelled", "pending", "expired"]
     play_date: dt.date
     hours: int
     customer_name: str
@@ -788,8 +849,8 @@ class MemberOrder(BaseModel):
     play_date: dt.date
     source: Source
     pay_status: PaymentStatus = Field(
-        description="Chung của đơn: còn khối chưa thu -> unpaid; tất cả đã thu -> paid; "
-        "còn lại -> uncollectible"
+        description="Chung của đơn, bỏ qua khối đã hủy: còn khối chưa thu -> unpaid; tất cả đã "
+        "thu -> paid; còn lại -> uncollectible; hủy hết -> cancelled"
     )
     amount: int
     items: list[MemberOrderItem]
@@ -912,7 +973,7 @@ class RecurringCreated(BaseModel):
     total: int
 
 
-RecurringStatus = Literal["unpaid", "paid", "uncollectible"]
+RecurringStatus = Literal["unpaid", "paid", "uncollectible", "cancelled"]
 
 
 class RecurringOrderRow(BaseModel):
@@ -936,7 +997,8 @@ class RecurringOrderRow(BaseModel):
     total: int = Field(description="Phải thu = tổng các buổi (sau giảm)")
     status: RecurringStatus = Field(
         description="unpaid: còn buổi chưa thu · paid: mọi buổi đã thu · uncollectible: không còn "
-        "buổi chưa thu và có buổi Không thu được"
+        "buổi chưa thu và có buổi Không thu được · cancelled: mọi buổi đã hủy. Chỉ xét buổi "
+        "chưa hủy"
     )
     created_at: dt.datetime
     created_by: str
@@ -947,6 +1009,7 @@ class RecurringCounts(BaseModel):
     unpaid: int
     paid: int
     uncollectible: int
+    cancelled: int = 0
 
 
 class RecurringOrderList(BaseModel):

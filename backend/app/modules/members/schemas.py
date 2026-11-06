@@ -135,6 +135,7 @@ class MemberBooking(BaseModel):
     end_time: str
     resource_name: str
     amount: int
+    is_cancelled: bool = Field(default=False, description="Nhãn “Đã hủy” (T-051)")
 
 
 class MemberDetail(MemberRow):

@@ -30,6 +30,7 @@ HIDDEN = frozenset(
         Perm.SETTINGS_SITE,
         Perm.PAYMENTS_SIMULATE,
         Perm.CONTENT_MANAGE,
+        Perm.BOOKING_CANCEL,
     }
 )
 

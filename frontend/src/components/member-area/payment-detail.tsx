@@ -20,6 +20,7 @@ export function PaymentDetailBody({ item }: { item: PaymentItem }) {
       {item.resource_names.length > 0 ? <Line label="Sân" value={item.resource_names.join(", ")} /> : null}
       <Line label="Giờ" value={hourRange(item.start_at, item.end_at)} />
       <Line label="Số tiền" value={formatVnd(item.amount)} />
+      {item.cancelled ? <Line label="Trạng thái" value={`Đã hủy${item.refund_amount > 0 ? ` · Đã hoàn ${formatVnd(item.refund_amount)}` : ""}`} /> : null}
       <Line label="Thanh toán lúc" value={formatDateTime(item.paid_at)} />
       <Line label="Hình thức" value={`${item.method} · ${item.channel === "counter" ? "tại quầy" : "online"}`} />
     </dl>

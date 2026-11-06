@@ -1,7 +1,8 @@
 // Kiểu dữ liệu của booking engine (T-006 §4). Phản chiếu DTO backend `booking_engine/dto.py`.
 // TODO(T-006): khi BACKEND handoff và `schema.d.ts` có các kiểu này, đổi sang `components["schemas"][...]`.
 
-export type PaymentStatus = "unpaid" | "paid" | "uncollectible";
+// T-051: thêm `cancelled` (Đã hủy, trạng thái cuối). Các trường mới để tùy chọn cho tới khi schema.d.ts có đủ (BE T-051).
+export type PaymentStatus = "unpaid" | "paid" | "uncollectible" | "cancelled";
 export type PaymentMethod = "cash" | "transfer" | "online_transfer";
 export type Source = "counter" | "online";
 
@@ -83,7 +84,7 @@ export type CounterOrder = { order_code: string; bookings: Item[] };
 /** Kết quả thu cả đơn. */
 export type OrderCollect = { order_code: string; collected: string[]; amount: number; bookings: Item[] };
 
-export type ItemAction = "collect" | "uncollectible";
+export type ItemAction = "collect" | "uncollectible" | "cancel";
 
 export type Item = {
   kind: "booking" | "ticket";
@@ -118,6 +119,12 @@ export type Item = {
     uncollectible_reason?: string | null;
     marked_by?: string | null;
     marked_at?: string | null;
+    /** T-051: chỉ có khi payment_status = cancelled. Hội viên không thấy lý do. */
+    cancel_reason?: string | null;
+    cancelled_at?: string | null;
+    cancelled_by_label?: string | null;
+    /** Số tiền Admin ghi nhận đã hoàn tay (0 nếu khoản chưa thu). */
+    refund_amount?: number;
   };
   price_breakdown?: QuoteItem[];
   note?: string | null;
@@ -177,6 +184,9 @@ export type TransactionRow = {
   payment_status: PaymentStatus;
   payment_method: PaymentMethod | null;
   source: Source;
+  cancel_reason?: string | null;
+  cancelled_by?: string | null;
+  refund_amount?: number;
 };
 
 export type Transactions = {
@@ -186,7 +196,7 @@ export type Transactions = {
   page: number;
   page_size: number;
   total: number;
-  cards: Record<PaymentStatus, { amount: number; count: number }>;
+  cards: Record<Exclude<PaymentStatus, "cancelled">, { amount: number; count: number }> & { cancelled?: { amount: number; count: number } };
 };
 
 /** Khách gửi lên: đúng một trong hai (server tự dựng snapshot – ADR-004 S8). */
@@ -209,6 +219,16 @@ export type SchemaContract = [
   Accepts<Api["schemas"]["SearchResult"], SearchResult>,
   Accepts<Api["schemas"]["TransactionsOut"], Transactions>,
 ];
+
+// ---- Hủy (T-051, Admin): hợp đồng theo spec, thay bằng kiểu sinh khi BE handoff ----
+export type CancelSkipReason = "started" | "played" | "cancelled" | "uncollectible";
+export type CancelPreview = {
+  cancellable: { code: string; play_date: string; start_at: string; resource_name: string; amount: number; payment_status: PaymentStatus }[];
+  skipped: { code: string; reason: CancelSkipReason }[];
+  refund_total: number;
+  unpaid_total: number;
+};
+export type CancelResult = { cancelled: string[]; skipped: { code: string; reason: CancelSkipReason }[]; refund_total: number };
 
 // ---- Đặt sân định kỳ (T-035, Admin): kiểu sinh từ schema.d.ts ----
 /** Một buổi tường minh gửi lên (T-043): FE sinh từ lịch chung rồi áp chỉnh sửa / bỏ buổi. */

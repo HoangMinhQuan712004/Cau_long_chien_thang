@@ -119,6 +119,10 @@ class PaymentItem(BaseModel):
     paid_at: dt.datetime
     method: Literal["QR", "Tiền mặt"] = Field(description="Tag hình thức")
     channel: Literal["counter", "online"] = Field(description="Tại quầy / online")
+    cancelled: bool = Field(
+        default=False, description="Đã thu rồi bị sân hủy: nhãn “Đã hủy · Đã hoàn n đ” (T-051)"
+    )
+    refund_amount: int = 0
 
 
 class BookingSummary(BaseModel):
@@ -132,8 +136,8 @@ class TicketSummary(BaseModel):
 
 
 class PaymentSummary(BaseModel):
-    total: int = Field(description="Đã thanh toán trong tháng (VND)")
-    count: int = Field(description="Số giao dịch (lượt đặt sân + vé)")
+    total: int = Field(description="Đã thanh toán trong tháng (VND), không tính khoản đã hủy")
+    count: int = Field(description="Số giao dịch (lượt đặt sân + vé), không tính khoản đã hủy")
     bookings: BookingSummary
     tickets: TicketSummary
 

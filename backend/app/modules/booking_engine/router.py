@@ -57,7 +57,11 @@ UncollectibleMarker = Annotated[Principal, Depends(require(Perm.BOOKING_UNCOLLEC
 TransactionsViewer = Annotated[Principal, Depends(require(Perm.BOOKING_TRANSACTIONS_VIEW))]
 SessionManager = Annotated[Principal, Depends(require(Perm.BOOKING_SESSION_MANAGE))]
 
-ACTION_PERMS = {"collect": Perm.BOOKING_COLLECT, "uncollectible": Perm.BOOKING_UNCOLLECTIBLE}
+ACTION_PERMS = {
+    "collect": Perm.BOOKING_COLLECT,
+    "uncollectible": Perm.BOOKING_UNCOLLECTIBLE,
+    "cancel": Perm.BOOKING_CANCEL,
+}
 
 
 def _actor(p: Principal) -> Actor:
@@ -292,7 +296,7 @@ async def collect(
 ):
     """Thu tiền mặt (``method="cash"``; ``transfer`` -> 422 ``E-PAY-0`` cho tới T-007).
 
-    Đã đổi trạng thái / ``version`` cũ -> 409 ``E-012``.
+    Đã đổi trạng thái / ``version`` cũ -> 409 ``E-012``; đã hủy -> 409 ``E-PAY-6``.
     """
 
     async def run() -> ItemOut:
@@ -348,7 +352,9 @@ async def list_transactions(
     date_from: Annotated[date | None, Query(alias="from")] = None,
     date_to: Annotated[date | None, Query(alias="to")] = None,
     resource: Annotated[str | None, Query(max_length=10)] = None,
-    status: Annotated[Literal["unpaid", "paid", "uncollectible"] | None, Query()] = None,
+    status: Annotated[
+        Literal["unpaid", "paid", "uncollectible", "cancelled"] | None, Query()
+    ] = None,
     method: Annotated[Literal["cash", "transfer"] | None, Query()] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     page: Annotated[int, Query(ge=1, le=10_000)] = 1,

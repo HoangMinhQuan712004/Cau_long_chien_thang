@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import AuditActor
 from app.core.config import settings
 from app.modules.auth import api as auth
+from app.modules.booking_engine import api as engine
 from app.modules.members import api as members
 from app.modules.play_rooms import errors
 from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember
@@ -39,14 +40,14 @@ def is_closed(room: PlayRoom, now: datetime) -> bool:
     return room.status == "closed" or now >= closes_at(room)
 
 
-def _hm(t: datetime) -> str:
+def hm(t: datetime) -> str:
     local = t.astimezone(settings.tz)
     return f"{local.hour}h" if local.minute == 0 else f"{local.hour}h{local.minute:02d}"
 
 
 def room_label(room: PlayRoom) -> str:
     """'Sân 1 · 18h–19h' – dùng trong thông báo."""
-    return f"{room.resource_name} · {_hm(room.start_at)}–{_hm(room.end_at)}"
+    return f"{room.resource_name} · {hm(room.start_at)}–{hm(room.end_at)}"
 
 
 def room_link(room_id: int) -> str:
@@ -97,7 +98,8 @@ async def lock_room(session: AsyncSession, room_id: int) -> PlayRoom:
 
 
 async def visible_room(session: AsyncSession, room_id: int, lock: bool) -> PlayRoom:
-    """Phòng có Host đủ điều kiện, không thì 404 (ẩn – AC2 chốt 31/10)."""
+    """Phòng có Host đủ điều kiện, không thì 404 (ẩn – AC2 chốt 31/10). Booking đã hủy -> 404
+    ngay, không chờ worker đóng phòng (T-051)."""
     if lock:
         room = await lock_room(session, room_id)
     else:
@@ -105,6 +107,8 @@ async def visible_room(session: AsyncSession, room_id: int, lock: bool) -> PlayR
         if room is None:
             raise errors.not_found()
     if room.host_customer_id not in await eligible(session, {room.host_customer_id}):
+        raise errors.not_found()
+    if await engine.cancelled_booking_codes(session, [room.booking_code]):
         raise errors.not_found()
     return room
 

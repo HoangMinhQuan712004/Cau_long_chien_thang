@@ -61,7 +61,7 @@ async def test_list_statuses_counts_filters_and_masked_phone(admin, staff):
     assert r.status_code == 200, r.text
 
     d = await listing(admin, q=tag)
-    assert d["counts"] == {"all": 3, "unpaid": 1, "paid": 1, "uncollectible": 1}
+    assert d["counts"] == {"all": 3, "unpaid": 1, "paid": 1, "uncollectible": 1, "cancelled": 0}
     assert d["total"] == 3 and (d["page"], d["size"]) == (1, 20)
     assert [i["order_code"] for i in d["items"]] == [
         c["order_code"],

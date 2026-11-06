@@ -26,6 +26,12 @@ def _refs(model, refs: list[str]):
     return model.customer_ref == any_(bindparam("refs", sorted(set(refs)), type_=ARRAY(String)))
 
 
+def _ever_paid(model) -> tuple:
+    """Đã thu, kể cả đã thu rồi bị hủy (``paid_at`` giữ nguyên khi hủy – T-051). Khoản chưa thu rồi
+    hủy không có ``paid_at`` nên không vào."""
+    return model.payment_status.in_(("paid", "cancelled")), model.paid_at.is_not(None)
+
+
 async def _booking_items(session: AsyncSession, tenant_id: int, refs: list[str], *where):
     rows = await session.execute(
         select(Booking, BookingOrder.code, Resource.name)
@@ -34,7 +40,7 @@ async def _booking_items(session: AsyncSession, tenant_id: int, refs: list[str],
         .where(
             Booking.tenant_id == tenant_id,
             _refs(Booking, refs),
-            Booking.payment_status == "paid",
+            *_ever_paid(Booking),
             *where,
         )
     )
@@ -52,6 +58,8 @@ async def _booking_items(session: AsyncSession, tenant_id: int, refs: list[str],
             paid_at=b.paid_at,
             payment_method=b.payment_method,
             channel=b.source,
+            cancelled=b.payment_status == "cancelled",
+            refund_amount=b.refund_amount,
         )
         for b, order_code, name in rows
     ]
@@ -65,7 +73,7 @@ async def _ticket_items(session: AsyncSession, tenant_id: int, refs: list[str], 
             .where(
                 Ticket.tenant_id == tenant_id,
                 _refs(Ticket, refs),
-                Ticket.payment_status == "paid",
+                *_ever_paid(Ticket),
                 *where,
             )
         )
@@ -85,6 +93,8 @@ async def _ticket_items(session: AsyncSession, tenant_id: int, refs: list[str], 
             paid_at=t.paid_at,
             payment_method=t.payment_method,
             channel=t.source,
+            cancelled=t.payment_status == "cancelled",
+            refund_amount=t.refund_amount,
         )
         for t, ev in rows
     ]
@@ -144,7 +154,7 @@ async def paid_months(
             ).where(
                 model.tenant_id == tenant_id,
                 _refs(model, refs),
-                model.payment_status == "paid",
+                *_ever_paid(model),
                 model.paid_at >= since,
             )
         )
@@ -155,7 +165,7 @@ async def paid_months(
 async def upcoming(
     session: AsyncSession, tenant_id: int, refs: list[str], after: dt.datetime
 ) -> list[UpcomingBooking]:
-    """Khối booking của các ref chưa kết thúc tại ``after`` (mọi trạng thái thanh toán)."""
+    """Khối booking của các ref chưa kết thúc tại ``after`` (mọi trạng thái, trừ đã hủy)."""
     if not refs:
         return []
     rows = await session.execute(
@@ -163,7 +173,12 @@ async def upcoming(
         .join(BookingOrder, BookingOrder.id == Booking.order_id)
         .join(Resource, Resource.id == Booking.resource_id)
         .join(ResourceType, ResourceType.id == Resource.resource_type_id)
-        .where(Booking.tenant_id == tenant_id, _refs(Booking, refs), Booking.end_at > after)
+        .where(
+            Booking.tenant_id == tenant_id,
+            _refs(Booking, refs),
+            Booking.end_at > after,
+            Booking.payment_status != "cancelled",
+        )
         .order_by(Booking.start_at, Booking.code)
     )
     return [

@@ -14,8 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.modules.booking_engine import api as engine
+from app.modules.member_inbox import api as inbox
 from app.modules.members import api as members
-from app.modules.play_rooms.common import CLOSE_GRACE
+from app.modules.play_rooms.common import CLOSE_GRACE, hm
 from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember, PlayRoomRequest
 
 logger = logging.getLogger(__name__)
@@ -122,12 +123,73 @@ async def close_room(session: AsyncSession, room: PlayRoom, now: datetime) -> No
     )
 
 
+async def close_cancelled(session: AsyncSession, codes: list[str], now: datetime) -> int:
+    """Booking đã bị Admin hủy (T-051) -> đóng phòng, báo người liên quan. Không commit.
+
+    Đã đóng thì bỏ qua (handler và job chạy trùng không báo hai lần). Yêu cầu / lời mời đang chờ ->
+    ``cancelled``; trận đã bốc hoặc lọt vào đúng lúc hủy -> ``abandoned``. Chủ đơn nhận thông báo
+    "đã bị sân hủy" riêng nên không nhận câu này.
+    """
+    if not codes:
+        return 0
+    rooms = list(
+        await session.scalars(
+            select(PlayRoom)
+            .where(PlayRoom.booking_code.in_(sorted(set(codes))), PlayRoom.status == "open")
+            .order_by(PlayRoom.id)
+            .with_for_update()
+        )
+    )
+    for room in rooms:
+        ref = await engine.item_customer_ref(session, room.booking_code)
+        owner = await members.customer_id_of_ref(session, ref) if ref else None
+        asked = await session.scalars(
+            update(PlayRoomRequest)
+            .where(PlayRoomRequest.room_id == room.id, PlayRoomRequest.status == "pending")
+            .values(status="cancelled", decided_at=now)
+            .returning(PlayRoomRequest.customer_id)
+        )
+        people = set(asked) | set(
+            await session.scalars(
+                select(PlayRoomMember.customer_id).where(PlayRoomMember.room_id == room.id)
+            )
+        )
+        match = await session.scalar(
+            select(PlayMatch).where(
+                PlayMatch.room_id == room.id, PlayMatch.status.in_(("drawn", "playing"))
+            )
+        )
+        if match is not None:
+            match.status, match.ended_at = "abandoned", now
+            await session.flush()
+        await close_room(session, room, now)
+        start = room.start_at.astimezone(settings.tz)
+        text = (
+            f"Buổi chơi {room.resource_name} {hm(room.start_at)}–{hm(room.end_at)} "
+            f"{start:%d/%m} đã bị hủy nên phòng đã đóng."
+        )
+        for customer_id in sorted(people - {owner}):
+            inbox.notify(session, customer_id, "room.cancelled", text, room_id=room.id)
+    return len(rooms)
+
+
+async def _close_any_cancelled(session: AsyncSession, now: datetime) -> int:
+    """Lưới an toàn khi lỡ sự kiện: phòng còn mở mà booking đã hủy."""
+    codes = list(
+        await session.scalars(select(PlayRoom.booking_code).where(PlayRoom.status == "open"))
+    )
+    gone = await engine.cancelled_booking_codes(session, codes)
+    return await close_cancelled(session, sorted(gone), now)
+
+
 async def tick(session: AsyncSession) -> tuple[int, int]:
     """Job mỗi phút (commit): (số phòng tạo thêm, số phòng đóng)."""
     now = datetime.now(UTC)
     created = await backfill(session, now)
     closed = await close_expired(session, now)
+    closed += await _close_any_cancelled(session, now)
     await session.commit()
+    await inbox.publish_created(session)
     if created or closed:
         logger.info("Play rooms: %s created, %s closed", created, closed)
     return created, closed

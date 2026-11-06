@@ -123,7 +123,13 @@ async def get_detail(
         ).model_dump(),
         note=c.note,
         total_minutes=sum(s.minutes for s in stats.values()),
-        recent_bookings=[MemberBooking(**b.model_dump(exclude={"payment_status"})) for b in recent],
+        recent_bookings=[
+            MemberBooking(
+                **b.model_dump(exclude={"payment_status"}),
+                is_cancelled=b.payment_status == "cancelled",
+            )
+            for b in recent
+        ],
         can=can,
     )
     audit(session, actor, "member.view", "customer", ref_of(c), {"kind": c.kind})

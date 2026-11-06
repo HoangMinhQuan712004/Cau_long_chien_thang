@@ -39,6 +39,7 @@ class Perm(enum.StrEnum):
     BOOKING_SESSION_MANAGE = "booking.session.manage"  # tạo / xóa sự kiện
     BOOKING_COLLECT = "booking.collect"
     BOOKING_UNCOLLECTIBLE = "booking.uncollectible"
+    BOOKING_CANCEL = "booking.cancel"  # hủy booking / vé (chỉ Admin, T-051)
     BOOKING_TRANSACTIONS_VIEW = "booking.transactions.view"
     MEMBER_SEARCH = "member.search"
     MEMBER_MANAGE = "member.manage"  # màn Hội viên: xem, thêm, sửa, hồ sơ tạm, chuyển (T-014)
@@ -58,7 +59,9 @@ class Perm(enum.StrEnum):
 
 ALL_PERMS = frozenset(Perm)
 # Chỉ Admin có, không gán được cho NV
-ADMIN_ONLY = frozenset({Perm.ROLES_MANAGE, Perm.SETTINGS_MENU, Perm.SETTINGS_SITE})
+ADMIN_ONLY = frozenset(
+    {Perm.ROLES_MANAGE, Perm.SETTINGS_MENU, Perm.SETTINGS_SITE, Perm.BOOKING_CANCEL}
+)
 
 # Quyền mặc định (= dữ liệu seed của migration role_permission) – lúc chạy đọc từ bảng.
 # Vai: admin = Admin, staff = nhân viên (NV001…), member = khách

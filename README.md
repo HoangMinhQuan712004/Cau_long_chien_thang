@@ -509,8 +509,8 @@ không biết gì về cầu lông: sân, giờ mở, cao điểm, giá, giữ c
 `booking_engine.api` (có test kiểm ranh giới import); phần đặc thù dự án (khách là hội viên hay hồ sơ tạm) ở `front_desk`, `web_booking` và `members`.
 Khi cần có thể tách thành service riêng. Chi tiết: [docs/booking-engine-api.md](docs/booking-engine-api.md).
 
-**Thanh toán tách khỏi chỗ.** Booking có `payment_status`: Chưa thanh toán → Đã thanh toán hoặc Không thu được (hai trạng thái cuối,
-không hủy/hoàn tiền). Tại quầy chơi trước, trả sau; hiện chỉ thu tiền mặt (chuyển khoản QR tại quầy là T-007).
+**Thanh toán tách khỏi chỗ.** Booking có `payment_status`: Chưa thanh toán → Đã thanh toán hoặc Không thu được (hai trạng thái cuối).
+Từ T-051 (chưa vào `dev`) Admin còn hủy được booking, vé hoặc đơn **chưa bắt đầu** (thành **Đã hủy**, trạng thái cuối): chỗ trống lại ngay, khoản đã thu được trừ khỏi doanh thu nhưng **hệ thống không tự hoàn tiền**, Admin tự trả khách. Chi tiết: `docs/booking-engine-api.md` mục 5.2. Tại quầy chơi trước, trả sau; hiện chỉ thu tiền mặt (chuyển khoản QR tại quầy là T-007).
 Khách đặt online (T-008) trả trước: giữ chỗ 5 phút, booking chỉ được tạo khi SePay báo tiền về, xem mục "Đặt online và SePay".
 Giá được server tính và chốt lúc đặt.
 
