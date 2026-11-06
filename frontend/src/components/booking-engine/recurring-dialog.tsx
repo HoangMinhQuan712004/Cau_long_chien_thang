@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Field } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
@@ -16,7 +16,7 @@ import { PriceFooter } from "./recurring-price";
 import { SessionsPanel } from "./recurring-sessions";
 import { DEBOUNCE_MS, DOW, dowName, hourOptions, isoDow, MAX_DAYS, reasonText, type Tweak } from "./recurring-utils";
 import type { Calendar, RecurringBody, RecurringConflict, RecurringPreviewBody, RecurringPreview, RecurringResult, RecurringSessionIn, RecurringSuggestion } from "./types";
-import { btnCls, btnPrimaryCls, btnRowCls, dropdownCls, ErrorBanner, Group, Hint, inputCls, raisedFooterCls } from "./ui";
+import { btnCls, btnPrimaryCls, btnRowCls, dropdownCls, ErrorBanner, Group, inputCls, raisedFooterCls } from "./ui";
 
 // Đặt sân định kỳ (T-035, chỉ Admin), v2 (T-039), linh động (T-043): gợi ý buổi lỗi, sửa / bỏ từng buổi, xem trước gọn.
 // Đặt sân định kỳ (T-035, chỉ Admin), v2 (T-039): ba nhóm Khách · Lịch · Tiền, xem trước TỰ ĐỘNG khi đổi dữ liệu
@@ -157,6 +157,16 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
       ctl.abort();
     };
   }, [key, tick]);
+
+  /** Kiểm một buổi đang sửa: xem trước đúng buổi đó với cùng khách và % giảm, chưa áp vào đơn. */
+  const checkSession = useCallback(
+    async (session: RecurringSessionIn, signal: AbortSignal) => {
+      const res = await getRecurringPreview({ ...(JSON.parse(key) as RecurringPreviewBody), sessions: [session] }, signal);
+      if (!res.ok && !signal.aborted) authFailure(res.error);
+      return res;
+    },
+    [key],
+  );
 
   const preview = result && result.key === key ? result.data : null;
   const okSessions = preview?.sessions.filter((x) => x.ok) ?? [];
@@ -363,7 +373,8 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
           </p>
         ) : null}
         <SessionsPanel
-          preview={preview}
+          // Đang tính lại: giữ danh sách cũ (làm mờ) để các buổi và ô đang sửa không biến mất
+          preview={preview ?? (calculating ? (result?.data ?? null) : null)}
           calculating={calculating}
           resources={resources}
           columns={calendar.columns}
@@ -373,12 +384,11 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
           setEditingDay={setEditingDay}
           setTweak={setTweak}
           applySuggestion={applySuggestion}
+          checkSession={checkSession}
           showOk={showOk}
           setShowOk={setShowOk}
         />
       </Group>
-
-      <Hint>Hệ thống sinh từng buổi, kiểm lịch theo từng ngày và đặt tất cả hoặc không đặt gì. Giá gốc theo bảng giá từng buổi, tối đa {MAX_DAYS} ngày và 60 buổi. Buổi lỗi có thể dùng gợi ý, sửa giờ / sân hoặc bỏ riêng. Đặt xong chưa có hủy hay đổi buổi.</Hint>
 
       {serverConflicts.length > 0 ? (
         <section aria-label="Buổi không đặt được">

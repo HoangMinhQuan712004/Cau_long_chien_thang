@@ -1,15 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Dropdown } from "@/components/ui/dropdown";
+import { errorText } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
 import { formatDayMonth, formatDayMonthYear, formatVnd, hhmm } from "@/lib/format";
-import { dowName, hourOptions, isoDow, KIND_LABEL, pad, reasonText, type Tweak } from "./recurring-utils";
+import type { Read } from "./requests";
+import { DEBOUNCE_MS, dowName, hourOptions, isoDow, KIND_LABEL, pad, reasonText, type Tweak } from "./recurring-utils";
 import type { Calendar, RecurringPreview, RecurringSessionIn, RecurringSuggestion } from "./types";
 import { dropdownCls } from "./ui";
 
 // Bước 3 của hộp Đặt sân định kỳ – cấu trúc gốc của dev (T-043 AC4): buổi LỖI bung riêng từng khối (Sửa giờ / sân, Bỏ buổi),
 // buổi hợp lệ gom MỘT dòng "✓ n buổi hợp lệ · Xem ▾" (bấm mới bung). Tóm tắt dính đầu nhóm + "Bỏ hết buổi lỗi".
-// Gợi ý giữ đúng hành vi dev: "Dùng gợi ý · Lệch giờ / Sân khác …" trên từng buổi + "Áp … cho mọi buổi {thứ} lỗi".
+// Gợi ý: mỗi buổi lỗi có các thẻ "Đổi giờ / Đổi sân" ghi rõ giờ + sân + giá sau khi đổi; thêm nút đổi cả loạt buổi cùng thứ.
 
 type Props = {
   preview: RecurringPreview | null;
@@ -22,6 +25,8 @@ type Props = {
   setEditingDay: (d: string | null) => void;
   setTweak: (day: string, t: Tweak | null) => void;
   applySuggestion: (day: string, sg: RecurringSuggestion) => void;
+  /** Kiểm riêng một buổi đang sửa (xem trước một buổi, chưa áp vào đơn). */
+  checkSession: (session: RecurringSessionIn, signal: AbortSignal) => Promise<Read<RecurringPreview>>;
   showOk: boolean;
   setShowOk: (v: boolean) => void;
 };
@@ -34,14 +39,16 @@ const btn = "relative inline-flex min-h-8 items-center rounded-lg px-2.5 py-1 te
 const hintBtn = cn(btn, "border border-primary bg-surface font-medium text-primary hover:bg-primary-softer");
 const outlineBtn = cn(btn, "border border-border bg-surface hover:bg-primary-softer");
 const ghostBtn = cn(btn, "text-muted hover:bg-primary-softer hover:text-primary");
+const saveBtn = cn(btn, "bg-primary px-4 font-semibold text-surface hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50");
 /** "T5 05/11" (điện thoại, bỏ năm). */
 const dayShort = (d: string) => `${dowName(d)} ${formatDayMonth(d)}`;
-/** 300000 ⇒ "300k" (nhãn gợi ý gọn trên điện thoại). */
-const kVnd = (n: number) => `${Math.round(n / 1000)}k`;
 const day = (d: string) => `${dowName(d)} ${formatDayMonthYear(d)}`;
+const slotText = (start: number, end: number, court: string) => `${pad(start)}:00–${pad(end)}:00 · ${court}`;
 
 export function SessionsPanel(props: Props) {
-  const { preview, calculating, removedDays, setTweak, applySuggestion, showOk, setShowOk } = props;
+  const { preview, calculating, removedDays, tweaks, setTweak, applySuggestion, showOk, setShowOk } = props;
+  // Xác nhận sau khi Lưu: buổi vừa sửa thường chuyển sang nhóm hợp lệ đang thu gọn, cần báo để không tưởng là mất
+  const [saved, setSaved] = useState<{ day: string; tweak: Tweak; text: string } | null>(null);
   if (!preview && removedDays.length === 0) return null;
   const sessions = preview?.sessions ?? [];
   const bad = sessions.filter((s) => !s.ok);
@@ -80,12 +87,18 @@ export function SessionsPanel(props: Props) {
         </div>
       ) : null}
 
+      {saved && tweaks[saved.day]?.resource_code === saved.tweak.resource_code && tweaks[saved.day]?.start_hour === saved.tweak.start_hour && tweaks[saved.day]?.end_hour === saved.tweak.end_hour ? (
+        <p role="status" className="rounded-lg bg-primary-softer px-3 py-2 text-sm text-primary">
+          Đã lưu {saved.text}
+        </p>
+      ) : null}
+
       {/* Buổi lỗi: mỗi buổi một khối nền đỏ nhạt + vạch trái, xếp liền nhau cách 8px */}
       {bulkList.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {bulkList.map((g) => (
             <button key={`${g.dow}-${g.kind}`} type="button" onClick={() => g.days.forEach((d) => applySuggestion(d.date, d.sg))} className={hintBtn}>
-              Áp “{KIND_LABEL[g.kind].toLowerCase()}” cho mọi buổi {g.dow} lỗi ({g.days.length})
+              {KIND_LABEL[g.kind]} cho cả {g.days.length} buổi {g.dow} lỗi
             </button>
           ))}
         </div>
@@ -94,7 +107,7 @@ export function SessionsPanel(props: Props) {
       {bad.length > 0 ? (
         <ul className="space-y-2" aria-label="Buổi lỗi">
           {bad.map((s) => (
-            <SessionItem key={s.date} s={s} bad {...props} />
+            <SessionItem key={s.date} s={s} bad {...props} onSaved={setSaved} />
           ))}
         </ul>
       ) : null}
@@ -131,7 +144,7 @@ export function SessionsPanel(props: Props) {
           {showOk ? (
             <ul className="mt-1 divide-y divide-border">
               {good.map((s) => (
-                <SessionItem key={s.date} s={s} bad={false} {...props} />
+                <SessionItem key={s.date} s={s} bad={false} {...props} onSaved={setSaved} />
               ))}
             </ul>
           ) : null}
@@ -141,33 +154,47 @@ export function SessionsPanel(props: Props) {
   );
 }
 
-function SessionItem({ s, bad, resources, columns, tweaks, editingDay, setEditingDay, setTweak, applySuggestion }: Props & { s: Session; bad: boolean }) {
+function SessionItem({ s, bad, resources, columns, tweaks, editingDay, setEditingDay, setTweak, applySuggestion, checkSession, onSaved }: Props & { s: Session; bad: boolean; onSaved: (v: { day: string; tweak: Tweak; text: string }) => void }) {
   const tw = tweaks[s.date];
   const editing = editingDay === s.date;
-  const startH = Number(s.start_time.slice(0, 2));
-  const endH = Number(s.end_time.slice(0, 2));
   const label = day(s.date);
   const court = resources.find((r) => r.code === s.resource_code)?.name ?? s.resource_code;
-  // Buổi lỗi: gợi ý căn trái, Sửa + Bỏ dồn phải cùng hàng thao tác; buổi hợp lệ: Sửa / Bỏ chữ nhẹ cuối dòng
-  const hints = bad && (s.suggestions?.length ?? 0) > 0 ? (
-    // Điện thoại: gợi ý gọn một dòng ("Lệch giờ 12–14h · 300k", "Sân 2 · 360k"), xếp flex-wrap; từ sm: nhãn đủ như dev, xếp dọc
-    <div className="flex min-w-0 flex-wrap gap-2 sm:flex-col sm:items-start" role="group" aria-label={`Gợi ý cho ${label}`}>
-      {s.suggestions!.map((sg) => {
-        const full = `Dùng gợi ý · ${KIND_LABEL[sg.kind]}: ${sg.kind === "court" ? `${sg.resource_name} ` : ""}${pad(sg.start_hour)}–${pad(sg.end_hour)}h · ${formatVnd(sg.price)}`;
-        const short = sg.kind === "court" ? `${sg.resource_name} · ${kVnd(sg.price)}` : `${KIND_LABEL[sg.kind]} ${pad(sg.start_hour)}–${pad(sg.end_hour)}h · ${kVnd(sg.price)}`;
-        return (
-          <button key={`${sg.kind}-${sg.resource_code}-${sg.start_hour}`} type="button" onClick={() => applySuggestion(s.date, sg)} aria-label={full} title={full} className={cn(hintBtn, "whitespace-nowrap")}>
-            <span className="sm:hidden">{short}</span>
-            <span className="hidden sm:inline">{full}</span>
-          </button>
-        );
-      })}
+  // Buổi lỗi: thẻ gợi ý ghi rõ buổi sẽ thành giờ + sân + giá nào; không có gợi ý thì nói cách xử lý tiếp theo
+  const options = s.suggestions ?? [];
+  const hints = !bad ? null : options.length > 0 ? (
+    <div role="group" aria-label={`Lựa chọn còn trống cho ${label}`}>
+      <p className="mb-1.5 text-xs font-medium">Còn trống, bấm để đổi sang:</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((sg) => {
+          const time = `${pad(sg.start_hour)}:00–${pad(sg.end_hour)}:00`;
+          return (
+            <button
+              key={`${sg.kind}-${sg.resource_code}-${sg.start_hour}`}
+              type="button"
+              onClick={() => applySuggestion(s.date, sg)}
+              aria-label={`Đổi buổi ${label} sang ${time}, ${sg.resource_name}, ${formatVnd(sg.price)}`}
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-primary bg-surface px-3 py-1.5 text-left focus-ring hover:bg-primary-softer"
+            >
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-primary">{KIND_LABEL[sg.kind]}</span>
+                <span className="block truncate text-sm font-semibold tabular-nums">
+                  {time} · {sg.resource_name}
+                </span>
+              </span>
+              <span className="shrink-0 text-sm tabular-nums">{formatVnd(sg.price)}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
-  ) : null;
-  const actions = (
+  ) : (
+    <p className="text-xs text-muted">Không có giờ trống gần đó. Hãy tự chọn giờ khác hoặc bỏ buổi này.</p>
+  );
+  // Đang sửa: nút thao tác nằm trong khối sửa (Hủy / Lưu)
+  const actions = editing ? null : (
     <>
-      <button type="button" onClick={() => setEditingDay(editing ? null : s.date)} aria-expanded={editing} aria-label={`${editing ? "Xong sửa" : "Sửa giờ / sân"} buổi ${label}`} className={bad ? outlineBtn : ghostBtn}>
-        {editing ? "Xong" : "Sửa giờ / sân"}
+      <button type="button" onClick={() => setEditingDay(s.date)} aria-label={`${bad ? "Tự chọn giờ / sân" : "Sửa giờ / sân"} buổi ${label}`} className={bad ? outlineBtn : ghostBtn}>
+        {bad ? "Tự chọn giờ / sân" : "Sửa giờ / sân"}
       </button>
       <button type="button" onClick={() => setTweak(s.date, { removed: true })} aria-label={`Bỏ buổi ${label}`} className={ghostBtn}>
         Bỏ buổi
@@ -214,39 +241,142 @@ function SessionItem({ s, bad, resources, columns, tweaks, editingDay, setEditin
       </div>
 
       {bad ? (
-        // Từ sm: lưới 2 cột – trái các gợi ý xếp dọc, phải cụm Sửa / Bỏ ngang hàng gợi ý CUỐI (căn đáy);
-        // điện thoại: flex-wrap – cụm nút cạnh gợi ý nếu vừa, không thì xuống hàng, vẫn căn phải
-        <div className="mt-2 flex flex-wrap items-end gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto]">
-          {hints ?? <span className="hidden sm:block" />}
-          <span className="ml-auto flex justify-end gap-2 self-end">{actions}</span>
+        // Gợi ý ở trên, cụm Tự chọn / Bỏ căn phải ở hàng dưới (mọi cỡ màn hình)
+        <div className="mt-2 space-y-2">
+          {hints}
+          <span className="flex justify-end gap-2">{actions}</span>
         </div>
       ) : null}
-
 
       {editing ? (
-        // Điện thoại: Sân một hàng, Từ / Đến chung hàng dưới; từ sm: 3 cột
-        <div className="mt-2 grid grid-cols-2 gap-2 pb-1 sm:grid-cols-3">
-          <div className="col-span-2 flex flex-col gap-1 sm:col-span-1">
-            <span aria-hidden className="text-xs text-muted">Sân</span>
-            <Dropdown aria-label={`Sân buổi ${label}`} value={s.resource_code ?? ""} onChange={(v) => setTweak(s.date, { resource_code: v })} options={resources.map((r) => ({ value: r.code, label: r.name }))} className={dropdownCls} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span aria-hidden className="text-xs text-muted">Từ</span>
-            <Dropdown
-              aria-label={`Giờ bắt đầu buổi ${label}`}
-              value={String(startH)}
-              // Đổi giờ bắt đầu ⇒ giữ độ dài buổi, kẹp về giờ cuối của lịch (tối thiểu 1 tiếng)
-              onChange={(v) => setTweak(s.date, { start_hour: Number(v), end_hour: Math.max(Number(v) + 1, Math.min(Number(v) + endH - startH, (columns[columns.length - 1] ?? 22) + 1)) })}
-              options={hourOptions(columns)}
-              className={dropdownCls}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span aria-hidden className="text-xs text-muted">Đến</span>
-            <Dropdown aria-label={`Giờ kết thúc buổi ${label}`} value={String(endH)} onChange={(v) => setTweak(s.date, { end_hour: Number(v) })} options={hourOptions(columns.filter((h) => h + 1 > startH), true)} className={dropdownCls} />
-          </div>
-        </div>
+        <SessionEditor
+          s={s}
+          bad={bad}
+          label={label}
+          resources={resources}
+          columns={columns}
+          checkSession={checkSession}
+          onCancel={() => setEditingDay(null)}
+          onSave={(draft, name) => {
+            setTweak(s.date, draft);
+            setEditingDay(null);
+            onSaved({ day: s.date, tweak: draft, text: `${dayShort(s.date)}: ${slotText(draft.start_hour, draft.end_hour, name)}` });
+          }}
+        />
       ) : null}
     </li>
+  );
+}
+
+type Draft = { resource_code: string; start_hour: number; end_hour: number };
+
+/**
+ * Khối sửa một buổi: đổi sân / giờ chỉ thay bản nháp, kiểm riêng buổi đó (đợi 400 ms, đổi tiếp thì hủy lượt cũ);
+ * hợp lệ mới bấm Lưu được, Lưu mới áp vào đơn. Hủy giữ nguyên buổi. BE vẫn kiểm lại toàn bộ khi đặt.
+ */
+function SessionEditor({
+  s,
+  bad,
+  label,
+  resources,
+  columns,
+  checkSession,
+  onCancel,
+  onSave,
+}: {
+  s: Session;
+  bad: boolean;
+  label: string;
+  resources: Calendar["resources"];
+  columns: number[];
+  checkSession: Props["checkSession"];
+  onCancel: () => void;
+  onSave: (draft: Draft, court: string) => void;
+}) {
+  const startNow = Number(s.start_time.slice(0, 2));
+  const endNow = Number(s.end_time.slice(0, 2));
+  const [draft, setDraft] = useState<Draft>({ resource_code: s.resource_code ?? "", start_hour: startNow, end_hour: endNow });
+  const [retry, setRetry] = useState(0);
+  const [result, setResult] = useState<{ key: string; session?: Session; error?: string } | null>(null);
+  const { resource_code: code, start_hour: startH, end_hour: endH } = draft;
+  const changed = code !== s.resource_code || startH !== startNow || endH !== endNow;
+  const key = `${code}|${startH}|${endH}|${retry}`;
+  const date = s.date;
+
+  useEffect(() => {
+    if (!changed) return;
+    const ctl = new AbortController();
+    const timer = setTimeout(async () => {
+      const res = await checkSession({ date, resource_code: code, start_hour: startH, end_hour: endH }, ctl.signal);
+      if (ctl.signal.aborted) return;
+      const found = res.ok ? res.data.sessions.find((x) => x.date === date) : undefined;
+      setResult({ key, session: found, error: res.ok ? (found ? undefined : "Không kiểm tra được buổi này.") : errorText(res.error) });
+    }, DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+      ctl.abort();
+    };
+  }, [key, changed, checkSession, date, code, startH, endH]);
+
+  const fresh = changed && result?.key === key ? result : null;
+  const valid = Boolean(fresh?.session?.ok);
+  const court = resources.find((r) => r.code === code)?.name ?? code;
+
+  return (
+    // Điện thoại: Sân một hàng, Từ / Đến chung hàng dưới; từ sm: 3 cột
+    <div className="mt-2 space-y-2 pb-1">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="col-span-2 flex flex-col gap-1 sm:col-span-1">
+          <span aria-hidden className="text-xs text-muted">Sân</span>
+          <Dropdown aria-label={`Sân buổi ${label}`} value={code} onChange={(v) => setDraft((d) => ({ ...d, resource_code: v }))} options={resources.map((r) => ({ value: r.code, label: r.name }))} className={dropdownCls} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span aria-hidden className="text-xs text-muted">Từ</span>
+          <Dropdown
+            aria-label={`Giờ bắt đầu buổi ${label}`}
+            value={String(startH)}
+            // Đổi giờ bắt đầu ⇒ giữ độ dài buổi, kẹp về giờ cuối của lịch (tối thiểu 1 tiếng)
+            onChange={(v) => setDraft((d) => ({ ...d, start_hour: Number(v), end_hour: Math.max(Number(v) + 1, Math.min(Number(v) + d.end_hour - d.start_hour, (columns[columns.length - 1] ?? 22) + 1)) }))}
+            options={hourOptions(columns)}
+            className={dropdownCls}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span aria-hidden className="text-xs text-muted">Đến</span>
+          <Dropdown aria-label={`Giờ kết thúc buổi ${label}`} value={String(endH)} onChange={(v) => setDraft((d) => ({ ...d, end_hour: Number(v) }))} options={hourOptions(columns.filter((h) => h + 1 > startH), true)} className={dropdownCls} />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p role="status" aria-live="polite" className="min-w-0 flex-1 basis-40 text-sm">
+          {!changed ? (
+            <span className="text-muted">{bad ? "Chọn giờ hoặc sân khác rồi bấm Lưu." : "Đổi giờ hoặc sân rồi bấm Lưu."}</span>
+          ) : !fresh ? (
+            <span className="text-muted">Đang kiểm tra…</span>
+          ) : fresh.error ? (
+            <span className="text-danger">
+              {fresh.error}{" "}
+              <button type="button" onClick={() => setRetry((n) => n + 1)} className="font-semibold underline focus-ring">
+                Kiểm tra lại
+              </button>
+            </span>
+          ) : valid ? (
+            <span className="font-medium text-primary">
+              ✓ {slotText(startH, endH, court)} còn trống · {fresh.session?.price_after_discount != null ? formatVnd(fresh.session.price_after_discount) : "—"}
+            </span>
+          ) : (
+            <span className="font-medium text-danger">{fresh.session?.reason_text ?? reasonText(fresh.session?.reason)}. Chọn giờ hoặc sân khác.</span>
+          )}
+        </p>
+        <span className="ml-auto flex gap-2">
+          <button type="button" onClick={onCancel} aria-label={`Hủy sửa buổi ${label}`} className={outlineBtn}>
+            Hủy
+          </button>
+          <button type="button" disabled={!valid} onClick={() => onSave(draft, court)} aria-label={`Lưu buổi ${label}`} className={saveBtn}>
+            Lưu
+          </button>
+        </span>
+      </div>
+    </div>
   );
 }
