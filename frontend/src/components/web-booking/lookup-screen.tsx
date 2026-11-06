@@ -16,6 +16,7 @@ const BADGE: Record<LookupStatus, { label: string; cls: string }> = {
   paid: { label: "Đã thanh toán", cls: "bg-primary-softer text-primary" },
   unpaid: { label: "Chưa thanh toán", cls: "bg-blk-unpaid text-blk-unpaid-fg" },
   uncollectible: { label: "Không thu được", cls: "bg-blk-bad text-blk-bad-fg" },
+  cancelled: { label: "Đã hủy", cls: "bg-danger-soft text-danger" },
   pending: { label: "Đang chờ thanh toán", cls: "bg-blk-unpaid text-blk-unpaid-fg" },
   expired: { label: "Giữ chỗ hết hạn", cls: "bg-blk-bad text-blk-bad-fg" },
 };
@@ -142,7 +143,7 @@ export function LookupScreen({ hotline }: { hotline: string }) {
 
 // T-023 AC21: tra cứu mã đơn vé / mã vé trả `kind:"ticket"` + khối `event`.
 const ticketOf = (r: Lookup) => (r.kind === "ticket" ? r.event : null);
-const TICKET_STATUS = { paid: "Đã thanh toán", unpaid: "Chưa thanh toán", uncollectible: "Không thu được" } as const;
+const TICKET_STATUS = { paid: "Đã thanh toán", unpaid: "Chưa thanh toán", uncollectible: "Không thu được", cancelled: "Đã hủy" } as const;
 
 function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string }) {
   const ticket = ticketOf(r);
@@ -155,7 +156,9 @@ function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string })
       ? `${formatVnd(r.amount)} · ${r.payment_method_label ?? "Chuyển khoản"}`
       : r.status === "uncollectible"
         ? formatVnd(r.amount)
-        : `${formatVnd(r.amount)} · Chưa thanh toán`;
+        : r.status === "cancelled"
+          ? "Đã hủy" // tổng đã về 0 khi hủy hết; không nêu lý do (T-051 AC11)
+          : `${formatVnd(r.amount)} · Chưa thanh toán`;
 
   return (
     <section className="rounded-2xl border border-border bg-surface p-5 sm:p-6" aria-label={`Kết quả ${r.order_code}`}>
@@ -187,7 +190,7 @@ function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string })
             <Row label="Số vé" value={String(ticket.seats)} />
           </>
         ) : (
-          <Row label="Tổng giờ" value={`${r.hours} giờ`} />
+          r.status === "cancelled" ? null : <Row label="Tổng giờ" value={`${r.hours} giờ`} />
         )}
         <Row label="Số tiền" value={money} />
         {r.status === "paid" && r.paid_at ? <Row label="Thời gian TT" value={formatDateTime(r.paid_at)} /> : null}
@@ -231,7 +234,9 @@ function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string })
       <p className="mt-4 border-t border-border pt-3 text-sm text-muted">
         {r.status === "expired"
           ? `Booking chưa thanh toán trong thời gian giữ chỗ nên đã hết hạn. Nếu bạn đã chuyển khoản, vui lòng gọi hotline ${hotline} kèm mã booking.`
-          : `Cần đổi giờ / hủy sân? Vui lòng gọi hotline ${hotline}.`}
+          : r.status === "cancelled"
+            ? `Booking này đã bị sân hủy. Cần hỗ trợ, vui lòng gọi hotline ${hotline}.`
+            : `Cần đổi giờ / hủy sân? Vui lòng gọi hotline ${hotline}.`}
       </p>
     </section>
   );

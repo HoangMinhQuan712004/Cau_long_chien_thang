@@ -221,7 +221,7 @@ export function TransactionsScreen({
                     {r.payment_status === "cancelled" ? (
                       <span className="mt-1 block max-w-56 text-xs text-muted">
                         {r.cancel_reason ? <span className="block break-words">Lý do: {r.cancel_reason}</span> : null}
-                        {r.cancelled_by_label ? <span className="block">Hủy bởi {r.cancelled_by_label}</span> : null}
+                        {r.cancelled_by ? <span className="block">Hủy bởi {r.cancelled_by}</span> : null}
                         {(r.refund_amount ?? 0) > 0 ? <span className="block font-medium text-foreground">Đã hoàn {formatVnd(r.refund_amount ?? 0)}</span> : null}
                       </span>
                     ) : null}

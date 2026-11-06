@@ -185,10 +185,8 @@ export type TransactionRow = {
   payment_method: PaymentMethod | null;
   source: Source;
   cancel_reason?: string | null;
-  cancelled_by_label?: string | null;
+  cancelled_by?: string | null;
   refund_amount?: number;
-  /** Khoản này đã từng thu trước khi hủy. */
-  was_paid?: boolean;
 };
 
 export type Transactions = {

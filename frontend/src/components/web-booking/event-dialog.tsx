@@ -23,7 +23,7 @@ import type { EventDetail, EventReason, PayStatus } from "./types";
 // Từ trên xuống: thông tin sân · thẻ vé · số vé · phương thức · gợi ý đăng nhập (khách) · khách hàng · thanh dưới "Tổng" + Xác nhận.
 
 const MAX_SEATS = 10;
-const PAY_LABEL: Record<PayStatus, string> = { unpaid: "Chưa thanh toán", paid: "Đã thanh toán", uncollectible: "Không thu được" };
+const PAY_LABEL: Record<PayStatus, string> = { unpaid: "Chưa thanh toán", paid: "Đã thanh toán", uncollectible: "Không thu được", cancelled: "Đã hủy" };
 const REASON_TEXT: Record<EventReason, string> = {
   started: "Sự kiện đã bắt đầu.",
   full: "Sự kiện đã hết chỗ.",

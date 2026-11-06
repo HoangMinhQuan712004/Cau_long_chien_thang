@@ -27,6 +27,7 @@ const STATUSES: { key: "all" | BookingOrderStatus; label: string }[] = [
   { key: "unpaid", label: "Chưa thanh toán" },
   { key: "paid", label: "Đã thanh toán" },
   { key: "uncollectible", label: "Không thu được" },
+  { key: "cancelled", label: "Đã hủy" },
 ];
 const pad = (n: number) => String(n).padStart(2, "0");
 const dm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
@@ -245,7 +246,7 @@ export function OrdersScreen({ today }: { today: string }) {
                     {o.created_by ? ` · ${o.created_by}` : ""}
                   </p>
                   <div className="mt-2 flex flex-wrap justify-end gap-2">
-                    {(o.status as string) !== "cancelled" ? ( // TODO(T-051): bỏ ép kiểu khi schema.d.ts có `cancelled`
+                    {o.status !== "cancelled" ? (
                       <button type="button" onClick={() => setDialog({ kind: "order", code: o.order_code, cancel: true })} className={`${btnCls} border-danger text-danger enabled:hover:bg-danger/10`} aria-label={`Hủy đơn ${o.order_code}`}>
                         Hủy đơn
                       </button>
