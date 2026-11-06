@@ -680,10 +680,6 @@ async def test_ac7_order_cancel_requires_refund_for_the_whole_command_and_keeps_
     assert n == 2
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="[OPEN] T-51-1: notify_owner không idempotent, phát lại booking.cancelled báo chủ đơn hai lần",
-)
 async def test_owner_notification_is_idempotent_when_the_event_is_delivered_twice(
     admin, staff, people, clock
 ):
