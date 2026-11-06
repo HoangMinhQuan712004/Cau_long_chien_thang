@@ -833,5 +833,17 @@
     "clearLink": "Xóa link",
     "mapTitleSection": "Vị trí",
     "contactTitle": "Liên hệ"
+  },
+  "courts": {
+    "actions": "Thao tác: {name}",
+    "detail": "Chi tiết",
+    "edit": "Sửa sân",
+    "delete": "Xóa sân",
+    "deleteTitle": "Xóa sân “{name}”?",
+    "deleteBody": "Sân sẽ không còn trên danh sách và lịch đặt. Đơn cũ và báo cáo vẫn giữ.",
+    "cancel": "Hủy",
+    "deleting": "Đang xóa…",
+    "deleted": "Đã xóa sân {name}.",
+    "gone": "Sân này không còn trên hệ thống."
   }
 }

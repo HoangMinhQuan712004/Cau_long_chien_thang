@@ -19,7 +19,7 @@ export default function CourtsAdminPage() {
 
 async function Courts() {
   // Thiếu quyền booking.config.manage ⇒ báo không có quyền, không gọi API (backend vẫn kiểm: 403 cũng báo như vậy)
-  const [perms, { adminNav }] = await Promise.all([adminPerms(), getDictionary()]);
+  const [perms, { adminNav, courts }] = await Promise.all([adminPerms(), getDictionary()]);
   const noPermission = adminNav.noPermission;
   if (!can(perms, "booking.config.manage")) return <p className="text-muted">{noPermission}</p>;
   const api = await authedApi();
@@ -47,6 +47,8 @@ async function Courts() {
         resources={resources.data.items}
         types={resources.data.resource_types}
         weekdayPrice={weekdayPrice}
+        canDelete={can(perms, "booking.resources.delete")}
+        t={courts}
       />
     </div>
   );

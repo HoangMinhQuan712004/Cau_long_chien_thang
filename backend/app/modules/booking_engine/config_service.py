@@ -44,6 +44,7 @@ from app.modules.booking_engine.dto import (
 from app.modules.booking_engine.models import (
     BANDS,
     DAY_TYPES,
+    RESOURCE_LIVE,
     PriceRule,
     Resource,
     ResourceSchedule,
@@ -131,13 +132,34 @@ async def upsert_resource_type(
 async def _resource_by_code(
     session: AsyncSession, tenant_id: int, code: str, for_update: bool = False
 ) -> Resource:
-    stmt = select(Resource).where(Resource.tenant_id == tenant_id, Resource.code == code.upper())
+    stmt = select(Resource).where(
+        Resource.tenant_id == tenant_id, Resource.code == code.upper(), RESOURCE_LIVE
+    )
     if for_update:
         stmt = stmt.with_for_update()
     row = await session.scalar(stmt)
     if row is None:
         raise _not_found(code)
     return row
+
+
+async def lock_live_resources(session: AsyncSession, resource_ids: set[int]) -> None:
+    """Gọi ngay trước khi tạo chỗ chiếm: giữ FOR KEY SHARE tới hết transaction, đụng FOR UPDATE của
+    lệnh xóa sân -> hai bên chờ nhau, không lọt chỗ chiếm mới vào sân vừa xóa. Đã xóa -> 404."""
+    found = await session.scalars(
+        select(Resource.id)
+        .where(Resource.id.in_(resource_ids), RESOURCE_LIVE)
+        .order_by(Resource.id)
+        .with_for_update(key_share=True, read=True)
+    )
+    if set(found) != resource_ids:
+        raise _not_found("sân")
+
+
+async def resource_names(session: AsyncSession, tenant_id: int) -> dict[str, str]:
+    """Mã -> tên, **gồm cả sân đã xóa**: để lịch sử (kỷ lục...) vẫn hiện đúng tên."""
+    stmt = select(Resource.code, Resource.name).where(Resource.tenant_id == tenant_id)
+    return dict((await session.execute(stmt)).tuples().all())
 
 
 def _clean_name(name: str, label: str) -> str:
@@ -157,7 +179,7 @@ async def _ensure_unique_name(
     session: AsyncSession, tenant_id: int, name: str, label: str, exclude_id: int | None = None
 ) -> None:
     stmt = select(Resource.id).where(
-        Resource.tenant_id == tenant_id, func.lower(Resource.name) == name.lower()
+        Resource.tenant_id == tenant_id, func.lower(Resource.name) == name.lower(), RESOURCE_LIVE
     )
     if exclude_id is not None:
         stmt = stmt.where(Resource.id != exclude_id)
@@ -189,7 +211,7 @@ async def list_resources(session: AsyncSession, tenant_id: int) -> ResourceList:
     rows = (
         await session.scalars(
             select(Resource)
-            .where(Resource.tenant_id == tenant_id)
+            .where(Resource.tenant_id == tenant_id, RESOURCE_LIVE)
             .order_by(Resource.sort_order, Resource.code)
         )
     ).all()

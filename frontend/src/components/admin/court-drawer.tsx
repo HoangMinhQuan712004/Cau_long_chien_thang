@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UnsavedGuard } from "@/components/admin/unsaved-guard";
 import { ConfirmDialog } from "@/components/play-rooms/confirm-dialog";
 import { Button } from "@/components/ui/button";
-import { PencilIcon } from "@/components/ui/icons";
+import { PencilIcon, TrashIcon } from "@/components/ui/icons";
 import { SidePanel } from "@/components/ui/side-panel";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Dictionary } from "@/i18n/dictionaries";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
+import { toast } from "@/lib/feedback";
 import { CourtForm } from "./court-form";
 import { formOf, type Resource, type ResourceType } from "./court-form-logic";
 import { CourtOverview } from "./court-overview";
@@ -21,27 +23,43 @@ import { useCourtForm } from "./use-court-form";
 
 /** Chi tiết sân; `resource` theo kiểu Resource (khung cao điểm là mảng [từ, đến], lỏng hơn tuple của OpenAPI). */
 export type CourtDetail = Omit<components["schemas"]["ResourceDetailOut"], "resource"> & { resource: Resource };
-type State = { status: "loading" } | { status: "error" } | { status: "ok"; detail: CourtDetail };
+type State = { status: "loading" } | { status: "error" } | { status: "gone" } | { status: "ok"; detail: CourtDetail };
 type Props = {
   code: string;
+  /** Mở thẳng chế độ sửa (mục "Sửa sân" của menu ⋯ trên bảng). */
+  startEditing?: boolean;
+  /** Có quyền xóa ⇒ hiện nút "Xóa sân" ở chân ngăn. */
+  onDelete?: () => void;
+  t: Pick<Dictionary["courts"], "delete" | "gone">;
   resources: Resource[];
   types: ResourceType[];
   onClose: () => void;
   onSaved: (code: string) => void;
 };
 
-export function CourtDrawer({ code, resources, types, onClose, onSaved }: Props) {
+export function CourtDrawer({ code, startEditing = false, onDelete, t, resources, types, onClose, onSaved }: Props) {
   const [state, setState] = useState<State>({ status: "loading" });
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(startEditing);
 
   const load = useCallback(async () => {
-    const { data } = await api.GET("/api/v1/booking/resources/{code}/detail", { params: { path: { code } } }).catch(() => ({ data: undefined }));
-    setState(data ? { status: "ok", detail: data } : { status: "error" });
+    const res = await api.GET("/api/v1/booking/resources/{code}/detail", { params: { path: { code } } }).catch(() => null);
+    if (res?.data) setState({ status: "ok", detail: res.data });
+    else setState({ status: res?.response.status === 404 ? "gone" : "error" });
   }, [code]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- tải khi mở ngăn
     void load();
   }, [load]);
+
+  // ?san= trỏ tới sân đã xóa / mã lạ: báo một lần rồi đóng ngăn, về danh sách
+  const isGone = state.status === "gone";
+  const goneNotified = useRef(false);
+  useEffect(() => {
+    if (!isGone || goneNotified.current) return;
+    goneNotified.current = true;
+    toast(t.gone, undefined, "info");
+    onClose();
+  }, [isGone, onClose, t.gone]);
 
   const detail = state.status === "ok" ? state.detail : null;
   const title = detail ? `${detail.resource.code} · ${detail.resource.name}` : code;
@@ -77,15 +95,23 @@ export function CourtDrawer({ code, resources, types, onClose, onSaved }: Props)
       onClose={onClose}
       resizeLabel="Kéo để đổi bề rộng ngăn"
       storageKey="san.chi-tiet.rong"
-      status={state.status}
+      status={isGone ? "loading" : state.status}
       loadingLabel="Đang tải chi tiết sân…"
       errorText="Không tải được chi tiết sân. Đóng ngăn rồi mở lại để thử lại."
       skeleton={<DrawerSkeleton />}
       footer={
-        <Button onClick={() => setIsEditing(true)}>
-          <PencilIcon />
-          Sửa sân
-        </Button>
+        <div className="flex w-full justify-end gap-2">
+          {onDelete ? (
+            <Button variant="secondary" className="border-danger text-danger" onClick={onDelete}>
+              <TrashIcon />
+              {t.delete}
+            </Button>
+          ) : null}
+          <Button onClick={() => setIsEditing(true)}>
+            <PencilIcon />
+            Sửa sân
+          </Button>
+        </div>
       }
     >
       {detail ? (

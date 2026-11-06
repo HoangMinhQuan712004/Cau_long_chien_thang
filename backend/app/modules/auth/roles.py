@@ -75,7 +75,10 @@ _GROUPS: tuple[tuple[str, str, tuple[tuple[Perm, str, str | None], ...]], ...] =
     (
         "court",
         "Sân & giá",
-        ((Perm.BOOKING_CONFIG_MANAGE, "Sửa sân, giờ mở cửa, bảng giá, ngày Lễ", None),),
+        (
+            (Perm.BOOKING_CONFIG_MANAGE, "Sửa sân, giờ mở cửa, bảng giá, ngày Lễ", None),
+            (Perm.BOOKING_RESOURCES_DELETE, "Xóa sân", None),
+        ),
     ),
     ("report", "Báo cáo", ((Perm.REPORTS_VIEW, "Xem báo cáo & phân tích", None),)),
     (

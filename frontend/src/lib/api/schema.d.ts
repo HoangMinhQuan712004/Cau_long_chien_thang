@@ -933,7 +933,13 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Resource
+         * @description Xóa sân: ẩn khỏi mọi màn vận hành, giữ lịch sử; mã không dùng lại.
+         *
+         *     409 ``E-CFG-11`` (còn lịch chưa kết thúc, kèm ``count``) · 404 (không có / đã xóa).
+         */
+        delete: operations["delete_resource_api_v1_booking_resources__code__delete"];
         options?: never;
         head?: never;
         /**
@@ -9747,6 +9753,38 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ResourceOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_resource_api_v1_booking_resources__code__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

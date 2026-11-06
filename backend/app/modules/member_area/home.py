@@ -155,7 +155,7 @@ async def _recent_records(session: AsyncSession, customer_id: int) -> list[Recen
     breaks = await records.club_record_breaks(session, customer_id, RECENT_RECORDS_MAX)
     if not breaks:
         return []
-    names = {r.code: r.name for r in (await engine.list_resources(session)).items}
+    names = await engine.resource_names(session)
     rackets = await members.rackets_of(session, {b.customer_id for b in breaks if b.shown})
     return [
         RecentRecord(

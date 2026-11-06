@@ -33,7 +33,7 @@ from app.modules.booking_engine.common import (
     not_sold,
     sqlstate,
 )
-from app.modules.booking_engine.config_service import _resource_by_code
+from app.modules.booking_engine.config_service import _resource_by_code, lock_live_resources
 from app.modules.booking_engine.dto import (
     Actor,
     CustomerSnapshot,
@@ -272,6 +272,7 @@ async def create_session(
         created_by_label=actor.label,
         version=1,
     )
+    await lock_live_resources(session, {r.id for r in resources})
     try:
         async with session.begin_nested():
             session.add(ev)

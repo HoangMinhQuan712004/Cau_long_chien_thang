@@ -34,7 +34,11 @@ from app.modules.booking_engine.common import (
     context,
     sqlstate,
 )
-from app.modules.booking_engine.config_service import _resource_by_code, price_slots
+from app.modules.booking_engine.config_service import (
+    _resource_by_code,
+    lock_live_resources,
+    price_slots,
+)
 from app.modules.booking_engine.dto import (
     Actor,
     CustomerSnapshot,
@@ -388,6 +392,7 @@ async def create(
     order.discount_pct = data.discount_pct
     order.discount_amount = summary.discount_amount
     created: list[Booking] = []
+    await lock_live_resources(session, {t.resource.id for t in targets})
     try:
         async with session.begin_nested():
             session.add(order)

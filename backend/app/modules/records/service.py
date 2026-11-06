@@ -268,11 +268,7 @@ async def record_breaks(
         # Mới nhất trước: lần sau của dòng i là dòng i - 1. Số đo được lệch 1 phút nên chặn âm
         shown.append((b, max(0, ((days[i - 1] if i else today) - day).days)))
     cards = await members.record_cards(session, {b.customer_id for b, _ in shown if b.shown})
-    courts = (
-        {c.code: c.name for c in (await engine.list_resources(session)).items}
-        if any(b.court_code for b, _ in shown)
-        else {}
-    )
+    courts = await engine.resource_names(session) if any(b.court_code for b, _ in shown) else {}
     items = []
     for b, held_days in shown:
         clip = video.parse(b.video_url)
@@ -331,11 +327,7 @@ async def record_videos(
         )
     )
     people = await eligible(session, {r.customer_id for r in rows})
-    courts = (
-        {c.code: c.name for c in (await engine.list_resources(session)).items}
-        if any(r.court_code for r in rows)
-        else {}
-    )
+    courts = await engine.resource_names(session) if any(r.court_code for r in rows) else {}
     items = []
     for r in rows:
         p = people.get(r.customer_id)

@@ -19,6 +19,7 @@ export type AdminPerm =
   | "booking.recurring"
   | "booking.transactions.view"
   | "booking.config.manage"
+  | "booking.resources.delete"
   | "member.manage"
   | "payments.settings"
   | "staff.manage"

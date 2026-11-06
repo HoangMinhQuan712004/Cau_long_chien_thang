@@ -70,6 +70,7 @@ GROUPS: tuple[ActionGroup, ...] = (
         (
             _t("config.resource.create", "Thêm sân"),
             _t("config.resource.update", "Sửa sân"),
+            _t("config.resource.delete", "Xóa sân"),
             _t("config.price.update", "Lưu bảng giá"),
         ),
     ),

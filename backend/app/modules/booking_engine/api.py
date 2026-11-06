@@ -27,6 +27,7 @@ from app.modules.booking_engine import (
     recurring,
     recurring_list,
     report_figures,
+    resource_delete,
     rooms_feed,
     session_service,
     ticket_online,
@@ -106,6 +107,18 @@ async def create_resource(
     session: AsyncSession, actor: Actor, data: ResourceCreate, *, tenant_id: int | None = None
 ) -> ResourceOut:
     return await config_service.create_resource(session, _tid(tenant_id), actor, data)
+
+
+async def resource_names(session: AsyncSession, *, tenant_id: int | None = None) -> dict[str, str]:
+    """Mã sân -> tên, gồm cả sân đã xóa – dùng để hiện lịch sử."""
+    return await config_service.resource_names(session, _tid(tenant_id))
+
+
+async def delete_resource(
+    session: AsyncSession, actor: Actor, code: str, *, tenant_id: int | None = None
+) -> None:
+    """Ẩn sân, giữ lịch sử. Còn lịch chưa kết thúc -> 409 ``E-CFG-11``. Không commit."""
+    await resource_delete.delete_resource(session, _tid(tenant_id), actor, code)
 
 
 async def update_resource(

@@ -683,8 +683,12 @@ async def test_sec4_all_admin_routes_require_login_and_role(anon_c, customer_c):
 
 
 async def test_sec4_counter_account_cannot_use_config_api(staff_c):
-    routes = list(_sweep_routes((f"{B}/",), {QUOTE} | CONFIG_PUBLIC_FOR_STAFF))
+    # Xóa sân: NV mặc định KHÔNG có quyền (người dùng chốt 2026-11-06)
+    delete_court = ("DELETE", f"{B}/resources/{{code}}")
+    routes = list(_sweep_routes((f"{B}/",), {QUOTE, delete_court} | CONFIG_PUBLIC_FOR_STAFF))
     assert len(routes) >= 5
+    r = await write(staff_c, "DELETE", f"{B}/resources/S01", json_body={})
+    assert r.status_code == 403, r.text
     for method, path in routes:
         r = await write(staff_c, method, path, json_body={})
         # NV mặc định có Sân & bảng giá (người dùng chốt 2026-11-05) -> không bị chặn quyền
