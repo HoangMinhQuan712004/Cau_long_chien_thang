@@ -73,6 +73,8 @@ def _actor(p: Principal) -> Actor:
 def for_viewer(item: ItemOut, p: Principal) -> ItemOut:
     """Chỉ giữ thao tác mà người xem có quyền làm."""
     item.actions = [a for a in item.actions if p.has(ACTION_PERMS[a])]
+    if "cancel" not in item.actions:
+        item.cancel_phase = None
     return item
 
 

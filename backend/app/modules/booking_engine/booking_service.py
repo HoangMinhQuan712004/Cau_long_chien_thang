@@ -403,17 +403,26 @@ async def search(session: AsyncSession, tenant_id: int, raw: str) -> SearchResul
 # ------------------------------------------------------------------ thông tin booking / vé
 
 
-def payment_actions(item: Booking | Ticket, start_at, ctx: Ctx) -> list[str]:
-    """Thao tác được phép lúc này (BR-013, BR-015, T-051).
+def cancel_phase(item: Booking | Ticket, start_at, end_at, ctx: Ctx) -> str | None:
+    """``before`` / ``playing`` / ``past`` nếu hủy được lúc này, không thì None (T-052): đã thu hủy
+    được mọi lúc; chưa thu chỉ trước giờ bắt đầu."""
+    if item.payment_status not in ("unpaid", "paid"):
+        return None
+    if ctx.now < start_at:
+        return "before"
+    if item.payment_status != "paid":
+        return None
+    return "playing" if ctx.now < end_at else "past"
 
-    ``cancel`` chưa xét trận trong phòng chơi (engine không biết phòng): có trận -> E-PAY-8.
-    """
+
+def payment_actions(item: Booking | Ticket, start_at, end_at, ctx: Ctx) -> list[str]:
+    """Thao tác được phép lúc này (BR-013, BR-015, T-051, T-052)."""
     actions: list[str] = []
     if item.payment_status == "unpaid":
         actions.append("collect")
         if item.source == "counter" and ctx.now >= start_at:
             actions.append("uncollectible")
-    if item.payment_status in ("unpaid", "paid") and ctx.now < start_at:
+    if cancel_phase(item, start_at, end_at, ctx) is not None:
         actions.append("cancel")
     return actions
 
@@ -468,7 +477,8 @@ async def booking_item(session: AsyncSession, ctx: Ctx, b: Booking) -> ItemOut:
         note=b.note,
         created_by=b.created_by_label,
         created_at=b.created_at,
-        actions=payment_actions(b, b.start_at, ctx),
+        actions=payment_actions(b, b.start_at, b.end_at, ctx),
+        cancel_phase=cancel_phase(b, b.start_at, b.end_at, ctx),
     )
 
 
@@ -493,7 +503,8 @@ async def ticket_item(session: AsyncSession, ctx: Ctx, t: Ticket) -> ItemOut:
         note=t.note,
         created_by=t.created_by_label,
         created_at=t.created_at,
-        actions=payment_actions(t, ev.start_at, ctx),
+        actions=payment_actions(t, ev.start_at, ev.end_at, ctx),
+        cancel_phase=cancel_phase(t, ev.start_at, ev.end_at, ctx),
     )
 
 

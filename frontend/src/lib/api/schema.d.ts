@@ -1653,7 +1653,8 @@ export interface paths {
         };
         /**
          * Get Room
-         * @description Chi tiết phòng (cả phòng đã đóng – chỉ xem). 404 nếu không có / Host chưa đủ điều kiện.
+         * @description Chi tiết phòng. 404 nếu không có / Host không đủ điều kiện / phòng đã kết thúc mà mình không
+         *     phải người trong phòng (T-054); người trong phòng xem được, chỉ đọc.
          */
         get: operations["get_room_api_v1_member_area_rooms__room_id__get"];
         put?: never;
@@ -2570,10 +2571,11 @@ export interface paths {
         put?: never;
         /**
          * Cancel Item
-         * @description Hủy một booking hoặc vé chưa bắt đầu (chỉ Admin): nhả khung / chỗ ngay, không tự hoàn tiền.
+         * @description Hủy một booking hoặc vé (chỉ Admin, T-052): đã thu hủy được mọi lúc, kể cả đang chơi và đã
+         *     qua; chưa thu chỉ trước giờ bắt đầu. Nhả khung / chỗ ngay, không tự hoàn tiền.
          *
-         *     422 E-001 (lý do) · E-PAY-5 (đã bắt đầu) · E-PAY-7 (đã thu mà chưa xác nhận hoàn) · E-PAY-8 (đã
-         *     có trận trong phòng) · 409 E-PAY-6 (đã hủy / Không thu được) · E-012 (``version`` cũ) · 404.
+         *     422 E-001 (lý do) · E-PAY-5 (đã bắt đầu mà chưa thu) · E-PAY-7 (đã thu mà chưa xác nhận hoàn) ·
+         *     409 E-PAY-6 (đã hủy / Không thu được) · E-012 (``version`` cũ) · 404.
          */
         post: operations["cancel_item_api_v1_front_desk_items__code__cancel_post"];
         delete?: never;
@@ -4087,6 +4089,11 @@ export interface components {
             created_at: string;
             /** Actions */
             actions: ("collect" | "uncollectible" | "cancel")[];
+            /**
+             * Cancel Phase
+             * @description Lúc này so với giờ chơi, để popup chọn câu cảnh báo (T-052); null: không hủy được
+             */
+            cancel_phase?: ("before" | "playing" | "past") | null;
         };
         /** ItemPayment */
         ItemPayment: {
@@ -6926,6 +6933,23 @@ export interface components {
              * @enum {string}
              */
             phase: "upcoming" | "ongoing";
+            /**
+             * Status
+             * @description ended: phòng đã đóng hoặc buổi đã hủy, chỉ có ở kết quả tìm (T-054): nhãn “Đã kết thúc”, vào xem chỉ đọc, không xin vào. Khi đó my_join_block, my_invite_id là null, my_join_pending là false
+             * @enum {string}
+             */
+            status: "open" | "ended";
+            /**
+             * Can View
+             * @description false: phòng ended và mình không phải người trong phòng – ẩn “Xem phòng”, ``members`` rỗng, ``member_count`` 0; mở trực tiếp sẽ 404 (T-054)
+             */
+            can_view: boolean;
+            /**
+             * Play Date
+             * Format: date
+             * @description Ngày chơi (giờ Việt Nam)
+             */
+            play_date: string;
             host: components["schemas"]["PersonOut"];
             /**
              * Members
@@ -7076,7 +7100,7 @@ export interface components {
             all_count: number;
             /**
              * Items
-             * @description Theo giờ bắt đầu, rồi tên sân (lọc theo ``scope``)
+             * @description Theo giờ bắt đầu, rồi tên sân (lọc theo ``scope``); có ``q``: kết quả tìm
              */
             items: components["schemas"]["RoomCard"][];
         };
@@ -11076,6 +11100,8 @@ export interface operations {
             query?: {
                 /** @description mine: phòng có mình */
                 scope?: "all" | "mine";
+                /** @description Đúng mã đơn BK-YYYYMMDD-NNN hoặc mã con -NN (T-054) */
+                q?: string | null;
             };
             header?: {
                 /** @description ETag lần trước -> 304 nếu không đổi */

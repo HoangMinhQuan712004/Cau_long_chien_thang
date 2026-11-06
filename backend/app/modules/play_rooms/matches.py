@@ -22,9 +22,9 @@ from app.modules.play_rooms.common import (
     avatar_url,
     member_rows,
     name_of,
+    readable_room,
     room_label,
     touch,
-    visible_room,
     writable_room,
 )
 from app.modules.play_rooms.models import PlayMatch, PlayRoom
@@ -302,7 +302,7 @@ def _names(match: PlayMatch, ids: list[int]) -> list[str]:
 
 
 async def match_list(session: AsyncSession, me: Me, room_id: int, fmt: str | None) -> MatchList:
-    room = await visible_room(session, room_id, lock=False)
+    room = await readable_room(session, me.customer_id, room_id)
     every = await _finished(session, room.id, None)
     shown = [m for m in every if fmt is None or m.format == fmt]
     return MatchList(
@@ -331,7 +331,7 @@ async def ranking(session: AsyncSession, me: Me, room_id: int, fmt: str | None) 
 
     Gom theo id hồ sơ – người đã rời / bị mời ra vẫn giữ kết quả, tên lấy từ trận gần nhất.
     """
-    room = await visible_room(session, room_id, lock=False)
+    room = await readable_room(session, me.customer_id, room_id)
     wins: dict[int, int] = defaultdict(int)
     played: dict[int, int] = defaultdict(int)
     latest_name: dict[int, str] = {}

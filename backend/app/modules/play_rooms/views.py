@@ -1,5 +1,6 @@
 """Đọc: Danh sách sân hôm nay (AC4–AC6) và chi tiết phòng (AC25)."""
 
+import re
 from datetime import UTC, datetime, time, timedelta
 from typing import Literal
 
@@ -21,7 +22,8 @@ from app.modules.play_rooms.common import (
     is_closed,
     member_rows,
     person_out,
-    visible_room,
+    readable_room,
+    rooms_entered,
 )
 from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember, PlayRoomRequest
 from app.modules.play_rooms.schemas import (
@@ -41,8 +43,109 @@ def _today_bounds(now: datetime) -> tuple[datetime, datetime]:
     return start, start + timedelta(days=1)
 
 
-async def list_rooms(session: AsyncSession, me: Me, scope: Literal["all", "mine"]) -> RoomList:
-    """Phòng **hôm nay còn mở** có Host đủ điều kiện, theo giờ bắt đầu rồi tên sân."""
+# Mã đơn BK-YYYYMMDD-NNN, hoặc mã con thêm -NN (T-054). Chỉ chữ số: an toàn khi ghép vào LIKE
+_SEARCH_CODE = re.compile(r"BK-\d{8}-\d{3}(-\d{2})?", re.ASCII)
+
+
+async def _cards(
+    session: AsyncSession, me: Me, rooms: list[PlayRoom], ended: set[int], now: datetime
+) -> list[RoomCard]:
+    """Thẻ phòng (không có mã booking, SĐT, id hồ sơ). ``ended``: id phòng không xin vào được."""
+    ids = [r.id for r in rooms]
+    entered = await rooms_entered(session, me.customer_id, [r for r in rooms if r.id in ended])
+    by_room: dict[int, list[PlayRoomMember]] = {i: [] for i in ids}
+    if ids:
+        for m in await session.scalars(
+            select(PlayRoomMember)
+            .where(PlayRoomMember.room_id.in_(ids))
+            .order_by(PlayRoomMember.joined_at, PlayRoomMember.id)
+        ):
+            by_room[m.room_id].append(m)
+    mine_pending = await _my_pending(session, me, ids)
+    people = await members.room_people(
+        session,
+        {m.customer_id for ms in by_room.values() for m in ms}
+        | {r.host_customer_id for r in rooms}
+        | {me.customer_id},
+    )
+    mine_person = people.get(me.customer_id)
+
+    cards: list[RoomCard] = []
+    for r in rooms:
+        ms = sorted(by_room[r.id], key=lambda m: m.customer_id != r.host_customer_id)
+        is_mine = any(m.customer_id == me.customer_id for m in ms)
+        is_ended = r.id in ended
+        can_view = not is_ended or r.id in entered
+        cards.append(
+            RoomCard(
+                id=r.id,
+                resource_name=r.resource_name,
+                resource_type_name=r.resource_type_name,
+                start_at=r.start_at,
+                end_at=r.end_at,
+                phase="ongoing" if r.start_at <= now else "upcoming",
+                status="ended" if is_ended else "open",
+                can_view=can_view,
+                play_date=r.start_at.astimezone(settings.tz).date(),
+                host=person_out(people.get(r.host_customer_id)),
+                # Người ngoài phòng đã kết thúc không biết ai chơi, kể cả khi tìm bằng mã
+                members=[person_out(people.get(m.customer_id)) for m in ms] if can_view else [],
+                member_count=len(ms) if can_view else 0,
+                capacity=CAPACITY,
+                is_mine=is_mine,
+                my_join_pending=not is_ended and (r.id, "join") in mine_pending,
+                my_invite_id=None if is_ended else mine_pending.get((r.id, "invite")),
+                tier_range=tiers.range_out(r),
+                my_join_block=None if is_mine or is_ended else tiers.block_of(r, mine_person),
+                version=r.version,
+            )
+        )
+    return cards
+
+
+async def _search(session: AsyncSession, me: Me, raw: str, now: datetime) -> list[RoomCard]:
+    """Tìm đúng mã (T-054): mọi ngày, mọi trạng thái, bỏ qua ``scope``. Không tìm ra: Host không đủ
+    điều kiện, booking đã hủy mà phòng không có trận ``finished``, booking chưa có phòng – cùng một
+    kết quả rỗng như mã không tồn tại, không phân biệt lý do."""
+    code = "".join(raw.split()).upper()
+    found = _SEARCH_CODE.fullmatch(code)
+    if found is None:
+        return []
+    match = (
+        PlayRoom.booking_code == code if found.group(1) else PlayRoom.booking_code.like(f"{code}-%")
+    )
+    rooms = list(
+        await session.scalars(
+            select(PlayRoom)
+            .where(match)
+            .order_by(PlayRoom.start_at, PlayRoom.resource_name, PlayRoom.id)
+        )
+    )
+    ok_hosts = await eligible(session, {r.host_customer_id for r in rooms})
+    rooms = [r for r in rooms if r.host_customer_id in ok_hosts]
+    gone = await engine.cancelled_booking_codes(session, [r.booking_code for r in rooms])
+    cancelled = [r.id for r in rooms if r.booking_code in gone]
+    played = (
+        set(
+            await session.scalars(
+                select(PlayMatch.room_id)
+                .where(PlayMatch.room_id.in_(cancelled), PlayMatch.status == "finished")
+                .distinct()
+            )
+        )
+        if cancelled
+        else set()
+    )
+    rooms = [r for r in rooms if r.booking_code not in gone or r.id in played]
+    ended = {r.id for r in rooms if is_closed(r, now) or r.booking_code in gone}
+    return await _cards(session, me, rooms, ended, now)
+
+
+async def list_rooms(
+    session: AsyncSession, me: Me, scope: Literal["all", "mine"], q: str | None = None
+) -> RoomList:
+    """Phòng **hôm nay còn mở** có Host đủ điều kiện, theo giờ bắt đầu rồi tên sân. Có ``q``:
+    ``items`` là kết quả tìm, số liệu banner vẫn của hôm nay."""
     now = datetime.now(UTC)
     start, end = _today_bounds(now)
     rooms = [
@@ -57,56 +160,19 @@ async def list_rooms(session: AsyncSession, me: Me, scope: Literal["all", "mine"
     ok_hosts = await eligible(session, {r.host_customer_id for r in rooms})
     gone = await engine.cancelled_booking_codes(session, [r.booking_code for r in rooms])
     rooms = [r for r in rooms if r.host_customer_id in ok_hosts and r.booking_code not in gone]
-    ids = [r.id for r in rooms]
-
-    by_room: dict[int, list[PlayRoomMember]] = {i: [] for i in ids}
-    if ids:
-        for m in await session.scalars(
-            select(PlayRoomMember)
-            .where(PlayRoomMember.room_id.in_(ids))
-            .order_by(PlayRoomMember.joined_at, PlayRoomMember.id)
-        ):
-            by_room[m.room_id].append(m)
-    mine_pending = await _my_pending(session, me, ids)
-    people = await members.room_people(
-        session,
-        {m.customer_id for ms in by_room.values() for m in ms} | ok_hosts | {me.customer_id},
-    )
-    mine_person = people.get(me.customer_id)
-
-    cards: list[RoomCard] = []
-    for r in rooms:
-        ms = sorted(by_room[r.id], key=lambda m: m.customer_id != r.host_customer_id)
-        cards.append(
-            RoomCard(
-                id=r.id,
-                resource_name=r.resource_name,
-                resource_type_name=r.resource_type_name,
-                start_at=r.start_at,
-                end_at=r.end_at,
-                phase="ongoing" if r.start_at <= now else "upcoming",
-                host=person_out(people.get(r.host_customer_id)),
-                members=[person_out(people.get(m.customer_id)) for m in ms],
-                member_count=len(ms),
-                capacity=CAPACITY,
-                is_mine=any(m.customer_id == me.customer_id for m in ms),
-                my_join_pending=(r.id, "join") in mine_pending,
-                my_invite_id=mine_pending.get((r.id, "invite")),
-                tier_range=tiers.range_out(r),
-                my_join_block=None
-                if any(m.customer_id == me.customer_id for m in ms)
-                else tiers.block_of(r, mine_person),
-                version=r.version,
-            )
-        )
+    cards = await _cards(session, me, rooms, set(), now)
     mine = [c for c in cards if c.is_mine]
+    if q is not None:
+        items = await _search(session, me, q, now)
+    else:
+        items = mine if scope == "mine" else cards
     return RoomList(
         date=now.astimezone(settings.tz).date(),
         ongoing_count=sum(c.phase == "ongoing" for c in cards),
         upcoming_count=sum(c.phase == "upcoming" for c in cards),
         mine_count=len(mine),
         all_count=len(cards),
-        items=mine if scope == "mine" else cards,
+        items=items,
     )
 
 
@@ -127,8 +193,9 @@ async def _my_pending(
 
 
 async def room_detail(session: AsyncSession, me: Me, room_id: int) -> RoomDetail:
-    """Phòng đã đóng vẫn xem được (chỉ đọc). Host không đủ điều kiện -> 404."""
-    room = await visible_room(session, room_id, lock=False)
+    """Phòng đã kết thúc chỉ người trong phòng xem được, chỉ đọc (T-054). Host không đủ điều kiện
+    -> 404."""
+    room = await readable_room(session, me.customer_id, room_id)
     return await detail_of(session, me, room)
 
 
