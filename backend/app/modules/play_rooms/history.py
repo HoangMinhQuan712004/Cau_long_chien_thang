@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import AppError
-from app.modules.booking_engine import api as engine
 from app.modules.play_rooms.models import PlayMatch, PlayRoom
 from app.modules.play_rooms.schemas import PlayHistory, PlayHistoryItem, PlayHistorySummary
 
@@ -55,17 +54,11 @@ async def play_history(session: AsyncSession, customer_id: int, month: str | Non
             PlayRoom.start_at < end,
         )
     )
-    rows = rows.all()
-    # Buổi có trận không hủy được (E-PAY-8); chỉ còn trận lọt vào đúng lúc hủy (T-051 AC10)
-    gone = await engine.cancelled_booking_codes(
-        session, sorted({room.booking_code for _, room in rows})
-    )
     rooms: dict[int, PlayRoom] = {}
     played: dict[int, int] = defaultdict(int)
     won: dict[int, int] = defaultdict(int)
+    # Trận đã xong vẫn tính dù buổi đó về sau bị hủy (T-052)
     for match, room in rows:
-        if room.booking_code in gone:
-            continue
         rooms[room.id] = room
         played[room.id] += 1
         mine = "a" if customer_id in match.team_a else "b"

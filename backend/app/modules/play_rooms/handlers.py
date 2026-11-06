@@ -26,9 +26,10 @@ async def create_room(payload: dict) -> None:
 
 @events.subscribe(events.BOOKING_CANCELLED)
 async def close_cancelled_room(payload: dict) -> None:
-    """Booking bị hủy -> đóng phòng, báo người liên quan (T-051). Vé không có phòng."""
+    """Booking bị hủy -> đóng phòng, báo người liên quan (T-051). Vé không có phòng. Buổi đã qua:
+    phòng không đổi, không báo (T-052)."""
     code = payload.get("code")
-    if not code or payload.get("kind") != "booking":
+    if not code or payload.get("kind") != "booking" or payload.get("past"):
         return
     async with SessionLocal() as session:
         closed = await lifecycle.close_cancelled(session, [code], datetime.now(UTC))
