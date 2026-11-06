@@ -132,7 +132,7 @@ export function StaffTable({ rows, indexOffset, now, focusCode, empty, onAction,
       card: "body",
       cell: (s) => (
         <span className={cn("flex min-w-0 items-center gap-2.5", dim(s))}>
-          <Avatar name={s.full_name} size="sm" />
+          <Avatar name={s.full_name} url={s.avatar_url} size="sm" />
           {nameButton(s)}
         </span>
       ),

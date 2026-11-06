@@ -503,7 +503,7 @@ async def test_ac10_create_staff_generates_code_and_username(admin):
     assert a["is_active"] is True and a["active_sessions"] == 0 and a["last_login_at"] is None
     assert set(a) == {
         "id", "staff_code", "full_name", "username", "is_active",
-        "created_at", "last_login_at", "active_sessions",
+        "created_at", "last_login_at", "active_sessions", "avatar_url",
     }  # fmt: skip
     assert "password" not in str(a).lower() and "hash" not in str(a).lower()
     # Đuôi do FE gửi (xem trước hiện đủ tên): dùng y nguyên; trùng -> 409, không tự đổi đuôi

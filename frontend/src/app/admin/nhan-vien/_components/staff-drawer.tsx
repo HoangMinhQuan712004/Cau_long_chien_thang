@@ -79,7 +79,7 @@ export function StaffDrawer({ staff: s, now, focusSessions, onClose, onAction, o
     >
       <div className="flex flex-col gap-5">
         <div className="flex items-center gap-3">
-          <Avatar name={s.full_name} />
+          <Avatar name={s.full_name} url={s.avatar_url} />
           <div className="min-w-0">
             <p className="text-lg font-bold break-words">{s.full_name}</p>
             <Badge variant={s.is_active ? "success" : "neutral"}>{s.is_active ? t.active : t.disabled}</Badge>

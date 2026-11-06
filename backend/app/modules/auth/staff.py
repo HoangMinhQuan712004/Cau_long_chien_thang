@@ -16,7 +16,14 @@ from app.core.audit import AuditActor, audit
 from app.core.errors import AppError
 from app.core.security import hash_password
 from app.modules.auth import sessions
-from app.modules.auth.models import STAFF_CODE_SEQ, AdminSession, Role, SessionEndReason, User
+from app.modules.auth.models import (
+    STAFF_CODE_SEQ,
+    AdminSession,
+    Role,
+    SessionEndReason,
+    User,
+    UserAvatar,
+)
 from app.modules.auth.schemas import NewPassword, SessionDeviceOut
 from app.modules.auth.utils import USERNAME_TAIL_PATTERN, staff_code, staff_username
 
@@ -60,6 +67,7 @@ class StaffOut(BaseModel):
     created_at: datetime
     last_login_at: datetime | None
     active_sessions: int
+    avatar_url: str | None = Field(description="Đã gồm ?v={etag}; null -> hiện chữ cái")
 
 
 EndReason = Literal[
@@ -121,7 +129,13 @@ async def list_staff(session: AsyncSession, staff_id: int | None = None) -> list
         .where(AdminSession.user_id == User.id, *sessions.active_filter(now))
         .scalar_subquery()
     )
-    query = select(User, last_login, active).where(User.role == Role.STAFF).order_by(User.id)
+    # Chỉ lấy etag, không tải bytes của ảnh
+    query = (
+        select(User, last_login, active, UserAvatar.etag)
+        .outerjoin(UserAvatar, UserAvatar.user_id == User.id)
+        .where(User.role == Role.STAFF)
+        .order_by(User.id)
+    )
     if staff_id is not None:
         query = query.where(User.id == staff_id)
     return [
@@ -134,8 +148,9 @@ async def list_staff(session: AsyncSession, staff_id: int | None = None) -> list
             created_at=user.created_at,
             last_login_at=last_login_at,
             active_sessions=active_sessions,
+            avatar_url=sessions.avatar_url(user.id, etag),
         )
-        for user, last_login_at, active_sessions in (await session.execute(query)).all()
+        for user, last_login_at, active_sessions, etag in (await session.execute(query)).all()
     ]
 
 

@@ -15,6 +15,8 @@ import { useSidebarCollapsed } from "./use-sidebar-collapsed";
 type Props = Omit<SidebarProps, "onNavigate" | "onClose" | "isCollapsed" | "onToggleCollapse"> & {
   /** Thu gọn menu lúc đầu (cookie, server đọc). */
   initialCollapsed: boolean;
+  /** Ảnh đại diện trên nút tài khoản. */
+  avatarUrl: string | null;
   children: React.ReactNode;
 };
 
@@ -22,7 +24,7 @@ type Props = Omit<SidebarProps, "onNavigate" | "onClose" | "isCollapsed" | "onTo
  * Khung quản trị: header trắng rộng hết màn, dính trên cùng (nút menu, logo + tên, tài khoản + Đăng xuất).
  * Máy tính: sidebar dính trái, thu gọn được thành cột icon (nhớ lựa chọn); điện thoại: nút ☰ mở ngăn kéo menu.
  */
-export function AdminShell({ children, initialCollapsed, ...sidebar }: Props) {
+export function AdminShell({ children, initialCollapsed, avatarUrl, ...sidebar }: Props) {
   const { t } = sidebar;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCollapsed, toggleCollapsed] = useSidebarCollapsed(initialCollapsed);
@@ -52,7 +54,7 @@ export function AdminShell({ children, initialCollapsed, ...sidebar }: Props) {
           <span className="truncate text-sm font-bold">{t.brand}</span>
         </Link>
         <div className="ml-auto shrink-0">
-          <AccountMenu perms={sidebar.perms} name={sidebar.name} roleLabel={sidebar.roleLabel} t={t} />
+          <AccountMenu perms={sidebar.perms} name={sidebar.name} avatarUrl={avatarUrl} roleLabel={sidebar.roleLabel} t={t} />
         </div>
       </header>
 

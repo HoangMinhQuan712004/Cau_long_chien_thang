@@ -422,6 +422,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/auth/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload My Avatar
+         * @description Tự đổi ảnh đại diện: cắt vuông theo khung (pixel ảnh gốc, sau khi xoay theo EXIF), lưu ngay.
+         *
+         *     422 / 413 E-HV-13 (định dạng / dung lượng / vùng cắt) · 429 E-SEC-5.
+         */
+        put: operations["upload_my_avatar_api_v1_admin_auth_me_avatar_put"];
+        post?: never;
+        /**
+         * Delete My Avatar
+         * @description Tự xóa ảnh -> về chữ cái. Chưa có ảnh -> vẫn 204.
+         */
+        delete: operations["delete_my_avatar_api_v1_admin_auth_me_avatar_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/avatars/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Avatar
+         * @description Ảnh đại diện tài khoản quản trị – chỉ phiên quản trị xem được. ``v`` = etag để phá cache.
+         */
+        get: operations["admin_avatar_api_v1_admin_auth_avatars__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/auth/logout": {
         parameters: {
             query?: never;
@@ -2703,6 +2749,11 @@ export interface components {
             /** Staff Code */
             staff_code?: string | null;
         };
+        /** AdminAvatarOut */
+        AdminAvatarOut: {
+            /** Avatar Url */
+            avatar_url: string;
+        };
         /**
          * AdminPasswordChangeIn
          * @description Admin / NV tự đổi mật khẩu; luôn cần mật khẩu hiện tại.
@@ -2757,6 +2808,11 @@ export interface components {
              * Format: date-time
              */
             session_expires_at: string;
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
         };
         /**
          * AdminSessionOut
@@ -2779,6 +2835,11 @@ export interface components {
              * @description Thứ tự menu chung (key ``MenuKey``), đủ mọi mục
              */
             menu_order: string[];
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
         };
         /** AdminSignInOut */
         AdminSignInOut: {
@@ -3030,6 +3091,20 @@ export interface components {
         };
         /** Body_upload_avatar_api_v1_member_area_me_avatar_put */
         Body_upload_avatar_api_v1_member_area_me_avatar_put: {
+            /**
+             * File
+             * @description JPG / PNG / WebP ≤ 5 MB
+             */
+            file: string;
+            /** Crop X */
+            crop_x: number;
+            /** Crop Y */
+            crop_y: number;
+            /** Crop Size */
+            crop_size: number;
+        };
+        /** Body_upload_my_avatar_api_v1_admin_auth_me_avatar_put */
+        Body_upload_my_avatar_api_v1_admin_auth_me_avatar_put: {
             /**
              * File
              * @description JPG / PNG / WebP ≤ 5 MB
@@ -6955,6 +7030,11 @@ export interface components {
             last_login_at: string | null;
             /** Active Sessions */
             active_sessions: number;
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
         };
         /** StaffPasswordIn */
         StaffPasswordIn: {
@@ -8045,6 +8125,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminSessionOut"];
+                };
+            };
+        };
+    };
+    upload_my_avatar_api_v1_admin_auth_me_avatar_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_my_avatar_api_v1_admin_auth_me_avatar_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAvatarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_my_avatar_api_v1_admin_auth_me_avatar_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_avatar_api_v1_admin_auth_avatars__user_id__get: {
+        parameters: {
+            query?: {
+                v?: string | null;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Not Modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

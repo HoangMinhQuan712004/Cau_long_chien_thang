@@ -1,8 +1,13 @@
 """Tự quản lý tài khoản: khách đổi mật khẩu (T-015 – bắt buộc lần đầu với tài khoản hội viên);
-Admin / NV xem Hồ sơ của tôi, tự đổi mật khẩu, quản lý nơi đăng nhập (``/admin/account``)."""
+Admin / NV xem Hồ sơ của tôi, tự đổi mật khẩu, quản lý nơi đăng nhập (``/admin/account``),
+tự đổi / xóa ảnh đại diện (``/admin/auth/me/avatar``)."""
 
-from fastapi import APIRouter, Depends, Response, status
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, File, Form, Header, Path, Response, UploadFile, status
+
+from app.core import images
+from app.core.config import settings
 from app.core.middleware import require_origin
 from app.core.permissions import OptionalPrincipal
 from app.core.ratelimit import rate_limit
@@ -10,6 +15,7 @@ from app.modules.auth import admin_account, cookies, member_accounts, membership
 from app.modules.auth.deps import CustomerAnyState, SessionDep
 from app.modules.auth.router import AdminSessionDep
 from app.modules.auth.schemas import (
+    AdminAvatarOut,
     AdminPasswordChangeIn,
     AdminProfileIn,
     AdminProfileOut,
@@ -48,10 +54,10 @@ admin_account_router = APIRouter(prefix="/admin/account", tags=["admin: account"
 
 
 @admin_account_router.get("", response_model=AdminProfileOut)
-async def admin_profile(current: AdminSessionDep):
+async def admin_profile(current: AdminSessionDep, session: SessionDep):
     """Hồ sơ của tôi: chỉ cần phiên quản trị (Admin hoặc NV), không cần quyền riêng."""
     admin_session, user = current
-    return admin_account.profile(admin_session, user)
+    return await admin_account.profile(session, admin_session, user)
 
 
 @admin_account_router.patch(
@@ -61,7 +67,7 @@ async def admin_rename(data: AdminProfileIn, current: AdminSessionDep, session: 
     """Chỉ Admin tự sửa họ tên (NV -> 403 E-AUTH-2). Tên rỗng / quá 50 ký tự -> 422."""
     admin_session, user = current
     updated = await admin_account.rename(session, user.id, data.full_name)
-    return admin_account.profile(admin_session, updated)
+    return await admin_account.profile(session, admin_session, updated)
 
 
 @admin_account_router.post(
@@ -128,4 +134,72 @@ async def admin_me(current: AdminSessionDep, principal: OptionalPrincipal, sessi
         expires_at=admin_session.expires_at,
         perms=sorted(principal.perms) if principal else [],
         menu_order=await menu.menu_order(session),
+        avatar_url=await sessions.my_avatar_url(session, user.id),
     )
+
+
+# Ảnh chỉ phiên quản trị xem được -> ``private``: proxy dùng chung không được lưu; ``?v=`` phá cache
+ADMIN_AVATAR_CACHE = "private, max-age=31536000, immutable"
+
+
+def _no_store(response: Response) -> None:
+    response.headers["Cache-Control"] = "no-store"
+
+
+@admin_me_router.put(
+    "/me/avatar",
+    response_model=AdminAvatarOut,
+    dependencies=[
+        Depends(require_origin),
+        Depends(_no_store),
+        Depends(rate_limit("admin.avatar", 20, key="user")),
+    ],
+)
+async def upload_my_avatar(
+    current: AdminSessionDep,
+    session: SessionDep,
+    file: Annotated[UploadFile, File(description="JPG / PNG / WebP ≤ 5 MB")],
+    crop_x: Annotated[int, Form(ge=0)],
+    crop_y: Annotated[int, Form(ge=0)],
+    crop_size: Annotated[int, Form(ge=1)],
+):
+    """Tự đổi ảnh đại diện: cắt vuông theo khung (pixel ảnh gốc, sau khi xoay theo EXIF), lưu ngay.
+
+    422 / 413 E-HV-13 (định dạng / dung lượng / vùng cắt) · 429 E-SEC-5.
+    """
+    _, user = current
+    data = await file.read(settings.AVATAR_MAX_BYTES + 1)
+    crop = images.Crop(crop_x, crop_y, crop_size)
+    etag = await admin_account.save_avatar(session, user.id, data, crop)
+    return {"avatar_url": sessions.avatar_url(user.id, etag)}
+
+
+@admin_me_router.delete(
+    "/me/avatar",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[
+        Depends(require_origin),
+        Depends(rate_limit("admin.avatar", 20, key="user")),
+    ],
+)
+async def delete_my_avatar(current: AdminSessionDep, session: SessionDep):
+    """Tự xóa ảnh -> về chữ cái. Chưa có ảnh -> vẫn 204."""
+    _, user = current
+    await admin_account.delete_avatar(session, user.id)
+
+
+@admin_me_router.get(
+    "/avatars/{user_id}",
+    response_class=Response,
+    responses={200: {"content": {"image/webp": {}}}, 304: {}, 404: {}},
+)
+async def admin_avatar(
+    user_id: Annotated[int, Path(ge=1)],
+    _: AdminSessionDep,
+    session: SessionDep,
+    if_none_match: Annotated[str | None, Header()] = None,
+    v: str | None = None,
+):
+    """Ảnh đại diện tài khoản quản trị – chỉ phiên quản trị xem được. ``v`` = etag để phá cache."""
+    stored = await admin_account.load_avatar(session, user_id)
+    return images.image_response(stored, if_none_match, ADMIN_AVATAR_CACHE)

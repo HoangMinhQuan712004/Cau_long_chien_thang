@@ -54,7 +54,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
     const reason = result ? REASON_PARAM[result.reason] : undefined;
     redirect(`/dang-nhap?next=/admin${reason ? `&ly-do=${reason}` : ""}`);
   }
-  const { account, perms, menu_order: menuOrder } = result.session;
+  const { account, avatar_url: avatarUrl, perms, menu_order: menuOrder } = result.session;
   const [t, cookieStore] = await Promise.all([
     getDictionary(),
     // Lựa chọn thu gọn menu (đọc trong phần động đã nằm trong Suspense)
@@ -66,6 +66,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
       perms={perms}
       menuOrder={menuOrder}
       name={account.display_name}
+      avatarUrl={avatarUrl}
       roleLabel={account.role_label}
       initialCollapsed={cookieStore.get(MENU_COOKIE)?.value === MENU_COLLAPSED}
       t={t.adminNav}

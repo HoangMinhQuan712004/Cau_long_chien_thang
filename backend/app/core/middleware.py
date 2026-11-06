@@ -77,15 +77,21 @@ class OriginCheckMiddleware:
         await self.app(scope, receive, send)
 
 
+_IMAGE_UPLOADS = {
+    f"{settings.API_PREFIX}/member-area/me/avatar",
+    f"{settings.API_PREFIX}/admin/auth/me/avatar",
+}
+
+
 def upload_limit(path: str) -> int | None:
-    """Đường tải tệp được phép body lớn hơn ``MAX_BODY_BYTES`` (ảnh đại diện – T-016)."""
-    if path == f"{settings.API_PREFIX}/member-area/me/avatar":
+    """Đường tải ảnh được phép body lớn hơn ``MAX_BODY_BYTES`` (ảnh đại diện)."""
+    if path in _IMAGE_UPLOADS:
         return settings.AVATAR_MAX_BYTES + settings.MAX_BODY_BYTES
     return None
 
 
 def _too_large(path: str):
-    """Ảnh đại diện quá lớn -> câu của màn ảnh (E-HV-13); đường khác -> E-SEC-6."""
+    """Ảnh quá lớn -> câu của màn ảnh (E-HV-13); đường khác -> E-SEC-6."""
     if upload_limit(path) is not None:
         return _error(413, "E-HV-13", "Ảnh phải là JPG, PNG hoặc WebP, tối đa 5 MB.")
     return _error(413, "E-SEC-6", "Dữ liệu gửi lên quá lớn.")

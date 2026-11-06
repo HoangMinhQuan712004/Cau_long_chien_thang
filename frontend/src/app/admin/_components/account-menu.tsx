@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/play-rooms/confirm-dialog";
+import { AvatarImage } from "@/components/ui/avatar";
 import { adminLogout } from "@/lib/api/auth";
 import { can } from "./forbidden";
 import type { Dictionary } from "@/i18n/dictionaries";
@@ -13,6 +14,8 @@ type Props = {
   /** Mã quyền của phiên: "Lịch sử thao tác" chỉ hiện khi có audit_log.view. */
   perms: string[];
   name: string;
+  /** Ảnh đại diện; null ⇒ chữ viết tắt. */
+  avatarUrl: string | null;
   roleLabel: string;
   t: Dictionary["adminNav"];
 };
@@ -36,7 +39,7 @@ function initials(name: string): string {
 }
 
 /** Tài khoản trên header: bấm mở menu nhỏ (tên, vai trò, Hồ sơ của tôi, Lịch sử thao tác – theo quyền audit_log.view, Phân quyền & menu – roles.manage, Đăng xuất có hỏi xác nhận); đóng bằng Esc hoặc bấm ra ngoài. */
-export function AccountMenu({ perms, name, roleLabel, t }: Props) {
+export function AccountMenu({ perms, name, avatarUrl, roleLabel, t }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -84,10 +87,10 @@ export function AccountMenu({ perms, name, roleLabel, t }: Props) {
         )}
       >
         <span aria-hidden className={cn(`
-          grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-active text-xs
-          font-semibold text-sidebar
+          grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-sidebar-active
+          text-xs font-semibold text-sidebar
         `)}>
-          {initials(name)}
+          <AvatarImage url={avatarUrl} fallback={initials(name)} />
         </span>
         <span className="hidden min-w-0 flex-col sm:flex">
           <span className="max-w-40 truncate text-sm/tight font-semibold">{name}</span>

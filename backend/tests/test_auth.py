@@ -1,10 +1,12 @@
 """T-013 mốc 1: đăng nhập, khóa, phiên quản trị, JWT khách, quản lý nhân viên (AC1–AC13)."""
 
 import asyncio
+import io
 import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from PIL import Image
 from sqlalchemy import delete, select, update
 
 from app.core.audit import AuditLog
@@ -424,3 +426,103 @@ async def test_origin_required_for_auth_writes(admin):
         c.cookies.update(admin.cookies)
         r = await c.post(STAFF, json={"full_name": "Evil", "password": PASSWORD})
         assert r.status_code == 403 and r.json()["detail"]["code"] == "E-SEC-1"
+
+
+# ------------------------------------------------------------------ ảnh đại diện Admin / NV
+
+AVATAR = f"{API}/admin/auth/me/avatar"
+
+
+def _png(size: tuple[int, int] = (600, 400), color: tuple[int, int, int] = (9, 99, 199)) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", size, color).save(buf, "PNG")
+    return buf.getvalue()
+
+
+async def _upload_avatar(c, data: bytes, size: int = 300, headers: dict | None = None):
+    return await c.put(
+        AVATAR,
+        files={"file": ("a.png", data, "image/png")},
+        data={"crop_x": 0, "crop_y": 0, "crop_size": size},
+        headers=headers,
+    )
+
+
+async def test_admin_avatar_upload_serve_and_delete(admin):
+    r = await _upload_avatar(admin, _png((800, 600)), size=600)
+    assert r.status_code == 200, r.text
+    assert "no-store" in r.headers["cache-control"]
+    url = r.json()["avatar_url"]
+    assert re.fullmatch(r"/api/v1/admin/auth/avatars/\d+\?v=[0-9a-f]{16}", url), url
+    assert (await admin.get(f"{API}/admin/auth/me")).json()["avatar_url"] == url
+    assert (await admin.get(f"{API}/admin/account")).json()["avatar_url"] == url
+
+    img = await admin.get(url)
+    assert img.status_code == 200 and img.headers["content-type"] == "image/webp"
+    assert img.headers["x-content-type-options"] == "nosniff"
+    # Ảnh chỉ phiên quản trị xem được -> không cho proxy dùng chung lưu
+    assert img.headers["cache-control"].startswith("private")
+    assert Image.open(io.BytesIO(img.content)).size == (512, 512), "cắt vuông, thu về 512 px"
+    again = await admin.get(url, headers={"If-None-Match": img.headers["etag"]})
+    assert again.status_code == 304 and not again.content
+    async with _client() as anon:
+        assert (await anon.get(url)).status_code == 401
+    assert await audit_count("account.avatar_update") >= 1
+
+    assert (await admin.delete(AVATAR)).status_code == 204
+    assert (await admin.get(f"{API}/admin/auth/me")).json()["avatar_url"] is None
+    assert (await admin.get(url)).status_code == 404
+    assert await audit_count("account.avatar_delete") >= 1
+    before = await audit_count("account.avatar_delete")
+    assert (await admin.delete(AVATAR)).status_code == 204, "chưa có ảnh vẫn 204"
+    assert await audit_count("account.avatar_delete") == before
+
+
+async def test_admin_avatar_only_touches_own_account(admin):
+    nv = await create_staff(admin, "Ảnh Riêng")
+    assert (await _upload_avatar(admin, _png())).status_code == 200
+    async with _client() as c:
+        await sign_in(c, nv["username"], PASSWORD)
+        r = await _upload_avatar(c, _png(color=(200, 10, 10)))
+        assert r.status_code == 200, r.text
+        url = r.json()["avatar_url"]
+        assert f"/avatars/{nv['id']}?" in url
+        row = next(x for x in (await admin.get(STAFF)).json() if x["id"] == nv["id"])
+        assert row["avatar_url"] == url, "bảng Nhân viên có ảnh của NV"
+        assert (await admin.get(url)).status_code == 200, "Admin xem được ảnh NV"
+        # NV xóa ảnh của mình, ảnh Admin còn nguyên
+        assert (await c.delete(AVATAR)).status_code == 204
+        assert (await admin.get(f"{API}/admin/auth/me")).json()["avatar_url"] is not None
+    assert (await admin.delete(AVATAR)).status_code == 204
+
+
+async def test_admin_avatar_rejects_bad_files_and_customer(admin, customer):
+    fake = b"<svg xmlns='http://www.w3.org/2000/svg'></svg>"
+    bad = await _upload_avatar(admin, fake)
+    assert bad.status_code == 422 and bad.json()["detail"]["code"] == "E-HV-13"
+    assert bad.json()["detail"]["message"] == "Ảnh phải là JPG, PNG hoặc WebP, tối đa 5 MB."
+    bad = await _upload_avatar(admin, _png((100, 100)), size=300)
+    assert (
+        bad.status_code == 422 and bad.json()["detail"]["message"] == "Vùng cắt ảnh không hợp lệ."
+    )
+    evil = await _upload_avatar(admin, _png(), headers={"Origin": "https://evil.example"})
+    assert evil.status_code == 403
+    assert (await admin.get(f"{API}/admin/auth/me")).json()["avatar_url"] is None
+    # Khách không có phiên quản trị
+    assert (await _upload_avatar(customer, _png())).status_code == 401
+    assert (await customer.delete(AVATAR)).status_code == 401
+    assert (await customer.get(f"{API}/admin/auth/avatars/1")).status_code == 401
+
+
+async def test_admin_avatar_body_limit_allows_large_image_blocks_oversize(admin, monkeypatch):
+    # Lớn hơn giới hạn body chung vẫn vào được; quá giới hạn ảnh -> cùng mã với ảnh hội viên
+    monkeypatch.setattr(settings, "MAX_BODY_BYTES", 1_000)
+    monkeypatch.setattr(settings, "AVATAR_MAX_BYTES", 500_000)
+    noisy = io.BytesIO()
+    Image.effect_noise((300, 300), 100).convert("RGB").save(noisy, "PNG")
+    assert 1_000 < len(noisy.getvalue()) < 500_000
+    assert (await _upload_avatar(admin, noisy.getvalue())).status_code == 200
+    monkeypatch.setattr(settings, "AVATAR_MAX_BYTES", 2_000)
+    r = await _upload_avatar(admin, noisy.getvalue())
+    assert r.status_code in (413, 422) and r.json()["detail"]["code"] == "E-HV-13"
+    assert (await admin.delete(AVATAR)).status_code == 204

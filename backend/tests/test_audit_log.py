@@ -2,9 +2,11 @@
 
 import asyncio
 import datetime as dt
+import io
 import uuid
 
 import pytest
+from PIL import Image
 from sqlalchemy import delete, select
 
 from app.core.audit import AuditLog
@@ -430,3 +432,45 @@ async def test_password_never_logged(admin):
     for row in rows:
         text = str(row.detail)
         assert new_password not in text and "Old-pass12" not in text and hashed not in text
+
+
+# ------------------------------------------------------------------ đổi / xóa ảnh đại diện
+
+
+def _avatar_files() -> dict:
+    buf = io.BytesIO()
+    Image.new("RGB", (300, 300), (9, 99, 199)).save(buf, "PNG")
+    return {"file": ("a.png", buf.getvalue(), "image/png")}
+
+
+CROP = {"crop_x": 0, "crop_y": 0, "crop_size": 300}
+
+
+def _assert_avatar_row(row: dict, label: str, before: str | None, after: str | None) -> None:
+    assert row["action_label"] == label
+    assert row["changes"] == [{"field": "Ảnh đại diện", "before": before, "after": after}]
+    assert "webp" not in str(row).lower() and "RIFF" not in str(row), "không lộ dữ liệu ảnh"
+
+
+@pytest.mark.parametrize(
+    ("who", "actor", "label"), [("admin", "admin", "Admin"), ("staff", "staff", "Nhân viên")]
+)
+async def test_admin_and_staff_avatar_rows(admin, staff, who, actor, label):
+    client = {"admin": admin, "staff": staff}[who]
+    avatar = f"{API}/admin/auth/me/avatar"
+    r = await client.put(avatar, files=_avatar_files(), data=CROP)
+    assert r.status_code == 200, r.text
+    updated = await entries(admin, action="account.avatar_update", actor=actor)
+    _assert_avatar_row(updated[0], "Đổi ảnh đại diện", None, "Ảnh mới")
+    # Đổi khi đã có ảnh: trước = "Có ảnh", không phải trống
+    r = await client.put(avatar, files=_avatar_files(), data=CROP)
+    assert r.status_code == 200, r.text
+    assert (await client.delete(avatar)).status_code == 204
+    updated = await entries(admin, action="account.avatar_update", actor=actor)
+    deleted = await entries(admin, action="account.avatar_delete", actor=actor)
+    _assert_avatar_row(updated[0], "Đổi ảnh đại diện", "Có ảnh", "Ảnh mới")
+    _assert_avatar_row(deleted[0], "Xóa ảnh đại diện", "Có ảnh", None)
+    for row in (updated[0], deleted[0]):
+        assert row["actor"] == actor and row["actor_label"] == label
+    if who == "staff":
+        assert updated[0]["actor_name"] == STAFF_NAME and updated[0]["actor_code"]

@@ -4,7 +4,7 @@ from app.core.audit import AuditLog
 from app.core.db import Base
 from app.core.idempotency import IdempotencyKey
 from app.core.settings_store import AppSetting
-from app.modules.auth.models import AdminSession, OtpCode, RolePermission, User
+from app.modules.auth.models import AdminSession, OtpCode, RolePermission, User, UserAvatar
 from app.modules.booking_engine import models as booking_engine_models
 from app.modules.content.models import Post
 from app.modules.member_inbox.models import MemberNotification
@@ -33,5 +33,6 @@ __all__ = [
     "Post",
     "SpeedRecord",
     "User",
+    "UserAvatar",
     "booking_engine_models",
 ]
