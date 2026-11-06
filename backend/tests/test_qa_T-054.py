@@ -364,3 +364,150 @@ async def test_malformed_and_hostile_q_values_never_error(people):
     r = await hv.client.get(f"{ROOMS}?q={NOTHING}&q={NOTHING.lower()}")
     assert r.status_code == 200
     _rate_limit_backend.clear()
+
+
+# ---------------------------------------------------------------- AC8 / AC10 (BE 2cfbc4d): chỉ người trong phòng xem phòng đã kết thúc
+
+
+async def _join(host, guest, room_id: int) -> dict:
+    """Xin vào + Host duyệt -> chi tiết phòng mới nhất."""
+    d = (await guest.client.get(f"{ROOMS}/{room_id}")).json()
+    r = await post(guest.client, f"/{room_id}/join-requests", {"version": d["version"]})
+    assert r.status_code == 200, r.text
+    d = (await host.client.get(f"{ROOMS}/{room_id}")).json()
+    rid = d["join_requests"][0]["id"]
+    r = await post(
+        host.client, f"/{room_id}/join-requests/{rid}/approve", {"version": d["version"]}
+    )
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def _three(client, room_id: int) -> list[int]:
+    return [
+        (await client.get(f"{ROOMS}/{room_id}{tail}")).status_code
+        for tail in ("", "/matches", "/ranking")
+    ]
+
+
+async def _end(room_id: int) -> None:
+    await set_room(
+        room_id,
+        status="closed",
+        start_at=datetime.now(UTC) - timedelta(days=1),
+        end_at=datetime.now(UTC) - timedelta(days=1) + timedelta(hours=1),
+    )
+
+
+async def test_ac8_ac10_who_can_open_an_ended_room_and_who_gets_404(staff, admin, people):
+    host, stays, left, kicked, leftover = [
+        await people(n)
+        for n in ("QA H Host", "QA H Ở Lại", "QA H Đã Rời", "QA H Bị Mời Ra", "QA H Rời Sau Trận")
+    ]
+    asker, invited, outsider = [
+        await people(n) for n in ("QA H Xin Vào", "QA H Được Mời", "QA H Người Ngoài")
+    ]
+    made = await room_for(staff, admin, host.code)
+    room, code = made["room"], made["code"]
+    for g in (stays, left, kicked, leftover):
+        await _join(host, g, room.id)
+    await add_match(
+        room.id, 1, [host.customer_id], [leftover.customer_id], status="finished", win="a"
+    )
+    d = (await left.client.get(f"{ROOMS}/{room.id}")).json()
+    assert (
+        await post(left.client, f"/{room.id}/leave", {"version": d["version"]})
+    ).status_code == 200
+    d = (await leftover.client.get(f"{ROOMS}/{room.id}")).json()
+    assert (
+        await post(leftover.client, f"/{room.id}/leave", {"version": d["version"]})
+    ).status_code == 200
+    d = (await host.client.get(f"{ROOMS}/{room.id}")).json()
+    mid = next(m["id"] for m in d["members"] if m["display_name"] == "QA H Bị Mời Ra")
+    assert (
+        await post(host.client, f"/{room.id}/members/{mid}/kick", {"version": d["version"]})
+    ).status_code == 200
+    d = (await host.client.get(f"{ROOMS}/{room.id}")).json()
+    assert (
+        await post(asker.client, f"/{room.id}/join-requests", {"version": d["version"]})
+    ).status_code == 200
+    d = (await host.client.get(f"{ROOMS}/{room.id}")).json()
+    r = await post(
+        host.client, f"/{room.id}/invites", {"phone": invited.phone, "version": d["version"]}
+    )
+    assert r.status_code == 200, r.text
+
+    assert set(await _three(outsider.client, room.id)) == {200}, "phòng còn mở: ai cũng xem như cũ"
+    await _end(room.id)
+
+    insiders = {
+        "host": host,
+        "stays": stays,
+        "left": left,
+        "kicked": kicked,
+        "left-after-match": leftover,
+    }
+    for name, who in insiders.items():
+        assert await _three(who.client, room.id) == [200, 200, 200], name
+        card = (await get_rooms(who.client, q=code)).json()["items"][0]
+        assert card["status"] == "ended" and card["can_view"] is True, name
+    strangers = {"asker": asker, "invited": invited, "outsider": outsider}
+    missing = room.id + 5_000_000
+    for name, who in strangers.items():
+        assert await _three(who.client, room.id) == [404, 404, 404], name
+        for tail in ("", "/matches", "/ranking"):
+            ended = await who.client.get(f"{ROOMS}/{room.id}{tail}")
+            gone = await who.client.get(f"{ROOMS}/{missing}{tail}")
+            assert ended.json() == gone.json() and ended.status_code == gone.status_code == 404, (
+                name,
+                tail,
+            )
+        card = (await get_rooms(who.client, q=code)).json()["items"][0]
+        assert card["can_view"] is False and card["members"] == [] and card["member_count"] == 0, (
+            name
+        )
+        assert card["host"] and card["status"] == "ended", "vẫn có sân, giờ, Host"
+        text = (await get_rooms(who.client, q=code)).text
+        for hidden_name in ("QA H Ở Lại", "QA H Đã Rời", "QA H Bị Mời Ra", "QA H Rời Sau Trận"):
+            assert hidden_name not in text, (name, hidden_name)
+    # Lịch sử chơi (T-050): người đã rời sau khi đánh vẫn mở được popup
+    month = (datetime.now(UTC) - timedelta(days=1)).astimezone(settings.tz).strftime("%Y-%m")
+    hist = (await leftover.client.get(f"{MA}/play-history", params={"month": month})).json()
+    assert any(i["room_id"] == room.id for i in hist["items"]), "buổi vẫn ở Lịch sử chơi"
+    assert await _three(leftover.client, room.id) == [200, 200, 200]
+
+
+async def test_ac8_sequential_id_scan_leaks_nothing_from_ended_rooms(staff, admin, people):
+    host, scanner = await people("QA Q Host"), await people("QA Q Người Quét")
+    rooms = []
+    for _ in range(3):
+        made = await room_for(staff, admin, host.code)
+        await add_match(made["room"].id, 1, [host.customer_id], [-1], status="finished", win="a")
+        await _end(made["room"].id)
+        rooms.append(made["room"].id)
+    lo, hi = min(rooms) - 2, max(rooms) + 2
+    reference = await scanner.client.get(f"{ROOMS}/{hi + 9_000_000}")
+    assert reference.status_code == 404
+    for rid in range(lo, hi + 1):
+        for tail in ("", "/matches", "/ranking"):
+            r = await scanner.client.get(f"{ROOMS}/{rid}{tail}")
+            if rid in rooms:
+                assert r.status_code == 404 and r.json() == reference.json(), (rid, tail)
+            assert "QA Q Host" not in r.text or rid not in rooms
+    # Ghi lên phòng đã kết thúc (chỉ lộ "id này tồn tại", không lộ nội dung) – ghi nhận hành vi
+    probe = await post(scanner.client, f"/{rooms[0]}/join-requests", {"version": 1})
+    assert probe.status_code in (404, 409), probe.text
+    assert "QA Q Host" not in probe.text and "members" not in probe.text
+
+
+async def test_ac10_stale_notification_target_is_a_clean_404_not_a_leak(staff, admin, people):
+    host, other = await people("QA T Host"), await people("QA T Ngoài")
+    made = await room_for(staff, admin, host.code)
+    room = made["room"]
+    asked = await post(other.client, f"/{room.id}/join-requests", {"version": room.version})
+    assert asked.status_code == 200
+    await _end(room.id)
+    r = await other.client.get(f"{ROOMS}/{room.id}")
+    assert r.status_code == 404 and "detail" in r.json() and not BOOKING_CODE.search(r.text)
+    byb = await other.client.get(f"{ROOMS}/by-booking/{made['code']}")
+    assert byb.status_code in (404, 403)
