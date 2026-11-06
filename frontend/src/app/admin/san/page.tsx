@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { CourtsTable } from "@/components/admin/courts-table";
-import { SanTabs } from "@/components/admin/san-tabs";
 import { adminPerms, authedApi } from "@/lib/api/server";
 import { getDictionary } from "@/i18n/dictionaries";
 import { can } from "../_components/forbidden";
@@ -39,17 +38,14 @@ async function Courts() {
     if (p.day_type === "weekday" && p.band === "offpeak") weekdayPrice[p.resource_type_code] = p.price_per_hour;
   }
 
+  // Đầu trang + tab nằm trong CourtsTable (nút "Thêm sân" mở popup phía client)
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold sm:text-2xl">Sân &amp; bảng giá</h1>
-      <SanTabs active="list" />
-      <CourtsTable
-        resources={resources.data.items}
-        types={resources.data.resource_types}
-        weekdayPrice={weekdayPrice}
-        canDelete={can(perms, "booking.resources.delete")}
-        t={courts}
-      />
-    </div>
+    <CourtsTable
+      resources={resources.data.items}
+      types={resources.data.resource_types}
+      weekdayPrice={weekdayPrice}
+      canDelete={can(perms, "booking.resources.delete")}
+      t={courts}
+    />
   );
 }

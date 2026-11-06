@@ -4,39 +4,32 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Resource } from "@/components/admin/court-form-logic";
 import { UnsavedGuard } from "@/components/admin/unsaved-guard";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import type { Dictionary } from "@/i18n/dictionaries";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { errorText, write } from "@/lib/api/write";
+import { cn } from "@/lib/cn";
 import { toast } from "@/lib/feedback";
-import { formatDate, formatNumber, formatTime } from "@/lib/format";
+import { formatDateTime, formatNumber } from "@/lib/format";
+import { BANDS, cellKey, DAY_TYPES, PriceTree, type BandKey, type DayType, type PriceType } from "./price-tree";
 
 type PriceTable = components["schemas"]["PriceTable"];
 type Cell = components["schemas"]["PriceCellIn"];
-
-const DAY_TYPES = [
-  { key: "weekday", label: "Ngày thường" },
-  { key: "weekend", label: "Cuối tuần (T7, CN)" },
-  { key: "holiday", label: "Lễ, Tết" },
-] as const;
-const BANDS = [
-  { key: "offpeak", label: "Thấp điểm" },
-  { key: "peak", label: "Cao điểm" },
-] as const;
-
-const cellKey = (type: string, day: string, band: string) => `${type}|${day}|${band}`;
-const digits = (v: string) => v.replace(/\D/g, "");
+type PriceTexts = Dictionary["prices"];
 
 /**
- * Bảng giá 2 loại sân × 3 loại ngày × 2 khung. Mọi ô lưu một lần (PUT cả bảng kèm `version`).
+ * Bảng giá loại sân × 3 loại ngày × 2 khung. Mọi ô lưu một lần (PUT cả bảng kèm `version`).
  * Dùng `key={table.version}` ở trang cha để sau khi lưu / tải lại bản nháp được dựng mới.
+ * Trình bày ở PriceTree (cây gia phả ở tiêu đề). Thanh Lưu dính đáy.
  */
-export function PriceEditor({ table, resources }: { table: PriceTable; resources: Resource[] }) {
+export function PriceEditor({ table, resources, t }: { table: PriceTable; resources: Resource[]; t: PriceTexts }) {
   const router = useRouter();
   const original = new Map(table.prices.map((p) => [cellKey(p.resource_type_code, p.day_type, p.band), p.price_per_hour]));
   // Mọi ô sẽ được gửi lên (loại sân × loại ngày × khung); ô server chưa có thì để trống và bị chặn ở bước kiểm tra.
-  const allKeys = table.resource_types.flatMap((t) =>
-    DAY_TYPES.flatMap((d) => BANDS.map((b) => cellKey(t.code, d.key, b.key))),
-  );
+  const allKeys = table.resource_types.flatMap((x) => DAY_TYPES.flatMap((d) => BANDS.map((b) => cellKey(x.code, d, b))));
   const fromServer = () => Object.fromEntries(allKeys.map((k) => [k, original.has(k) ? String(original.get(k)) : ""]));
   const [draft, setDraft] = useState<Record<string, string>>(fromServer);
   const [touched, setTouched] = useState<Set<string>>(new Set());
@@ -45,9 +38,28 @@ export function PriceEditor({ table, resources }: { table: PriceTable; resources
 
   const isValid = (k: string) => /^[1-9]\d*$/.test(draft[k] ?? "");
   const changed = (k: string) => draft[k] !== String(original.get(k) ?? "");
-  const dirty = allKeys.some(changed);
+  const changedCount = allKeys.filter(changed).length;
   const anyInvalid = allKeys.some((k) => !isValid(k));
-  const showError = (k: string) => (submitted || touched.has(k)) && !isValid(k);
+
+  const courtCount = (type: string) => t.courtCount.replace("{n}", String(resources.filter((r) => r.resource_type_code === type).length));
+
+  // Hàm dựng (không phải component) để ô giữ focus khi gõ
+  const priceInput = (type: PriceType, day: DayType, band: BandKey) => {
+    const k = cellKey(type.code, day, band);
+    const isBad = (submitted || touched.has(k)) && !isValid(k);
+    return (
+      <Input
+        key={band}
+        inputMode="numeric"
+        value={draft[k] ? formatNumber(Number(draft[k])) : ""}
+        onChange={(e) => setDraft((cur) => ({ ...cur, [k]: e.target.value.replace(/\D/g, "") }))}
+        onBlur={() => setTouched((cur) => new Set(cur).add(k))}
+        aria-label={t.cellLabel.replace("{type}", type.name).replace("{day}", t.dayTypes[day]).replace("{band}", t.bands[band])}
+        aria-invalid={isBad || undefined}
+        className={cn("min-w-0 px-2! text-right tabular-nums", !isBad && changed(k) && "border-primary font-semibold text-primary")}
+      />
+    );
+  };
 
   function cancel() {
     setDraft(fromServer());
@@ -59,15 +71,8 @@ export function PriceEditor({ table, resources }: { table: PriceTable; resources
   async function save() {
     setSubmitted(true);
     if (anyInvalid) return;
-    const prices: Cell[] = table.resource_types.flatMap((t) =>
-      DAY_TYPES.flatMap((d) =>
-        BANDS.map((b) => ({
-          resource_type_code: t.code,
-          day_type: d.key,
-          band: b.key,
-          price_per_hour: Number(draft[cellKey(t.code, d.key, b.key)]),
-        })),
-      ),
+    const prices: Cell[] = table.resource_types.flatMap((x) =>
+      DAY_TYPES.flatMap((d) => BANDS.map((b) => ({ resource_type_code: x.code, day_type: d, band: b, price_per_hour: Number(draft[cellKey(x.code, d, b)]) }))),
     );
     setBusy(true);
     try {
@@ -75,123 +80,48 @@ export function PriceEditor({ table, resources }: { table: PriceTable; resources
         api.PUT("/api/v1/booking/prices", { body: { version: table.version, prices }, headers: { "Idempotency-Key": key } }),
       );
       if (!res.ok) {
-        const stale = res.error.code === "E-CFG-7";
-        toast(errorText(res.error), stale ? "Bấm Hủy thay đổi để tải lại bảng giá." : undefined, "error");
+        toast(errorText(res.error), res.error.code === "E-CFG-7" ? t.staleHint : undefined, "error");
         return;
       }
-      toast("Đã lưu bảng giá. Giá mới áp cho các khung chưa đặt.");
+      toast(t.saved);
       router.refresh();
     } finally {
       setBusy(false);
     }
   }
 
-  const savedAt = table.updated_at ? `${formatDate(table.updated_at)} ${formatTime(table.updated_at)}` : "chưa có";
+  const savedAt = table.updated_at ? t.savedAt.replace("{at}", formatDateTime(table.updated_at)) : t.neverSaved;
 
   return (
-    <div className="space-y-4">
-      <UnsavedGuard dirty={dirty} />
-      <div className="rounded-lg border border-border bg-surface">
-        <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
-          <h2 className="text-base font-semibold">Giá thuê sân (đồng/giờ)</h2>
-          <p className="ml-auto text-xs text-muted">
-            Lưu gần nhất: {savedAt}
-            {table.updated_by ? ` · ${table.updated_by}` : ""}
-          </p>
+    <div className="flex flex-col gap-3">
+      <UnsavedGuard dirty={changedCount > 0} />
+      <Card bareOnMobile className="flex flex-col gap-4 sm:p-5">
+        {/* Điện thoại xuống 2 dòng căn trái; từ sm chung một hàng, kẻ ngang hết bề rộng khối */}
+        <div className="flex flex-col gap-0.5 border-b pb-3 sm:-mx-5 sm:flex-row sm:px-5 sm:items-baseline sm:justify-between sm:gap-3">
+          <h2 className="text-base font-semibold">{t.title}</h2>
+          <span className="text-xs text-muted">{savedAt}</span>
         </div>
-        <div className="relative overflow-x-auto p-4">
-          <table className="w-full min-w-[40rem] border-collapse text-sm">
-            <thead>
-              <tr>
-                <th rowSpan={2} className="px-2 py-2 text-left font-medium">
-                  Loại sân
-                </th>
-                {DAY_TYPES.map((d) => (
-                  <th key={d.key} colSpan={2} className="border-b border-border px-2 py-2 text-center font-medium">
-                    {d.label}
-                  </th>
-                ))}
-              </tr>
-              <tr className="text-xs text-muted">
-                {DAY_TYPES.flatMap((d) =>
-                  BANDS.map((b) => (
-                    <th key={`${d.key}-${b.key}`} className="px-2 py-1 text-center font-medium">
-                      {b.label}
-                    </th>
-                  )),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {table.resource_types.map((t) => {
-                const codes = resources.filter((r) => r.resource_type_code === t.code).map((r) => r.code).sort();
-                return (
-                  <tr key={t.code} className="border-t border-border">
-                    <th scope="row" className="px-2 py-3 text-left font-medium">
-                      {t.name}
-                      <span className="block text-xs font-normal text-muted">
-                        {codes.length} sân
-                        {codes.length ? ` · ${codes[0]}${codes.length > 1 ? ` – ${codes[codes.length - 1]}` : ""}` : ""}
-                      </span>
-                    </th>
-                    {DAY_TYPES.flatMap((d) =>
-                      BANDS.map((b) => {
-                        const k = cellKey(t.code, d.key, b.key);
-                        const bad = showError(k);
-                        return (
-                          <td key={k} className="px-1.5 py-2">
-                            <input
-                              inputMode="numeric"
-                              value={draft[k] ? formatNumber(Number(draft[k])) : ""}
-                              onChange={(e) => setDraft((cur) => ({ ...cur, [k]: digits(e.target.value) }))}
-                              onBlur={() => setTouched((cur) => new Set(cur).add(k))}
-                              aria-label={`${t.name} · ${d.label} · ${b.label} (đồng/giờ)`}
-                              aria-invalid={bad || undefined}
-                              className={`w-full min-w-24 rounded-md border px-2 py-1.5 text-right tabular-nums ${
-                                bad ? "border-danger" : changed(k) ? "border-primary bg-primary-softer" : "border-border bg-background"
-                              }`}
-                            />
-                          </td>
-                        );
-                      }),
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {submitted && anyInvalid ? (
-            <p role="alert" className="mt-2 text-xs text-danger">
-              Giá phải là số nguyên lớn hơn 0.
-            </p>
-          ) : null}
-          <p className="mt-3 text-xs text-muted">
-            Cao điểm = giờ cao điểm đặt riêng ở từng sân (tab Danh mục sân). Ngoài giờ đó là Thấp điểm. Sân mới tự nhận giá theo Loại sân.
+        <PriceTree types={table.resource_types} courtCount={courtCount} renderInput={priceInput} t={t} />
+        {submitted && anyInvalid ? (
+          <p role="alert" className="text-ui text-danger">
+            {t.invalid}
           </p>
-        </div>
-      </div>
+        ) : null}
+      </Card>
 
-      <div data-bottom-bar className="sticky bottom-0 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3">
-        <p className="text-xs text-muted">
-          Giá mới áp cho khung chưa đặt; khung đã đặt giữ giá cũ. Nút Lưu bật khi có ô thay đổi.
+      {/* Thanh Lưu dính đáy: một dòng gợi ý ngắn + 2 nút; điện thoại 2 nút rộng bằng nhau */}
+      <div data-bottom-bar className="sticky bottom-0 z-10 flex flex-col gap-2 border-t bg-surface p-3 sm:flex-row sm:items-center sm:rounded-card sm:border sm:shadow-card">
+        <p className="text-ui text-muted" aria-live="polite">
+          {changedCount > 0 ? `${t.barDirty.replace("{n}", String(changedCount))} ` : ""}
+          {t.barHint}
         </p>
-        <div className="ml-auto flex gap-2">
-          <button
-            type="button"
-            onClick={cancel}
-            disabled={!dirty || busy}
-            className="rounded-md border border-border px-4 py-2 text-sm disabled:opacity-50"
-          >
-            Hủy thay đổi
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            disabled={!dirty || busy}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {busy ? "Đang lưu…" : "Lưu bảng giá"}
-          </button>
+        <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex">
+          <Button type="button" variant="secondary" onClick={cancel} disabled={changedCount === 0 || busy}>
+            {t.cancel}
+          </Button>
+          <Button type="button" onClick={() => void save()} disabled={changedCount === 0} loading={busy}>
+            {busy ? t.saving : t.save}
+          </Button>
         </div>
       </div>
     </div>

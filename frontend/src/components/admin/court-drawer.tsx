@@ -29,7 +29,7 @@ type Props = {
   startEditing?: boolean;
   /** Có quyền xóa ⇒ hiện nút "Xóa sân" ở chân ngăn. */
   onDelete?: () => void;
-  t: Pick<Dictionary["courts"], "delete" | "gone">;
+  t: Dictionary["courts"];
   resources: Resource[];
   types: ResourceType[];
   onClose: () => void;
@@ -70,6 +70,7 @@ export function CourtDrawer({ code, startEditing = false, onDelete, t, resources
         resource={detail.resource}
         resources={resources}
         types={types}
+        t={t}
         onCancel={() => setIsEditing(false)}
         onReload={() => {
           // Dữ liệu đã đổi ở máy khác (E-CFG-7): về chế độ xem với bản mới nhất
@@ -90,13 +91,13 @@ export function CourtDrawer({ code, startEditing = false, onDelete, t, resources
   return (
     <SidePanel
       title={title}
-      closeLabel="Đóng"
+      closeLabel={t.drawer.close}
       onClose={onClose}
-      resizeLabel="Kéo để đổi bề rộng ngăn"
+      resizeLabel={t.drawer.resize}
       storageKey="san.chi-tiet.rong"
       status={isGone ? "loading" : state.status}
-      loadingLabel="Đang tải chi tiết sân…"
-      errorText="Không tải được chi tiết sân. Đóng ngăn rồi mở lại để thử lại."
+      loadingLabel={t.drawer.loading}
+      errorText={t.drawer.error}
       skeleton={<DrawerSkeleton />}
       footer={
         <div className="flex w-full justify-end gap-2">
@@ -108,7 +109,7 @@ export function CourtDrawer({ code, startEditing = false, onDelete, t, resources
           ) : null}
           <Button onClick={() => setIsEditing(true)}>
             <PencilIcon />
-            Sửa sân
+            {t.edit}
           </Button>
         </div>
       }
@@ -124,11 +125,12 @@ export function CourtDrawer({ code, startEditing = false, onDelete, t, resources
 }
 
 /** Ngăn ở chế độ sửa: form dùng chung với "Thêm sân", Lưu / Hủy ở chân ngăn. */
-function EditPanel({ title, resource, resources, types, onCancel, onReload, onSaved, onClose }: {
+function EditPanel({ title, resource, resources, types, t, onCancel, onReload, onSaved, onClose }: {
   title: string;
   resource: Resource;
   resources: Resource[];
   types: ResourceType[];
+  t: Dictionary["courts"];
   onCancel: () => void;
   onReload: () => void;
   onSaved: (code: string) => void;
@@ -144,28 +146,28 @@ function EditPanel({ title, resource, resources, types, onCancel, onReload, onSa
   };
   return (
     <SidePanel
-      title={`Sửa ${title}`}
-      closeLabel="Đóng"
+      title={t.drawer.editTitle.replace("{title}", title)}
+      closeLabel={t.drawer.close}
       onClose={onClose}
       confirmClose={confirmClose}
-      resizeLabel="Kéo để đổi bề rộng ngăn"
+      resizeLabel={t.drawer.resize}
       storageKey="san.chi-tiet.rong"
       footer={
-        <div className="flex w-full justify-end gap-2 [&>button]:h-11 [&>button]:flex-1 sm:[&>button]:h-9.5 sm:[&>button]:flex-none">
-          <Button variant="secondary" onClick={onCancel} disabled={state.busy}>Hủy</Button>
-          <Button onClick={() => void state.submit()} loading={state.busy}>{state.busy ? "Đang lưu…" : "Lưu"}</Button>
+        <div className="grid w-full grid-cols-2 gap-2">
+          <Button variant="secondary" block onClick={onCancel} disabled={state.busy}>{t.cancel}</Button>
+          <Button block onClick={() => void state.submit()} loading={state.busy}>{state.busy ? t.saving : t.drawer.save}</Button>
         </div>
       }
     >
-      <CourtForm state={state} types={types} onReload={onReload} />
+      <CourtForm state={state} types={types} onReload={onReload} t={t} />
       <UnsavedGuard dirty={state.dirty} />
       {askClose ? (
         <ConfirmDialog
           danger
-          title="Bỏ thay đổi?"
-          body="Các thay đổi của sân chưa được lưu sẽ mất."
-          cancelLabel="Tiếp tục sửa"
-          confirmLabel="Bỏ thay đổi"
+          title={t.drawer.discardTitle}
+          body={t.drawer.discardBody}
+          cancelLabel={t.drawer.keepEditing}
+          confirmLabel={t.drawer.discard}
           onClose={() => setAskClose(false)}
           onConfirm={async () => {
             setAskClose(false);
