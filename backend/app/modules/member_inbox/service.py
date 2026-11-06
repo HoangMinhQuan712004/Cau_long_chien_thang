@@ -42,8 +42,8 @@ def notify(
 async def notify_once(
     session: AsyncSession, customer_id: int, kind: str, code: str, text: str, **payload: Any
 ) -> MemberNotification | None:
-    """Như ``notify`` nhưng mỗi ``customer_id`` + ``kind`` + ``code`` chỉ một thông báo: outbox có thể
-    giao lại. Đã có -> None. Khóa advisory để hai lần giao đồng thời không cùng lọt qua."""
+    """Như ``notify`` nhưng mỗi ``customer_id`` + ``kind`` + ``code`` chỉ một thông báo: outbox
+    có thể giao lại. Đã có -> None. Khóa advisory để hai lần giao đồng thời không cùng lọt qua."""
     key = f"member_inbox:{customer_id}:{kind}:{code}"
     await session.execute(select(func.pg_advisory_xact_lock(func.hashtext(key))))
     found = await session.scalar(
