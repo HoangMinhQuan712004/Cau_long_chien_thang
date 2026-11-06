@@ -277,16 +277,18 @@ async def test_transactions_and_reports_drop_cancelled(admin, staff):
     assert cards["cancelled"]["amount"] == before["cancelled"]["amount"] + amount + other
     assert cards["cancelled"]["count"] == before["cancelled"]["count"] + 2
 
-    only = await admin.get(f"{BK}/transactions", params={**params, "status": "cancelled"})
-    assert only.status_code == 200
-    rows = {r["code"]: r for r in only.json()["rows"]}
-    assert rows[paid["code"]]["cancel_reason"] == REASON
-    assert rows[paid["code"]]["cancelled_by"]
-    assert rows[paid["code"]]["refund_amount"] == amount
-    assert rows[unpaid["code"]]["refund_amount"] == 0
+    # Lọc theo mã: cùng ngày có thể đã có nhiều khoản hủy, trang 1 không chắc chứa dòng cần xem
+    async def row_of(code: str, **filters) -> dict | None:
+        r = await admin.get(f"{BK}/transactions", params={**params, "q": code, **filters})
+        assert r.status_code == 200, r.text
+        return next((x for x in r.json()["rows"] if x["code"] == code), None)
+
+    row = await row_of(paid["code"], status="cancelled")
+    assert row["cancel_reason"] == REASON and row["cancelled_by"]
+    assert row["refund_amount"] == amount
+    assert (await row_of(unpaid["code"], status="cancelled"))["refund_amount"] == 0
     # Lọc theo phương thức chỉ lấy khoản còn Đã thanh toán
-    by_method = await admin.get(f"{BK}/transactions", params={**params, "method": "cash"})
-    assert paid["code"] not in [r["code"] for r in by_method.json()["rows"]]
+    assert await row_of(paid["code"], method="cash") is None
 
     totals_after, slots_after = await _report(court_id)
     assert totals_after.revenue == totals_before.revenue - amount
