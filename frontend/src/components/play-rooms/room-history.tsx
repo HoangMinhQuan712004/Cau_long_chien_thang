@@ -25,7 +25,7 @@ function FormatFilterBar({ value, onChange }: { value: FormatFilter; onChange: (
           type="button"
           aria-pressed={value === k}
           onClick={() => onChange(k)}
-          className={cn("h-8 rounded-full border px-3.5 text-sm font-medium focus-ring", value === k ? "border-primary-hover bg-primary-hover text-surface" : "border-border-strong hover:bg-primary-softer")}
+          className={cn("relative h-8 rounded-full border px-3.5 text-sm font-medium focus-ring before:absolute before:inset-x-0 before:-inset-y-1.5", value === k ? "border-primary-hover bg-primary-hover text-surface" : "border-border-strong hover:bg-primary-softer")}
         >
           {label}
         </button>
@@ -73,7 +73,7 @@ export function RoomHistory({ roomId }: { roomId: number }) {
             role="tab"
             aria-selected={sub === k}
             onClick={() => setSub(k)}
-            className={cn("-mb-px border-b-2 px-4 py-2.5 text-sm font-medium focus-ring", sub === k ? "border-primary font-bold text-primary" : "border-transparent text-muted hover:text-foreground")}
+            className={cn("relative -mb-px border-b-2 px-4 py-2.5 text-sm font-medium focus-ring before:absolute before:inset-x-0 before:-inset-y-1", sub === k ? "border-primary font-bold text-primary" : "border-transparent text-muted hover:text-foreground")}
           >
             {label}
           </button>

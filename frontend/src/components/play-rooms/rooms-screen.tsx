@@ -229,7 +229,8 @@ function RoomCardView({ r, busy, onAct }: { r: RoomCard; busy: boolean; onAct: (
           <div>
             <h3 className="text-lg leading-tight font-bold">{r.resource_name}</h3>
             <p className="text-xs text-muted">{r.resource_type_name}</p>
-            {tierRangeText(r.tier_range) ? <span className="mt-1.5 inline-block rounded-full bg-primary-softer px-2.5 py-0.5 text-xs font-semibold text-primary ring-1 ring-primary/25">{tierRangeText(r.tier_range)}</span> : null}
+            {/* Khoảng hạng người đặt chọn lúc đặt sân; không đặt thì vẫn hiện để biết phòng không giới hạn hạng */}
+            <span className={cn("mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1", tierRangeText(r.tier_range) ? "bg-primary-softer text-primary ring-primary/25" : "bg-background text-muted ring-border")}>{tierRangeText(r.tier_range) ?? "Không có hạng"}</span>
           </div>
           {mine ? <span className="rounded-full bg-primary-softer px-2.5 py-0.5 text-xs font-semibold text-primary ring-1 ring-primary/25">Bạn</span> : null}
         </div>
