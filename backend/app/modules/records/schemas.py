@@ -18,7 +18,8 @@ class SpeedRankingRow(BaseModel):
     display_name: str = Field(description="'Hội viên ẩn danh' khi người đó tắt Hiện trên kỷ lục")
     avatar_url: str | None = Field(description="null với người ẩn danh (FE dùng avatar chung)")
     speed_kmh: int
-    measured_at: dt.datetime = Field(description="Lúc đo của số đo xếp hạng trong kỳ")
+    measured_at: dt.datetime = Field(description="Lúc đo của đúng cú đập này")
+    resource_name: str | None = Field(default=None, description="Sân của đúng cú đập này (T-053)")
     is_me: bool
     video: VideoOut | None = Field(
         description="Video của đúng số đo xếp hạng; số đo đó không có thì null, không lấy số đo "
@@ -27,7 +28,9 @@ class SpeedRankingRow(BaseModel):
 
 
 class SpeedMe(BaseModel):
-    rank: int
+    rank: int = Field(description="Hạng cú tốt nhất của mình trong kỳ (T-053)")
+    display_name: str = Field(description="Cùng tên với bục và danh sách: biệt danh trước")
+    avatar_url: str | None
     speed_kmh: int = Field(description="Số đo cao nhất của mình trong kỳ")
     measured_at: dt.datetime
     gap_to_top10: int | None = Field(
@@ -41,7 +44,10 @@ class SpeedRanking(BaseModel):
     start: dt.date = Field(description="Ngày đầu kỳ (giờ VN)")
     end: dt.date = Field(description="Ngày cuối kỳ, tính cả ngày này (giờ VN)")
     total_members: int = Field(description="Số hội viên có số đo trong kỳ")
-    top: list[SpeedRankingRow] = Field(description="Tối đa 10, hạng 1 trước")
+    total_records: int = Field(description="Số cú đập trong kỳ – mẫu của “#n / m” (T-053)")
+    top: list[SpeedRankingRow] = Field(
+        description="Tối đa 10 **cú đập**, hạng 1 trước; một người có thể chiếm nhiều bậc"
+    )
     me: SpeedMe | None = Field(description="null: mình chưa có số đo trong kỳ")
     bar_floor_kmh: int = Field(description="Mốc đầu thanh tốc độ (FE)")
 

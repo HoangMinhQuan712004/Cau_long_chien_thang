@@ -1,9 +1,9 @@
 """Phần dùng chung của phòng chơi: hằng số, người thao tác, điều kiện Host, khóa phòng."""
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
@@ -12,7 +12,7 @@ from app.modules.auth import api as auth
 from app.modules.booking_engine import api as engine
 from app.modules.members import api as members
 from app.modules.play_rooms import errors
-from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember
+from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember, PlayRoomRequest
 from app.modules.play_rooms.schemas import PersonOut
 
 CAPACITY = 8  # người / sân, tính cả Host
@@ -97,9 +97,33 @@ async def lock_room(session: AsyncSession, room_id: int) -> PlayRoom:
     return room
 
 
+async def stopped_by_cancel(session: AsyncSession, room: PlayRoom) -> bool:
+    """Booking bị hủy trước giờ kết thúc: phòng không ghi được nữa, đúng ngay sau commit, không chờ
+    worker đóng phòng. Hủy từ giờ kết thúc trở đi chỉ là trừ tiền, phòng không đổi (T-052)."""
+    return bool(await engine.cancelled_before_end_codes(session, [room.booking_code]))
+
+
+async def _has_finished_match(session: AsyncSession, room_id: int) -> bool:
+    found = await session.scalar(
+        select(PlayMatch.id)
+        .where(PlayMatch.room_id == room_id, PlayMatch.status == "finished")
+        .limit(1)
+    )
+    return found is not None
+
+
+async def _hidden_by_cancel(session: AsyncSession, room: PlayRoom) -> bool:
+    if not await engine.cancelled_booking_codes(session, [room.booking_code]):
+        return False
+    if await _has_finished_match(session, room.id):
+        return False
+    return is_closed(room, datetime.now(UTC)) or await stopped_by_cancel(session, room)
+
+
 async def visible_room(session: AsyncSession, room_id: int, lock: bool) -> PlayRoom:
-    """Phòng có Host đủ điều kiện, không thì 404 (ẩn – AC2 chốt 31/10). Booking đã hủy -> 404
-    ngay, không chờ worker đóng phòng (T-051)."""
+    """Phòng có Host đủ điều kiện, không thì 404 (ẩn – AC2 chốt 31/10). Booking đã hủy -> 404 ngay,
+    không chờ worker đóng phòng (T-051). Trừ (T-052): phòng có trận đã xong vẫn mở được từ Lịch sử
+    chơi; hủy từ giờ kết thúc trở đi thì phòng dùng tiếp tới khi hết ân hạn."""
     if lock:
         room = await lock_room(session, room_id)
     else:
@@ -108,7 +132,68 @@ async def visible_room(session: AsyncSession, room_id: int, lock: bool) -> PlayR
             raise errors.not_found()
     if room.host_customer_id not in await eligible(session, {room.host_customer_id}):
         raise errors.not_found()
-    if await engine.cancelled_booking_codes(session, [room.booking_code]):
+    if await _hidden_by_cancel(session, room):
+        raise errors.not_found()
+    return room
+
+
+async def is_ended(session: AsyncSession, room: PlayRoom, now: datetime) -> bool:
+    """Phòng đã kết thúc (T-054): đã đóng, hết giờ + ân hạn, hoặc booking đã hủy."""
+    return is_closed(room, now) or bool(
+        await engine.cancelled_booking_codes(session, [room.booking_code])
+    )
+
+
+async def rooms_entered(session: AsyncSession, customer_id: int, rooms: list[PlayRoom]) -> set[int]:
+    """Id các phòng mà ``customer_id`` là "người trong phòng" (T-054): Host, hoặc **từng** là thành
+    viên, kể cả đã rời / bị mời ra; người chỉ xin vào / được mời thì không tính.
+
+    Rời / mời ra xóa dòng thành viên, nên "từng" suy từ dấu vết còn lại: chủ đơn (Host đầu tiên),
+    yêu cầu / lời mời đã ``accepted`` (hai đường duy nhất vào phòng), và đội trong các trận.
+    """
+    if not rooms:
+        return set()
+    ids = [r.id for r in rooms]
+    found = {r.id for r in rooms if r.host_customer_id == customer_id}
+    found |= set(
+        await session.scalars(
+            select(PlayRoomMember.room_id).where(
+                PlayRoomMember.room_id.in_(ids), PlayRoomMember.customer_id == customer_id
+            )
+        )
+    )
+    found |= set(
+        await session.scalars(
+            select(PlayRoomRequest.room_id).where(
+                PlayRoomRequest.room_id.in_(ids),
+                PlayRoomRequest.customer_id == customer_id,
+                PlayRoomRequest.status == "accepted",
+            )
+        )
+    )
+    found |= set(
+        await session.scalars(
+            select(PlayMatch.room_id).where(
+                PlayMatch.room_id.in_(ids),
+                or_(
+                    PlayMatch.team_a.contains([customer_id]),
+                    PlayMatch.team_b.contains([customer_id]),
+                ),
+            )
+        )
+    )
+    refs = await members.booking_refs_of(session, customer_id)
+    owned = await engine.booking_codes_owned_by(session, [r.booking_code for r in rooms], refs)
+    return found | {r.id for r in rooms if r.booking_code in owned}
+
+
+async def readable_room(session: AsyncSession, customer_id: int, room_id: int) -> PlayRoom:
+    """Phòng để đọc. Đã kết thúc mà mình không phải người trong phòng -> 404 giống hệt phòng không
+    tồn tại (T-054): id tuần tự, nếu không ai cũng quét được ai chơi với ai. Phòng mở: như cũ."""
+    room = await visible_room(session, room_id, lock=False)
+    if await is_ended(session, room, datetime.now(UTC)) and not await rooms_entered(
+        session, customer_id, [room]
+    ):
         raise errors.not_found()
     return room
 
@@ -118,7 +203,7 @@ async def writable_room(
 ) -> PlayRoom:
     """Khóa + kiểm: 404 (không có / ẩn) -> E-ROOM-1 (đã đóng) -> E-ROOM-6 (``version`` cũ)."""
     room = await visible_room(session, room_id, lock=True)
-    if is_closed(room, now):
+    if is_closed(room, now) or await stopped_by_cancel(session, room):
         raise errors.closed()
     if version is not None and version != room.version:
         raise errors.stale()

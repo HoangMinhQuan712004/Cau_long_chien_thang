@@ -380,12 +380,11 @@ async def cancel_item(
     actor: Actor,
     code: str,
     data: CancelIn,
-    played: set[str],
     *,
     tenant_id: int | None = None,
 ) -> ItemOut:
-    """Hủy booking / vé (T-051). ``played``: mã khối đã có trận trong phòng (lớp gọi tra)."""
-    return await cancel_service.cancel_item(session, _tid(tenant_id), actor, code, data, played)
+    """Hủy booking / vé (T-051, T-052)."""
+    return await cancel_service.cancel_item(session, _tid(tenant_id), actor, code, data)
 
 
 async def order_block_codes(
@@ -426,6 +425,20 @@ async def cancelled_booking_codes(
 ) -> set[str]:
     """Mã booking nào đã hủy (phòng chơi ẩn ngay, không chờ worker – T-051)."""
     return await rooms_feed.cancelled_codes(session, _tid(tenant_id), codes)
+
+
+async def cancelled_before_end_codes(
+    session: AsyncSession, codes: list[str], *, tenant_id: int | None = None
+) -> set[str]:
+    """Mã booking bị hủy trước giờ kết thúc – phòng dừng ngay (T-052)."""
+    return await rooms_feed.cancelled_before_end_codes(session, _tid(tenant_id), codes)
+
+
+async def booking_codes_owned_by(
+    session: AsyncSession, codes: list[str], refs: list[str], *, tenant_id: int | None = None
+) -> set[str]:
+    """Mã booking nào thuộc khách có các ``refs`` (phòng chơi, T-054). Chỉ đọc."""
+    return await rooms_feed.codes_owned_by(session, _tid(tenant_id), codes, refs)
 
 
 async def collect(

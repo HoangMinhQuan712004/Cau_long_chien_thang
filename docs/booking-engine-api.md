@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -9,7 +9,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
 > **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, đã vào `dev`) – mục 11.2 và 12.11.**
 > **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007). Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, đã vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
-> **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), đã vào `dev` – mục 13.5, 13.6. Video kỷ lục (T-046) và số đo nhập tay / chờ duyệt (T-047), đã vào `dev` – mục 13.7. Dòng thời gian phá kỷ lục (T-048, chưa vào `dev`) – mục 13.8.**
+> **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), đã vào `dev` – mục 13.5, 13.6. Video kỷ lục (T-046) và số đo nhập tay / chờ duyệt (T-047), đã vào `dev` – mục 13.7. Dòng thời gian phá kỷ lục (T-048, đã vào `dev`) – mục 13.8.**
 > **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (đã vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
 > Mục 5.1, 10, 11 và 12 (kể cả phần đánh dấu **(T-021)** và mục 12.11) đã có trong `dev`. Chưa có gì trong `main`/production.
@@ -98,10 +98,10 @@ vẫn là 422 mặc định của FastAPI, khi đó `detail` là **mảng**.
 | E-BOOK-4 | 409 | **(T-019)** "Đơn không còn khối nào chưa thanh toán." (thu cả đơn) |
 | E-PAY-0 | 422 | Thu chuyển khoản tại quầy – chưa hỗ trợ (chờ T-007); cả với thu cả đơn |
 | E-PAY-1 | 422 | Đánh dấu Không thu được với booking online, hoặc chưa tới giờ chơi |
-| E-PAY-5 | 422 | **(T-051)** Hủy buổi đã bắt đầu hoặc đã qua |
+| E-PAY-5 | 422 | **(T-051, đổi ở T-052)** Hủy khoản **chưa thu** của buổi đã bắt đầu (dùng Không thu được) |
 | E-PAY-6 | 409 | **(T-051)** Mục đã Đã hủy / Không thu được: không hủy được; `collect` hoặc `uncollectible` lên mục đã hủy |
 | E-PAY-7 | 422 | **(T-051)** Hủy khoản đã thu mà chưa xác nhận hoàn tiền (`refund_confirmed`) |
-| E-PAY-8 | 422 | **(T-051)** Buổi đã có trận trong phòng chơi, không hủy được |
+| E-PAY-8 | 422 | **(T-051; đã bỏ ở T-052)** Không còn trả ở hủy từng mục. Mã giữ chỗ, không dùng lại |
 
 Thông báo thành công (E-005, E-006, E-008, E-011, E-022, E-026) không có trong API: giao diện tự dựng từ response.
 
@@ -125,7 +125,7 @@ Quyền khai báo tập trung ở `backend/app/core/permissions.py`. Router dùn
 | `booking.session.manage` | ✔ | | Tạo và xóa sự kiện |
 | `booking.collect` | ✔ | ✔ | Thu tiền |
 | `booking.uncollectible` | ✔ | ✔ | Đánh dấu Không thu được |
-| `booking.cancel` (T-051) | ✔ | | Hủy booking, vé, đơn chưa bắt đầu (`/front-desk/items/{code}/cancel`, `/front-desk/orders/{order_code}/cancel-preview` và `/cancel`). Chỉ Admin, không gán được; ẩn ở tab Phân quyền |
+| `booking.cancel` (T-051) | ✔ | | Hủy booking, vé, đơn (khoản đã thu: mọi lúc; chưa thu: trước giờ bắt đầu; hủy cả đơn: chỉ buổi chưa bắt đầu) (`/front-desk/items/{code}/cancel`, `/front-desk/orders/{order_code}/cancel-preview` và `/cancel`). Chỉ Admin, không gán được; ẩn ở tab Phân quyền |
 | `booking.transactions.view` | ✔ | | Lịch sử giao dịch |
 | `member.search` | ✔ | ✔ | `GET /members/search` |
 | `member.manage` (PR #21) | ✔ | ✔ | Màn Hội viên: danh sách, chi tiết, thêm, sửa, hồ sơ tạm; đọc danh mục vợt (mục 12) |
@@ -280,23 +280,25 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 - Trả `{date_from, date_to, rows[], page, page_size: 8, total, cards:{paid, unpaid, uncollectible}}`, mỗi thẻ có `{amount, count}`, tính đúng theo bộ lọc.
 - Sắp xếp: giờ chơi mới nhất → mã sân → mã. **(T-019)** Mỗi dòng thêm `order_code` (mã đơn + mã con).
 
-### 5.2 Hủy booking, vé và đơn (T-051, ADR-013, chưa vào `dev`)
+### 5.2 Hủy booking, vé và đơn (T-051, T-052, ADR-013)
 
-> Đối chiếu với code backend `be/T-051-cancel-booking` @ `794c127` (cục bộ, tạo từ `dev` `9c6602b`). BACKEND đã chạy trên DB thật: 19 + 2 test hủy, `alembic check` sạch (một head `c7e2a91f4d36`) và 851 test `test_qa_*`; **chưa chạy cả bộ test backend**, chờ CI. Giao diện chưa kiểm. Spec: `board/tasks/T-051-huy-booking-va-ve.md`, quyết định: `board/decisions/ADR-013-huy-thanh-toan.md`.
+> **T-051 đã vào `dev`** (migration `c7e2a91f4d36`). **T-052 chưa vào `dev`:** đối chiếu với code backend `be/T-052-cancel-started` @ `f9c10ab` (cục bộ, tạo từ `dev` `c8cfeda`); T-052 **đổi quy tắc** của T-051 (mục dưới là quy tắc mới). Không migration, không cấu hình mới. BACKEND ghi 298 test xanh; **1 test QA đỏ đúng dự kiến** (`test_qa_T-051.py::test_ac9_…` còn chờ `E-PAY-8` đã bỏ, QA sửa theo spec) nên CI đỏ tới khi QA sửa; chưa chạy cả bộ test. Giao diện chưa kiểm. Spec: `board/tasks/T-051-huy-booking-va-ve.md`, `T-052-huy-buoi-da-bat-dau.md`; quyết định: `board/decisions/ADR-013-huy-thanh-toan.md` (kèm phụ lục T-052).
 
 **Quy tắc thay đổi.** Trước đây `payment_status` chỉ có `unpaid → paid` hoặc `unpaid → uncollectible`, hai trạng thái cuối. Từ T-051 có thêm trạng thái cuối thứ ba **`cancelled` (Đã hủy)**:
 
 | Từ | Sang | Điều kiện |
 |---|---|---|
-| `unpaid` | `cancelled` | Chưa tới giờ bắt đầu |
-| `paid` | `cancelled` | Chưa tới giờ bắt đầu |
-| `uncollectible` | | **Không hủy được** (chỉ có sau giờ chơi) |
+| `unpaid` | `cancelled` | **Chỉ trước giờ bắt đầu.** Sau đó dùng Không thu được (hủy → `E-PAY-5`) |
+| `paid` | `cancelled` | **Mọi lúc**: trước giờ chơi, đang chơi, đã qua (T-052) |
+| `uncollectible` | | **Không hủy được** (`E-PAY-6`) |
 | `cancelled` | | Trạng thái cuối, **không khôi phục** |
 
-- **Chỉ hủy buổi chưa bắt đầu** (so giờ hiện tại với giờ bắt đầu), và chưa có trận `playing` hoặc `finished` trong phòng chơi của buổi đó.
+- **Hủy từng booking hoặc vé (`/items/{code}/cancel`):** khoản **đã thu** hủy được mọi lúc, kể cả buổi đang chơi hoặc đã qua; khoản **chưa thu** chỉ hủy trước giờ bắt đầu. **Không còn chặn theo trận** trong phòng chơi (T-052 bỏ `E-PAY-8`). Đúng giờ kết thúc tính là đã qua.
+- **Hủy cả đơn (`/orders/{order_code}/cancel`) không đổi:** vẫn chỉ gồm khối **chưa bắt đầu và chưa có trận**; khối khác vào `skipped` (`started`, `played`).
+- `ItemOut.cancel_phase` (T-052): `before` (trước giờ bắt đầu) · `playing` (đang chơi) · `past` (đã qua) · `null`. Chỉ khác `null` khi người xem có quyền hủy và `actions[]` có `cancel`. Giao diện chọn câu cảnh báo của hộp thoại theo trường này.
 - **Chỉ Admin.** Quyền mới `booking.cancel` thuộc nhóm chỉ Admin: không gán được cho Nhân viên hay Tài khoản tại máy, và ẩn khỏi tab Phân quyền. Nhân viên không thấy `cancel` trong `actions[]`.
 - **Nhả chỗ ngay:** `allocation.active = false` cùng transaction. Exclusion constraint `ex_allocation_no_overlap` **không đổi** (có test so định nghĩa trước và sau); khung trống lại nhờ điều kiện `WHERE active` sẵn có. Mã booking và vé **không dùng lại**.
-- **Tiền: chỉ trừ số liệu, không tự hoàn.** Với khoản đã thu, `refund_amount` = toàn bộ `amount`; `paid_at` và `payment_method` giữ nguyên. Hệ thống **không hoàn qua SePay**: Admin tự trả tiền cho khách ngoài hệ thống, và `refund_amount` chỉ là ghi nhận theo xác nhận của Admin, không phải bằng chứng đã chuyển tiền. Không hoàn một phần. Doanh thu chỉ tính `paid` nên tự giảm; Báo cáo tính theo ngày chơi, mà buổi hủy chưa diễn ra, nên số liệu các ngày đã qua không đổi.
+- **Tiền: chỉ trừ số liệu, không tự hoàn.** Với khoản đã thu, `refund_amount` = toàn bộ `amount`; `paid_at` và `payment_method` giữ nguyên. Hệ thống **không hoàn qua SePay**: Admin tự trả tiền cho khách ngoài hệ thống, và `refund_amount` chỉ là ghi nhận theo xác nhận của Admin, không phải bằng chứng đã chuyển tiền. Không hoàn một phần. Doanh thu chỉ tính `paid` nên tự giảm và **trừ vào ngày chơi**: hủy buổi đã qua thì số liệu của ngày cũ **có thể đổi**, dấu vết nằm ở Lịch sử thao tác (`payment.cancelled`); không có khóa sổ. Mọi lần hủy đều nhả chỗ nên công suất của ngày đã qua cũng giảm.
 
 #### Endpoint (tiền tố `/api/v1/front-desk`, quyền `booking.cancel`, lệnh ghi cần `Idempotency-Key` và `Origin`)
 
@@ -310,16 +312,15 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 - `refund_confirmed` (mặc định `false`): Admin xác nhận đã hoặc sẽ tự hoàn tiền. **Bắt buộc `true` khi hủy khoản đã thu**, nếu không → 422 `E-PAY-7`.
 - `version`: số phiên bản của `ItemOut`; lệch → 409 `E-012`.
 - `skipped[].reason`: `started` (đã tới giờ bắt đầu) · `played` (đã có trận trong phòng) · `cancelled` (đã hủy) · `uncollectible` (Không thu được).
-- **Hủy cả đơn kiểm lại từng khối lúc hủy:** khối đã bắt đầu hoặc có trận sau lúc xem trước vào `skipped`, buổi đã chơi giữ nguyên. Nếu có khối đã thu mà chưa tick `refund_confirmed` thì **chặn cả lệnh** (`E-PAY-7`), không hủy một phần. `codes` rỗng hoặc có mã ngoài đơn → 422 `E-001`.
-- Khối hủy ở `ItemOut`: `payment.payment_status = "cancelled"` và các trường `payment.cancel_reason`, `cancelled_at`, `cancelled_by_label`, `refund_amount` (cạnh `uncollectible_reason`, không ở cấp ngoài cùng). `actions[]` có `cancel` khi được phép **nhưng chưa xét trận** (engine không biết phòng): booking đã có trận vẫn hiện `cancel`, bấm thì nhận `E-PAY-8`. Xem trước cả đơn đã xét trận.
+- **Hủy cả đơn kiểm lại từng khối lúc hủy:** khối đã bắt đầu hoặc có trận sau lúc xem trước vào `skipped`. Nếu có khối đã thu mà chưa tick `refund_confirmed` thì **chặn cả lệnh** (`E-PAY-7`), không hủy một phần. `codes` rỗng hoặc có mã ngoài đơn → 422 `E-001`.
+- Khối hủy ở `ItemOut`: `payment.payment_status = "cancelled"` và các trường `payment.cancel_reason`, `cancelled_at`, `cancelled_by_label`, `refund_amount` (cạnh `uncollectible_reason`, không ở cấp ngoài cùng). `actions[]` có `cancel` khi `cancel_phase` khác `null`.
 - `collect` hoặc `uncollectible` lên mục đã hủy → 409 `E-PAY-6`.
 
 | Mã lỗi | HTTP | Khi nào |
 |---|---|---|
-| `E-PAY-5` | 422 | "Buổi chơi đã bắt đầu hoặc đã qua, không thể hủy." |
+| `E-PAY-5` | 422 | "Buổi đã bắt đầu và chưa thu tiền, hãy dùng Không thu được." (T-052; T-051 cũ chặn mọi buổi đã bắt đầu) |
 | `E-PAY-6` | 409 | "Đã ở trạng thái Đã hủy hoặc Không thu được, không thể hủy." (cũng khi `collect` / `uncollectible` mục đã hủy) |
 | `E-PAY-7` | 422 | "Vui lòng xác nhận việc hoàn tiền cho khách." (khoản đã thu mà `refund_confirmed = false`; hủy cả đơn thì chặn cả lệnh) |
-| `E-PAY-8` | 422 | "Buổi này đã có trận đấu trong phòng chơi, không thể hủy." |
 | `E-001` | 422 | Lý do trống hoặc quá 200 ký tự; `codes` rỗng hoặc có mã ngoài đơn |
 | `E-012` | 409 | `version` lệch |
 | `E-BOOK-3` | 404 | Không có đơn |
@@ -332,20 +333,23 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 | Sự kiện: `session_counts` | Không đếm vé hủy (trả chỗ, không cản xóa sự kiện); mã vé mới vẫn tăng tiếp. Popup sự kiện của Admin vẫn liệt kê vé hủy với `payment_status: cancelled` |
 | `my_tickets`, `my_ticket_count` | Ẩn vé đã hủy |
 | Lịch sử giao dịch | Thẻ `cards.cancelled` (cộng cả khoản đã thu và chưa thu), lọc `status=cancelled`; mỗi dòng có `cancel_reason`, `cancelled_by`, `refund_amount` |
-| Báo cáo doanh thu, chi tiết sân | Không đổi code; có test khóa doanh thu và công suất |
+| Báo cáo doanh thu, chi tiết sân | Không đổi code; có test khóa doanh thu và công suất. Hủy buổi đã qua trừ vào ngày chơi cũ (xem trên) |
 | Màn Đơn đặt sân / Đơn định kỳ | Tổng, số khối, giảm giá tính theo khối **chưa hủy**; `status` và `counts` có thêm `cancelled`. Đơn hủy hết: `total`, `sessions`, `blocks` bằng 0, ngày / giờ / sân vẫn lấy theo mọi khối để dòng còn đọc được |
 | Tra cứu (`/web/booking/lookup`) | Bỏ qua khối hủy; hủy hết → `status = cancelled`, `amount` và `hours` = 0, từng khối vẫn hiện số gốc; **không lộ lý do** |
 | Trang thanh toán `/thanh-toan/{token}` | Lượt giữ vẫn `paid`; đánh dấu từng khối (`items[].cancelled`) và vé (`event.cancelled_ticket_codes`) |
 | Lịch sử thanh toán hội viên | Có `cancelled` + `refund_amount`; **không cộng** vào `summary`; chưa thu rồi hủy thì không hiện |
 | Hồ sơ hội viên | `MemberBooking.is_cancelled`; thống kê không đếm buổi hủy; `GET /me/member/bookings` có `total` gồm cả dòng hủy để phân trang đúng |
 | Buổi sắp tới (Tổng quan) | Loại buổi hủy |
-| Phòng chơi | 404 ngay sau commit hủy (trước khi worker chạy); loại khỏi danh sách phòng, phòng của tôi, Lịch sử chơi, thống kê tháng |
+| Phòng chơi | Luôn loại khỏi Danh sách sân và Phòng của tôi. Phòng **không có trận `finished`** → 404 ngay sau commit hủy. Phòng **có trận `finished`** vẫn ở Lịch sử chơi và thống kê tháng, mở được `/rooms/{id}` và `/matches` ở chế độ **chỉ đọc** |
 | Tiền về trễ cho lượt đã `paid` | `outcome = refund_needed`, không tạo booking, không chiếm chỗ |
 
 #### Sự kiện và thông báo
 
 - Outbox **`booking.cancelled`**, payload `{code, order_code, kind, play_date, start_at, end_at, resource_name, was_paid, refund_amount}`; **không có** `customer_ref`.
-- **Phòng chơi** (`play_rooms`): đóng phòng; yêu cầu xin vào và lời mời → `cancelled`; trận `drawn` hoặc `playing` → `abandoned`; thông báo `room.cancelled` cho thành viên, người xin vào và người được mời, **trừ chủ đơn**. Phát lại không báo hai lần. Có thêm job mỗi phút đóng phòng còn mở mà booking đã hủy, phòng khi lỡ sự kiện.
+- Payload `booking.cancelled` có thêm `past: bool` (T-052): buổi đã qua lúc hủy.
+- **Phòng chơi** (`play_rooms`), buổi **chưa qua** lúc hủy: đóng phòng; yêu cầu xin vào và lời mời → `cancelled`; trận `drawn` hoặc `playing` → `abandoned`, trận `finished` giữ nguyên; thông báo `room.cancelled` cho thành viên, người xin vào và người được mời, **trừ chủ đơn**. Phát lại không báo hai lần. Có thêm job mỗi phút đóng phòng còn mở mà booking đã hủy, phòng khi lỡ sự kiện.
+- **Buổi đã qua lúc hủy (`past = true`):** phòng **không** đóng và **không** báo thành viên; phòng tự đóng theo `close_expired` như thường. Chủ đơn vẫn nhận một thông báo. Job mỗi phút không đụng tới. Giới hạn nhỏ: với buổi đang chơi mà sự kiện hủy bị lỡ tới sau giờ kết thúc thì job không đóng hộ, phòng tự đóng theo `close_expired` và không gửi thông báo đóng phòng.
+- **Phòng của booking đã hủy:** mọi thao tác **ghi** trên phòng trả 409 `E-ROOM-1` ngay sau commit hủy, kể cả buổi đã qua còn trong 10 phút ân hạn; nên không lưu được kết quả trận sau khi đã hủy. Hủy cùng lúc lưu kết quả: hoặc trận đã lưu được giữ nguyên, hoặc bị từ chối và thành `abandoned`.
 - **Chủ đơn** (`member_area/handlers.py`, mới; đã đăng ký ở `main.py` và `worker.py`): nếu là hội viên có tài khoản liên kết thì nhận thông báo `booking.cancelled` (dùng mã đơn, có số tiền hoàn khi đã thu, không có lý do). Hai kind mới `booking.cancelled`, `room.cancelled` đều không có `link`.
 - **Nhật ký:** `payment.cancelled`, mỗi khối một dòng (người làm: Admin).
 
@@ -1142,7 +1146,7 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
 
 | Method | Path | Ghi chú |
 |---|---|---|
-| GET | `/rooms?scope=all\|mine` | `RoomList = {date, ongoing_count, upcoming_count, mine_count, all_count, items: RoomCard[]}`, xếp theo giờ bắt đầu rồi tên sân. Giao diện: `/hoi-vien/danh-sach-san` |
+| GET | `/rooms?scope=all\|mine&q=` **(`q`: T-054, chưa vào `dev`)** | `RoomList = {date, ongoing_count, upcoming_count, mine_count, all_count, items: RoomCard[]}`, xếp theo giờ bắt đầu rồi tên sân. Giao diện: `/hoi-vien/danh-sach-san` |
 | GET | `/rooms/{id}` | `RoomDetail`. Không có hoặc Host chưa đủ điều kiện → 404 `E-NOT-FOUND`. Giao diện: `/hoi-vien/phong/{id}` |
 | POST | `/rooms/{id}/join-requests` `{version}` | Xin vào; bấm lại không tạo thêm. Tối đa 10 lần/ngày/người → 429 `E-SEC-5` |
 | DELETE | `/rooms/{id}/join-requests/mine` | Hủy xin vào |
@@ -1160,6 +1164,16 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
 | GET | `/rooms/{id}/ranking?format=` | `items[] = {rank, display_name, avatar_url, wins, losses, played, win_rate (0–1), is_me}`. Xếp theo số trận thắng, bằng nhau thì tỉ lệ thắng; đồng hạng khi bằng cả hai (kiểu 1, 1, 3) |
 
 **ETag cho polling:** `GET /rooms`, `/rooms/{id}`, `/matches`, `/ranking` trả `ETag` (weak, theo nội dung và người xem) và `Cache-Control: no-cache, private`. Gửi `If-None-Match` mà không có gì đổi → **304** không có thân. Giao diện hỏi lại mỗi 5 giây và giữ ETag của lần trước.
+
+**Tìm phòng theo mã booking và phòng đã kết thúc (T-054, chưa vào `dev`):** đường thật là `GET /api/v1/member-area/rooms?q=` (spec ghi tắt `/api/v1/rooms`). Đối chiếu code backend `be/T-054-rooms-search` @ `a1732f3` (cục bộ). Nhánh này đã gộp `be/T-052-cancel-started`, nên **T-052 phải lên `dev` trước hoặc cùng T-054**. Không migration. BACKEND chạy 143 test xanh, chưa chạy cả bộ test (chờ CI). Giao diện chưa kiểm.
+
+- **`q`:** bỏ khoảng trắng, không phân biệt hoa thường, phải khớp `^BK-\d{8}-\d{3}(-\d{2})?$` (mã đơn hoặc mã con); phải nhập **đủ mã**, không tìm theo từng ký tự hay một phần. Không khớp định dạng → `items: []`, không lỗi, kể cả `q` rỗng.
+- **Khi có `q`:** bỏ qua `scope`, tìm ở **mọi ngày** (không chỉ hôm nay); khớp đúng mã con, hoặc mọi khối của mã đơn; xếp theo giờ bắt đầu. `Cache-Control: no-store`, **không có ETag**. Số liệu banner (`ongoing_count`…) vẫn là của hôm nay, không theo `q`.
+- **Giới hạn:** 30 lượt tìm mỗi phút mỗi tài khoản, tính cả `q` sai định dạng; quá → 429 `E-SEC-5` kèm `Retry-After`. Danh sách thường (không có `q`) không tính lượt. Lý do: mã đoán được theo ngày, không giới hạn thì dò được lịch đặt của người khác.
+- **Không tìm ra** (cùng kết quả rỗng, không báo lý do): mã không tồn tại, sai định dạng, Host chưa đủ điều kiện, booking đã hủy mà phòng không có trận `finished`, booking chưa có phòng.
+- **`RoomCard` thêm:** `status` (`open` | `ended`; `phase` giữ nguyên) và `play_date` (ngày chơi giờ VN). Danh sách thường luôn `open`. **Không** có mã booking, SĐT hay id hồ sơ trong thẻ.
+- **`ended`** khi phòng đã đóng, hoặc hết giờ cộng ân hạn mà job chưa kịp đóng, hoặc booking đã hủy. Phòng `ended` mở xem chỉ đọc; với nó `my_join_block = null`, `my_invite_id = null`, `my_join_pending = false` (không thêm giá trị mới cho `JoinBlock`), giao diện dựa vào `status` để ẩn nút Xin vào. Xin vào phòng đã đóng bằng API vẫn trả 409 `E-ROOM-1`.
+- **Rủi ro BACKEND đã báo ARCHITECT, chưa đổi:** `GET /rooms/{id}` từ T-017 cho mọi hội viên xem phòng đã đóng theo id tuần tự, không giới hạn tần suất, nên giới hạn tìm kiếm không chặn được việc dò lịch sử chơi. Đang chờ ARCHITECT quyết.
 
 **`RoomCard`:** `{id, resource_name, resource_type_name, start_at, end_at, phase: upcoming|ongoing, host, members[], member_count, capacity, is_mine, my_join_pending, my_invite_id, version}`. Nút theo thứ tự: `is_mine` → "Vào phòng"; `my_invite_id` → "Nhận lời mời" / "Từ chối"; `my_join_pending` → "Đã xin vào" (bấm để hủy); `member_count >= capacity` → "Đã đủ"; còn lại → "Xin vào".
 
@@ -1258,28 +1272,31 @@ Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no
 - Sân và giờ lấy từ chính phòng chơi (`resource_name`, `resource_type_name`, `start_at`, `end_at`), không gọi booking engine.
 - Header: `ETag` và `Cache-Control: no-cache, private`. Gửi `If-None-Match` trùng → 304.
 - Lỗi: sai định dạng (`2026-1`, `abc`) → 422 (validation); tháng không tồn tại (`2026-13`, `2026-00`) → 422 `E-001` "Tháng không hợp lệ (YYYY-MM).". **Tháng tương lai → 200 rỗng** (`summary` toàn 0, `items = []`).
+- **Buổi đã hủy (T-051, T-052):** phòng có trận `finished` vẫn nằm trong lịch sử và thống kê tháng, mở được ở chế độ chỉ đọc (mục 5.2).
 - Dòng trong lịch sử mở `/hoi-vien/phong/{room_id}`. Phòng đã ẩn theo quy tắc Host của T-017 thì `GET /rooms/{id}` trả 404 (giao diện báo "Phòng này không còn xem được"); dòng vẫn nằm trong lịch sử.
 
-### 13.6 Bảng xếp hạng tốc độ và kỷ lục (T-030 giai đoạn A, đã vào `dev`)
+### 13.6 Bảng xếp hạng tốc độ và kỷ lục (T-030 giai đoạn A, đã vào `dev`; quy tắc xếp hạng đổi ở T-053)
 
 > Đối chiếu với code backend `be/T-030-xep-hang-toc-do` @ `092d548` (nay đã vào `dev`), module mới `app/modules/records/`. Giao diện chưa kiểm. Giai đoạn A **chưa có endpoint ghi số đo**: bảng chỉ có dữ liệu thử (mục dưới). Từ T-047, Admin nhập tay và hội viên gửi chờ duyệt: mục 13.7.
 
 **`GET /member-area/speed-ranking?period=week|month|year&date=YYYY-MM-DD`** (điều kiện chung của mục 13). Mặc định `period=month`, `date` = hôm nay giờ VN (ngày bất kỳ trong kỳ). `period` hoặc `date` sai → 422. `Cache-Control: no-store`.
 
 ```json
-{ "period": "month", "start": "2026-11-01", "end": "2026-11-30", "total_members": 14,
+{ "period": "month", "start": "2026-11-01", "end": "2026-11-30", "total_members": 14, "total_records": 37,
   "top": [ { "rank": 1, "display_name": "Minh", "avatar_url": "…", "speed_kmh": 312,
-             "measured_at": "…", "is_me": false, "video": null } ],
-  "me": { "rank": 11, "speed_kmh": 268, "measured_at": "…", "gap_to_top10": 9, "video": null },
+             "measured_at": "…", "resource_name": "Sân 2", "is_me": false, "video": null } ],
+  "me": { "rank": 11, "display_name": "Minh", "avatar_url": "…", "speed_kmh": 268,
+          "measured_at": "…", "gap_to_top10": 9, "video": null },
   "bar_floor_kmh": 200 }
 ```
 
 - Kỳ theo giờ VN: tuần T2 → CN, tháng dương lịch, năm dương lịch. `start` và `end` là ngày, `end` tính cả ngày đó.
 - `top` tối đa 10 dòng. `me = null` khi mình chưa có số đo trong kỳ. `gap_to_top10` = km/h hạng 10 − km/h của mình; `null` khi đã trong top 10. `bar_floor_kmh` = 200, mốc đầu thanh tốc độ cho giao diện.
-- **Xếp hạng:** mỗi hội viên lấy số đo cao nhất trong kỳ. Bằng km/h thì ai đạt trước xếp trên. Không có đồng hạng: hạng là 1..n liên tục. `total_members` = số hội viên có số đo trong kỳ, sau khi loại người không đủ điều kiện.
+- **Xếp hạng theo từng cú đập (T-053, chưa vào `dev`; thay quy tắc "mỗi hội viên một số đo cao nhất" của T-030):** mỗi **cú đập** (số đo `approved` trong kỳ) là một dòng. Thứ tự: km/h giảm dần, bằng nhau thì cú đo sớm hơn xếp trên, rồi tới `id`. Mỗi cú một hạng, không đồng hạng: hạng là 1..n liên tục, và **một người có thể chiếm nhiều bậc** (kể cả cả top 3). `total_records` = số cú trong kỳ (mẫu của "#n / m"); `total_members` giữ nghĩa là số hội viên có số đo trong kỳ, sau khi loại người không đủ điều kiện.
 - **Loại khỏi bảng** (và khỏi `total_members`): hội viên **Ngừng**, hoặc không còn tài khoản liên kết đã xác minh (cùng điều kiện như phòng chơi).
 - **Riêng tư:** hội viên tắt "Hiện trên video & kỷ lục" (`show_on_records = false`) hiện là `display_name = "Hội viên ẩn danh"`, `avatar_url = null`, nhưng vẫn được xếp hạng. Mình luôn thấy tên mình (`is_me = true`). Không trả `customer_id` hay mã hội viên của ai.
-- **Video của dòng xếp hạng (T-049, chưa vào `dev`):** mỗi dòng của `top` có thêm `measured_at` (lúc đo của số đo xếp hạng) và `video`; `me` có thêm `video`. `video` là khối như mục 13.7, của **đúng số đo xếp hạng**: số đo cao nhất của người đó trong kỳ, bằng nhau lấy lần sớm hơn, chỉ bản `approved`. Số đo đó không có video thì `video = null`, **kể cả khi số đo khác của người đó có video**. Giao diện chỉ cho bấm xem khi `video` khác `null`. Chỉ thêm trường, không phá vỡ: `display_name` vẫn là biệt danh trước (khác `record-breaks`, mục 13.8). Người ẩn danh vẫn có `video` phát được, tên "Hội viên ẩn danh", `avatar_url = null`; dòng xếp hạng không có id hay định danh nào. Đổi kỳ dùng tham số `period` và `date` sẵn có. `GET /member-area/overview` trả `ranking.top3` cùng kiểu nên cũng có hai trường mới (giao diện Tổng quan không cần đổi). Đối chiếu code `be/T-049-ranking-video` @ `1960e8a` (cục bộ, tạo từ nhánh T-048); không migration, không cấu hình mới. BACKEND chưa chạy cả bộ test cục bộ, chờ CI.
+- **Thay đổi trường (T-053, chưa vào `dev`; chỉ thêm, không phá vỡ):** `SpeedRanking.total_records`; `SpeedRankingRow.resource_name` (sân của đúng cú đó; `measured_at` và `video` cũng theo đúng cú đó); `SpeedMe.display_name` và `avatar_url` (biệt danh trước, cùng tên với bục và danh sách). `me.rank` là hạng **cú tốt nhất** của mình trong kỳ; `gap_to_top10` = km/h hạng 10 trừ km/h cú tốt nhất của mình, `null` khi cú đó đã trong top 10. Vẫn chỉ `approved` và hội viên Hoạt động có liên kết. Ẩn danh: mỗi bậc của người đó đều là "Hội viên ẩn danh", không có id. `GET /member-area/overview`: `ranking.total_records` mới; `top3` và `me` theo quy tắc mới. Không migration. Đối chiếu `be/T-053-ranking-per-record` @ `331e131` (cục bộ); BACKEND ghi 1 test QA đỏ đúng dự kiến (`test_qa_T-030::test_ac2_order_best_per_member_…` còn kiểm quy tắc cũ, QA phải sửa) và chưa chạy cả bộ test.
+- **Video của dòng xếp hạng (T-049, đã vào `dev`):** mỗi dòng của `top` có thêm `measured_at` (lúc đo của số đo xếp hạng) và `video`; `me` có thêm `video`. `video` là khối như mục 13.7, của **đúng cú đập ở dòng đó** (từ T-053 mỗi dòng là một cú; `me` là cú tốt nhất của mình), chỉ bản `approved`. Cú đó không có video thì `video = null`, **kể cả khi cú khác của người đó có video**. Giao diện chỉ cho bấm xem khi `video` khác `null`. Chỉ thêm trường, không phá vỡ: `display_name` vẫn là biệt danh trước (khác `record-breaks`, mục 13.8). Người ẩn danh vẫn có `video` phát được, tên "Hội viên ẩn danh", `avatar_url = null`; dòng xếp hạng không có id hay định danh nào. Đổi kỳ dùng tham số `period` và `date` sẵn có. `GET /member-area/overview` trả `ranking.top3` cùng kiểu nên cũng có hai trường mới (giao diện Tổng quan không cần đổi). Đối chiếu code `be/T-049-ranking-video` @ `1960e8a` (cục bộ, tạo từ nhánh T-048); không migration, không cấu hình mới. BACKEND chưa chạy cả bộ test cục bộ, chờ CI.
 - Nợ kỹ thuật đã được ARCHITECT chấp nhận cho đợt này: `avatar_url` của người hiện tên là `/api/v1/member-area/avatars/{customer_id}?v=…`, giống phòng chơi (lộ id nội bộ trong đường dẫn ảnh).
 
 **`GET /member-area/me`:** `record_kmh` nay là kỷ lục mọi thời gian của hội viên, `null` khi chưa có số đo (trước đó luôn `null`, xem mục 12.6). Giao diện hiện lại chip "Kỷ lục n km/h".
@@ -1386,7 +1403,7 @@ Giới hạn gửi: tối đa **5 lượt hợp lệ mỗi 24 giờ** (cửa s�
 - **Migration `5b7e2c9d41a3`** (nối sau `73296951e195`, **production phải chạy**; trên `dev` được gộp head bằng `d5cf1587486a`): thêm vào `speed_record` các cột `source` (mặc định `device`), `status` (mặc định `approved`), `submitted_by`, `reviewed_by`, `reviewed_at`, `reject_reason` (tối đa 200), `updated_at`, `version`; ràng buộc "rejected thì phải có lý do"; index `(status, measured_at)`. Bản ghi cũ: `device` + `approved`, `updated_at = created_at`. Downgrade **xóa các bản không `approved`** rồi bỏ cột. Không biến môi trường mới.
 - T-046 không có migration (cột `video_url` có từ T-030), thêm quyền `RECORDS_VIDEO_MANAGE`. Nếu sau này thêm `Content-Security-Policy`: `frame-src` cần `https://www.youtube-nocookie.com`, `img-src` cần `https://i.ytimg.com`, `media-src` cần host của file video.
 
-### 13.8 Dòng thời gian phá kỷ lục và ngày dán video (T-048, chưa vào `dev`)
+### 13.8 Dòng thời gian phá kỷ lục và ngày dán video (T-048, đã vào `dev`)
 
 > Đối chiếu với code backend `be/T-048-video-timeline` @ `2a35245` (cục bộ, tạo từ `dev` `01feeb7`). BACKEND đã chạy trên DB thật: ruff, `alembic check` (một head `a4c91e7d2f58`), migration up / down / up, và 55 test của nhóm T-048. **Chưa chạy xong cả bộ test** (dừng ở khoảng 12%); phần còn lại chờ CI. Giao diện chưa kiểm. Không biến cấu hình mới.
 

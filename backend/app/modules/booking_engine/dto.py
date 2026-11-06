@@ -402,6 +402,11 @@ class ItemOut(BaseModel):
     created_by: str
     created_at: dt.datetime
     actions: list[Literal["collect", "uncollectible", "cancel"]]
+    cancel_phase: Literal["before", "playing", "past"] | None = Field(
+        default=None,
+        description="Lúc này so với giờ chơi, để popup chọn câu cảnh báo (T-052); null: không hủy "
+        "được",
+    )
 
 
 class CollectIn(StrictIn):

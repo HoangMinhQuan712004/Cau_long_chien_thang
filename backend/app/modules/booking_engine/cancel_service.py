@@ -1,4 +1,5 @@
-"""Hủy booking / vé (T-051, ADR-013): ``unpaid | paid -> cancelled``, chỉ buổi chưa bắt đầu.
+"""Hủy booking / vé (T-051, T-052, ADR-013): khoản đã thu hủy được mọi lúc; chưa thu chỉ trước
+giờ bắt đầu (sau đó dùng Không thu được). Hủy cả đơn vẫn chỉ gồm buổi chưa bắt đầu, chưa có trận.
 
 Khoản đã thu ghi ``refund_amount`` = toàn bộ ``amount`` theo xác nhận của Admin (hệ thống không tự
 hoàn); ``paid_at`` / ``payment_method`` giữ nguyên. Booking nhả chỗ bằng
@@ -6,8 +7,8 @@ hoàn); ``paid_at`` / ``payment_method`` giữ nguyên. Booking nhả chỗ bằ
 cùng transaction – exclusion constraint không đổi. Vé không có allocation riêng: chỗ trống lại nhờ
 ``session_counts`` loại vé hủy.
 
-Engine không biết phòng chơi (ADR-003): lớp gọi (``front_desk``) truyền ``played`` = mã các khối đã
-có trận trong phòng. Hàm ở đây **không commit**.
+Engine không biết phòng chơi (ADR-003): khi hủy cả đơn, lớp gọi (``front_desk``) truyền ``played``
+= mã các khối đã có trận trong phòng. Hàm ở đây **không commit**.
 """
 
 from dataclasses import dataclass
@@ -52,12 +53,8 @@ from app.modules.booking_engine.payment_service import (
 STATUS_LABELS = {"unpaid": "Chưa thanh toán", "paid": "Đã thanh toán"}
 
 
-def _started() -> AppError:
-    return AppError("E-PAY-5", "Buổi chơi đã bắt đầu hoặc đã qua, không thể hủy.", 422)
-
-
-def _played() -> AppError:
-    return AppError("E-PAY-8", "Buổi này đã có trận đấu trong phòng chơi, không thể hủy.", 422)
+def _started_unpaid() -> AppError:
+    return AppError("E-PAY-5", "Buổi đã bắt đầu và chưa thu tiền, hãy dùng Không thu được.", 422)
 
 
 def _refund_unconfirmed() -> AppError:
@@ -67,6 +64,7 @@ def _refund_unconfirmed() -> AppError:
 def _skip_reason(
     item: Booking | Ticket, start_at: datetime, now: datetime, played: set[str]
 ) -> CancelSkipReason | None:
+    """Vì sao khối không vào "Hủy cả đơn" (hủy từng mục dùng quy tắc riêng ở ``cancel_item``)."""
     if item.payment_status == "cancelled":
         return "cancelled"
     if item.payment_status == "uncollectible":
@@ -153,6 +151,8 @@ async def _apply(
             "resource_name": slot.resource_name,
             "was_paid": was_paid,
             "refund_amount": item.refund_amount,
+            # Buổi đã qua: phòng chơi không đóng, không báo thành viên (T-052)
+            "past": slot.end_at <= ctx.now,
         },
     )
 
@@ -163,21 +163,17 @@ async def cancel_item(
     actor: Actor,
     code: str,
     data: CancelIn,
-    played: set[str],
 ) -> ItemOut:
     """Hủy một booking hoặc vé. Khóa dòng nên hủy và thu tiền cùng lúc chỉ một bên thắng."""
     reason = clean_reason(data.reason)
     ctx = await context(session, tenant_id)
     item, start_at = await lock_item(session, tenant_id, code)
-    blocked = _skip_reason(item, start_at, ctx.now, played)
-    if blocked in ("cancelled", "uncollectible"):
+    if item.payment_status in ("cancelled", "uncollectible"):
         raise not_cancellable()
     if item.version != data.version:
         raise AppError("E-012", STALE_ITEM, 409)
-    if blocked == "started":
-        raise _started()
-    if blocked == "played":
-        raise _played()
+    if item.payment_status == "unpaid" and ctx.now >= start_at:
+        raise _started_unpaid()
     if item.payment_status == "paid" and not data.refund_confirmed:
         raise _refund_unconfirmed()
     await _apply(session, ctx, actor, item, reason)

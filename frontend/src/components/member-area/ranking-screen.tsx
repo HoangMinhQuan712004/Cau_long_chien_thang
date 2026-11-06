@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/member-area/avatar";
-import { useMember } from "@/components/member-area/member-shell";
 import { PageBanner } from "@/components/member-area/page-banner";
 import { RecordPlayer } from "@/components/records/record-player";
 import { Button } from "@/components/ui/button";
@@ -19,6 +18,9 @@ import type { RecordVideo } from "@/lib/video";
 type Ranking = components["schemas"]["SpeedRanking"];
 type Row = components["schemas"]["SpeedRankingRow"];
 type Me = components["schemas"]["SpeedMe"];
+
+/** "25/10 · Sân 5": ngày đạt (giờ VN) + sân; sân null thì chỉ ngày. Phân biệt các bậc của cùng một người (T-053 AC2). */
+const hitText = (r: Pick<Row, "measured_at" | "resource_name">) => `${dm(vnDate(r.measured_at))}${r.resource_name ? ` · ${r.resource_name}` : ""}`;
 
 /** Cú đập đang mở trong popup. */
 type Clip = { name: string; speed: number; measuredAt?: string; video: RecordVideo };
@@ -111,6 +113,7 @@ function PodiumPlace({ row, place, onPlay }: { row: Row; place: 1 | 2 | 3; onPla
           {row.display_name}
           {row.is_me ? <span className="ml-1 text-xs font-normal text-surface/80">(Bạn)</span> : null}
         </span>
+        <span className="max-w-full truncate px-1 text-center text-xs text-surface/80 tabular-nums">{hitText(row)}</span>
         <span className={cn("mt-1 inline-flex items-center gap-1 rounded-full px-3 py-1 font-bold tabular-nums", first ? "bg-accent text-medal-fg text-xl" : "bg-surface/15 text-lg")}>
           <Bolt />
           {row.speed_kmh}
@@ -126,7 +129,6 @@ function PodiumPlace({ row, place, onPlay }: { row: Row; place: 1 | 2 | 3; onPla
 }
 
 export function RankingScreen() {
-  const { me: profile } = useMember();
   const [period, setPeriod] = useState<Period>("month");
   const [anchor, setAnchor] = useState<string | undefined>(undefined);
   const [data, setData] = useState<Ranking | null>(null);
@@ -248,11 +250,11 @@ export function RankingScreen() {
                   <p>
                     <span className="block text-xs text-accent-fg">Hạng của tôi</span>
                     <b className="text-3xl tabular-nums">#{me.rank}</b>
-                    <span className="ml-1 text-xs text-muted">/ {data.total_members} hội viên</span>
+                    <span className="ml-1 text-xs text-muted">/ {data.total_records} cú đập</span>
                   </p>
                   <span className="flex items-center gap-2">
-                    <Avatar url={profile.avatar_url} name={profile.short_name} size={36} />
-                    <b className="text-sm">{profile.short_name}</b>
+                    <Avatar url={me.avatar_url} name={me.display_name} size={36} />
+                    <b className="text-sm">{me.display_name}</b>
                     <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span>
                   </span>
                   <p className="min-w-0 sm:flex-1">
@@ -265,7 +267,7 @@ export function RankingScreen() {
                       variant="secondary"
                       className="h-11 px-4 text-sm"
                       onClick={() => {
-                        const c = clipOf(profile.short_name, me.speed_kmh, me.measured_at, me.video);
+                        const c = clipOf(me.display_name, me.speed_kmh, me.measured_at, me.video);
                         if (c) setClip(c);
                       }}
                     >
@@ -312,7 +314,10 @@ export function RankingScreen() {
                           <span className="grid size-7 place-items-center rounded-full bg-background text-xs font-bold tabular-nums ring-1 ring-border">{r.rank}</span>
                           <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
                             <Person row={r} size={28} />
-                            <span className="truncate">{r.display_name}</span>
+                            <span className="min-w-0">
+                              <span className="block truncate">{r.display_name}</span>
+                              <span className="block truncate text-xs font-normal text-muted tabular-nums">{hitText(r)}</span>
+                            </span>
                             {r.is_me ? <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span> : null}
                             {r.video ? <PlayBadge /> : null}
                           </span>

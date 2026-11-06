@@ -83,28 +83,28 @@ async def members(people, n: int, prefix="Tay Vợt"):
 # ============================================================ AC2: xếp hạng, đồng tốc, kỳ, khoảng cách top 10
 
 
-async def test_ac2_order_best_per_member_ties_earlier_wins_and_continuous_ranks(people):
+async def test_ac2_order_per_record_ties_earlier_wins_and_continuous_ranks(people):
+    """T-053 đổi T-030: xếp theo từng cú; một người chiếm được nhiều bậc; "Hạng của tôi" là cú tốt nhất."""
     hv = await members(people, 4)
     a, b, c, d = hv
     await rec(a.customer_id, 280, vn(2033, 3, 8))
-    await rec(a.customer_id, 240, vn(2033, 3, 9))  # thấp hơn của chính mình: không tính
+    await rec(a.customer_id, 240, vn(2033, 3, 9))  # cú thấp hơn của chính mình: vẫn có bậc riêng
     await rec(b.customer_id, 280, vn(2033, 3, 5))  # bằng a nhưng đạt trước -> trên a
     await rec(c.customer_id, 300, vn(2033, 3, 20))
     await rec(d.customer_id, 210, vn(2033, 3, 1))
     r = await rank(a.client)
-    assert [t["rank"] for t in r["top"]] == [1, 2, 3, 4], "hạng liên tục, không đồng hạng"
-    mine = {t["display_name"]: t for t in r["top"]}
-    assert [t["speed_kmh"] for t in r["top"]] == [300, 280, 280, 210]
-    assert [t["display_name"] for t in r["top"]] == [c.name, b.name, a.name, d.name]
+    assert [t["rank"] for t in r["top"]] == [1, 2, 3, 4, 5], "hạng liên tục, không đồng hạng"
+    assert [t["speed_kmh"] for t in r["top"]] == [300, 280, 280, 240, 210]
+    assert [t["display_name"] for t in r["top"]] == [c.name, b.name, a.name, a.name, d.name]
+    assert [t["is_me"] for t in r["top"]] == [False, False, True, True, False]
     assert r["me"]["rank"] == 3 and r["me"]["speed_kmh"] == 280 and r["me"]["gap_to_top10"] is None
-    assert mine[a.name]["is_me"] is True and sum(t["is_me"] for t in r["top"]) == 1
     assert (r["period"], r["start"], r["end"], r["bar_floor_kmh"]) == (
         "month",
         "2033-03-01",
         "2033-03-31",
         200,
     )
-    assert r["total_members"] == 4 and r["me"]["measured_at"]
+    assert r["total_members"] == 4 and r["total_records"] == 5 and r["me"]["measured_at"]
 
 
 async def test_ac2_top_is_capped_at_10_and_gap_to_top10_for_the_rest(people):

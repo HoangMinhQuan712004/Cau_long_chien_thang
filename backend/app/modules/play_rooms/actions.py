@@ -20,7 +20,7 @@ from app.modules.play_rooms.common import (
     Me,
     actor,
     eligible,
-    is_closed,
+    is_ended,
     member_count,
     member_row,
     member_rows,
@@ -94,6 +94,9 @@ async def _pending(
 async def request_join(session: AsyncSession, me: Me, room_id: int, version: int) -> PlayRoom:
     now = datetime.now(UTC)
     room = await writable_room(session, room_id, version, now)
+    # Buổi hủy sau giờ kết thúc: người trong phòng còn ghi được, nhưng không nhận thêm người (T-054)
+    if await is_ended(session, room, now):
+        raise errors.closed()
     if await member_row(session, room.id, me.customer_id) is not None:
         raise errors.already_in_room()
     await tiers.require(session, room, me.customer_id)
@@ -248,7 +251,7 @@ async def answer_invite(session: AsyncSession, me: Me, invite_id: int, accept: b
     req = await _my_invite(session, me, invite_id)
     room = await visible_room(session, req.room_id, lock=True)
     await session.refresh(req)  # đọc lại sau khi đã khóa phòng
-    if is_closed(room, now):
+    if await is_ended(session, room, now):
         raise errors.closed()
     if req.status != "pending":
         raise errors.stale()

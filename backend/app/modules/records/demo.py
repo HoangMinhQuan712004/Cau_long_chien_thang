@@ -28,7 +28,7 @@ async def seed_speeds(session: AsyncSession, customer_ids: list[int], now: datet
     """Số đo 180–330 km/h cho mỗi người: trong tuần này, tháng này, 35–200 ngày trước và năm trước.
 
     Hai người đầu có **cùng** 300 km/h – cao nhất tuần / tháng này (còn lại ≤ 299) – người thứ hai
-    đạt sau, để thấy quy tắc "bằng nhau thì ai đạt trước xếp trên".
+    đạt sau, để thấy quy tắc "bằng nhau thì cú đạt trước xếp trên".
     """
     rng = secrets.SystemRandom()
     week, month = _starts(now)
