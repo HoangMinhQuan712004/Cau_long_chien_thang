@@ -362,28 +362,37 @@ function RoomCardView({ r, busy, onAct }: { r: RoomCard; busy: boolean; onAct: (
             Host: <b className="font-semibold">{r.host.display_name}</b>
           </span>
         </p>
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <div className="flex -space-x-1.5" aria-hidden>
-            {shown.map((m, i) => (
-              <Avatar key={`${m.display_name}-${i}`} url={m.avatar_url} name={m.display_name} size={28} className="ring-2 ring-surface" />
-            ))}
-            {extra > 0 ? <span className="grid size-7 place-items-center rounded-full bg-border text-xs font-semibold ring-2 ring-surface">+{extra}</span> : null}
-          </div>
-          <span className="text-sm font-bold tabular-nums">
-            {r.member_count}/{MAX_MEMBERS}
-          </span>
-        </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuemin={0} aria-valuemax={MAX_MEMBERS} aria-valuenow={r.member_count} aria-label="Số người trong phòng">
-          <div className={cn("h-full rounded-full", full ? "bg-subtle" : "bg-linear-to-r from-primary-hover to-primary")} style={{ width: `${(r.member_count / MAX_MEMBERS) * 100}%` }} />
-        </div>
-        <p className="mt-1 text-xs text-muted">{seatsText(r.member_count)}</p>
+        {/* Phòng đã kết thúc của người ngoài phòng: BE trả 0 người, ẩn để không giống phòng trống */}
+        {r.can_view ? (
+          <>
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="flex -space-x-1.5" aria-hidden>
+                {shown.map((m, i) => (
+                  <Avatar key={`${m.display_name}-${i}`} url={m.avatar_url} name={m.display_name} size={28} className="ring-2 ring-surface" />
+                ))}
+                {extra > 0 ? <span className="grid size-7 place-items-center rounded-full bg-border text-xs font-semibold ring-2 ring-surface">+{extra}</span> : null}
+              </div>
+              <span className="text-sm font-bold tabular-nums">
+                {r.member_count}/{MAX_MEMBERS}
+              </span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuemin={0} aria-valuemax={MAX_MEMBERS} aria-valuenow={r.member_count} aria-label="Số người trong phòng">
+              <div className={cn("h-full rounded-full", full ? "bg-subtle" : "bg-linear-to-r from-primary-hover to-primary")} style={{ width: `${(r.member_count / MAX_MEMBERS) * 100}%` }} />
+            </div>
+            {ended ? null : <p className="mt-1 text-xs text-muted">{seatsText(r.member_count)}</p>}
+          </>
+        ) : null}
 
         <div className="mt-4 flex gap-2">
           {ended ? (
-            // Phòng đã đóng: chỉ xem, không xin vào được
-            <Link href={`/hoi-vien/phong/${r.id}`} className="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-primary px-4 text-sm font-semibold hover:bg-primary-softer focus-ring">
-              Xem phòng
-            </Link>
+            // Phòng đã đóng: không xin vào được; chỉ người từng ở trong phòng mới xem lại được
+            r.can_view ? (
+              <Link href={`/hoi-vien/phong/${r.id}`} className="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-primary px-4 text-sm font-semibold hover:bg-primary-softer focus-ring">
+                Xem phòng
+              </Link>
+            ) : (
+              <p className="text-sm text-muted">Chỉ người trong phòng xem được chi tiết.</p>
+            )
           ) : mine ? (
             <Link href={`/hoi-vien/phong/${r.id}`} className={cta}>
               Vào phòng
