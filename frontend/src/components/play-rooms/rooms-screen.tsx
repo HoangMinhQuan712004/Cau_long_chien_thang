@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/ui/dropdown";
 import { errorText } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
-import { formatDayMonth, formatLongDate, vnDate } from "@/lib/format";
+import { formatDayMonth, formatLongDate } from "@/lib/format";
 import { toast } from "@/lib/feedback";
 import { usePolling } from "@/hooks/use-polling";
 import { api } from "@/lib/api/client";
@@ -21,21 +21,19 @@ import { dmy, hourRange, joinBlockText, seatsText, tierRangeText } from "./utils
 // /hoi-vien/danh-sach-san (T-017 AC4–AC6, T-054): banner 3 số, lọc Tất cả / Sân của tôi + khung giờ, tìm theo đúng mã booking,
 // mỗi khung giờ một hàng thẻ phòng cuộn ngang.
 
-// Trường mới của T-054; bỏ kiểu này sau khi merge BE và sinh lại schema.d.ts
-type Room = RoomCard & { play_date?: string; status?: string };
-type RoomGroup = { key: string; state: "ongoing" | "upcoming" | "ended"; label: string; rooms: Room[] };
+type RoomGroup = { key: string; state: "ongoing" | "upcoming" | "ended"; label: string; rooms: RoomCard[] };
 
 const WEEKDAY = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
-const isEnded = (r: Room) => r.status === "ended";
+const isEnded = (r: RoomCard) => r.status === "ended";
 
 /** Nhóm theo ngày + khung giờ (dữ liệu đã sắp theo giờ); ngày khác `today` thì tiêu đề có ngày: "T7 08/11 · 15h–16h". */
-function groupRooms(rooms: Room[], today: string | undefined): RoomGroup[] {
+function groupRooms(rooms: RoomCard[], today: string | undefined): RoomGroup[] {
   const out: RoomGroup[] = [];
   for (const r of rooms) {
     const key = `${r.start_at}|${r.end_at}`;
     let g = out.find((x) => x.key === key);
     if (!g) {
-      const day = r.play_date ?? vnDate(r.start_at);
+      const day = r.play_date;
       const prefix = day === today ? "" : `${WEEKDAY[new Date(`${day}T00:00:00Z`).getUTCDay()]} ${formatDayMonth(day)} · `;
       g = { key, state: isEnded(r) ? "ended" : r.phase === "ongoing" ? "ongoing" : "upcoming", label: `${prefix}${hourRange(r.start_at, r.end_at)}`, rooms: [] };
       out.push(g);
@@ -61,7 +59,7 @@ export function RoomsScreen() {
   // Tìm theo mã booking: tìm khi Enter / bấm Tìm; bỏ qua tab và lọc giờ. `items: null` = đang tìm
   const searchId = useId();
   const [query, setQuery] = useState("");
-  const [search, setSearch] = useState<{ q: string; items: Room[] | null; error: string } | null>(null);
+  const [search, setSearch] = useState<{ q: string; items: RoomCard[] | null; error: string } | null>(null);
   const searchSeq = useRef(0);
 
   const apply = useCallback((res: Awaited<ReturnType<typeof roomsApi.listRooms>>) => {
@@ -333,7 +331,7 @@ function Crown() {
   );
 }
 
-function RoomCardView({ r, busy, onAct }: { r: Room; busy: boolean; onAct: (k: "request" | "cancel" | "accept" | "decline") => void }) {
+function RoomCardView({ r, busy, onAct }: { r: RoomCard; busy: boolean; onAct: (k: "request" | "cancel" | "accept" | "decline") => void }) {
   const full = r.member_count >= MAX_MEMBERS;
   const mine = r.is_mine;
   const ended = isEnded(r);
