@@ -164,7 +164,6 @@ export function AdminGrid({ calendar, selected, selectable, unpaidOnly = false, 
       onClear={onClear}
       mergeBlocks
       size="roomy"
-      hourLabel={(h) => `${pad2(h)}:00`}
       nowAt={date === today ? nowMin / 60 : null}
       scrollToHour={date === today ? Math.floor(nowMin / 60) - 2 : null}
       scrollKey={date}
