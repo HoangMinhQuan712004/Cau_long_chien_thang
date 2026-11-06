@@ -9,7 +9,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
 > **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, đã vào `dev`) – mục 11.2 và 12.11.**
 > **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007). Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, đã vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
-> **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), đã vào `dev` – mục 13.5, 13.6. Video kỷ lục (T-046, đã vào `dev`) và số đo nhập tay / chờ duyệt (T-047, chưa vào `dev`) – mục 13.7.**
+> **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), đã vào `dev` – mục 13.5, 13.6. Video kỷ lục (T-046) và số đo nhập tay / chờ duyệt (T-047), đã vào `dev` – mục 13.7.**
 > **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (đã vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
 > Mục 5.1, 10, 11 và 12 (kể cả phần đánh dấu **(T-021)** và mục 12.11) đã có trong `dev`. Chưa có gì trong `main`/production.
@@ -1227,7 +1227,7 @@ Số đo thử có `source_ref = "demo:…"` và `device_id = "demo"`, nên ch�
 
 ### 13.7 Video kỷ lục (T-046) và số đo nhập tay, chờ duyệt (T-047)
 
-> **T-046 đã vào `dev`** (PR #39). **T-047 chưa vào `dev`:** đối chiếu với code backend `be/T-047-so-do-thu-cong` @ `2089407` (cục bộ, tạo từ `dev` `af1cf97`). BACKEND ghi trong handoff là **chưa chạy test cục bộ** (chờ CI) và migration `5b7e2c9d41a3` **chưa chạy up / down / check**; nếu CI đỏ thì code đúng, tài liệu này chỉnh theo. Giao diện chưa kiểm.
+> **T-046 và T-047 đã vào `dev`.** T-047 đối chiếu với code backend `be/T-047-so-do-thu-cong` @ `2089407`; BACKEND ghi trong handoff là **chưa chạy test hay migration cục bộ** (để CI chạy), chưa có xác nhận riêng của tôi. Migration `5b7e2c9d41a3` đã được nối với nhánh phân quyền bằng migration gộp `d5cf1587486a`. Giao diện chưa kiểm.
 
 #### Trạng thái và quy tắc tính
 
@@ -1300,5 +1300,5 @@ Giới hạn gửi: tối đa **5 lượt hợp lệ mỗi 24 giờ** (cửa s�
 
 - **Thông báo** (mục 13.3), gửi sau commit, có link `/hoi-vien/video-ky-luc`: `record.approved` "Cú đập {kmh} km/h của bạn đã được duyệt." · `record.rejected` "Cú đập {kmh} km/h của bạn bị từ chối: {lý do}".
 - **Lịch sử thao tác**, nhóm **"Kỷ lục"**: "Gắn video kỷ lục", "Gỡ video kỷ lục" (T-046); "Nhập số đo", "Sửa số đo", "Xóa số đo", "Hội viên gửi số đo", "Duyệt số đo", "Từ chối số đo" (T-047). Action `record.delete` dùng cho cả Admin xóa và hội viên rút lại bản chờ duyệt. Không có SĐT.
-- **Migration `5b7e2c9d41a3`** (nối sau `73296951e195`, **production phải chạy**): thêm vào `speed_record` các cột `source` (mặc định `device`), `status` (mặc định `approved`), `submitted_by`, `reviewed_by`, `reviewed_at`, `reject_reason` (tối đa 200), `updated_at`, `version`; ràng buộc "rejected thì phải có lý do"; index `(status, measured_at)`. Bản ghi cũ: `device` + `approved`, `updated_at = created_at`. Downgrade **xóa các bản không `approved`** rồi bỏ cột. Không biến môi trường mới.
+- **Migration `5b7e2c9d41a3`** (nối sau `73296951e195`, **production phải chạy**; trên `dev` được gộp head bằng `d5cf1587486a`): thêm vào `speed_record` các cột `source` (mặc định `device`), `status` (mặc định `approved`), `submitted_by`, `reviewed_by`, `reviewed_at`, `reject_reason` (tối đa 200), `updated_at`, `version`; ràng buộc "rejected thì phải có lý do"; index `(status, measured_at)`. Bản ghi cũ: `device` + `approved`, `updated_at = created_at`. Downgrade **xóa các bản không `approved`** rồi bỏ cột. Không biến môi trường mới.
 - T-046 không có migration (cột `video_url` có từ T-030), thêm quyền `RECORDS_VIDEO_MANAGE`. Nếu sau này thêm `Content-Security-Policy`: `frame-src` cần `https://www.youtube-nocookie.com`, `img-src` cần `https://i.ytimg.com`, `media-src` cần host của file video.
