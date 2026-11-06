@@ -51,9 +51,27 @@ async def test_orders_kinds_statuses_dates_search_and_privacy(anon, admin, staff
     recurring_order = r.json()["order_code"]
 
     d = await orders(admin, q=tag)
-    assert d["counts"]["all"] == {"all": 3, "unpaid": 2, "paid": 1, "uncollectible": 0}
-    assert d["counts"]["single"] == {"all": 2, "unpaid": 1, "paid": 1, "uncollectible": 0}
-    assert d["counts"]["recurring"] == {"all": 1, "unpaid": 1, "paid": 0, "uncollectible": 0}
+    assert d["counts"]["all"] == {
+        "all": 3,
+        "unpaid": 2,
+        "paid": 1,
+        "uncollectible": 0,
+        "cancelled": 0,
+    }
+    assert d["counts"]["single"] == {
+        "all": 2,
+        "unpaid": 1,
+        "paid": 1,
+        "uncollectible": 0,
+        "cancelled": 0,
+    }
+    assert d["counts"]["recurring"] == {
+        "all": 1,
+        "unpaid": 1,
+        "paid": 0,
+        "uncollectible": 0,
+        "cancelled": 0,
+    }
     assert codes(d) == [recurring_order, online_order, counter_order]  # mới nhất trước
     by_code = {i["order_code"]: i for i in d["items"]}
     assert (by_code[counter_order]["kind"], by_code[counter_order]["source"]) == (

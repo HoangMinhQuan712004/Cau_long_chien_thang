@@ -8,7 +8,7 @@ cùng commit hoặc cùng rollback.
 import datetime as dt
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,11 +22,15 @@ from app.core.schemas import StrictIn
 from app.modules.booking_engine import api as engine
 from app.modules.booking_engine.dto import (
     Actor,
+    CancelIn,
+    CancelPreview,
     CounterBlockIn,
     CounterOrderIn,
     CounterOrderOut,
     CustomerSnapshot,
     ItemOut,
+    OrderCancelIn,
+    OrderCancelOut,
     RecurringCounts,
     RecurringCreated,
     RecurringIn,
@@ -34,12 +38,14 @@ from app.modules.booking_engine.dto import (
 )
 from app.modules.members import api as members
 from app.modules.members.api import CustomerIn
+from app.modules.play_rooms import api as rooms
 
 router = APIRouter(prefix="/front-desk", tags=["front-desk"])
 
 CounterBooker = Annotated[Principal, Depends(require(Perm.BOOKING_COUNTER_CREATE))]
 RecurringBooker = Annotated[Principal, Depends(require(Perm.BOOKING_RECURRING))]
 OrdersViewer = Annotated[Principal, Depends(require(Perm.BOOKING_ORDERS_VIEW))]
+Canceller = Annotated[Principal, Depends(require(Perm.BOOKING_CANCEL))]
 TicketSeller = Annotated[Principal, Depends(require(Perm.BOOKING_TICKET_CREATE))]
 
 
@@ -105,6 +111,13 @@ async def customer_snapshot(
     return snapshot, data.temp.note if data.temp else None
 
 
+def _for_viewer(item: ItemOut, principal: Principal) -> ItemOut:
+    """Engine liệt kê mọi thao tác hợp lệ; Nhân viên không thấy ``cancel`` (T-051 AC1)."""
+    if not principal.has(Perm.BOOKING_CANCEL):
+        item.actions = [a for a in item.actions if a != "cancel"]
+    return item
+
+
 @router.post("/bookings", response_model=CounterOrderOut, status_code=status.HTTP_201_CREATED)
 async def create_booking(
     data: FrontDeskBookingIn,
@@ -123,9 +136,11 @@ async def create_booking(
 
     async def run() -> CounterOrderOut:
         snapshot, note = await customer_snapshot(session, data.customer, principal)
-        return await engine.create_counter_order(
+        out = await engine.create_counter_order(
             session, actor_of(principal), data.to_order(), snapshot, note
         )
+        out.bookings = [_for_viewer(b, principal) for b in out.bookings]
+        return out
 
     return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
 
@@ -147,7 +162,8 @@ async def register_ticket(
 
     async def run() -> ItemOut:
         snapshot, note = await customer_snapshot(session, data.customer, principal)
-        return await engine.register_ticket(session, actor_of(principal), code, snapshot, note)
+        item = await engine.register_ticket(session, actor_of(principal), code, snapshot, note)
+        return _for_viewer(item, principal)
 
     return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
 
@@ -222,7 +238,7 @@ class RecurringOrderOut(BaseModel):
     discount_pct: int
     discount_amount: int
     total: int = Field(description="Phải thu (sau giảm)")
-    status: Literal["unpaid", "paid", "uncollectible"]
+    status: Literal["unpaid", "paid", "uncollectible", "cancelled"]
     created_at: dt.datetime
     created_by: str
 
@@ -240,7 +256,7 @@ async def list_recurring(
     _: RecurringBooker,
     session: SessionDep,
     status_: Annotated[
-        Literal["unpaid", "paid", "uncollectible"] | None, Query(alias="status")
+        Literal["unpaid", "paid", "uncollectible", "cancelled"] | None, Query(alias="status")
     ] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     page: Annotated[int, Query(ge=1, le=10_000)] = 1,
@@ -299,7 +315,7 @@ async def list_orders(
     session: SessionDep,
     kind: Annotated[Literal["all", "single", "recurring"], Query()] = "all",
     status_: Annotated[
-        Literal["unpaid", "paid", "uncollectible"] | None, Query(alias="status")
+        Literal["unpaid", "paid", "uncollectible", "cancelled"] | None, Query(alias="status")
     ] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     date_from: Annotated[dt.date | None, Query(description="Ngày chơi từ (khối bất kỳ)")] = None,
@@ -336,3 +352,60 @@ async def list_orders(
         size=out.size,
         total=out.total,
     )
+
+
+# ---------------------------------------------------------------- hủy booking / vé (T-051)
+# Ở quầy, không ở engine: tra trận qua play_rooms rồi gọi engine (engine không biết phòng, ADR-003)
+
+
+@router.post("/items/{code}/cancel", response_model=ItemOut)
+async def cancel_item(
+    code: Annotated[str, Path(max_length=40)],
+    data: CancelIn,
+    principal: Canceller,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Hủy một booking hoặc vé chưa bắt đầu (chỉ Admin): nhả khung / chỗ ngay, không tự hoàn tiền.
+
+    422 E-001 (lý do) · E-PAY-5 (đã bắt đầu) · E-PAY-7 (đã thu mà chưa xác nhận hoàn) · E-PAY-8 (đã
+    có trận trong phòng) · 409 E-PAY-6 (đã hủy / Không thu được) · E-012 (``version`` cũ) · 404.
+    """
+
+    async def run() -> ItemOut:
+        played = await rooms.played_booking_codes(session, [engine.normalize_code(code)])
+        return await engine.cancel_item(session, actor_of(principal), code, data, played)
+
+    return await idem.run(session, principal.key, run)
+
+
+@router.get("/orders/{order_code}/cancel-preview", response_model=CancelPreview)
+async def order_cancel_preview(
+    order_code: Annotated[str, Path(max_length=40)], _: Canceller, session: SessionDep
+):
+    """Xem trước hủy cả đơn: khối sẽ hủy, khối bỏ qua kèm lý do, tổng tiền. 404 E-BOOK-3."""
+    codes = await engine.order_block_codes(session, order_code)
+    played = await rooms.played_booking_codes(session, codes)
+    return await engine.order_cancel_preview(session, order_code, played)
+
+
+@router.post("/orders/{order_code}/cancel", response_model=OrderCancelOut)
+async def cancel_order(
+    order_code: Annotated[str, Path(max_length=40)],
+    data: OrderCancelIn,
+    principal: Canceller,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Hủy các khối ``codes`` của đơn (lấy từ xem trước). Kiểm tra lại từng khối lúc hủy: khối đã
+    bắt đầu / có trận sau lúc xem trước vào ``skipped``, buổi đã chơi giữ nguyên.
+
+    422 E-001 (lý do; ``codes`` rỗng hoặc có mã ngoài đơn) · E-PAY-7 cho cả lệnh · 404 E-BOOK-3.
+    """
+
+    async def run() -> OrderCancelOut:
+        codes = await engine.order_block_codes(session, order_code)
+        played = await rooms.played_booking_codes(session, codes)
+        return await engine.cancel_order(session, actor_of(principal), order_code, data, played)
+
+    return await idem.run(session, principal.key, run)

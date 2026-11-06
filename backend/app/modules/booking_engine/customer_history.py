@@ -1,7 +1,7 @@
 """Lượt đặt theo khách (chỉ đọc) – cho màn Hội viên (T-014); engine chỉ biết ``customer_ref``.
 
-Tính mọi booking (online + tại quầy, kể cả chưa thanh toán); không tính vé sự kiện. Booking không
-có trạng thái hủy – đơn online hết hạn vẫn là ``hold``, không thành booking.
+Tính mọi booking (online + tại quầy, kể cả chưa thanh toán); không tính vé sự kiện. Đơn online hết
+hạn vẫn là ``hold``, không thành booking. Lượt đã hủy (T-051) không vào thống kê, vẫn vào lịch sử.
 """
 
 from sqlalchemy import String, any_, bindparam, func, select, update
@@ -22,13 +22,17 @@ async def stats(session: AsyncSession, tenant_id: int, refs: list[str]) -> dict[
     """Số lượt + tổng phút theo từng ``customer_ref``; ref không có booking thì vắng mặt."""
     if not refs:
         return {}
-    minutes = func.sum(func.extract("epoch", Booking.end_at - Booking.start_at) / 60)
+    live = Booking.payment_status != "cancelled"
+    minutes = func.sum(func.extract("epoch", Booking.end_at - Booking.start_at) / 60).filter(live)
     rows = await session.execute(
-        select(Booking.customer_ref, func.count(), minutes)
+        select(Booking.customer_ref, func.count().filter(live), minutes, func.count())
         .where(Booking.tenant_id == tenant_id, _ref_in(refs))
         .group_by(Booking.customer_ref)
     )
-    return {ref: CustomerStats(bookings=n, minutes=int(m or 0)) for ref, n, m in rows}
+    return {
+        ref: CustomerStats(bookings=n, minutes=int(m or 0), listed=listed)
+        for ref, n, m, listed in rows
+    }
 
 
 async def recent(

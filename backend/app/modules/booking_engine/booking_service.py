@@ -99,7 +99,9 @@ async def session_resources(
 async def session_counts(
     session: AsyncSession, tenant_id: int, session_ids: list[int]
 ) -> dict[int, tuple[int, int, int]]:
-    """(số vé mọi trạng thái, số vé chưa trả, số chỗ đang giữ online còn hạn) theo sự kiện.
+    """(số vé còn hiệu lực, số vé chưa trả, số chỗ đang giữ online còn hạn) theo sự kiện.
+
+    Vé đã hủy (T-051) không chiếm chỗ, không cản xóa sự kiện.
 
     Ghế giữ của lượt mua vé online (T-023) tính tới khi lượt hết hạn được nhả (sau ân hạn nhận
     tiền trễ): quầy và lượt mua khác không lấy được ghế mà tiền có thể vẫn đang về.
@@ -113,7 +115,11 @@ async def session_counts(
             func.count(),
             func.count().filter(Ticket.payment_status == "unpaid"),
         )
-        .where(Ticket.tenant_id == tenant_id, Ticket.session_id.in_(session_ids))
+        .where(
+            Ticket.tenant_id == tenant_id,
+            Ticket.session_id.in_(session_ids),
+            Ticket.payment_status != "cancelled",
+        )
         .group_by(Ticket.session_id)
     ):
         counts[sid][0], counts[sid][1] = total, unpaid
@@ -171,11 +177,15 @@ async def calendar(
     def add_span(start_min: int, end_min: int) -> None:
         span[0], span[1] = min(span[0], start_min), max(span[1], end_min)
 
-    # Booking của ngày (Không thu được vẫn giữ khối)
+    # Booking của ngày (Không thu được vẫn giữ khối; đã hủy thì khung trống lại – T-051)
     bookings = list(
         await session.scalars(
             select(Booking)
-            .where(Booking.tenant_id == tenant_id, Booking.play_date == day)
+            .where(
+                Booking.tenant_id == tenant_id,
+                Booking.play_date == day,
+                Booking.payment_status != "cancelled",
+            )
             .order_by(Booking.start_at)
         )
     )
@@ -385,12 +395,17 @@ async def search(session: AsyncSession, tenant_id: int, raw: str) -> SearchResul
 
 
 def payment_actions(item: Booking | Ticket, start_at, ctx: Ctx) -> list[str]:
-    """Thao tác được phép lúc này (BR-013, BR-015)."""
-    if item.payment_status != "unpaid":
-        return []
-    actions = ["collect"]
-    if item.source == "counter" and ctx.now >= start_at:
-        actions.append("uncollectible")
+    """Thao tác được phép lúc này (BR-013, BR-015, T-051).
+
+    ``cancel`` chưa xét trận trong phòng chơi (engine không biết phòng): có trận -> E-PAY-8.
+    """
+    actions: list[str] = []
+    if item.payment_status == "unpaid":
+        actions.append("collect")
+        if item.source == "counter" and ctx.now >= start_at:
+            actions.append("uncollectible")
+    if item.payment_status in ("unpaid", "paid") and ctx.now < start_at:
+        actions.append("cancel")
     return actions
 
 
@@ -404,6 +419,10 @@ def _payment(item: Booking | Ticket) -> ItemPayment:
         uncollectible_reason=item.uncollectible_reason,
         marked_by=item.marked_by_label,
         marked_at=item.marked_at,
+        cancel_reason=item.cancel_reason,
+        cancelled_at=item.cancelled_at,
+        cancelled_by_label=item.cancelled_by_label,
+        refund_amount=item.refund_amount,
     )
 
 

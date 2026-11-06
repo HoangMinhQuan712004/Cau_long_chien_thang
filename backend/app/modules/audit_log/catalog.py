@@ -93,6 +93,7 @@ GROUPS: tuple[ActionGroup, ...] = (
             # T-023: tiền về cho lượt mua vé online cũng là Thu tiền QR (Hệ thống)
             _t("payment.collect", "Thu tiền", "booking.online.paid", "ticket.online.paid"),
             _t("payment.uncollectible", "Không thu được"),
+            _t("payment.cancelled", "Hủy booking / vé"),
         ),
     ),
     ActionGroup(

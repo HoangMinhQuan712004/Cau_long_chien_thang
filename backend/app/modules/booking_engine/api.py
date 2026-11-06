@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.booking_engine import (
     booking_service,
+    cancel_service,
     config_service,
     customer_history,
     demo,
@@ -35,6 +36,8 @@ from app.modules.booking_engine import member_calendar as member_cal
 from app.modules.booking_engine.dto import (
     Actor,
     CalendarOut,
+    CancelIn,
+    CancelPreview,
     CheckoutCreate,
     CheckoutCreated,
     CheckoutView,
@@ -51,6 +54,8 @@ from app.modules.booking_engine.dto import (
     MemberOrder,
     OnlinePaymentIn,
     OnlinePaymentResult,
+    OrderCancelIn,
+    OrderCancelOut,
     OrderCollectIn,
     OrderCollectOut,
     OrderList,
@@ -350,6 +355,64 @@ async def register_ticket(
 
 
 # ---- Thu tiền, Không thu được, Lịch sử giao dịch
+
+
+def normalize_code(raw: str) -> str:
+    """Mã booking / vé / đơn theo dạng lưu (bỏ khoảng trắng, viết hoa)."""
+    return booking_service.normalize_code(raw)
+
+
+async def cancel_item(
+    session: AsyncSession,
+    actor: Actor,
+    code: str,
+    data: CancelIn,
+    played: set[str],
+    *,
+    tenant_id: int | None = None,
+) -> ItemOut:
+    """Hủy booking / vé (T-051). ``played``: mã khối đã có trận trong phòng (lớp gọi tra)."""
+    return await cancel_service.cancel_item(session, _tid(tenant_id), actor, code, data, played)
+
+
+async def order_block_codes(
+    session: AsyncSession, order_code: str, *, tenant_id: int | None = None
+) -> list[str]:
+    return await cancel_service.order_block_codes(session, _tid(tenant_id), order_code)
+
+
+async def order_cancel_preview(
+    session: AsyncSession, order_code: str, played: set[str], *, tenant_id: int | None = None
+) -> CancelPreview:
+    return await cancel_service.preview_order(session, _tid(tenant_id), order_code, played)
+
+
+async def cancel_order(
+    session: AsyncSession,
+    actor: Actor,
+    order_code: str,
+    data: OrderCancelIn,
+    played: set[str],
+    *,
+    tenant_id: int | None = None,
+) -> OrderCancelOut:
+    return await cancel_service.cancel_order(
+        session, _tid(tenant_id), actor, order_code, data, played
+    )
+
+
+async def item_customer_ref(
+    session: AsyncSession, code: str, *, tenant_id: int | None = None
+) -> str | None:
+    """``customer_ref`` của booking / vé – có thể chứa SĐT, không ghi log."""
+    return await cancel_service.item_customer_ref(session, _tid(tenant_id), code)
+
+
+async def cancelled_booking_codes(
+    session: AsyncSession, codes: list[str], *, tenant_id: int | None = None
+) -> set[str]:
+    """Mã booking nào đã hủy (phòng chơi ẩn ngay, không chờ worker – T-051)."""
+    return await rooms_feed.cancelled_codes(session, _tid(tenant_id), codes)
 
 
 async def collect(

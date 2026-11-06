@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.modules.booking_engine import api as engine
 from app.modules.members import api as members
 from app.modules.play_rooms import tiers
 from app.modules.play_rooms.common import (
@@ -54,7 +55,8 @@ async def list_rooms(session: AsyncSession, me: Me, scope: Literal["all", "mine"
         if not is_closed(r, now)
     ]
     ok_hosts = await eligible(session, {r.host_customer_id for r in rooms})
-    rooms = [r for r in rooms if r.host_customer_id in ok_hosts]
+    gone = await engine.cancelled_booking_codes(session, [r.booking_code for r in rooms])
+    rooms = [r for r in rooms if r.host_customer_id in ok_hosts and r.booking_code not in gone]
     ids = [r.id for r in rooms]
 
     by_room: dict[int, list[PlayRoomMember]] = {i: [] for i in ids}

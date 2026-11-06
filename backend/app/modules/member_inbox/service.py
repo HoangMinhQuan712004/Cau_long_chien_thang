@@ -39,6 +39,27 @@ def notify(
     return row
 
 
+async def notify_once(
+    session: AsyncSession, customer_id: int, kind: str, code: str, text: str, **payload: Any
+) -> MemberNotification | None:
+    """Như ``notify`` nhưng mỗi ``customer_id`` + ``kind`` + ``code`` chỉ một thông báo: outbox
+    có thể giao lại. Đã có -> None. Khóa advisory để hai lần giao đồng thời không cùng lọt qua."""
+    key = f"member_inbox:{customer_id}:{kind}:{code}"
+    await session.execute(select(func.pg_advisory_xact_lock(func.hashtext(key))))
+    found = await session.scalar(
+        select(MemberNotification.id)
+        .where(
+            MemberNotification.customer_id == customer_id,
+            MemberNotification.kind == kind,
+            MemberNotification.payload["code"].astext == code,
+        )
+        .limit(1)
+    )
+    if found is not None:
+        return None
+    return notify(session, customer_id, kind, text, code=code, **payload)
+
+
 async def publish_created(session: AsyncSession) -> None:
     """Gọi **sau commit**: phát ``member.notification_created`` cho các thông báo vừa tạo."""
     rows: list[MemberNotification] = session.info.pop(_PENDING, [])
