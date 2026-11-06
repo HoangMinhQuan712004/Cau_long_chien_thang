@@ -1947,6 +1947,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/record-breaks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Record Breaks
+         * @description Các lần phá kỷ lục toàn cụm (T-048), mới nhất trước, gồm cả lần chưa có video.
+         *
+         *     Kỳ tuần T2→CN / tháng / năm (giờ VN) chứa hôm nay chỉ lọc theo ngày đo: ``delta_kmh``,
+         *     ``previous_kmh``, ``held_days`` vẫn tính trên toàn chuỗi. Mốc đầu chỉ có ở ``all``. Ẩn danh như
+         *     Bảng xếp hạng (video vẫn phát). ``period`` sai -> 422.
+         */
+        get: operations["record_breaks_api_v1_member_area_record_breaks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/member-area/speed-records": {
         parameters: {
             query?: never;
@@ -5703,6 +5727,100 @@ export interface components {
             is_current: boolean;
             /** @description T-046: có thì hiện nút ▶ phát tại chỗ (cả khi ẩn danh) */
             video?: components["schemas"]["VideoOut"] | null;
+        };
+        /**
+         * RecordBreakItem
+         * @description Một lần phá kỷ lục cụm. Ẩn danh như T-030: chỉ còn số đo, sân, thời điểm và video.
+         */
+        RecordBreakItem: {
+            /** Id */
+            id: number;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Delta Kmh
+             * @description Hơn kỷ lục trước bao nhiêu km/h; null = mốc đầu
+             */
+            delta_kmh: number | null;
+            /**
+             * Previous Kmh
+             * @description Kỷ lục ngay trước; null = mốc đầu
+             */
+            previous_kmh: number | null;
+            /**
+             * Is Current
+             * @description Đang giữ kỷ lục của cả cụm
+             */
+            is_current: boolean;
+            /**
+             * Is Baseline
+             * @description Số đo đầu tiên của chuỗi; chỉ có khi period = all
+             */
+            is_baseline: boolean;
+            /**
+             * Held Days
+             * @description Số ngày giữ kỷ lục theo ngày giờ VN: lần sau − lần này; đang giữ: hôm nay − lần này. 0 = dưới 1 ngày
+             */
+            held_days: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /**
+             * Label Date
+             * Format: date
+             * @description Ngày trên nhãn “Kỷ lục ngày dd/mm” (giờ VN): lần dán link video mới nhất; chưa có video thì ngày đo
+             */
+            label_date: string;
+            /**
+             * Display Name
+             * @description Họ tên thật (khác các API khác, nơi đây là biệt danh nếu có); 'Hội viên ẩn danh' khi người đó tắt Hiện trên kỷ lục
+             */
+            display_name: string;
+            /**
+             * Nickname
+             * @description null khi không đặt biệt danh hoặc ẩn danh
+             */
+            nickname: string | null;
+            /** Tier */
+            tier: string | null;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Racket
+             * @description Vợt hiện tại trong hồ sơ, không phải vợt lúc đo
+             */
+            racket: string | null;
+            /** Resource Name */
+            resource_name: string | null;
+            /** Is Me */
+            is_me: boolean;
+            /** @description null: “Chưa có video” */
+            video: components["schemas"]["VideoOut"] | null;
+        };
+        /** RecordBreakList */
+        RecordBreakList: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "week" | "month" | "year" | "all";
+            /**
+             * Start
+             * @description null khi period = all
+             */
+            start: string | null;
+            /**
+             * End
+             * @description Ngày cuối kỳ, tính cả ngày này; null khi period = all
+             */
+            end: string | null;
+            /**
+             * Items
+             * @description Mới nhất trước, không phân trang
+             */
+            items: components["schemas"]["RecordBreakItem"][];
         };
         /**
          * RecordVideoCard
@@ -10804,6 +10922,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecordVideoList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_breaks_api_v1_member_area_record_breaks_get: {
+        parameters: {
+            query?: {
+                period?: "week" | "month" | "year" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordBreakList"];
                 };
             };
             /** @description Validation Error */
