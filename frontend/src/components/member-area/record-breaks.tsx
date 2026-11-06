@@ -29,7 +29,7 @@ export function RecordCard({ item }: { item: RecordBreakItem }) {
   const label = item.is_current ? "Kỷ lục hiện tại" : `Kỷ lục ngày ${formatDayMonth(item.label_date)}`;
   const delta = item.is_baseline || item.delta_kmh === null ? "Mốc đầu" : `+${item.delta_kmh} km/h${item.previous_kmh !== null ? ` · phá kỷ lục ${item.previous_kmh} km/h` : ""}`;
   return (
-    <section aria-label={label} className="flex h-full flex-col overflow-hidden rounded-2xl bg-surface shadow-card ring-2 ring-cta/80">
+    <section aria-label={label} className="flex h-full flex-col overflow-hidden rounded-2xl bg-surface text-foreground shadow-card ring-2 ring-cta/80">
       <div className="bg-accent-soft px-5 pt-4 pb-5 text-center">
         <p className="inline-flex items-center rounded-full bg-cta px-4 py-1 text-xs font-bold tracking-wide text-cta-fg uppercase">{label}</p>
         <p className="mt-2 flex items-baseline justify-center gap-1.5 text-accent-fg">
