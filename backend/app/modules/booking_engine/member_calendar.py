@@ -43,6 +43,7 @@ async def member_calendar(
             Booking.tenant_id == tenant_id,
             Booking.play_date == day,
             Booking.customer_ref.in_(refs),
+            Booking.payment_status != "cancelled",
         )
     )
     for b, order_code, resource_code in rows:
@@ -58,6 +59,7 @@ async def member_calendar(
                 EventSession.tenant_id == tenant_id,
                 EventSession.play_date == day,
                 Ticket.customer_ref.in_(refs),
+                Ticket.payment_status != "cancelled",
             )
             .distinct()
         )
@@ -120,6 +122,6 @@ async def member_order(
         play_date=order.play_date,
         source=order.channel,
         pay_status=_order_status([b.payment_status for b in blocks]),
-        amount=sum(b.amount for b in blocks),
+        amount=sum(b.amount for b in blocks if b.payment_status != "cancelled"),
         items=items,
     )

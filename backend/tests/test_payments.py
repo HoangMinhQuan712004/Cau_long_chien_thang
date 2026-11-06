@@ -275,6 +275,7 @@ async def test_transactions_filters_cards_and_paging(admin, staff):
         "paid": {"amount": 2 * amount, "count": 2},
         "unpaid": {"amount": 7 * amount, "count": 7},
         "uncollectible": {"amount": amount, "count": 1},
+        "cancelled": {"amount": 0, "count": 0},
     }
     page2 = await tx(page=2)
     assert len(page2["rows"]) == 2
@@ -284,6 +285,7 @@ async def test_transactions_filters_cards_and_paging(admin, staff):
     assert set(row) == {
         "kind", "code", "order_code", "play_date", "start_time", "end_time", "resource_codes",
         "customer_name", "phone", "amount", "payment_status", "payment_method", "source",
+        "cancel_reason", "cancelled_by", "refund_amount",
     }  # fmt: skip
     assert {row["phone"] for row in data["rows"] + page2["rows"]} == set(phones)  # SĐT đầy đủ
 

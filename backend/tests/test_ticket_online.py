@@ -136,6 +136,7 @@ async def test_guest_buys_tickets_and_payment_creates_tickets(anon, admin):
         "seats": 3,
         "ticket_price": 60_000,
         "ticket_codes": [],
+        "cancelled_ticket_codes": [],
     }
     # Ghế đang giữ tính vào chỗ đã chiếm (lịch quản trị, lịch công khai, chi tiết)
     s = (await admin.get(f"{BK}/sessions/{ev['code']}")).json()

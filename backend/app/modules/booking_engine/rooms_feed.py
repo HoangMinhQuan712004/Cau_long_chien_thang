@@ -29,7 +29,7 @@ def _query(tenant_id: int) -> Select:
         .join(BookingOrder, BookingOrder.id == Booking.order_id)
         .join(Resource, Resource.id == Booking.resource_id)
         .join(ResourceType, ResourceType.id == Resource.resource_type_id)
-        .where(Booking.tenant_id == tenant_id)
+        .where(Booking.tenant_id == tenant_id, Booking.payment_status != "cancelled")
         .order_by(Booking.start_at, Booking.code)
     )
 
@@ -53,6 +53,21 @@ async def by_codes(session: AsyncSession, tenant_id: int, codes: list[str]) -> l
         return []
     rows = await session.execute(_query(tenant_id).where(Booking.code.in_(sorted(set(codes)))))
     return [_row(r) for r in rows]
+
+
+async def cancelled_codes(session: AsyncSession, tenant_id: int, codes: list[str]) -> set[str]:
+    """Mã nào đã bị hủy (T-051) – phòng ẩn ngay trong transaction hủy, không chờ worker."""
+    if not codes:
+        return set()
+    return set(
+        await session.scalars(
+            select(Booking.code).where(
+                Booking.tenant_id == tenant_id,
+                Booking.code.in_(sorted(set(codes))),
+                Booking.payment_status == "cancelled",
+            )
+        )
+    )
 
 
 async def ending_after(

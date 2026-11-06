@@ -209,7 +209,8 @@ class _CustomerSnapshot:
 
 
 class _Payment:
-    """Tiền + trạng thái thanh toán một chiều: unpaid -> paid | uncollectible (BR-013)."""
+    """Tiền + trạng thái thanh toán một chiều: unpaid -> paid | uncollectible (BR-013);
+    unpaid | paid -> cancelled khi Admin hủy buổi chưa bắt đầu (T-051, ADR-013)."""
 
     amount: Mapped[int] = mapped_column(Integer)
     payment_status: Mapped[str] = mapped_column(String(15), server_default=text("'unpaid'"))
@@ -224,6 +225,13 @@ class _Payment:
     marked_by_id: Mapped[int | None] = mapped_column(BigInteger)
     marked_by_label: Mapped[str | None] = mapped_column(String(100))
     marked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_reason: Mapped[str | None] = mapped_column(String(200))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_by_type: Mapped[str | None] = mapped_column(String(20))
+    cancelled_by_id: Mapped[int | None] = mapped_column(BigInteger)
+    cancelled_by_label: Mapped[str | None] = mapped_column(String(100))
+    # Ghi nhận theo xác nhận của Admin, không phải bằng chứng đã chuyển tiền (ADR-013)
+    refund_amount: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     note: Mapped[str | None] = mapped_column(String(500))
     created_by_type: Mapped[str] = mapped_column(String(20))
     created_by_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -240,8 +248,15 @@ def _payment_checks() -> tuple[CheckConstraint, ...]:
         CheckConstraint("source IN ('counter', 'online')", name="source"),
         CheckConstraint("amount >= 0", name="amount_non_negative"),
         CheckConstraint(
-            "payment_status IN ('unpaid', 'paid', 'uncollectible')", name="payment_status"
+            "payment_status IN ('unpaid', 'paid', 'uncollectible', 'cancelled')",
+            name="payment_status",
         ),
+        CheckConstraint(
+            "payment_status <> 'cancelled' OR "
+            "(cancel_reason IS NOT NULL AND cancelled_at IS NOT NULL)",
+            name="cancelled_has_reason",
+        ),
+        CheckConstraint("refund_amount BETWEEN 0 AND amount", name="refund_range"),
         CheckConstraint(
             "payment_method IS NULL OR payment_method IN ('cash', 'transfer', 'online_transfer')",
             name="payment_method",

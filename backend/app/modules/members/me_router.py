@@ -55,8 +55,14 @@ async def my_bookings(
     stats = await engine.customer_stats(session, refs)
     rows = await engine.customer_bookings(session, refs, PAGE_SIZE, (page - 1) * PAGE_SIZE)
     return MyBookingsOut(
-        items=[MemberBooking(**b.model_dump(exclude={"payment_status"})) for b in rows],
-        total=sum(s.bookings for s in stats.values()),
+        items=[
+            MemberBooking(
+                **b.model_dump(exclude={"payment_status"}),
+                is_cancelled=b.payment_status == "cancelled",
+            )
+            for b in rows
+        ],
+        total=sum(s.listed for s in stats.values()),
         page=page,
         size=PAGE_SIZE,
     )
