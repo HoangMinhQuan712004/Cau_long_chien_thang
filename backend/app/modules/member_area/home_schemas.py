@@ -81,9 +81,10 @@ class OverviewRankingMe(BaseModel):
 
 
 class OverviewRanking(BaseModel):
-    """Bảng xếp hạng tốc độ **tháng này** (như T-030)."""
+    """Bảng xếp hạng tốc độ **tháng này**, xếp theo từng cú đập (T-053)."""
 
     total_members: int
+    total_records: int = Field(description="Số cú đập trong tháng – mẫu của “#n / m”")
     me: OverviewRankingMe | None = Field(description="null: mình chưa có số đo trong tháng")
     top3: list[SpeedRankingRow]
 

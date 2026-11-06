@@ -147,7 +147,9 @@ async def _ranking(session: AsyncSession, customer_id: int, today: dt.date) -> O
         if r.me
         else None
     )
-    return OverviewRanking(total_members=r.total_members, me=me, top3=r.top[:3])
+    return OverviewRanking(
+        total_members=r.total_members, total_records=r.total_records, me=me, top3=r.top[:3]
+    )
 
 
 async def _recent_records(session: AsyncSession, customer_id: int) -> list[RecentRecord]:

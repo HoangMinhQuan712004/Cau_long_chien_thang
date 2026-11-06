@@ -14,6 +14,7 @@ from app.modules.records.models import SpeedRecord
 from app.modules.records.service import period_bounds
 from tests import test_play_rooms as base
 from tests.conftest import _rate_limit_backend
+from tests.helpers_booking import new_court
 from tests.test_play_rooms import MA
 
 people = base.people  # fixture dùng chung (hội viên có tài khoản liên kết)
@@ -83,22 +84,26 @@ async def test_ranking_order_ties_privacy_gap_and_inactive(people):
     d = await ranking(me.client, "month", "2031-03-15")
     assert (d["period"], d["start"], d["end"]) == ("month", "2031-03-01", "2031-03-31")
     assert d["total_members"] == 11 and d["bar_floor_kmh"] == 200
+    assert d["total_records"] == 12  # 2 cú của Tay Vợt 00 đều tính; 500 của người Ngừng thì không
     top = d["top"]
     assert [r["rank"] for r in top] == list(range(1, 11))
-    assert [r["speed_kmh"] for r in top] == [300, 300, 280, 270, 260, 250, 240, 230, 220, 210]
+    assert [r["speed_kmh"] for r in top] == [300, 300, 280, 270, 260, 250, 250, 240, 230, 220]
     assert top[0] == {
         "rank": 1,
         "display_name": "Hội viên ẩn danh",
         "avatar_url": None,
         "speed_kmh": 300,
         "measured_at": "2031-03-01T03:00:00Z",  # 10:00 giờ VN, lần đạt sớm hơn
+        "resource_name": None,
         "is_me": False,
         "video": None,
     }
     assert top[1]["display_name"] == "Tay Vợt 00"
     assert not any(r["is_me"] for r in top)
-    assert d["me"]["rank"] == 11 and d["me"]["speed_kmh"] == 200
-    assert d["me"]["gap_to_top10"] == 10  # 210 − 200
+    assert top[5]["display_name"] == "Tay Vợt 00"  # 250 đạt ngày 03/03, trước Tay Vợt 05
+    assert d["me"]["rank"] == 12 and d["me"]["speed_kmh"] == 200
+    assert d["me"]["gap_to_top10"] == 20  # 220 − 200
+    assert d["me"]["display_name"] == "Tay Vợt 10" and d["me"]["avatar_url"] is None
     assert "customer_id" not in str(d) and "Tay Vợt 01" not in str(d) and "Tay Vợt 11" not in str(d)
 
     # Người ẩn danh luôn thấy tên mình; đã trong top 10 -> không có khoảng cách
@@ -107,6 +112,8 @@ async def test_ranking_order_ties_privacy_gap_and_inactive(people):
     assert d["top"][0]["display_name"] == "Tay Vợt 01" and d["top"][0]["is_me"]
     assert d["me"] == {
         "rank": 1,
+        "display_name": "Tay Vợt 01",
+        "avatar_url": None,
         "speed_kmh": 300,
         "measured_at": d["me"]["measured_at"],
         "gap_to_top10": None,
@@ -153,12 +160,15 @@ async def test_week_bounds_empty_period_and_errors(anon, customer, people):
     assert r.status_code == 403 and r.json()["detail"]["code"] == "E-HV-8"
 
 
-async def video_record(cid: int, kmh: int, at: datetime, url: str | None, status="approved"):
+async def video_record(
+    cid: int, kmh: int, at: datetime, url: str | None, status="approved", court=None
+):
     async with SessionLocal() as s:
         r = SpeedRecord(
             customer_id=cid,
             speed_kmh=kmh,
             measured_at=at,
+            court_code=court,
             status=status,
             reject_reason="Không rõ" if status == "rejected" else None,
             source_ref=f"{TAG}{uuid.uuid4()}",
@@ -229,6 +239,7 @@ async def test_video_of_anonymous_plays_without_identity(people):
         "avatar_url",
         "speed_kmh",
         "measured_at",
+        "resource_name",
         "is_me",
         "video",
     }
@@ -252,6 +263,63 @@ async def test_pending_and_rejected_never_supply_a_video(people):
     assert d["me"]["speed_kmh"] == 270 and d["me"]["video"] is None
     assert row_of(d, 270)["video"] is None
     assert not [r for r in d["top"] if r["speed_kmh"] in (495, 496)]
+
+
+async def test_one_member_can_take_every_step_of_the_podium(admin, people):
+    """AC1, AC2, AC3, AC5: mỗi cú một bậc, đúng video và sân của cú đó; bằng km/h thì đạt trước."""
+    court = await new_court(admin)
+    hv = await people("Một Mình")
+    day = "2032-01-15"
+    await video_record(hv.customer_id, 410, vn(2032, 1, 5), YT_A, court=court["code"])
+    await video_record(hv.customer_id, 410, vn(2032, 1, 2), None)
+    await video_record(hv.customer_id, 430, vn(2032, 1, 9), YT_B)
+    d = await ranking(hv.client, "month", day)
+    assert d["total_members"] == 1 and d["total_records"] == 3
+    assert [r["speed_kmh"] for r in d["top"]] == [430, 410, 410]
+    assert [r["rank"] for r in d["top"]] == [1, 2, 3]
+    assert all(r["is_me"] for r in d["top"])
+    assert d["top"][0]["video"]["url"] == YT_B and d["top"][1]["video"] is None
+    assert d["top"][2]["video"]["url"] == YT_A
+    assert d["top"][2]["resource_name"] == court["name"] and d["top"][1]["resource_name"] is None
+    assert datetime.fromisoformat(d["top"][1]["measured_at"]) == vn(2032, 1, 2)
+    assert (d["me"]["rank"], d["me"]["speed_kmh"], d["me"]["gap_to_top10"]) == (1, 430, None)
+
+
+async def test_my_rank_counts_every_record_and_ties_by_time_then_id(people):
+    """AC4: hạng cú tốt nhất của mình, khớp đúng thứ tự xếp; cách top 10 tính theo hạng 10."""
+    rival, mine = await people("Đối Thủ"), await people("Của Tôi")
+    await set_profile(mine.customer_id, nickname="lolo")
+    at = vn(2032, 2, 5)
+    for i in range(10):
+        await video_record(rival.customer_id, 450 - i, vn(2032, 2, 1 + i), None)
+    await video_record(
+        rival.customer_id, 400, at, None
+    )  # cùng km/h, cùng lúc, thêm trước -> id nhỏ
+    await video_record(mine.customer_id, 400, at, None)
+    await video_record(mine.customer_id, 300, vn(2032, 2, 1), None)
+    d = await ranking(mine.client, "month", "2032-02-15")
+    assert d["total_records"] == 13 and d["total_members"] == 2
+    assert d["me"]["rank"] == 12 and d["me"]["speed_kmh"] == 400
+    assert d["me"]["gap_to_top10"] == 441 - 400
+    assert d["me"]["display_name"] == "lolo"  # cùng tên với bục và danh sách
+
+
+async def test_anonymous_takes_several_steps_without_identity(people):
+    """AC7: mỗi bậc "Hội viên ẩn danh"; pending, rejected, người Ngừng không tính."""
+    hidden, viewer, stopped = await people("Bí Mật"), await people("Xem"), await people("Ngừng")
+    await set_profile(hidden.customer_id, show_on_records=False)
+    for kmh, day in ((470, 2), (460, 3)):
+        await video_record(hidden.customer_id, kmh, vn(2032, 3, day), None)
+    await video_record(viewer.customer_id, 495, vn(2032, 3, 4), YT_A, status="pending")
+    await video_record(viewer.customer_id, 490, vn(2032, 3, 4), None, status="rejected")
+    await video_record(stopped.customer_id, 480, vn(2032, 3, 4), None)
+    await set_profile(stopped.customer_id, is_active=False)
+    r = await viewer.client.get(RANKING, params={"period": "month", "date": "2032-03-15"})
+    d = r.json()
+    assert d["total_records"] == 2 and d["me"] is None
+    assert [x["display_name"] for x in d["top"]] == ["Hội viên ẩn danh"] * 2
+    assert all(x["avatar_url"] is None for x in d["top"])
+    assert "Bí Mật" not in r.text and "customer_id" not in r.text
 
 
 async def test_speed_range_and_unique_source_ref(people):
