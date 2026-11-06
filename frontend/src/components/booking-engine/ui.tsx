@@ -10,6 +10,7 @@ export const STATUS_LABEL: Record<PaymentStatus, string> = {
   unpaid: "Chưa thanh toán",
   paid: "Đã thanh toán",
   uncollectible: "Không thu được",
+  cancelled: "Đã hủy",
 };
 
 export const METHOD_LABEL: Record<PaymentMethod, string> = {
@@ -23,6 +24,7 @@ export const STATUS_TONE: Record<PaymentStatus, string> = {
   unpaid: "bg-blk-unpaid text-blk-unpaid-fg",
   paid: "bg-primary-softer text-primary",
   uncollectible: "bg-blk-bad text-blk-bad-fg",
+  cancelled: "bg-danger-soft text-danger",
 };
 
 export function StatusBadge({ status }: { status: PaymentStatus }) {
