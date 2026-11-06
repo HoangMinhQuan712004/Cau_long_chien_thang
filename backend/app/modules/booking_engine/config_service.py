@@ -4,6 +4,7 @@ Hàm ở đây **không commit** – lớp gọi (router qua idempotency, script
 """
 
 from datetime import date, timedelta
+from itertools import chain
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -44,6 +45,7 @@ from app.modules.booking_engine.dto import (
 from app.modules.booking_engine.models import (
     BANDS,
     DAY_TYPES,
+    RESOURCE_LIVE,
     PriceRule,
     Resource,
     ResourceSchedule,
@@ -60,6 +62,7 @@ from app.modules.booking_engine.pricing import (
 from app.modules.booking_engine.schedules import (
     Hours,
     effective_on,
+    ensure_whole_hours,
     pending_after,
     schedule_out,
     schedules_of,
@@ -131,13 +134,34 @@ async def upsert_resource_type(
 async def _resource_by_code(
     session: AsyncSession, tenant_id: int, code: str, for_update: bool = False
 ) -> Resource:
-    stmt = select(Resource).where(Resource.tenant_id == tenant_id, Resource.code == code.upper())
+    stmt = select(Resource).where(
+        Resource.tenant_id == tenant_id, Resource.code == code.upper(), RESOURCE_LIVE
+    )
     if for_update:
         stmt = stmt.with_for_update()
     row = await session.scalar(stmt)
     if row is None:
         raise _not_found(code)
     return row
+
+
+async def lock_live_resources(session: AsyncSession, resource_ids: set[int]) -> None:
+    """Gọi ngay trước khi tạo chỗ chiếm: giữ FOR KEY SHARE tới hết transaction, đụng FOR UPDATE của
+    lệnh xóa sân -> hai bên chờ nhau, không lọt chỗ chiếm mới vào sân vừa xóa. Đã xóa -> 404."""
+    found = await session.scalars(
+        select(Resource.id)
+        .where(Resource.id.in_(resource_ids), RESOURCE_LIVE)
+        .order_by(Resource.id)
+        .with_for_update(key_share=True, read=True)
+    )
+    if set(found) != resource_ids:
+        raise _not_found("sân")
+
+
+async def resource_names(session: AsyncSession, tenant_id: int) -> dict[str, str]:
+    """Mã -> tên, **gồm cả sân đã xóa**: để lịch sử (kỷ lục...) vẫn hiện đúng tên."""
+    stmt = select(Resource.code, Resource.name).where(Resource.tenant_id == tenant_id)
+    return dict((await session.execute(stmt)).tuples().all())
 
 
 def _clean_name(name: str, label: str) -> str:
@@ -157,7 +181,7 @@ async def _ensure_unique_name(
     session: AsyncSession, tenant_id: int, name: str, label: str, exclude_id: int | None = None
 ) -> None:
     stmt = select(Resource.id).where(
-        Resource.tenant_id == tenant_id, func.lower(Resource.name) == name.lower()
+        Resource.tenant_id == tenant_id, func.lower(Resource.name) == name.lower(), RESOURCE_LIVE
     )
     if exclude_id is not None:
         stmt = stmt.where(Resource.id != exclude_id)
@@ -189,7 +213,7 @@ async def list_resources(session: AsyncSession, tenant_id: int) -> ResourceList:
     rows = (
         await session.scalars(
             select(Resource)
-            .where(Resource.tenant_id == tenant_id)
+            .where(Resource.tenant_id == tenant_id, RESOURCE_LIVE)
             .order_by(Resource.sort_order, Resource.code)
         )
     ).all()
@@ -218,6 +242,7 @@ async def create_resource(
     label = resource_label(tenant)
     name = _clean_name(data.name, label)
     rtype = await _type_by_code(session, tenant_id, data.resource_type_code)
+    ensure_whole_hours([data.open_time, data.close_time, *chain(*data.peak_bands)])
     hours = validate_hours(data.open_time, data.close_time, data.peak_bands)
     await _ensure_unique_name(session, tenant_id, name, label)
 
@@ -279,6 +304,18 @@ async def create_resource(
     return await _resource_view(session, tenant_id, resource)
 
 
+def _ensure_new_hours_whole(data: ResourceUpdate, base: Hours, old_bands: list) -> None:
+    """Chỉ kiểm giá trị thật sự đổi: sân cũ có :30 vẫn sửa được phần khác."""
+    pairs = (
+        (data.open_time, to_hhmm(base.open_minute)),
+        (data.close_time, to_hhmm(base.close_minute)),
+    )
+    times = [new for new, current in pairs if new and new != current]
+    old = {tuple(band) for band in old_bands}
+    new_bands = [tuple(band) for band in data.peak_bands or [] if tuple(band) not in old]
+    ensure_whole_hours([*times, *chain(*new_bands)])
+
+
 async def update_resource(
     session: AsyncSession, tenant_id: int, actor: Actor, code: str, data: ResourceUpdate
 ) -> ResourceOut:
@@ -335,6 +372,7 @@ async def update_resource(
         if latest is None:
             raise RuntimeError(f"Resource {r.code} has no schedule")
         base = Hours.of(latest)
+        _ensure_new_hours_whole(data, base, latest.peak_bands)
         hours = validate_hours(
             data.open_time or to_hhmm(base.open_minute),
             data.close_time or to_hhmm(base.close_minute),

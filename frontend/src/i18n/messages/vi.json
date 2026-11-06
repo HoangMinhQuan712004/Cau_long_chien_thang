@@ -584,8 +584,7 @@
       "week": "Tuần",
       "month": "Tháng",
       "from": "hoặc Từ ngày",
-      "to": "Đến ngày",
-      "hint": "Áp dụng cho toàn bộ báo cáo · so với {n} ngày liền trước ({from} – {to})"
+      "to": "Đến ngày"
     },
     "errors": {
       "fromAfterTo": "Từ ngày phải trước hoặc bằng Đến ngày.",
@@ -603,17 +602,12 @@
       "bookings": {
         "label": "Số lượt đặt",
         "tip": "Số booking và vé xé vé đã thanh toán, tính theo ngày chơi.",
-        "unit": "{n} lượt",
         "tickets": "Kỳ này gồm {n} vé xé vé."
       },
       "members": {
         "label": "Hội viên mới",
-        "tip": "Số hội viên được tạo trong kỳ, không tính hồ sơ tạm.",
-        "unit": "{n} hội viên"
-      },
-      "compare": "so với {n} ngày trước",
-      "same": "Không đổi so với {n} ngày trước",
-      "noPrevious": "Kỳ trước chưa có số liệu"
+        "tip": "Số hội viên được tạo trong kỳ, không tính hồ sơ tạm."
+      }
     },
     "daily": {
       "title": "Doanh thu theo ngày",
@@ -629,8 +623,6 @@
     "courts": {
       "title": "Doanh thu theo sân",
       "subtitle": "{range} · triệu đồng",
-      "lowestOne": "Thấp nhất: {name} · {amount}",
-      "lowestMany": "Thấp nhất ({n} sân): {amount} – {names}",
       "total": "Tổng {n} sân: {total}",
       "bar": "{name} · {amount}",
       "inactive": "(ngừng hoạt động)",
@@ -833,5 +825,131 @@
     "clearLink": "Xóa link",
     "mapTitleSection": "Vị trí",
     "contactTitle": "Liên hệ"
+  },
+  "courts": {
+    "actions": "Thao tác: {name}",
+    "detail": "Chi tiết",
+    "edit": "Sửa sân",
+    "delete": "Xóa sân",
+    "deleteTitle": "Xóa sân “{name}”?",
+    "deleteBody": "Sân sẽ không còn trên danh sách và lịch đặt. Đơn cũ và báo cáo vẫn giữ.",
+    "cancel": "Hủy",
+    "deleting": "Đang xóa…",
+    "deleted": "Đã xóa sân {name}.",
+    "gone": "Sân này không còn trên hệ thống.",
+    "title": "Sân & bảng giá",
+    "tabList": "Danh mục sân",
+    "tabPrices": "Bảng giá",
+    "summary": "{total} sân · {active} hoạt động",
+    "add": "Thêm sân",
+    "addShort": "Thêm",
+    "caption": "Danh sách sân",
+    "colCode": "Mã",
+    "colName": "Sân",
+    "colType": "Loại sân",
+    "colHours": "Giờ mở cửa",
+    "colPrice": "Giá ngày thường",
+    "colStatus": "Trạng thái",
+    "active": "Hoạt động",
+    "inactive": "Ngừng hoạt động",
+    "inactiveShort": "Ngừng",
+    "perHour": "{price}/giờ",
+    "pendingSchedule": "Từ {date}: {open} – {close}",
+    "empty": "Chưa có sân nào",
+    "emptyHint": "Thêm sân đầu tiên để khách bắt đầu đặt.",
+    "reloaded": "Đã tải lại dữ liệu mới nhất.",
+    "saving": "Đang lưu…",
+    "form": {
+      "nameLabel": "Tên sân",
+      "namePlaceholder": "VD: Sân 7",
+      "typeLabel": "Loại sân",
+      "hoursTitle": "Giờ hoạt động",
+      "hoursTitleEdit": "Giờ hoạt động · áp dụng từ ngày mai, {date}",
+      "open": "Mở cửa",
+      "close": "Đóng cửa",
+      "slots": "{n} khung 1 giờ mỗi ngày",
+      "peaksTitle": "Giờ cao điểm",
+      "peakFrom": "Từ",
+      "peakTo": "Đến",
+      "removePeak": "Xóa khung cao điểm {n}",
+      "removePeakShort": "Xóa khung giờ",
+      "addPeak": "Thêm khung giờ",
+      "peaksHint": "Các khung không được chồng nhau và phải nằm trong giờ mở cửa.",
+      "statusLabel": "Trạng thái",
+      "statusHint": "Ngừng: khách không thấy, không đặt được sân.",
+      "reload": "Tải lại",
+      "moreConflicts": "… và {n} khung khác",
+      "halfHourWarning": "Sân này còn giờ rưỡi từ dữ liệu cũ, vẫn giữ nguyên khi lưu. Giờ mới chỉ chọn được giờ chẵn.",
+      "peaksAdjusted": "Đã chỉnh khung cao điểm theo giờ mở cửa mới. Lưu mới có hiệu lực."
+    },
+    "drawer": {
+      "close": "Đóng",
+      "resize": "Kéo để đổi bề rộng ngăn",
+      "loading": "Đang tải chi tiết sân…",
+      "error": "Không tải được chi tiết sân. Đóng ngăn rồi mở lại để thử lại.",
+      "editTitle": "Sửa {title}",
+      "save": "Lưu",
+      "discardTitle": "Bỏ thay đổi?",
+      "discardBody": "Các thay đổi của sân chưa được lưu sẽ mất.",
+      "keepEditing": "Tiếp tục sửa",
+      "discard": "Bỏ thay đổi"
+    },
+    "showing": "Hiển thị {from}–{to} / {total} sân",
+    "pageSizeLabel": "Số dòng mỗi trang",
+    "pageSizeOption": "Hiển thị {n} dòng",
+    "pagination": {
+      "label": "Phân trang",
+      "prev": "Trang trước",
+      "next": "Trang sau",
+      "page": "Trang {n}"
+    }
+  },
+  "prices": {
+    "title": "Giá thuê sân (đồng/giờ)",
+    "savedAt": "Lưu gần nhất: {at}",
+    "neverSaved": "Chưa lưu lần nào",
+    "dayTypes": {
+      "weekday": "Ngày thường",
+      "weekend": "Cuối tuần (T7, CN)",
+      "holiday": "Lễ, Tết"
+    },
+    "bands": {
+      "offpeak": "Thấp điểm",
+      "peak": "Cao điểm"
+    },
+    "courtCount": "{n} sân",
+    "cellLabel": "{type} · {day} · {band} (đồng/giờ)",
+    "invalid": "Giá phải là số nguyên lớn hơn 0.",
+    "barHint": "Giá mới chỉ áp cho khung chưa đặt.",
+    "barDirty": "Có {n} ô đã đổi.",
+    "cancel": "Hủy thay đổi",
+    "save": "Lưu bảng giá",
+    "saving": "Đang lưu…",
+    "saved": "Đã lưu bảng giá. Giá mới áp cho các khung chưa đặt.",
+    "staleHint": "Bấm Hủy thay đổi để tải lại bảng giá."
+  },
+  "holidays": {
+    "title": "Ngày Lễ / Tết năm {year}",
+    "add": "Thêm ngày",
+    "empty": "Chưa có ngày Lễ / Tết.",
+    "remove": "Xóa {name}",
+    "removeTitle": "Xóa ngày “{name}”?",
+    "removeBody": "Các khung chưa đặt trong những ngày này sẽ tính theo giá ngày thường / cuối tuần.",
+    "removeConfirm": "Xóa ngày",
+    "removed": "Đã xóa {name}.",
+    "cancel": "Hủy",
+    "formTitle": "Thêm ngày Lễ / Tết",
+    "from": "Từ ngày",
+    "to": "Đến ngày",
+    "toHint": "Bỏ trống nếu chỉ 1 ngày.",
+    "name": "Tên ngày",
+    "namePlaceholder": "VD: Giỗ Tổ Hùng Vương",
+    "errFrom": "Vui lòng nhập Từ ngày.",
+    "errYear": "Chỉ nhập ngày trong năm {year}.",
+    "errTo": "Đến ngày phải từ Từ ngày trở đi, trong cùng năm.",
+    "errName": "Vui lòng nhập Tên ngày.",
+    "errNameLong": "Tên ngày tối đa 100 ký tự.",
+    "adding": "Đang thêm…",
+    "added": "Đã thêm {name}."
   }
 }

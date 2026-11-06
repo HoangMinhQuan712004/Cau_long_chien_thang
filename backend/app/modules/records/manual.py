@@ -323,7 +323,7 @@ async def _mine(
         courts = await _active_courts(session)
     names = {c.code: c.name for c in courts}
     if any(r.court_code and r.court_code not in names for r in records):
-        names = {r.code: r.name for r in (await engine.list_resources(session)).items}
+        names = await engine.resource_names(session)
     return [
         MySpeedRecord(
             id=r.id,

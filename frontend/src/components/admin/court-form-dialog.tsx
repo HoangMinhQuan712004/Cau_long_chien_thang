@@ -1,15 +1,24 @@
 "use client";
 
+import { useState } from "react";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import type { Dictionary } from "@/i18n/dictionaries";
+import { api } from "@/lib/api/client";
+import { errorText, write } from "@/lib/api/write";
 import { CourtForm } from "./court-form";
 import type { Form, Resource, ResourceType } from "./court-form-logic";
 import { useCourtForm } from "./use-court-form";
 
-/** Popup "Thêm sân" (sửa sân nằm trong ngăn chi tiết). */
+const FOOTER = "grid w-full grid-cols-2 gap-2";
+
+/** Popup "Thêm sân" (sửa sân nằm trong ngăn chi tiết): điện thoại trượt từ đáy, 2 nút chân rộng bằng nhau. */
 export function CourtFormDialog({
   initial,
   resources,
   types,
+  t,
   onClose,
   onSaved,
   onReload,
@@ -17,6 +26,7 @@ export function CourtFormDialog({
   initial: Form;
   resources: Resource[];
   types: ResourceType[];
+  t: Dictionary["courts"];
   onClose: () => void;
   onSaved: (code: string) => void;
   onReload: () => void;
@@ -25,26 +35,63 @@ export function CourtFormDialog({
   return (
     <Modal
       open
+      sheet
       onClose={onClose}
-      size="wide"
-      title="Thêm sân"
+      size="medium"
+      title={t.add}
       footer={
-        <>
-          <button type="button" onClick={onClose} disabled={state.busy} className="min-h-11 rounded-md border border-border px-4 py-2 text-sm sm:min-h-0">
-            Hủy
-          </button>
-          <button
-            type="button"
-            onClick={() => void state.submit()}
-            disabled={state.busy}
-            className="min-h-11 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-60 sm:min-h-0"
-          >
-            {state.busy ? "Đang lưu…" : "Thêm sân"}
-          </button>
-        </>
+        <div className={FOOTER}>
+          <Button type="button" variant="secondary" block onClick={onClose} disabled={state.busy}>
+            {t.cancel}
+          </Button>
+          <Button type="button" block onClick={() => void state.submit()} loading={state.busy}>
+            {state.busy ? t.saving : t.add}
+          </Button>
+        </div>
       }
     >
-      <CourtForm state={state} types={types} onReload={onReload} />
+      <CourtForm state={state} types={types} onReload={onReload} t={t} />
+    </Modal>
+  );
+}
+
+/** Xác nhận xóa sân: Hủy | Xóa (đỏ), rộng bằng nhau; 409 (còn lịch sắp tới) hiện câu của backend trong hộp. */
+export function DeleteCourtDialog({ court, onClose, onDeleted, t }: { court: Resource; onClose: () => void; onDeleted: () => void; t: Dictionary["courts"] }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function confirm() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    const res = await write((key) =>
+      api.DELETE("/api/v1/booking/resources/{code}", { params: { path: { code: court.code } }, headers: { "Idempotency-Key": key } }),
+    );
+    setBusy(false);
+    // 404: đã bị xóa ở nơi khác ⇒ coi như xong
+    if (res.ok || res.error.status === 404) onDeleted();
+    else setError(errorText(res.error));
+  }
+
+  return (
+    <Modal
+      open
+      sheet
+      onClose={onClose}
+      title={t.deleteTitle.replace("{name}", court.name)}
+      footer={
+        <div className={FOOTER}>
+          <Button type="button" variant="secondary" block onClick={onClose} disabled={busy}>
+            {t.cancel}
+          </Button>
+          <Button type="button" variant="danger" block loading={busy} onClick={() => void confirm()}>
+            {busy ? t.deleting : t.delete}
+          </Button>
+        </div>
+      }
+    >
+      {error ? <Alert variant="error">{error}</Alert> : null}
+      <p className="text-sm text-muted">{t.deleteBody}</p>
     </Modal>
   );
 }

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { CourtsTable } from "@/components/admin/courts-table";
-import { SanTabs } from "@/components/admin/san-tabs";
 import { adminPerms, authedApi } from "@/lib/api/server";
 import { getDictionary } from "@/i18n/dictionaries";
 import { can } from "../_components/forbidden";
@@ -19,7 +18,7 @@ export default function CourtsAdminPage() {
 
 async function Courts() {
   // Thiếu quyền booking.config.manage ⇒ báo không có quyền, không gọi API (backend vẫn kiểm: 403 cũng báo như vậy)
-  const [perms, { adminNav }] = await Promise.all([adminPerms(), getDictionary()]);
+  const [perms, { adminNav, courts }] = await Promise.all([adminPerms(), getDictionary()]);
   const noPermission = adminNav.noPermission;
   if (!can(perms, "booking.config.manage")) return <p className="text-muted">{noPermission}</p>;
   const api = await authedApi();
@@ -39,15 +38,14 @@ async function Courts() {
     if (p.day_type === "weekday" && p.band === "offpeak") weekdayPrice[p.resource_type_code] = p.price_per_hour;
   }
 
+  // Đầu trang + tab nằm trong CourtsTable (nút "Thêm sân" mở popup phía client)
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold sm:text-2xl">Sân &amp; bảng giá</h1>
-      <SanTabs active="list" />
-      <CourtsTable
-        resources={resources.data.items}
-        types={resources.data.resource_types}
-        weekdayPrice={weekdayPrice}
-      />
-    </div>
+    <CourtsTable
+      resources={resources.data.items}
+      types={resources.data.resource_types}
+      weekdayPrice={weekdayPrice}
+      canDelete={can(perms, "booking.resources.delete")}
+      t={courts}
+    />
   );
 }

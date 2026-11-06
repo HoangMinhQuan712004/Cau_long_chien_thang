@@ -27,7 +27,7 @@ from app.modules.booking_engine.common import (
     sqlstate,
     token_hash,
 )
-from app.modules.booking_engine.config_service import price_slots
+from app.modules.booking_engine.config_service import lock_live_resources, price_slots
 from app.modules.booking_engine.dto import (
     Actor,
     CheckoutCreate,
@@ -46,6 +46,7 @@ from app.modules.booking_engine.dto import (
 )
 from app.modules.booking_engine.holds import expire_holds, grace
 from app.modules.booking_engine.models import (
+    RESOURCE_LIVE,
     Allocation,
     Booking,
     BookingOrder,
@@ -162,7 +163,9 @@ async def _validatedranges_of(
     resources = {
         r.code: r
         for r in await session.scalars(
-            select(Resource).where(Resource.tenant_id == ctx.tenant.id, Resource.code.in_(codes))
+            select(Resource).where(
+                Resource.tenant_id == ctx.tenant.id, Resource.code.in_(codes), RESOURCE_LIVE
+            )
         )
     }
     schedules = await schedules_of(session, ctx.tenant.id, [r.id for r in resources.values()])
@@ -223,6 +226,7 @@ async def create_checkout(
     if pending is not None:
         raise _pending_exists()
 
+    await lock_live_resources(session, {r.id for r, _, _, _ in priced})
     # Một mã đơn cho cả lượt; mỗi dải (sân, giờ liền nhau) mang mã con -NN (ADR-010)
     order_code = await next_code(session, tenant_id, ctx.code_prefix, data.date)
     codes = [child_code(order_code, seq) for seq in range(1, len(priced) + 1)]

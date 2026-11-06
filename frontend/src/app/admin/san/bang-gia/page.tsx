@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { HolidaysCard } from "@/components/admin/holidays-card";
 import { PriceEditor } from "@/components/admin/price-editor";
 import { SanTabs } from "@/components/admin/san-tabs";
+import { PageHeader } from "@/components/ui/page-header";
 import { adminPerms, authedApi } from "@/lib/api/server";
 import { getDictionary } from "@/i18n/dictionaries";
 import { can } from "../../_components/forbidden";
@@ -22,7 +23,7 @@ export default function PricesAdminPage() {
 
 async function Prices() {
   // Thiếu quyền booking.config.manage ⇒ báo không có quyền, không gọi API (backend vẫn kiểm: 403 cũng báo như vậy)
-  const [perms, { adminNav }] = await Promise.all([adminPerms(), getDictionary()]);
+  const [perms, { adminNav, courts, prices: priceTexts, holidays }] = await Promise.all([adminPerms(), getDictionary()]);
   const noPermission = adminNav.noPermission;
   if (!can(perms, "booking.config.manage")) return <p className="text-muted">{noPermission}</p>;
   const api = await authedApi();
@@ -41,12 +42,12 @@ async function Prices() {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold sm:text-2xl">Sân &amp; bảng giá</h1>
-      <SanTabs active="prices" />
+    <div className="flex flex-col gap-3">
+      <PageHeader title={courts.title} />
+      <SanTabs active="prices" t={courts} />
       {/* key = version: sau khi lưu / tải lại, bản nháp được dựng mới từ dữ liệu server */}
-      <PriceEditor key={prices.data.version} table={prices.data} resources={resources.data.items} />
-      <HolidaysCard year={year} items={days.data} />
+      <PriceEditor key={prices.data.version} table={prices.data} resources={resources.data.items} t={priceTexts} />
+      <HolidaysCard year={year} items={days.data} t={holidays} />
     </div>
   );
 }

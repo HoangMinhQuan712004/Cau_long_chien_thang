@@ -278,7 +278,7 @@ def _special_day_covers(days, d: date) -> bool:
     )
 
 
-async def test_d2_and_d4_partial_peak_frame_priced_by_half_hours_from_tomorrow(adm):
+async def test_d2_and_d4_new_peak_applies_from_tomorrow(adm):
     res = await new_resource(adm)  # peaks 05–07, 17–21
     tomorrow = vn_today() + timedelta(days=1)
     if _special_day_covers(await _special_days(adm), tomorrow):
@@ -289,7 +289,7 @@ async def test_d2_and_d4_partial_peak_frame_priced_by_half_hours_from_tomorrow(a
         f"{B}/resources/{res['code']}",
         json_body={
             "version": res["version"],
-            "peak_bands": [["05:00", "06:30"], ["17:00", "21:00"]],
+            "peak_bands": [["05:00", "06:00"], ["17:00", "21:00"]],  # chỉ tròn giờ
         },
     )
     assert r.status_code == 200, r.text
@@ -299,12 +299,11 @@ async def test_d2_and_d4_partial_peak_frame_priced_by_half_hours_from_tomorrow(a
     assert tomorrow.isoformat() in json.dumps(entry), (
         "pending schedule must show effective_from=tomorrow"
     )
-    # D2: frame 06–07 = half peak + half off-peak
+    # D2: khung 06–07 giờ không còn cao điểm từ ngày mai ("Một phần cao điểm" của lịch cũ có :30
+    # được kiểm ở test_quote_partial_peak_and_holiday)
     q = await quote(adm, res["code"], tomorrow, 6, 7)
     assert q.status_code == 200, q.text
-    expected = 225_000 if tomorrow.weekday() >= 5 else 165_000
-    assert _total(q) == expected
-    assert "Một phần cao điểm" in q.text
+    assert "Thấp điểm" in q.text
     # a frame fully inside the peak / fully off-peak keeps its label
     peak = await quote(adm, res["code"], tomorrow, 17, 18)
     assert "Cao điểm" in peak.text
@@ -469,11 +468,11 @@ async def test_d6_name_rules(adm):
 async def test_d6_hours_and_peak_rules(adm):
     cases = {
         "E-CFG-2": [
-            dict(open_time="08:00", close_time="08:30"),  # less than 60 minutes open
+            dict(open_time="08:00", close_time="08:00"),  # less than 60 minutes open
             dict(open_time="10:00", close_time="09:00"),
         ],
         "E-CFG-5": [
-            dict(peaks=[["05:30", "05:30"]]),  # shorter than 30 minutes
+            dict(peaks=[["05:00", "05:00"]]),  # rỗng
             dict(peaks=[["04:00", "06:00"]]),  # starts before opening
             dict(peaks=[["20:00", "23:00"]]),  # ends after closing
             dict(peaks=[["05:00", "08:00"], ["07:00", "09:00"]]),  # overlap
@@ -683,8 +682,12 @@ async def test_sec4_all_admin_routes_require_login_and_role(anon_c, customer_c):
 
 
 async def test_sec4_counter_account_cannot_use_config_api(staff_c):
-    routes = list(_sweep_routes((f"{B}/",), {QUOTE} | CONFIG_PUBLIC_FOR_STAFF))
+    # Xóa sân: NV mặc định KHÔNG có quyền (người dùng chốt 2026-11-06)
+    delete_court = ("DELETE", f"{B}/resources/{{code}}")
+    routes = list(_sweep_routes((f"{B}/",), {QUOTE, delete_court} | CONFIG_PUBLIC_FOR_STAFF))
     assert len(routes) >= 5
+    r = await write(staff_c, "DELETE", f"{B}/resources/S01", json_body={})
+    assert r.status_code == 403, r.text
     for method, path in routes:
         r = await write(staff_c, method, path, json_body={})
         # NV mặc định có Sân & bảng giá (người dùng chốt 2026-11-05) -> không bị chặn quyền

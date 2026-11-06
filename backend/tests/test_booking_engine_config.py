@@ -1,17 +1,25 @@
 """T-005 mục D: cấu hình sân, giờ hoạt động, bảng giá, ngày Lễ/Tết, báo giá."""
 
+import asyncio
 import uuid
 from datetime import date, datetime, time, timedelta
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.modules.booking_engine.models import Allocation, Booking, BookingOrder
+from app.core.errors import AppError
+from app.core.permissions import DEFAULT_ROLE_PERMS, Perm
+from app.modules.auth.models import RolePermission
+from app.modules.booking_engine import api as engine
+from app.modules.booking_engine.config_service import lock_live_resources
+from app.modules.booking_engine.models import Allocation, Booking, BookingOrder, Hold, Resource
 from app.modules.booking_engine.testing import make_allocation, release_allocation
 from tests.conftest import API, idem
+from tests.helpers_booking import FD, book, safe_hour, set_legacy_schedule, temp
+from tests.helpers_web import WEB, checkout
 
 BK = f"{API}/booking"
 PEAKS = [["05:00", "07:00"], ["17:00", "21:00"]]
@@ -147,8 +155,8 @@ async def test_create_resource_assigns_code_and_audits(admin):
     [
         ({"name": "   "}, 422, "E-CFG-1"),
         ({"name": "x" * 51}, 422, "E-CFG-1"),
-        ({"close_time": "05:30"}, 422, "E-CFG-2"),
-        ({"open_time": "10:00", "close_time": "10:30"}, 422, "E-CFG-2"),
+        ({"close_time": "05:00"}, 422, "E-CFG-2"),
+        ({"open_time": "10:00", "close_time": "09:00"}, 422, "E-CFG-2"),
         ({"peak_bands": [["05:00", "05:00"]]}, 422, "E-CFG-5"),
         ({"peak_bands": [["04:00", "07:00"]]}, 422, "E-CFG-5"),
         ({"peak_bands": [["17:00", "21:00"], ["20:00", "22:00"]]}, 422, "E-CFG-5"),
@@ -193,6 +201,67 @@ async def test_duplicate_name_case_insensitive(admin):
     )
     assert r.status_code == 409
     assert r.json()["detail"]["code"] == "E-CFG-1"
+
+
+# Người dùng chốt 2026-11-06: giờ mới chỉ tròn giờ; lịch cũ có :30 vẫn sửa được phần khác
+@pytest.mark.parametrize(
+    "hours",
+    [
+        {"open_time": "05:30"},
+        {"close_time": "21:30"},
+        {"peak_bands": [["17:30", "21:00"]]},
+        {"peak_bands": [["17:00", "20:30"]]},
+    ],
+)
+async def test_new_hours_must_be_whole(admin, hours):
+    body = {
+        "name": unique_name(),
+        "resource_type_code": "thuong",
+        "open_time": "05:00",
+        "close_time": "22:00",
+        "peak_bands": PEAKS,
+        **hours,
+    }
+    r = await admin.post(f"{BK}/resources", json=body, headers=idem())
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-CFG-12", r.text
+    assert "tròn giờ" in r.json()["detail"]["message"]
+
+    res = await create_resource(admin)
+    r = await admin.patch(
+        f"{BK}/resources/{res['code']}", json={"version": res["version"], **hours}, headers=idem()
+    )
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-CFG-12", r.text
+
+
+async def test_legacy_half_hour_schedule_can_still_edit_other_fields(admin):
+    res = await create_resource(admin)
+    code = res["code"]
+    legacy = [["05:30", "07:00"], ["17:30", "21:00"]]
+    await set_legacy_schedule(code, open_minute=5 * 60 + 30, peak_bands=legacy)
+
+    async def patch(**body):
+        current = await get_resource(admin, code)
+        return await admin.patch(
+            f"{BK}/resources/{code}", json={"version": current["version"], **body}, headers=idem()
+        )
+
+    # Sửa tên: không đụng giờ
+    r = await patch(name=unique_name())
+    assert r.status_code == 200, r.text
+    assert r.json()["schedule"]["open_time"] == "05:30"
+    # Form gửi lại nguyên giá trị cũ kèm đổi giờ đóng cửa: giá trị cũ không bị bắt lỗi
+    r = await patch(open_time="05:30", close_time="21:00", peak_bands=legacy)
+    assert r.status_code == 200, r.text
+    assert r.json()["pending_schedule"]["close_time"] == "21:00"
+    assert r.json()["pending_schedule"]["open_time"] == "05:30", "giữ giá trị cũ"
+    # Đổi sang một giá trị :30 khác: chặn
+    r = await patch(open_time="06:30")
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-CFG-12", r.text
+    r = await patch(peak_bands=[["17:30", "20:30"]])
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-CFG-12", r.text
+    # Đổi về tròn giờ: được
+    r = await patch(open_time="06:00", peak_bands=PEAKS[1:])
+    assert r.status_code == 200, r.text
 
 
 async def test_bad_time_format_rejected(admin):
@@ -544,7 +613,9 @@ async def test_quote_prices_by_band_and_day_type(admin, staff):
 
 
 async def test_quote_partial_peak_and_holiday(admin):
-    res = await create_resource(admin, peak_bands=[["17:30", "21:00"]])
+    res = await create_resource(admin)
+    # Lịch cũ có :30 vẫn tính "một phần cao điểm" (API mới chỉ nhận tròn giờ)
+    await set_legacy_schedule(res["code"], peak_bands=[["17:30", "21:00"]])
     weekday = next_weekday(today() + timedelta(days=1), 2)
     r = await admin.post(
         f"{BK}/quote",
@@ -602,3 +673,217 @@ async def test_quote_not_sold(admin):
         f"{BK}/quote", json={"resource_code": "SX9999", "date": day, "start_hour": 8, "end_hour": 9}
     )
     assert r.status_code == 404
+
+
+# ------------------------------------------------------------------ xóa sân
+
+DELETE_PERM = Perm.BOOKING_RESOURCES_DELETE
+
+
+async def delete_court(client, code: str):
+    return await client.delete(f"{BK}/resources/{code}", headers=idem())
+
+
+def event_body(code: str, day: date, start_hour: int, end_hour: int, name: str) -> dict:
+    return {
+        "resource_codes": [code],
+        "date": day.isoformat(),
+        "start_hour": start_hour,
+        "end_hour": end_hour,
+        "name": name,
+        "capacity": 8,
+        "ticket_price": 50_000,
+    }
+
+
+async def court_id(code: str) -> int:
+    async with SessionLocal() as s:
+        return await s.scalar(select(Resource.id).where(Resource.code == code))
+
+
+async def test_delete_resource_permission_admin_staff_default_and_granted(admin, staff, anon):
+    assert DELETE_PERM not in DEFAULT_ROLE_PERMS["staff"], "NV mặc định tắt"
+    res = await create_resource(admin)
+    assert (await delete_court(anon, res["code"])).status_code == 401
+    r = await delete_court(staff, res["code"])
+    assert r.status_code == 403 and r.json()["detail"]["code"] == "E-AUTH-2"
+    # Hiện ở tab Phân quyền, Admin bật được cho NV
+    roles = (await admin.get(f"{API}/admin/roles")).json()
+    keys = [p["key"] for g in roles["groups"] for p in g["perms"]]
+    assert DELETE_PERM.value in keys and DELETE_PERM.value not in roles["defaults"]["staff"]
+    async with SessionLocal() as s:
+        s.add(RolePermission(role="staff", perm=DELETE_PERM.value))
+        await s.commit()
+    try:
+        assert (await delete_court(staff, res["code"])).status_code == 204
+    finally:
+        async with SessionLocal() as s:
+            await s.execute(delete(RolePermission).where(RolePermission.perm == DELETE_PERM.value))
+            await s.commit()
+    other = await create_resource(admin)
+    assert (await delete_court(admin, other["code"])).status_code == 204
+    evil = await admin.delete(
+        f"{BK}/resources/S01", headers={**idem(), "Origin": "https://evil.example"}
+    )
+    assert evil.status_code == 403
+
+
+async def test_delete_resource_blocked_while_schedule_unfinished(admin, anon):
+    res = await create_resource(admin)
+    code = res["code"]
+    day = today() + timedelta(days=20)
+    # Đã kết thúc: không chặn
+    past = await allocate(code, today() - timedelta(days=1), 8, 9, "BK-TEST-DEL-0")
+    booked = await allocate(code, day, 8, 9, "BK-TEST-DEL-1")
+    r = await delete_court(admin, code)
+    assert r.status_code == 409, r.text
+    detail = r.json()["detail"]
+    assert detail["code"] == "E-CFG-11" and detail["count"] == 1
+    assert detail["message"] == "Sân còn 1 lịch sắp tới, hãy xử lý trước khi xóa."
+    await release(booked)
+    await release(past)
+
+    # Sự kiện
+    r = await admin.post(
+        f"{BK}/sessions",
+        json=event_body(code, day, 10, 12, "Sự kiện chặn xóa"),
+        headers=idem(),
+    )
+    assert r.status_code == 201, r.text
+    assert (await delete_court(admin, code)).status_code == 409
+    gone = await admin.request(
+        "DELETE",
+        f"{BK}/sessions/{r.json()['code']}",
+        json={"version": r.json()["version"]},
+        headers=idem(),
+    )
+    assert gone.status_code == 200, gone.text
+
+    # Giữ chỗ online còn hạn chặn; hết hạn thì không
+    held = await checkout(anon, [(code, 9)], day=day)
+    assert held.status_code == 201, held.text
+    r = await delete_court(admin, code)
+    assert r.status_code == 409 and r.json()["detail"]["count"] == 1
+    rid = await court_id(code)
+    async with SessionLocal() as s:
+        hold_ids = select(Allocation.hold_id).where(Allocation.resource_id == rid)
+        await s.execute(
+            update(Hold)
+            .where(Hold.id.in_(hold_ids))
+            .values(expires_at=datetime.now(settings.tz) - timedelta(days=1))
+        )
+        await s.commit()
+    assert (await delete_court(admin, code)).status_code == 204
+
+
+async def test_deleted_resource_gone_everywhere_but_history_keeps_name(admin, staff, anon):
+    res = await create_resource(admin, open_time="00:00", close_time="24:00", peak_bands=[])
+    code, name = res["code"], res["name"]
+    day = today() + timedelta(days=21)
+    # Đơn đã có: coi như đã xong (tắt chỗ chiếm), vẫn phải tra được sau khi xóa
+    hour = await safe_hour()  # đặt quầy chỉ cho hôm nay
+    done = await book(admin, code, hour, customer=temp("Khách Cũ"))
+    assert done.status_code == 201, done.text
+    async with SessionLocal() as s:
+        await s.execute(
+            update(Allocation)
+            .where(Allocation.owner_code == done.json()["code"])
+            .values(active=False)
+        )
+        await s.commit()
+    assert (await delete_court(admin, code)).status_code == 204
+
+    # Danh sách, lịch quản trị + khách, chi tiết, thống kê
+    assert code not in [i["code"] for i in (await admin.get(f"{BK}/resources")).json()["items"]]
+    for shown_day in (today(), day):  # hôm nay có đơn cũ: không còn khối mồ côi
+        cal = (await admin.get(f"{BK}/calendar", params={"date": shown_day.isoformat()})).json()
+        assert code not in [r["code"] for r in cal["resources"]]
+        assert all(code not in b["resource_codes"] for b in cal["blocks"])
+    public = await anon.get(f"{WEB}/calendar", params={"date": day.isoformat()})
+    assert public.status_code == 200 and code not in public.text
+    assert (await admin.get(f"{BK}/resources/{code}/detail")).status_code == 404
+
+    # Không tạo được gì mới
+    body = {"resource_code": code, "date": day.isoformat(), "start_hour": 9, "end_hour": 10}
+    assert (await admin.post(f"{BK}/quote", json=body)).status_code == 404
+    assert (await book(admin, code, hour, customer=temp())).status_code == 404
+    r = await admin.post(
+        f"{FD}/recurring",
+        json={
+            "resource_code": code,
+            "weekdays": [day.isoweekday()],
+            "start_hour": 9,
+            "end_hour": 10,
+            "date_from": day.isoformat(),
+            "date_to": day.isoformat(),
+            "customer": temp(),
+        },
+        headers=idem(),
+    )
+    assert r.status_code == 404, r.text
+    r = await admin.post(
+        f"{BK}/sessions",
+        json=event_body(code, day, 9, 10, "Không được"),
+        headers=idem(),
+    )
+    assert r.status_code == 404, r.text
+    online = await checkout(anon, [(code, 9)], day=day)
+    assert online.status_code >= 400 and online.status_code != 500, online.text
+    r = await admin.patch(
+        f"{BK}/resources/{code}", json={"version": 2, "name": "X"}, headers=idem()
+    )
+    assert r.status_code == 404
+    assert (await delete_court(admin, code)).status_code == 404, "xóa lần 2"
+    assert (await delete_court(admin, "S999")).status_code == 404, "mã không có"
+
+    # Lịch sử: đơn cũ + tên sân vẫn đúng
+    item = await staff.get(f"{BK}/items/{done.json()['code']}")
+    assert item.status_code == 200 and code in item.json()["schedule"]["resource_codes"]
+    async with SessionLocal() as s:
+        assert (await engine.resource_names(s))[code] == name
+    # Mã không dùng lại; tên được dùng lại
+    fresh = await create_resource(admin, name=name)
+    assert int(fresh["code"][1:]) > int(code[1:])
+
+    # Lịch sử thao tác
+    rows = await admin.get(f"{API}/admin/audit-log", params={"action": "config.resource.delete"})
+    row = next(i for i in rows.json()["items"] if i["target"]["code"] == code)
+    assert row["action_label"] == "Xóa sân" and row["actor"] == "admin"
+    assert row["target"]["name"] == name
+    assert row["changes"][0]["after"] == "Đã xóa"
+
+
+async def test_delete_resource_waits_for_booking_in_flight(admin):
+    """Booking đang tạo (giữ khóa dòng sân) xong trước -> lệnh xóa phải thấy lịch đó, 409."""
+    res = await create_resource(admin)
+    code = res["code"]
+    rid = await court_id(code)
+    start = datetime.combine(today() + timedelta(days=22), time(8), settings.tz)
+    async with SessionLocal() as booking_tx:
+        await lock_live_resources(booking_tx, {rid})
+        deleting = asyncio.create_task(delete_court(admin, code))
+        await asyncio.sleep(0.3)
+        assert not deleting.done(), "lệnh xóa phải chờ khóa của booking"
+        await make_allocation(
+            booking_tx, code, start, start + timedelta(hours=1), owner_code="BK-TEST-DEL-2"
+        )
+        await booking_tx.commit()
+    r = await deleting
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "E-CFG-11", r.text
+
+
+async def test_booking_waits_for_delete_in_flight_then_404(admin):
+    """Lệnh xóa đang chạy (giữ FOR UPDATE) xong trước -> booking phải thấy sân đã xóa, 404."""
+    res = await create_resource(admin)
+    rid = await court_id(res["code"])
+    async with SessionLocal() as delete_tx, SessionLocal() as booking_tx:
+        row = await delete_tx.scalar(select(Resource).where(Resource.id == rid).with_for_update())
+        locking = asyncio.create_task(lock_live_resources(booking_tx, {rid}))
+        await asyncio.sleep(0.3)
+        assert not locking.done(), "booking phải chờ khóa của lệnh xóa"
+        row.deleted_at = datetime.now(settings.tz)
+        row.is_active = False
+        await delete_tx.commit()
+        with pytest.raises(AppError) as err:
+            await locking
+        assert err.value.status_code == 404

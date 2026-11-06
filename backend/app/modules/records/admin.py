@@ -30,7 +30,7 @@ def _not_found() -> AppError:
 
 
 async def _court_names(session: AsyncSession) -> dict[str, str]:
-    return {r.code: r.name for r in (await engine.list_resources(session)).items}
+    return await engine.resource_names(session)
 
 
 async def rows_of(session: AsyncSession, records: list[SpeedRecord]) -> list[AdminSpeedRecordRow]:
