@@ -40,7 +40,8 @@ export function RoomHistory({ roomId }: { roomId: number }) {
   const [format, setFormat] = useState<FormatFilter>("all");
   const [matches, setMatches] = useState<MatchList | null>(null);
   const [ranking, setRanking] = useState<RankingRow[] | null>(null);
-  const [error, setError] = useState(false);
+  // "gone" (404, visible_room): Host của phòng đã Ngừng, thử lại cũng không xem được; "failed": lỗi khác (mạng, máy chủ)
+  const [error, setError] = useState<"" | "gone" | "failed">("");
 
   // Tải lại khi đổi bộ lọc / có trận mới (mốc 2: thêm polling khi BE có ETag)
   useEffect(() => {
@@ -50,9 +51,9 @@ export function RoomHistory({ roomId }: { roomId: number }) {
       if (m.ok && r.ok) {
         setMatches(m.data);
         setRanking(r.data.items);
-        setError(false);
-      } else setError(true);
-    }).catch(() => alive && setError(true));
+        setError("");
+      } else setError((!m.ok && m.error.status === 404) || (!r.ok && r.error.status === 404) ? "gone" : "failed");
+    }).catch(() => alive && setError("failed"));
     return () => {
       alive = false;
     };
@@ -60,7 +61,7 @@ export function RoomHistory({ roomId }: { roomId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 border-b border-border" role="tablist" aria-label="Lịch sử trận đấu">
+      <div className="flex gap-1 border-b border-border" role="tablist" aria-label="Lịch sử trận đấu" hidden={error === "gone"}>
         {(
           [
             ["matches", `Các trận${matches ? ` (${matches.total})` : ""}`],
@@ -82,7 +83,7 @@ export function RoomHistory({ roomId }: { roomId: number }) {
 
       {error ? (
         <p role="alert" className="rounded-card bg-surface p-6 text-center text-sm text-danger shadow-card">
-          Không tải được dữ liệu. Vui lòng thử lại sau.
+          {error === "gone" ? "Phòng của buổi chơi này không còn xem được nên không có chi tiết các trận. Số trận, thắng, thua của buổi vẫn được giữ ở Lịch sử chơi." : "Không tải được dữ liệu. Vui lòng thử lại sau."}
         </p>
       ) : !matches || !ranking ? (
         <p className="py-8 text-center text-muted" aria-busy>
