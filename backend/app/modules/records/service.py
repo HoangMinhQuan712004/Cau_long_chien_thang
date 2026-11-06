@@ -7,8 +7,7 @@ không tính hạng, kỷ lục hay video.
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import func, select
-from sqlalchemy.dialects.postgresql import distinct_on
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -52,35 +51,6 @@ def _at(day: date) -> datetime:
     return datetime.combine(day, time(), settings.tz)
 
 
-@dataclass(frozen=True)
-class _Best:
-    customer_id: int
-    speed_kmh: int
-    measured_at: datetime
-    video_url: str | None  # T-049: link của đúng số đo này
-
-
-async def _best_in(session: AsyncSession, start: datetime, end: datetime) -> list[_Best]:
-    """Số đo cao nhất của từng người trong [start, end) – bằng nhau lấy lần đạt sớm hơn."""
-    rows = await session.execute(
-        select(
-            SpeedRecord.customer_id,
-            SpeedRecord.speed_kmh,
-            SpeedRecord.measured_at,
-            SpeedRecord.video_url,
-        )
-        .where(APPROVED, SpeedRecord.measured_at >= start, SpeedRecord.measured_at < end)
-        .order_by(
-            SpeedRecord.customer_id,
-            SpeedRecord.speed_kmh.desc(),
-            SpeedRecord.measured_at,
-            SpeedRecord.id,
-        )
-        .ext(distinct_on(SpeedRecord.customer_id))
-    )
-    return [_Best(*row) for row in rows]
-
-
 async def eligible(session: AsyncSession, ids: set[int]) -> dict[int, members.RoomPerson]:
     """Hội viên Hoạt động có tài khoản liên kết (cùng điều kiện phòng chơi) – Ngừng / không còn
     liên kết thì không vào bảng."""
@@ -94,49 +64,96 @@ def _avatar_url(person: members.RoomPerson) -> str | None:
     return members.avatar_url(person.customer_id, person.avatar_etag)
 
 
+# Thứ tự xếp hạng (T-053): mỗi cú một hạng, không đồng hạng
+RANK_ORDER = (SpeedRecord.speed_kmh.desc(), SpeedRecord.measured_at, SpeedRecord.id)
+
+
+def _ahead_of(r: SpeedRecord):
+    """Điều kiện "xếp trên cú ``r``" – phải khớp ``RANK_ORDER``."""
+    return or_(
+        SpeedRecord.speed_kmh > r.speed_kmh,
+        and_(
+            SpeedRecord.speed_kmh == r.speed_kmh,
+            or_(
+                SpeedRecord.measured_at < r.measured_at,
+                and_(SpeedRecord.measured_at == r.measured_at, SpeedRecord.id < r.id),
+            ),
+        ),
+    )
+
+
+async def _court_names(session: AsyncSession, rows: list[SpeedRecord]) -> dict[str, str]:
+    if not any(r.court_code for r in rows):
+        return {}
+    return {c.code: c.name for c in (await engine.list_resources(session)).items}
+
+
 async def ranking(
     session: AsyncSession, customer_id: int, period: Period, day: date
 ) -> SpeedRanking:
+    """Xếp theo **từng cú đập** (T-053, đổi T-030): một người chiếm được nhiều bậc. Chỉ lấy lên bộ
+    nhớ các cú hiện ra (top 10 + cú tốt nhất của mình); còn lại đếm bằng SQL."""
     first, last = period_bounds(period, day)
-    best = await _best_in(session, _at(first), _at(last + timedelta(days=1)))
-    people = await eligible(session, {b.customer_id for b in best})
-    ordered = sorted(
-        (b for b in best if b.customer_id in people),
-        key=lambda b: (-b.speed_kmh, b.measured_at, b.customer_id),
+    in_period = (
+        APPROVED,
+        SpeedRecord.measured_at >= _at(first),
+        SpeedRecord.measured_at < _at(last + timedelta(days=1)),
     )
+    ids = set(await session.scalars(select(SpeedRecord.customer_id).where(*in_period).distinct()))
+    people = await eligible(session, ids)
+    conds = (*in_period, SpeedRecord.customer_id.in_(sorted(people)))
+    total = await session.scalar(select(func.count()).select_from(SpeedRecord).where(*conds)) or 0
+    top = list(
+        await session.scalars(select(SpeedRecord).where(*conds).order_by(*RANK_ORDER).limit(TOP))
+    )
+    mine = None
+    if customer_id in people:
+        mine = await session.scalar(
+            select(SpeedRecord)
+            .where(*conds, SpeedRecord.customer_id == customer_id)
+            .order_by(*RANK_ORDER)
+            .limit(1)
+        )
+    courts = await _court_names(session, top)
 
-    def row(rank: int, b: _Best) -> SpeedRankingRow:
-        p = people[b.customer_id]
-        is_me = b.customer_id == customer_id
+    def row(rank: int, r: SpeedRecord) -> SpeedRankingRow:
+        p = people[r.customer_id]
+        is_me = r.customer_id == customer_id
         shown = is_me or p.show_on_records
         return SpeedRankingRow(
             rank=rank,
             display_name=p.display_name if shown else ANONYMOUS,
             avatar_url=_avatar_url(p) if shown else None,
-            speed_kmh=b.speed_kmh,
-            measured_at=b.measured_at,
+            speed_kmh=r.speed_kmh,
+            measured_at=r.measured_at,
+            resource_name=courts.get(r.court_code) if r.court_code else None,
             is_me=is_me,
-            video=video.parse(b.video_url),
+            video=video.parse(r.video_url),
         )
 
     me = None
-    for rank, b in enumerate(ordered, start=1):
-        if b.customer_id == customer_id:
-            gap = ordered[TOP - 1].speed_kmh - b.speed_kmh if rank > TOP else None
-            me = SpeedMe(
-                rank=rank,
-                speed_kmh=b.speed_kmh,
-                measured_at=b.measured_at,
-                gap_to_top10=gap,
-                video=video.parse(b.video_url),
-            )
-            break
+    if mine is not None:
+        ahead = await session.scalar(
+            select(func.count()).select_from(SpeedRecord).where(*conds, _ahead_of(mine))
+        )
+        rank = (ahead or 0) + 1
+        person = people[customer_id]
+        me = SpeedMe(
+            rank=rank,
+            display_name=person.display_name,
+            avatar_url=_avatar_url(person),
+            speed_kmh=mine.speed_kmh,
+            measured_at=mine.measured_at,
+            gap_to_top10=top[TOP - 1].speed_kmh - mine.speed_kmh if rank > TOP else None,
+            video=video.parse(mine.video_url),
+        )
     return SpeedRanking(
         period=period,
         start=first,
         end=last,
-        total_members=len(ordered),
-        top=[row(rank, b) for rank, b in enumerate(ordered[:TOP], start=1)],
+        total_members=len(people),
+        total_records=total,
+        top=[row(rank, r) for rank, r in enumerate(top, start=1)],
         me=me,
         bar_floor_kmh=BAR_FLOOR_KMH,
     )

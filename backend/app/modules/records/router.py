@@ -43,12 +43,12 @@ async def speed_ranking(
 ):
     """Top 10 cú đập nhanh nhất trong kỳ (tuần T2→CN / tháng / năm, giờ VN) + hạng của tôi.
 
-    Mỗi hội viên lấy số đo cao nhất trong kỳ, bằng nhau thì ai đạt trước xếp trên. Chỉ hội viên
-    Hoạt động có tài khoản liên kết. Tắt "Hiện trên kỷ lục" -> "Hội viên ẩn danh" (mình luôn thấy
-    tên mình). Không trả id của người khác. ``period`` / ``date`` sai -> 422.
+    Xếp theo từng cú (T-053): một người chiếm được nhiều bậc; bằng km/h thì cú đạt trước xếp trên.
+    Hạng của tôi là hạng cú tốt nhất của mình. Chỉ hội viên Hoạt động có tài khoản liên kết. Tắt
+    "Hiện trên kỷ lục" -> "Hội viên ẩn danh" (mình luôn thấy tên mình). Không trả id của người
+    khác. ``period`` / ``date`` sai -> 422.
 
-    T-049: ``video`` là video của đúng số đo xếp hạng (ẩn danh vẫn phát); số đo đó không có video
-    thì null, không lấy video của số đo khác.
+    T-049: ``video`` là video của đúng cú đó (ẩn danh vẫn phát).
     """
     today = dt.datetime.now(settings.tz).date()
     return await service.ranking(session, member.customer_id, period, day or today)
