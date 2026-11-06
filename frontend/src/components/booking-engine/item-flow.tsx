@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
 import { cn } from "@/lib/cn";
-import { formatDateTime, formatDayMonthYear, formatLongDate, formatVnd, hhmm } from "@/lib/format";
+import { formatDateTime, formatDayMonth, formatDayMonthYear, formatLongDate, formatVnd, hhmm } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import { authFailure } from "./booking-dialogs";
 import { getItem, sendCancelItem, sendCollect, sendUncollectible } from "./requests";
@@ -513,6 +513,8 @@ function CancelDialog({ item, onBack, onClose, onDone, onStale }: StepProps) {
   const noun = isTicket ? "vé" : "booking";
   const amount = item.payment.amount;
   const collected = item.payment.payment_status === "paid";
+  const phase = item.cancel_phase ?? "before"; // T-052: câu cảnh báo theo giai đoạn của buổi
+  const playDay = formatDayMonth(item.schedule.play_date);
   const errs = {
     reason: !reason.trim() ? "Vui lòng nhập Lý do." : reason.trim().length > 200 ? "Lý do tối đa 200 ký tự." : "",
     refund: collected && !refunded ? "Vui lòng xác nhận việc hoàn tiền cho khách." : "",
@@ -528,12 +530,12 @@ function CancelDialog({ item, onBack, onClose, onDone, onStale }: StepProps) {
       if (!res.ok) {
         const e = res.error;
         if (authFailure(e)) return;
-        // Dữ liệu đổi ở nơi khác (E-012), buổi đã bắt đầu (E-PAY-5) hoặc đã hủy / Không thu được (E-PAY-6): tải lại bản mới
+        // Dữ liệu đổi ở nơi khác (E-012), đã bắt đầu mà chưa thu (E-PAY-5) hoặc đã hủy / Không thu được (E-PAY-6): tải lại bản mới
         if (e.code === "E-012" || e.code === "E-PAY-5" || e.code === "E-PAY-6") return void (await onStale(errorText(e)));
         setBanner(errorText(e));
         return;
       }
-      toast(`Đã hủy ${noun} · ${item.code}`, collected ? `Đã trừ ${formatVnd(amount)} khỏi doanh thu` : "Khung đã trống lại");
+      toast(`Đã hủy ${noun} · ${item.code}`, collected ? `Đã trừ ${formatVnd(amount)} khỏi doanh thu${phase === "past" ? ` ngày ${playDay}` : ""}` : "Khung đã trống lại");
       onDone();
       onClose();
     } finally {
@@ -587,8 +589,24 @@ function CancelDialog({ item, onBack, onClose, onDone, onStale }: StepProps) {
       </div>
       {collected ? (
         <div className="space-y-2">
+          {phase === "playing" ? (
+            <ErrorBanner>
+              {isTicket
+                ? "Buổi đang diễn ra. Chỗ của vé được trả lại ngay. Hãy báo người đang trên sân."
+                : "Buổi đang diễn ra. Khung giờ sẽ trống ngay và phòng chơi đóng lại. Hãy báo người đang trên sân."}
+            </ErrorBanner>
+          ) : null}
           <ErrorBanner>
-            Sẽ trừ <b>{formatVnd(amount)}</b> khỏi doanh thu. Hệ thống không tự hoàn tiền, bạn tự trả cho khách.
+            {phase === "past" ? (
+              <>
+                Buổi đã chơi ngày {playDay}. Chỉ trừ <b>{formatVnd(amount)}</b> khỏi doanh thu ngày đó.
+              </>
+            ) : (
+              <>
+                Sẽ trừ <b>{formatVnd(amount)}</b> khỏi doanh thu.
+              </>
+            )}{" "}
+            Hệ thống không tự hoàn tiền, bạn tự trả cho khách.
           </ErrorBanner>
           <label htmlFor={refundId} className="flex min-h-11 cursor-pointer items-start gap-2 text-sm">
             <input id={refundId} type="checkbox" checked={refunded} onChange={(e) => setRefunded(e.target.checked)} aria-invalid={Boolean(submitted && errs.refund) || undefined} className="mt-0.5 size-5 shrink-0 accent-primary" />
@@ -602,7 +620,12 @@ function CancelDialog({ item, onBack, onClose, onDone, onStale }: StepProps) {
         <p className="rounded-md bg-primary-softer p-2.5 text-sm">{item.payment.payment_status === "unpaid" ? `Khoản ${formatVnd(amount)} chưa thu nên không ảnh hưởng doanh thu.` : "Khoản này chưa thu."}</p>
       )}
       <ErrorBanner>
-        {isTicket ? "Chỗ của vé được trả lại và có thể bán lại." : "Khung giờ trống lại trên lịch ngay, đặt lại được bằng đơn mới."} Đã hủy thì không khôi phục được, mã {item.code} không dùng lại. Thao tác được ghi vào Lịch sử thao tác.
+        {phase === "past"
+          ? "Buổi đã qua nên lịch đặt sân không đổi."
+          : isTicket
+            ? "Chỗ của vé được trả lại và có thể bán lại."
+            : "Khung giờ trống lại trên lịch ngay, đặt lại được bằng đơn mới."}{" "}
+        Đã hủy thì không khôi phục được, mã {item.code} không dùng lại. Thao tác được ghi vào Lịch sử thao tác.
       </ErrorBanner>
       <p className="text-xs text-muted">
         {item.customer.kind === "member"
