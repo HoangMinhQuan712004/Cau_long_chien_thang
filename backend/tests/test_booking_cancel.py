@@ -187,11 +187,14 @@ async def test_cancel_rules(admin, staff, clock):
     r = await cancel(admin, code, version=2)
     assert r.status_code == 422 and code_of(r) == "E-PAY-7"
 
-    # Đúng giờ bắt đầu là đã bắt đầu
+    # Chưa thu mà đúng giờ bắt đầu: không hủy, không có nút, dùng Không thu được (T-052)
+    other = await new_booking(admin, staff)
     clock(10)
-    r = await cancel(admin, code, version=2, refund_confirmed=True)
+    r = await cancel(admin, other["code"])
     assert r.status_code == 422 and code_of(r) == "E-PAY-5"
-    assert "cancel" not in (await admin.get(f"{BK}/items/{code}")).json()["actions"]
+    assert "Không thu được" in r.json()["detail"]["message"]
+    item = (await admin.get(f"{BK}/items/{other['code']}")).json()
+    assert "cancel" not in item["actions"] and item["cancel_phase"] is None
     clock(9, 59)
 
     key = idem()
@@ -500,15 +503,30 @@ async def _room_of(admin, staff, host) -> tuple[dict, PlayRoom]:
     return b, room
 
 
+def past_room_values() -> tuple[dict, str]:
+    """Đưa buổi về quá khứ theo giờ thật để Lịch sử chơi đọc được (tháng tương lai trả rỗng)."""
+    start = datetime.now(UTC) - timedelta(hours=3)
+    local = start.astimezone(settings.tz)
+    values = {"start_at": start, "end_at": start + timedelta(hours=1)}
+    return values, f"{local.year:04d}-{local.month:02d}"
+
+
+async def month_stats_of(room_id: int, customer_id: int):
+    values, month = past_room_values()
+    async with SessionLocal() as s:
+        await s.execute(update(PlayRoom).where(PlayRoom.id == room_id).values(**values))
+        await s.commit()
+    async with SessionLocal() as s:
+        return await rooms_api.month_stats(s, customer_id, month)
+
+
 @pytest.mark.parametrize("status", ["playing", "finished"])
-async def test_booking_with_played_match_cannot_be_cancelled(admin, staff, people, status):
+async def test_order_cancel_skips_played_but_single_cancel_works(admin, staff, people, status):
+    """AC5, AC8: "Hủy đơn" bỏ qua buổi có trận; hủy từng mục thì được."""
     host = await people("Chủ Phòng")
     b, room = await _room_of(admin, staff, host)
     await add_match(room.id, 1, [host.customer_id], [-1], status=status, win="a")
 
-    r = await cancel(admin, b["code"])
-    assert r.status_code == 422 and code_of(r) == "E-PAY-8", r.text
-    assert "đã có trận đấu" in r.json()["detail"]["message"]
     preview = (await admin.get(f"{FD}/orders/{b['order_code']}/cancel-preview")).json()
     assert preview["cancellable"] == []
     assert preview["skipped"] == [{"code": b["code"], "reason": "played"}]
@@ -523,6 +541,16 @@ async def test_booking_with_played_match_cannot_be_cancelled(admin, staff, peopl
     async with SessionLocal() as s:
         row = await s.scalar(select(Booking).where(Booking.code == b["code"]))
     assert row.payment_status == "unpaid"
+
+    r = await cancel(admin, b["code"])
+    assert r.status_code == 200, r.text
+    # Có trận đã xong: phòng vẫn mở được, chỉ đọc. Trận dở thôi thì ẩn như T-051
+    got = await host.client.get(f"{MA}/rooms/{room.id}")
+    assert got.status_code == (200 if status == "finished" else 404)
+    if status == "finished":
+        r = await post(host.client, f"/{room.id}/leave", {"version": got.json()["version"]})
+        assert r.status_code == 409 and code_of(r) == "E-ROOM-1"
+        assert (await host.client.get(f"{MA}/rooms/{room.id}/matches")).status_code == 200
 
 
 async def test_cancel_closes_room_and_notifies(admin, staff, people):
@@ -582,9 +610,9 @@ async def test_cancel_closes_room_and_notifies(admin, staff, people):
     assert len([t for t in texts(await notifications(guest.client)) if closed in t]) == 1
 
 
-async def test_match_slipped_in_during_cancel_is_abandoned_and_hidden(admin, staff, people):
+async def test_match_slipped_in_during_cancel_is_abandoned_or_kept(admin, staff, people):
     """Trận lọt vào lúc đang hủy: ``playing`` -> abandoned; lưới job mỗi phút đóng phòng khi lỡ
-    sự kiện; ``finished`` lọt vào cũng không vào Lịch sử chơi."""
+    sự kiện; ``finished`` giữ nguyên và vẫn tính ở Lịch sử chơi (T-052)."""
     host = await people("Chủ Phòng")
     b, room = await _room_of(admin, staff, host)
     b2, room2 = await _room_of(admin, staff, host)
@@ -602,9 +630,8 @@ async def test_match_slipped_in_during_cancel_is_abandoned_and_hidden(admin, sta
         assert (await s.get(PlayRoom, room2.id)).status == "closed"
         kept = await s.scalar(select(PlayMatch).where(PlayMatch.room_id == room2.id))
         assert kept.status == "finished"
-        month = f"{DAY.year:04d}-{DAY.month:02d}"
-        stats = await rooms_api.month_stats(s, host.customer_id, month)
-    assert stats.matches == 0 and stats.sessions == 0
+    stats = await month_stats_of(room2.id, host.customer_id)
+    assert (stats.matches, stats.wins, stats.sessions) == (1, 1, 1)
 
 
 # ------------------------------------------------------------------ khách, hội viên (AC11, AC12)
@@ -825,3 +852,191 @@ async def test_owner_is_notified_once_when_the_event_is_delivered_again(admin, s
     got = [n["text"] for n in (await notifications(hv.client))["items"]]
     for b in (together, again):
         assert sum(f"({b['order_code']}) đã bị sân hủy." in t for t in got) == 1, got
+
+
+# ------------------------------------------------------------------ T-052: đang chơi, đã qua
+
+
+async def test_cancel_phase_follows_time_status_and_permission(admin, staff, clock):
+    b = await new_booking(admin, staff)
+    code = b["code"]
+
+    async def phase_of(client) -> tuple[str | None, bool]:
+        item = (await client.get(f"{BK}/items/{code}")).json()
+        return item["cancel_phase"], "cancel" in item["actions"]
+
+    assert await phase_of(admin) == ("before", True)
+    assert await phase_of(staff) == (None, False)
+    assert b["cancel_phase"] is None  # phản hồi lúc đặt của Nhân viên
+    clock(10)
+    assert await phase_of(admin) == (None, False)  # chưa thu mà đã tới giờ
+    clock(9)
+    assert (await collect(admin, code)).status_code == 200
+    assert await phase_of(admin) == ("before", True)
+    clock(10)
+    assert await phase_of(admin) == ("playing", True)
+    assert await phase_of(staff) == (None, False)
+    clock(11)  # đúng giờ kết thúc là đã qua
+    assert await phase_of(admin) == ("past", True)
+    r = await cancel(staff, code, version=2, refund_confirmed=True)
+    assert r.status_code == 403
+
+    # Không thu được: không hủy được
+    other = await new_booking(admin, staff, hour=12)
+    clock(12)
+    r = await admin.post(
+        f"{BK}/items/{other['code']}/uncollectible",
+        json={"reason": "Khách bỏ về", "version": 1},
+        headers=idem(),
+    )
+    assert r.status_code == 200 and r.json()["cancel_phase"] is None, r.text
+
+
+async def test_past_paid_booking_cancels_without_touching_the_room(admin, staff, people, clock):
+    """AC1, AC3: trừ doanh thu đúng ngày chơi, công suất giảm; phòng không đổi, không báo phòng."""
+    owner, asker = await people("Chủ Đơn"), await people("Xin Vào")
+    b, room = await _room_of(admin, staff, owner)
+    code = b["code"]
+    got = await post(asker.client, f"/{room.id}/join-requests", {"version": room.version})
+    assert got.status_code == 200, got.text
+    assert (await collect(admin, code)).status_code == 200
+    async with SessionLocal() as s:
+        court_id = await s.scalar(select(Booking.resource_id).where(Booking.code == code))
+    totals_before, slots_before = await _report(court_id)
+    params = {"from": DAY.isoformat(), "to": DAY.isoformat()}
+    cards_before = (await admin.get(f"{BK}/transactions", params=params)).json()["cards"]
+
+    clock(12)
+    r = await cancel(admin, code, version=2)
+    assert r.status_code == 422 and code_of(r) == "E-PAY-7"
+    r = await cancel(admin, code, version=2, refund_confirmed=True)
+    assert r.status_code == 200, r.text
+    amount = b["payment"]["amount"]
+    assert r.json()["payment"]["refund_amount"] == amount
+
+    totals_after, slots_after = await _report(court_id)
+    assert totals_after.revenue == totals_before.revenue - amount
+    assert slots_after == slots_before - 1
+    cards = (await admin.get(f"{BK}/transactions", params=params)).json()["cards"]
+    assert cards["paid"]["amount"] == cards_before["paid"]["amount"] - amount
+    assert cards["cancelled"]["amount"] == cards_before["cancelled"]["amount"] + amount
+
+    payload = await outbox_payload(code)
+    assert payload["past"] is True
+    await events.publish(events.BOOKING_CANCELLED, {"tenant_id": 1, **payload})
+    async with SessionLocal() as s:
+        await lifecycle._close_any_cancelled(s, at(12))  # job cũng không đóng
+        await s.commit()
+    async with SessionLocal() as s:
+        assert (await s.get(PlayRoom, room.id)).status == "open"
+        request = await s.scalar(select(PlayRoomRequest).where(PlayRoomRequest.room_id == room.id))
+    assert request.status == "pending"
+    closed = "đã bị hủy nên phòng đã đóng"
+    assert not [n for n in (await notifications(asker.client))["items"] if closed in n["text"]]
+    mine = [n["text"] for n in (await notifications(owner.client))["items"]]
+    assert sum(f"({b['order_code']}) đã bị sân hủy." in t for t in mine) == 1
+    assert not any(closed in t or REASON in t for t in mine)
+    # Không có trận đã xong: ẩn như T-051
+    assert (await owner.client.get(f"{MA}/rooms/{room.id}")).status_code == 404
+
+
+async def test_playing_paid_booking_frees_the_court_and_closes_the_room(
+    admin, staff, people, clock
+):
+    """AC4, AC7: sân trống luôn; trận dở -> abandoned, trận đã xong giữ nguyên và vẫn tính."""
+    owner, asker = await people("Chủ Đơn"), await people("Xin Vào")
+    b, room = await _room_of(admin, staff, owner)
+    code = b["code"]
+    got = await post(asker.client, f"/{room.id}/join-requests", {"version": room.version})
+    assert got.status_code == 200, got.text
+    await add_match(room.id, 1, [owner.customer_id], [-1], status="finished", win="a")
+    await add_match(room.id, 2, [owner.customer_id], [-1], status="playing", win="a")
+    assert (await collect(admin, code)).status_code == 200
+
+    clock(10, 30)
+    r = await cancel(admin, code, version=2, refund_confirmed=True)
+    assert r.status_code == 200, r.text
+    assert code not in await calendar_codes(admin)
+    r = await book(
+        staff, b["court"]["code"], 11, customer=temp("Khách Sau", random_phone()), day=DAY
+    )
+    assert r.status_code == 201, r.text
+
+    payload = await outbox_payload(code)
+    assert payload["past"] is False
+    for _ in range(2):  # giao lại: không báo trùng
+        await events.publish(events.BOOKING_CANCELLED, {"tenant_id": 1, **payload})
+    async with SessionLocal() as s:
+        assert (await s.get(PlayRoom, room.id)).status == "closed"
+        matches = await s.scalars(select(PlayMatch).where(PlayMatch.room_id == room.id))
+        assert {m.no: m.status for m in matches} == {1: "finished", 2: "abandoned"}
+        assert await rooms_api.my_rooms(s, owner.customer_id) == []
+
+    closed = "đã bị hủy nên phòng đã đóng"
+    assert sum(closed in n["text"] for n in (await notifications(asker.client))["items"]) == 1
+    mine = [n["text"] for n in (await notifications(owner.client))["items"]]
+    assert sum(f"({b['order_code']}) đã bị sân hủy." in t for t in mine) == 1
+    assert not any(closed in t for t in mine)
+
+    # Mở được chi tiết, trận đã xong còn nguyên, vẫn tính ở thống kê tháng
+    assert (await owner.client.get(f"{MA}/rooms/{room.id}")).status_code == 200
+    matches = (await owner.client.get(f"{MA}/rooms/{room.id}/matches")).json()
+    assert len(matches["items"]) == 1
+    stats = await month_stats_of(room.id, owner.customer_id)
+    assert (stats.matches, stats.wins, stats.sessions) == (1, 1, 1)
+
+
+async def test_past_paid_ticket_cancels_and_event_keeps_the_court(admin, staff, clock):
+    """AC10: vé đã thu của sự kiện đã diễn ra hủy được; chưa thu thì không; sự kiện vẫn còn."""
+    clock(13)
+    ev, _ = await _today_session(admin, capacity=2)
+    paid = (await _register(staff, ev["code"])).json()
+    unpaid = (await _register(staff, ev["code"])).json()
+    assert (await collect(admin, paid["code"])).status_code == 200
+    tid = current_tenant_id()
+
+    async def revenue() -> int:
+        async with SessionLocal() as s:
+            return (await report_revenue.totals(s, tid, DAY, DAY)).revenue
+
+    before = await revenue()
+    clock(17)
+    item = (await admin.get(f"{BK}/items/{paid['code']}")).json()
+    assert item["cancel_phase"] == "past" and "cancel" in item["actions"]
+    r = await cancel(admin, unpaid["code"])
+    assert r.status_code == 422 and code_of(r) == "E-PAY-5"
+    r = await cancel(admin, paid["code"], version=2, refund_confirmed=True)
+    assert r.status_code == 200, r.text
+    assert await revenue() == before - paid["payment"]["amount"]
+    assert (await outbox_payload(paid["code"]))["past"] is True
+
+    view = (await admin.get(f"{BK}/sessions/{ev['code']}")).json()
+    assert view["status"] == "active" and view["taken"] == 1
+    async with SessionLocal() as s:
+        allocations = await s.scalars(select(Allocation).where(Allocation.owner_code == ev["code"]))
+        assert all(a.active for a in allocations)
+
+
+async def test_cancel_and_save_result_race_stays_consistent(admin, staff, people):
+    """AC11: hủy ‖ lưu kết quả: hoặc trận đã lưu giữ nguyên, hoặc bị từ chối và thành abandoned."""
+    host = await people("Chủ Phòng")
+    b, room = await _room_of(admin, staff, host)
+    await add_match(room.id, 1, [host.customer_id], [-1], status="playing", win="a")
+    version = (await host.client.get(f"{MA}/rooms/{room.id}")).json()["version"]
+    cancelled, saved = await asyncio.gather(
+        cancel(admin, b["code"]),
+        post(
+            host.client,
+            f"/{room.id}/matches/1/result",
+            {"score_a": 21, "score_b": 15, "version": version},
+        ),
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    assert saved.status_code in (200, 409), saved.text
+    await events.publish(
+        events.BOOKING_CANCELLED, {"tenant_id": 1, **await outbox_payload(b["code"])}
+    )
+    async with SessionLocal() as s:
+        match = await s.scalar(select(PlayMatch).where(PlayMatch.room_id == room.id))
+        assert (await s.get(PlayRoom, room.id)).status == "closed"
+    assert match.status == ("finished" if saved.status_code == 200 else "abandoned")

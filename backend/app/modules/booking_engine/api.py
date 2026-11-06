@@ -367,12 +367,11 @@ async def cancel_item(
     actor: Actor,
     code: str,
     data: CancelIn,
-    played: set[str],
     *,
     tenant_id: int | None = None,
 ) -> ItemOut:
-    """Hủy booking / vé (T-051). ``played``: mã khối đã có trận trong phòng (lớp gọi tra)."""
-    return await cancel_service.cancel_item(session, _tid(tenant_id), actor, code, data, played)
+    """Hủy booking / vé (T-051, T-052)."""
+    return await cancel_service.cancel_item(session, _tid(tenant_id), actor, code, data)
 
 
 async def order_block_codes(

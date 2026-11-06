@@ -174,9 +174,12 @@ async def close_cancelled(session: AsyncSession, codes: list[str], now: datetime
 
 
 async def _close_any_cancelled(session: AsyncSession, now: datetime) -> int:
-    """Lưới an toàn khi lỡ sự kiện: phòng còn mở mà booking đã hủy."""
+    """Lưới an toàn khi lỡ sự kiện: phòng còn mở, buổi chưa kết thúc, mà booking đã hủy. Buổi đã
+    qua không đóng, không báo ở đây (T-052): phòng tự đóng theo ``close_expired``."""
     codes = list(
-        await session.scalars(select(PlayRoom.booking_code).where(PlayRoom.status == "open"))
+        await session.scalars(
+            select(PlayRoom.booking_code).where(PlayRoom.status == "open", PlayRoom.end_at > now)
+        )
     )
     gone = await engine.cancelled_booking_codes(session, codes)
     return await close_cancelled(session, sorted(gone), now)

@@ -20,6 +20,7 @@ from app.modules.play_rooms.common import (
     Me,
     actor,
     eligible,
+    is_cancelled,
     is_closed,
     member_count,
     member_row,
@@ -248,7 +249,7 @@ async def answer_invite(session: AsyncSession, me: Me, invite_id: int, accept: b
     req = await _my_invite(session, me, invite_id)
     room = await visible_room(session, req.room_id, lock=True)
     await session.refresh(req)  # đọc lại sau khi đã khóa phòng
-    if is_closed(room, now):
+    if is_closed(room, now) or await is_cancelled(session, room):
         raise errors.closed()
     if req.status != "pending":
         raise errors.stale()

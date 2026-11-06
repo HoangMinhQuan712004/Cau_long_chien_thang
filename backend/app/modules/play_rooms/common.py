@@ -97,9 +97,24 @@ async def lock_room(session: AsyncSession, room_id: int) -> PlayRoom:
     return room
 
 
+async def is_cancelled(session: AsyncSession, room: PlayRoom) -> bool:
+    """Booking của phòng đã bị hủy (đúng ngay sau commit, không chờ worker đóng phòng)."""
+    return bool(await engine.cancelled_booking_codes(session, [room.booking_code]))
+
+
+async def _has_finished_match(session: AsyncSession, room_id: int) -> bool:
+    found = await session.scalar(
+        select(PlayMatch.id)
+        .where(PlayMatch.room_id == room_id, PlayMatch.status == "finished")
+        .limit(1)
+    )
+    return found is not None
+
+
 async def visible_room(session: AsyncSession, room_id: int, lock: bool) -> PlayRoom:
-    """Phòng có Host đủ điều kiện, không thì 404 (ẩn – AC2 chốt 31/10). Booking đã hủy -> 404
-    ngay, không chờ worker đóng phòng (T-051)."""
+    """Phòng có Host đủ điều kiện, không thì 404 (ẩn – AC2 chốt 31/10). Booking đã hủy -> 404 ngay,
+    không chờ worker đóng phòng (T-051); trừ phòng có trận đã xong: vẫn mở được từ Lịch sử chơi,
+    chỉ đọc (T-052)."""
     if lock:
         room = await lock_room(session, room_id)
     else:
@@ -108,7 +123,7 @@ async def visible_room(session: AsyncSession, room_id: int, lock: bool) -> PlayR
             raise errors.not_found()
     if room.host_customer_id not in await eligible(session, {room.host_customer_id}):
         raise errors.not_found()
-    if await engine.cancelled_booking_codes(session, [room.booking_code]):
+    if await is_cancelled(session, room) and not await _has_finished_match(session, room.id):
         raise errors.not_found()
     return room
 
@@ -118,7 +133,7 @@ async def writable_room(
 ) -> PlayRoom:
     """Khóa + kiểm: 404 (không có / ẩn) -> E-ROOM-1 (đã đóng) -> E-ROOM-6 (``version`` cũ)."""
     room = await visible_room(session, room_id, lock=True)
-    if is_closed(room, now):
+    if is_closed(room, now) or await is_cancelled(session, room):
         raise errors.closed()
     if version is not None and version != room.version:
         raise errors.stale()
