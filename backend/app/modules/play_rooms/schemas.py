@@ -57,6 +57,12 @@ class RoomCard(BaseModel):
     start_at: dt.datetime
     end_at: dt.datetime
     phase: Literal["upcoming", "ongoing"]
+    status: Literal["open", "ended"] = Field(
+        description="ended: phòng đã đóng hoặc buổi đã hủy, chỉ có ở kết quả tìm (T-054): nhãn "
+        "“Đã kết thúc”, vào xem chỉ đọc, không xin vào. Khi đó my_join_block, my_invite_id là "
+        "null, my_join_pending là false"
+    )
+    play_date: dt.date = Field(description="Ngày chơi (giờ Việt Nam)")
     host: PersonOut
     members: list[PersonOut] = Field(description="Cụm avatar (Host đứng đầu)")
     member_count: int
@@ -77,7 +83,9 @@ class RoomList(BaseModel):
     upcoming_count: int = Field(description="Sắp diễn ra")
     mine_count: int = Field(description='"Phòng của bạn" / "Sân của tôi (n)"')
     all_count: int = Field(description='"Tất cả (n)"')
-    items: list[RoomCard] = Field(description="Theo giờ bắt đầu, rồi tên sân (lọc theo ``scope``)")
+    items: list[RoomCard] = Field(
+        description="Theo giờ bắt đầu, rồi tên sân (lọc theo ``scope``); có ``q``: kết quả tìm"
+    )
 
 
 class RoomMemberOut(BaseModel):
