@@ -1089,3 +1089,31 @@ async def test_room_write_after_cancel_depends_on_end_time(
         )
     assert status == ("open" if writable else "closed")
     assert match.status == ("finished" if writable else "abandoned")
+
+
+async def test_cancelled_after_end_takes_no_new_people(admin, staff, people, clock):
+    """T-054: buổi hủy sau giờ kết thúc còn trong ân hạn: người trong phòng ghi được (T-052), nhưng
+    không ai xin vào hay nhận lời mời được nữa, và người ngoài không đọc được phòng."""
+    host, asker, invited = await people("Host"), await people("Xin Vào"), await people("Được Mời")
+    b, room = await _room_of(admin, staff, host)
+    r = await post(
+        host.client, f"/{room.id}/invites", {"phone": invited.phone, "version": room.version}
+    )
+    assert r.status_code == 200, r.text
+    assert (await collect(admin, b["code"])).status_code == 200
+    clock(11)
+    assert (await cancel(admin, b["code"], version=2, refund_confirmed=True)).status_code == 200
+
+    assert (await host.client.get(f"{MA}/rooms/{room.id}")).status_code == 200
+    assert (await asker.client.get(f"{MA}/rooms/{room.id}")).status_code == 404
+    version = (await host.client.get(f"{MA}/rooms/{room.id}")).json()["version"]
+    r = await post(asker.client, f"/{room.id}/join-requests", {"version": version})
+    assert r.status_code == 409 and code_of(r) == "E-ROOM-1", r.text
+    async with SessionLocal() as s:
+        invite_id = await s.scalar(
+            select(PlayRoomRequest.id).where(
+                PlayRoomRequest.room_id == room.id, PlayRoomRequest.kind == "invite"
+            )
+        )
+    r = await invited.client.post(f"{MA}/invites/{invite_id}/accept", headers=idem())
+    assert r.status_code == 409 and code_of(r) == "E-ROOM-1", r.text

@@ -629,8 +629,8 @@ async def test_tick_closes_room_and_blocks_writes(staff, admin, people):
     d = await detail(host.client, room.id)  # vẫn xem được
     assert d["status"] == "closed" and d["phase"] == "closed"
     assert room.id not in [c["id"] for c in (await host.client.get(ROOMS)).json()["items"]]
-    iid = (await detail(friend.client, room.id))["my_invite_id"]
-    assert iid is None
+    # Chỉ được mời, chưa từng vào: phòng đã kết thúc là 404 (T-054)
+    assert (await friend.client.get(f"{ROOMS}/{room.id}")).status_code == 404
     r = await post(host.client, f"/{room.id}/leave", {"version": d["version"]})
     assert r.status_code == 409 and code_of(r) == "E-ROOM-1"
 

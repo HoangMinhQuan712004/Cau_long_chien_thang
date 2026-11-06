@@ -421,6 +421,13 @@ async def cancelled_before_end_codes(
     return await rooms_feed.cancelled_before_end_codes(session, _tid(tenant_id), codes)
 
 
+async def booking_codes_owned_by(
+    session: AsyncSession, codes: list[str], refs: list[str], *, tenant_id: int | None = None
+) -> set[str]:
+    """Mã booking nào thuộc khách có các ``refs`` (phòng chơi, T-054). Chỉ đọc."""
+    return await rooms_feed.codes_owned_by(session, _tid(tenant_id), codes, refs)
+
+
 async def collect(
     session: AsyncSession, actor: Actor, code: str, data: CollectIn, *, tenant_id: int | None = None
 ) -> ItemOut:

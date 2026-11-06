@@ -1647,7 +1647,8 @@ export interface paths {
         };
         /**
          * Get Room
-         * @description Chi tiết phòng (cả phòng đã đóng – chỉ xem). 404 nếu không có / Host chưa đủ điều kiện.
+         * @description Chi tiết phòng. 404 nếu không có / Host không đủ điều kiện / phòng đã kết thúc mà mình không
+         *     phải người trong phòng (T-054); người trong phòng xem được, chỉ đọc.
          */
         get: operations["get_room_api_v1_member_area_rooms__room_id__get"];
         put?: never;
@@ -6927,6 +6928,11 @@ export interface components {
              * @enum {string}
              */
             status: "open" | "ended";
+            /**
+             * Can View
+             * @description false: phòng ended và mình không phải người trong phòng – ẩn “Xem phòng”, ``members`` rỗng, ``member_count`` 0; mở trực tiếp sẽ 404 (T-054)
+             */
+            can_view: boolean;
             /**
              * Play Date
              * Format: date

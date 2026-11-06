@@ -138,7 +138,8 @@ async def get_room(
     session: SessionDep,
     if_none_match: IfNoneMatch = None,
 ):
-    """Chi tiết phòng (cả phòng đã đóng – chỉ xem). 404 nếu không có / Host chưa đủ điều kiện."""
+    """Chi tiết phòng. 404 nếu không có / Host không đủ điều kiện / phòng đã kết thúc mà mình không
+    phải người trong phòng (T-054); người trong phòng xem được, chỉ đọc."""
     return _etag_response(await views.room_detail(session, _me(member), room_id), if_none_match)
 
 
