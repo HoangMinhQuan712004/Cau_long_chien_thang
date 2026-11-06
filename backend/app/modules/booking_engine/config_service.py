@@ -4,6 +4,7 @@ Hàm ở đây **không commit** – lớp gọi (router qua idempotency, script
 """
 
 from datetime import date, timedelta
+from itertools import chain
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -61,6 +62,7 @@ from app.modules.booking_engine.pricing import (
 from app.modules.booking_engine.schedules import (
     Hours,
     effective_on,
+    ensure_whole_hours,
     pending_after,
     schedule_out,
     schedules_of,
@@ -240,6 +242,7 @@ async def create_resource(
     label = resource_label(tenant)
     name = _clean_name(data.name, label)
     rtype = await _type_by_code(session, tenant_id, data.resource_type_code)
+    ensure_whole_hours([data.open_time, data.close_time, *chain(*data.peak_bands)])
     hours = validate_hours(data.open_time, data.close_time, data.peak_bands)
     await _ensure_unique_name(session, tenant_id, name, label)
 
@@ -301,6 +304,18 @@ async def create_resource(
     return await _resource_view(session, tenant_id, resource)
 
 
+def _ensure_new_hours_whole(data: ResourceUpdate, base: Hours, old_bands: list) -> None:
+    """Chỉ kiểm giá trị thật sự đổi: sân cũ có :30 vẫn sửa được phần khác."""
+    pairs = (
+        (data.open_time, to_hhmm(base.open_minute)),
+        (data.close_time, to_hhmm(base.close_minute)),
+    )
+    times = [new for new, current in pairs if new and new != current]
+    old = {tuple(band) for band in old_bands}
+    new_bands = [tuple(band) for band in data.peak_bands or [] if tuple(band) not in old]
+    ensure_whole_hours([*times, *chain(*new_bands)])
+
+
 async def update_resource(
     session: AsyncSession, tenant_id: int, actor: Actor, code: str, data: ResourceUpdate
 ) -> ResourceOut:
@@ -357,6 +372,7 @@ async def update_resource(
         if latest is None:
             raise RuntimeError(f"Resource {r.code} has no schedule")
         base = Hours.of(latest)
+        _ensure_new_hours_whole(data, base, latest.peak_bands)
         hours = validate_hours(
             data.open_time or to_hhmm(base.open_minute),
             data.close_time or to_hhmm(base.close_minute),

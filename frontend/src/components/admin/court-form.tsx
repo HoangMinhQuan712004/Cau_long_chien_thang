@@ -1,9 +1,11 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
+import { Dropdown } from "@/components/ui/dropdown";
 import { TrashIcon } from "@/components/ui/icons";
+import { cn } from "@/lib/cn";
 import { formatDayMonth, formatDayMonthYear } from "@/lib/format";
-import { hhmm, t5, TIMES, toMin, type Band, type Form, type ResourceType } from "./court-form-logic";
+import { closeHours, firstFreePeak, fitPeaks, hhmm, openHours, peakFromHours, peakToHours, sortBands, t5, toMin, withPeakFrom, type Band, type Form, type ResourceType } from "./court-form-logic";
 import type { CourtFormState } from "./use-court-form";
 
 const INPUT = "w-full rounded-md border border-border bg-background px-3 py-2 text-sm";
@@ -12,15 +14,26 @@ const INPUT = "w-full rounded-md border border-border bg-background px-3 py-2 te
 export function CourtForm({ state, types, onReload }: { state: CourtFormState; types: ResourceType[]; onReload: () => void }) {
   const { f, setF, touched, setTouched, submitted, banner, err, tomorrow } = state;
   const ids = { name: useId(), nameErr: useId(), open: useId(), close: useId(), closeErr: useId() };
+  const [adjusted, setAdjusted] = useState(false);
   const edit = f.mode === "edit";
   const showName = submitted || touched.name;
   const showHours = submitted || touched.hours;
   const showPeaks = submitted || touched.peaks;
-  const slots = Math.max(0, (toMin(f.close) - toMin(f.open)) / 30);
+  const slots = Math.max(0, Math.floor((toMin(f.close) - toMin(f.open)) / 60));
+  // Dữ liệu cũ có giờ rưỡi: vẫn hiện đúng giá trị để không mất im lặng
+  const hasHalfHour = [f.open, f.close, ...f.peaks.flat()].some((x) => !x.endsWith(":00"));
   const patch = (p: Partial<Form>) => setF((cur) => ({ ...cur, ...p }));
-  const setPeak = (i: number, j: 0 | 1, v: string) => {
+  const nextPeak = firstFreePeak(f);
+  // Đổi giờ mở / đóng: khung ra ngoài tự co về trong giờ mở, báo một dòng dưới phần cao điểm
+  const setHours = (open: string, close: string) => {
+    const fitted = fitPeaks(f.peaks, open, close);
+    setTouched((t) => ({ ...t, hours: true }));
+    setAdjusted(fitted.changed);
+    patch({ open, close, peaks: fitted.peaks });
+  };
+  const setPeak = (i: number, band: Band) => {
     setTouched((t) => ({ ...t, peaks: true }));
-    setF((cur) => ({ ...cur, peaks: cur.peaks.map((p, k) => (k === i ? (j === 0 ? [v, p[1]] : [p[0], v]) : p) as Band) }));
+    setF((cur) => ({ ...cur, peaks: cur.peaks.map((p, k) => (k === i ? band : p)) }));
   };
 
   return (
@@ -91,25 +104,27 @@ export function CourtForm({ state, types, onReload }: { state: CourtFormState; t
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label htmlFor={ids.open} className="mb-1 block text-sm font-medium">Mở cửa</label>
-            <TimeSelect id={ids.open} value={f.open} onChange={(v) => (setTouched((t) => ({ ...t, hours: true })), patch({ open: v }))} />
+            <TimeSelect id={ids.open} label="Mở cửa" hours={openHours(f)} value={f.open} onChange={(v) => setHours(v, f.close)} />
           </div>
           <div>
             <label htmlFor={ids.close} className="mb-1 block text-sm font-medium">Đóng cửa</label>
             <TimeSelect
               id={ids.close}
+              label="Đóng cửa"
+              hours={closeHours(f)}
               value={f.close}
               invalid={Boolean(showHours && err.close)}
-              describedBy={showHours && err.close ? ids.closeErr : undefined}
-              onChange={(v) => (setTouched((t) => ({ ...t, hours: true })), patch({ close: v }))}
+              onChange={(v) => setHours(f.open, v)}
             />
             {showHours && err.close ? <p id={ids.closeErr} className="mt-1 text-xs text-danger">{err.close}</p> : null}
           </div>
           <div>
             <span className="mb-1 block text-sm font-medium">Số khung</span>
             {/* Cùng khung với hai ô chọn giờ bên cạnh để ba cột thẳng hàng (dev T-044) */}
-            <p className="rounded-md border border-transparent bg-background/60 px-3 py-2 text-sm text-muted">{slots} khung 30 phút mỗi ngày</p>
+            <p className="rounded-md border border-transparent bg-background/60 px-3 py-2 text-sm text-muted">{slots} khung 1 giờ mỗi ngày</p>
           </div>
         </div>
+        {hasHalfHour ? <p role="alert" className="mt-2 text-xs text-danger">Sân này còn giờ rưỡi từ dữ liệu cũ, vẫn giữ nguyên khi lưu. Giờ mới chỉ chọn được giờ chẵn.</p> : null}
       </div>
 
       <fieldset>
@@ -121,11 +136,11 @@ export function CourtForm({ state, types, onReload }: { state: CourtFormState; t
               <div key={i}>
                 {/* Hàng khung giờ: Từ – Đến cùng cỡ cột Mở cửa / Đóng cửa phía trên, nút xóa là icon (dev T-044) */}
                 <div className={`grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 rounded-md sm:grid-cols-[minmax(0,10rem)_auto_minmax(0,10rem)_auto] ${bad ? "ring-1 ring-danger" : ""}`}>
-                  <TimeSelect label="Từ" value={p[0]} onChange={(v) => setPeak(i, 0, v)} />
+                  <TimeSelect label="Từ" hours={peakFromHours(f, i)} value={p[0]} onChange={(v) => setPeak(i, withPeakFrom(f, i, v))} />
                   <span aria-hidden className="text-muted">
                     –
                   </span>
-                  <TimeSelect label="Đến" value={p[1]} onChange={(v) => setPeak(i, 1, v)} />
+                  <TimeSelect label="Đến" hours={peakToHours(f, i)} value={p[1]} onChange={(v) => setPeak(i, [p[0], v])} />
                   <button
                     type="button"
                     title="Xóa khung giờ"
@@ -142,10 +157,12 @@ export function CourtForm({ state, types, onReload }: { state: CourtFormState; t
             );
           })}
           {showPeaks && err.overlap ? <p className="text-xs text-danger">{err.overlap}</p> : null}
+          {adjusted ? <p role="status" className="text-xs font-medium text-primary">Đã chỉnh khung cao điểm theo giờ mở cửa mới. Lưu mới có hiệu lực.</p> : null}
           <button
             type="button"
-            onClick={() => setF((cur) => ({ ...cur, peaks: [...cur.peaks, [cur.open, hhmm(Math.min(toMin(cur.open) + 60, toMin(cur.close)))]] }))}
-            className="min-h-11 text-sm text-primary hover:underline"
+            disabled={!nextPeak}
+            onClick={() => nextPeak && patch({ peaks: sortBands([...f.peaks, nextPeak]) })}
+            className="min-h-11 text-sm text-primary hover:underline disabled:text-muted disabled:no-underline"
           >
             + Thêm khung giờ
           </button>
@@ -173,14 +190,12 @@ export function CourtForm({ state, types, onReload }: { state: CourtFormState; t
   );
 }
 
-function TimeSelect({ id, value, onChange, label, invalid, describedBy }: { id?: string; value: string; onChange: (v: string) => void; label?: string; invalid?: boolean; describedBy?: string }) {
-  return (
-    <select id={id} value={value} aria-label={label} aria-invalid={invalid || undefined} aria-describedby={describedBy} onChange={(e) => onChange(e.target.value)} className={INPUT}>
-      {TIMES.map((t) => (
-        <option key={t} value={t}>
-          {t}
-        </option>
-      ))}
-    </select>
-  );
+// Cùng cao với ô nhập của form: 44 điện thoại, 38 từ sm
+const TIME_SELECT = "[&>button]:h-11 [&>button]:text-sm sm:[&>button]:h-9.5";
+
+/** Ô chọn giờ như popup đặt định kỳ, `hours` = các giờ hợp lệ (phút). Giá trị đang lưu ngoài danh sách (vd giờ rưỡi cũ) vẫn có một lựa chọn để không tự đổi. */
+function TimeSelect({ id, value, hours, onChange, label, invalid }: { id?: string; value: string; hours: number[]; onChange: (v: string) => void; label: string; invalid?: boolean }) {
+  const values = hours.map(hhmm);
+  const all = values.includes(value) ? values : [...values, value].sort();
+  return <Dropdown id={id} aria-label={label} value={value} onChange={onChange} options={all.map((v) => ({ value: v, label: v }))} className={cn(TIME_SELECT, "min-w-0", invalid && "[&>button]:border-danger")} />;
 }

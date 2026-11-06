@@ -232,7 +232,7 @@ async def test_idempotency_key_required_and_must_be_uuid4(admin):
 
 async def test_idempotency_failed_request_can_be_retried(admin):
     body = resource_body()
-    body["close_time"] = "05:30"  # E-CFG-2
+    body["close_time"] = "05:00"  # E-CFG-2
     headers = idem()
     r = await admin.post(f"{BK}/resources", json=body, headers=headers)
     assert r.status_code == 422

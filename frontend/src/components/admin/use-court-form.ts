@@ -21,7 +21,7 @@ export function useCourtForm(initial: Form, resources: Resource[], onSaved: (cod
   const [submitted, setSubmitted] = useState(false);
   const [banner, setBanner] = useState<Banner | null>(null);
   const [busy, setBusy] = useState(false);
-  const err = validate(f, resources);
+  const err = validate(f, resources, initial.peaks);
   const tomorrow = addDays(todayVn(), 1);
   const dirty = JSON.stringify(f) !== JSON.stringify(initial);
 

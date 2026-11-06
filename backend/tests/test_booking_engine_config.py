@@ -18,7 +18,7 @@ from app.modules.booking_engine.config_service import lock_live_resources
 from app.modules.booking_engine.models import Allocation, Booking, BookingOrder, Hold, Resource
 from app.modules.booking_engine.testing import make_allocation, release_allocation
 from tests.conftest import API, idem
-from tests.helpers_booking import FD, book, safe_hour, temp
+from tests.helpers_booking import FD, book, safe_hour, set_legacy_schedule, temp
 from tests.helpers_web import WEB, checkout
 
 BK = f"{API}/booking"
@@ -155,8 +155,8 @@ async def test_create_resource_assigns_code_and_audits(admin):
     [
         ({"name": "   "}, 422, "E-CFG-1"),
         ({"name": "x" * 51}, 422, "E-CFG-1"),
-        ({"close_time": "05:30"}, 422, "E-CFG-2"),
-        ({"open_time": "10:00", "close_time": "10:30"}, 422, "E-CFG-2"),
+        ({"close_time": "05:00"}, 422, "E-CFG-2"),
+        ({"open_time": "10:00", "close_time": "09:00"}, 422, "E-CFG-2"),
         ({"peak_bands": [["05:00", "05:00"]]}, 422, "E-CFG-5"),
         ({"peak_bands": [["04:00", "07:00"]]}, 422, "E-CFG-5"),
         ({"peak_bands": [["17:00", "21:00"], ["20:00", "22:00"]]}, 422, "E-CFG-5"),
@@ -201,6 +201,67 @@ async def test_duplicate_name_case_insensitive(admin):
     )
     assert r.status_code == 409
     assert r.json()["detail"]["code"] == "E-CFG-1"
+
+
+# Người dùng chốt 2026-11-06: giờ mới chỉ tròn giờ; lịch cũ có :30 vẫn sửa được phần khác
+@pytest.mark.parametrize(
+    "hours",
+    [
+        {"open_time": "05:30"},
+        {"close_time": "21:30"},
+        {"peak_bands": [["17:30", "21:00"]]},
+        {"peak_bands": [["17:00", "20:30"]]},
+    ],
+)
+async def test_new_hours_must_be_whole(admin, hours):
+    body = {
+        "name": unique_name(),
+        "resource_type_code": "thuong",
+        "open_time": "05:00",
+        "close_time": "22:00",
+        "peak_bands": PEAKS,
+        **hours,
+    }
+    r = await admin.post(f"{BK}/resources", json=body, headers=idem())
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-CFG-12", r.text
+    assert "tròn giờ" in r.json()["detail"]["message"]
+
+    res = await create_resource(admin)
+    r = await admin.patch(
+        f"{BK}/resources/{res['code']}", json={"version": res["version"], **hours}, headers=idem()
+    )
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-CFG-12", r.text
+
+
+async def test_legacy_half_hour_schedule_can_still_edit_other_fields(admin):
+    res = await create_resource(admin)
+    code = res["code"]
+    legacy = [["05:30", "07:00"], ["17:30", "21:00"]]
+    await set_legacy_schedule(code, open_minute=5 * 60 + 30, peak_bands=legacy)
+
+    async def patch(**body):
+        current = await get_resource(admin, code)
+        return await admin.patch(
+            f"{BK}/resources/{code}", json={"version": current["version"], **body}, headers=idem()
+        )
+
+    # Sửa tên: không đụng giờ
+    r = await patch(name=unique_name())
+    assert r.status_code == 200, r.text
+    assert r.json()["schedule"]["open_time"] == "05:30"
+    # Form gửi lại nguyên giá trị cũ kèm đổi giờ đóng cửa: giá trị cũ không bị bắt lỗi
+    r = await patch(open_time="05:30", close_time="21:00", peak_bands=legacy)
+    assert r.status_code == 200, r.text
+    assert r.json()["pending_schedule"]["close_time"] == "21:00"
+    assert r.json()["pending_schedule"]["open_time"] == "05:30", "giữ giá trị cũ"
+    # Đổi sang một giá trị :30 khác: chặn
+    r = await patch(open_time="06:30")
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-CFG-12", r.text
+    r = await patch(peak_bands=[["17:30", "20:30"]])
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-CFG-12", r.text
+    # Đổi về tròn giờ: được
+    r = await patch(open_time="06:00", peak_bands=PEAKS[1:])
+    assert r.status_code == 200, r.text
 
 
 async def test_bad_time_format_rejected(admin):
@@ -552,7 +613,9 @@ async def test_quote_prices_by_band_and_day_type(admin, staff):
 
 
 async def test_quote_partial_peak_and_holiday(admin):
-    res = await create_resource(admin, peak_bands=[["17:30", "21:00"]])
+    res = await create_resource(admin)
+    # Lịch cũ có :30 vẫn tính "một phần cao điểm" (API mới chỉ nhận tròn giờ)
+    await set_legacy_schedule(res["code"], peak_bands=[["17:30", "21:00"]])
     weekday = next_weekday(today() + timedelta(days=1), 2)
     r = await admin.post(
         f"{BK}/quote",
