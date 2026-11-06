@@ -9,7 +9,7 @@ import { dropdownCls } from "./ui";
 
 // Bước 3 của hộp Đặt sân định kỳ – cấu trúc gốc của dev (T-043 AC4): buổi LỖI bung riêng từng khối (Sửa giờ / sân, Bỏ buổi),
 // buổi hợp lệ gom MỘT dòng "✓ n buổi hợp lệ · Xem ▾" (bấm mới bung). Tóm tắt dính đầu nhóm + "Bỏ hết buổi lỗi".
-// Gợi ý giữ đúng hành vi dev: "Dùng gợi ý · Lệch giờ / Sân khác …" trên từng buổi + "Áp … cho mọi buổi {thứ} lỗi".
+// Gợi ý: mỗi buổi lỗi có các thẻ "Đổi giờ / Đổi sân" ghi rõ giờ + sân + giá sau khi đổi; thêm nút đổi cả loạt buổi cùng thứ.
 
 type Props = {
   preview: RecurringPreview | null;
@@ -36,8 +36,6 @@ const outlineBtn = cn(btn, "border border-border bg-surface hover:bg-primary-sof
 const ghostBtn = cn(btn, "text-muted hover:bg-primary-softer hover:text-primary");
 /** "T5 05/11" (điện thoại, bỏ năm). */
 const dayShort = (d: string) => `${dowName(d)} ${formatDayMonth(d)}`;
-/** 300000 ⇒ "300k" (nhãn gợi ý gọn trên điện thoại). */
-const kVnd = (n: number) => `${Math.round(n / 1000)}k`;
 const day = (d: string) => `${dowName(d)} ${formatDayMonthYear(d)}`;
 
 export function SessionsPanel(props: Props) {
@@ -85,7 +83,7 @@ export function SessionsPanel(props: Props) {
         <div className="flex flex-wrap gap-2">
           {bulkList.map((g) => (
             <button key={`${g.dow}-${g.kind}`} type="button" onClick={() => g.days.forEach((d) => applySuggestion(d.date, d.sg))} className={hintBtn}>
-              Áp “{KIND_LABEL[g.kind].toLowerCase()}” cho mọi buổi {g.dow} lỗi ({g.days.length})
+              {KIND_LABEL[g.kind]} cho cả {g.days.length} buổi {g.dow} lỗi
             </button>
           ))}
         </div>
@@ -148,26 +146,41 @@ function SessionItem({ s, bad, resources, columns, tweaks, editingDay, setEditin
   const endH = Number(s.end_time.slice(0, 2));
   const label = day(s.date);
   const court = resources.find((r) => r.code === s.resource_code)?.name ?? s.resource_code;
-  // Buổi lỗi: gợi ý căn trái, Sửa + Bỏ dồn phải cùng hàng thao tác; buổi hợp lệ: Sửa / Bỏ chữ nhẹ cuối dòng
-  const hints = bad && (s.suggestions?.length ?? 0) > 0 ? (
-    // Điện thoại: gợi ý gọn một dòng ("Lệch giờ 12–14h · 300k", "Sân 2 · 360k"), xếp flex-wrap; từ sm: nhãn đủ như dev, xếp dọc
-    <div className="flex min-w-0 flex-wrap gap-2 sm:flex-col sm:items-start" role="group" aria-label={`Gợi ý cho ${label}`}>
-      {s.suggestions!.map((sg) => {
-        const full = `Dùng gợi ý · ${KIND_LABEL[sg.kind]}: ${sg.kind === "court" ? `${sg.resource_name} ` : ""}${pad(sg.start_hour)}–${pad(sg.end_hour)}h · ${formatVnd(sg.price)}`;
-        const short = sg.kind === "court" ? `${sg.resource_name} · ${kVnd(sg.price)}` : `${KIND_LABEL[sg.kind]} ${pad(sg.start_hour)}–${pad(sg.end_hour)}h · ${kVnd(sg.price)}`;
-        return (
-          <button key={`${sg.kind}-${sg.resource_code}-${sg.start_hour}`} type="button" onClick={() => applySuggestion(s.date, sg)} aria-label={full} title={full} className={cn(hintBtn, "whitespace-nowrap")}>
-            <span className="sm:hidden">{short}</span>
-            <span className="hidden sm:inline">{full}</span>
-          </button>
-        );
-      })}
+  // Buổi lỗi: thẻ gợi ý ghi rõ buổi sẽ thành giờ + sân + giá nào; không có gợi ý thì nói cách xử lý tiếp theo
+  const options = s.suggestions ?? [];
+  const hints = !bad ? null : options.length > 0 ? (
+    <div role="group" aria-label={`Lựa chọn còn trống cho ${label}`}>
+      <p className="mb-1.5 text-xs font-medium">Còn trống, bấm để đổi sang:</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((sg) => {
+          const time = `${pad(sg.start_hour)}:00–${pad(sg.end_hour)}:00`;
+          return (
+            <button
+              key={`${sg.kind}-${sg.resource_code}-${sg.start_hour}`}
+              type="button"
+              onClick={() => applySuggestion(s.date, sg)}
+              aria-label={`Đổi buổi ${label} sang ${time}, ${sg.resource_name}, ${formatVnd(sg.price)}`}
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-primary bg-surface px-3 py-1.5 text-left focus-ring hover:bg-primary-softer"
+            >
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-primary">{KIND_LABEL[sg.kind]}</span>
+                <span className="block truncate text-sm font-semibold tabular-nums">
+                  {time} · {sg.resource_name}
+                </span>
+              </span>
+              <span className="shrink-0 text-sm tabular-nums">{formatVnd(sg.price)}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
-  ) : null;
+  ) : (
+    <p className="text-xs text-muted">Không có giờ trống gần đó. Hãy tự chọn giờ khác hoặc bỏ buổi này.</p>
+  );
   const actions = (
     <>
-      <button type="button" onClick={() => setEditingDay(editing ? null : s.date)} aria-expanded={editing} aria-label={`${editing ? "Xong sửa" : "Sửa giờ / sân"} buổi ${label}`} className={bad ? outlineBtn : ghostBtn}>
-        {editing ? "Xong" : "Sửa giờ / sân"}
+      <button type="button" onClick={() => setEditingDay(editing ? null : s.date)} aria-expanded={editing} aria-label={`${editing ? "Xong sửa" : bad ? "Tự chọn giờ / sân" : "Sửa giờ / sân"} buổi ${label}`} className={bad ? outlineBtn : ghostBtn}>
+        {editing ? "Xong" : bad ? "Tự chọn giờ / sân" : "Sửa giờ / sân"}
       </button>
       <button type="button" onClick={() => setTweak(s.date, { removed: true })} aria-label={`Bỏ buổi ${label}`} className={ghostBtn}>
         Bỏ buổi
@@ -214,14 +227,12 @@ function SessionItem({ s, bad, resources, columns, tweaks, editingDay, setEditin
       </div>
 
       {bad ? (
-        // Từ sm: lưới 2 cột – trái các gợi ý xếp dọc, phải cụm Sửa / Bỏ ngang hàng gợi ý CUỐI (căn đáy);
-        // điện thoại: flex-wrap – cụm nút cạnh gợi ý nếu vừa, không thì xuống hàng, vẫn căn phải
-        <div className="mt-2 flex flex-wrap items-end gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto]">
-          {hints ?? <span className="hidden sm:block" />}
-          <span className="ml-auto flex justify-end gap-2 self-end">{actions}</span>
+        // Gợi ý ở trên, cụm Tự chọn / Bỏ căn phải ở hàng dưới (mọi cỡ màn hình)
+        <div className="mt-2 space-y-2">
+          {hints}
+          <span className="flex justify-end gap-2">{actions}</span>
         </div>
       ) : null}
-
 
       {editing ? (
         // Điện thoại: Sân một hàng, Từ / Đến chung hàng dưới; từ sm: 3 cột

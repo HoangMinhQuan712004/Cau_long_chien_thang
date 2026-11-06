@@ -16,7 +16,7 @@ import { PriceFooter } from "./recurring-price";
 import { SessionsPanel } from "./recurring-sessions";
 import { DEBOUNCE_MS, DOW, dowName, hourOptions, isoDow, MAX_DAYS, reasonText, type Tweak } from "./recurring-utils";
 import type { Calendar, RecurringBody, RecurringConflict, RecurringPreviewBody, RecurringPreview, RecurringResult, RecurringSessionIn, RecurringSuggestion } from "./types";
-import { btnCls, btnPrimaryCls, btnRowCls, dropdownCls, ErrorBanner, Group, Hint, inputCls, raisedFooterCls } from "./ui";
+import { btnCls, btnPrimaryCls, btnRowCls, dropdownCls, ErrorBanner, Group, inputCls, raisedFooterCls } from "./ui";
 
 // Đặt sân định kỳ (T-035, chỉ Admin), v2 (T-039), linh động (T-043): gợi ý buổi lỗi, sửa / bỏ từng buổi, xem trước gọn.
 // Đặt sân định kỳ (T-035, chỉ Admin), v2 (T-039): ba nhóm Khách · Lịch · Tiền, xem trước TỰ ĐỘNG khi đổi dữ liệu
@@ -377,8 +377,6 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
           setShowOk={setShowOk}
         />
       </Group>
-
-      <Hint>Hệ thống sinh từng buổi, kiểm lịch theo từng ngày và đặt tất cả hoặc không đặt gì. Giá gốc theo bảng giá từng buổi, tối đa {MAX_DAYS} ngày và 60 buổi. Buổi lỗi có thể dùng gợi ý, sửa giờ / sân hoặc bỏ riêng. Đặt xong chưa có hủy hay đổi buổi.</Hint>
 
       {serverConflicts.length > 0 ? (
         <section aria-label="Buổi không đặt được">
