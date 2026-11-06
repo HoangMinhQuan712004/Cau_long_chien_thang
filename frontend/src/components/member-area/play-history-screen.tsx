@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PageBanner } from "@/components/member-area/page-banner";
+import { RoomHistory } from "@/components/play-rooms/room-history";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { cn } from "@/lib/cn";
 import { formatNumber, formatTime, vnDate } from "@/lib/format";
 
-// /hoi-vien/lich-su-choi (T-029): các buổi đã chơi trong tháng (phòng có ≥ 1 trận đã lưu), 3 thẻ số, bấm dòng mở Lịch sử trận của phòng.
+// /hoi-vien/lich-su-choi (T-029): các buổi đã chơi trong tháng (phòng có ≥ 1 trận đã lưu), 3 thẻ số, bấm dòng mở popup các trận của buổi đó (ở lại màn này, không sang phòng).
 
 type History = components["schemas"]["PlayHistory"];
 type Item = components["schemas"]["PlayHistoryItem"];
@@ -59,6 +61,7 @@ export function PlayHistoryScreen() {
   const [data, setData] = useState<History | null>(null);
   const [failed, setFailed] = useState(false);
   const [nowMs, setNowMs] = useState(0);
+  const [detail, setDetail] = useState<Item | null>(null);
   // Chỉ nhận kết quả của lần gọi mới nhất (đổi tháng liên tiếp)
   const seq = useRef(0);
 
@@ -174,10 +177,12 @@ export function PlayHistoryScreen() {
                 <ul className="mt-2 divide-y divide-border">
                   {data.items.map((it) => (
                     <li key={it.room_id}>
-                      <Link
-                        href={`/hoi-vien/phong/${it.room_id}?tab=history`}
+                      <button
+                        type="button"
+                        onClick={() => setDetail(it)}
+                        aria-haspopup="dialog"
                         aria-label={`${dayLabel(it.date)}, ${it.resource_name}, ${hours(it)}: ${it.matches} trận, thắng ${it.wins}, thua ${it.losses}. Xem lịch sử trận`}
-                        className="grid items-center gap-x-3 gap-y-2 rounded-lg px-3 py-3 hover:bg-primary-softer focus-ring sm:grid-cols-[1.3fr_1.5fr_1.2fr_0.7fr_0.7fr_0.7fr_1.5rem]"
+                        className="grid w-full items-center gap-x-3 gap-y-2 rounded-lg px-3 py-3 text-left hover:bg-primary-softer focus-ring sm:grid-cols-[1.3fr_1.5fr_1.2fr_0.7fr_0.7fr_0.7fr_1.5rem]"
                       >
                         <span className="font-semibold tabular-nums">{dayLabel(it.date)}</span>
                         <span className="text-sm">
@@ -199,7 +204,7 @@ export function PlayHistoryScreen() {
                         <span aria-hidden className="hidden text-muted sm:block">
                           ›
                         </span>
-                      </Link>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -215,6 +220,11 @@ export function PlayHistoryScreen() {
           Chỉ tính các trận đã lưu kết quả trong Phòng chơi. Ở 2 vs 2, cả 2 người đội thắng đều được tính 1 trận thắng.
         </p>
       </div>
+      {detail ? (
+        <Modal open onClose={() => setDetail(null)} size="large" sheet title={`${detail.resource_name} · ${hours(detail)}`} subtitle={dayLabel(detail.date)}>
+          <RoomHistory roomId={detail.room_id} />
+        </Modal>
+      ) : null}
     </>
   );
 }
