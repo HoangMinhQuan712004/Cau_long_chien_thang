@@ -334,7 +334,7 @@ function OpenRooms({ rooms, busyId, onJoin }: { rooms: RoomCard[]; busyId: numbe
 const MEDAL = ["bg-medal-gold", "bg-medal-silver", "bg-medal-bronze"];
 
 function RankCard({ ranking, month }: { ranking: Overview["ranking"]; month: number }) {
-  const { me, top3, total_members } = ranking;
+  const { me, top3, total_records } = ranking;
   const bar = me ? (me.gap_to_top10 === null || !me.top10_kmh ? 100 : Math.min(100, Math.round((me.speed_kmh / me.top10_kmh) * 100))) : 0;
   const inTop3 = top3.some((r) => r.is_me);
   return (
@@ -356,7 +356,7 @@ function RankCard({ ranking, month }: { ranking: Overview["ranking"]; month: num
             <div className="mt-3">
               <div className="flex items-end justify-between gap-3">
                 <p>
-                  <b className="text-3xl tabular-nums">#{me.rank}</b> <span className="text-xs text-muted">/ {total_members} hội viên</span>
+                  <b className="text-3xl tabular-nums">#{me.rank}</b> <span className="text-xs text-muted">/ {total_records} cú đập</span>
                 </p>
                 <p className="text-lg font-bold tabular-nums">{me.speed_kmh} km/h</p>
               </div>
@@ -384,9 +384,15 @@ function RankCard({ ranking, month }: { ranking: Overview["ranking"]; month: num
                       {r.rank}
                     </span>
                     <Avatar url={r.avatar_url} name={r.display_name} size={28} />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {r.display_name}
-                      {r.is_me ? <span className="ml-1.5 rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span> : null}
+                    <span className="min-w-0 flex-1 text-sm font-medium">
+                      <span className="block truncate">
+                        {r.display_name}
+                        {r.is_me ? <span className="ml-1.5 rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span> : null}
+                      </span>
+                      <span className="block truncate text-xs font-normal text-muted tabular-nums">
+                        {formatDayMonth(vnDate(r.measured_at))}
+                        {r.resource_name ? ` · ${r.resource_name}` : ""}
+                      </span>
                     </span>
                     <span className="text-sm font-bold tabular-nums">{r.speed_kmh} km/h</span>
                   </li>
