@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
@@ -12,7 +12,7 @@ from app.modules.auth import api as auth
 from app.modules.booking_engine import api as engine
 from app.modules.members import api as members
 from app.modules.play_rooms import errors
-from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember
+from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember, PlayRoomRequest
 from app.modules.play_rooms.schemas import PersonOut
 
 CAPACITY = 8  # người / sân, tính cả Host
@@ -133,6 +133,67 @@ async def visible_room(session: AsyncSession, room_id: int, lock: bool) -> PlayR
     if room.host_customer_id not in await eligible(session, {room.host_customer_id}):
         raise errors.not_found()
     if await _hidden_by_cancel(session, room):
+        raise errors.not_found()
+    return room
+
+
+async def is_ended(session: AsyncSession, room: PlayRoom, now: datetime) -> bool:
+    """Phòng đã kết thúc (T-054): đã đóng, hết giờ + ân hạn, hoặc booking đã hủy."""
+    return is_closed(room, now) or bool(
+        await engine.cancelled_booking_codes(session, [room.booking_code])
+    )
+
+
+async def rooms_entered(session: AsyncSession, customer_id: int, rooms: list[PlayRoom]) -> set[int]:
+    """Id các phòng mà ``customer_id`` là "người trong phòng" (T-054): Host, hoặc **từng** là thành
+    viên, kể cả đã rời / bị mời ra; người chỉ xin vào / được mời thì không tính.
+
+    Rời / mời ra xóa dòng thành viên, nên "từng" suy từ dấu vết còn lại: chủ đơn (Host đầu tiên),
+    yêu cầu / lời mời đã ``accepted`` (hai đường duy nhất vào phòng), và đội trong các trận.
+    """
+    if not rooms:
+        return set()
+    ids = [r.id for r in rooms]
+    found = {r.id for r in rooms if r.host_customer_id == customer_id}
+    found |= set(
+        await session.scalars(
+            select(PlayRoomMember.room_id).where(
+                PlayRoomMember.room_id.in_(ids), PlayRoomMember.customer_id == customer_id
+            )
+        )
+    )
+    found |= set(
+        await session.scalars(
+            select(PlayRoomRequest.room_id).where(
+                PlayRoomRequest.room_id.in_(ids),
+                PlayRoomRequest.customer_id == customer_id,
+                PlayRoomRequest.status == "accepted",
+            )
+        )
+    )
+    found |= set(
+        await session.scalars(
+            select(PlayMatch.room_id).where(
+                PlayMatch.room_id.in_(ids),
+                or_(
+                    PlayMatch.team_a.contains([customer_id]),
+                    PlayMatch.team_b.contains([customer_id]),
+                ),
+            )
+        )
+    )
+    refs = await members.booking_refs_of(session, customer_id)
+    owned = await engine.booking_codes_owned_by(session, [r.booking_code for r in rooms], refs)
+    return found | {r.id for r in rooms if r.booking_code in owned}
+
+
+async def readable_room(session: AsyncSession, customer_id: int, room_id: int) -> PlayRoom:
+    """Phòng để đọc. Đã kết thúc mà mình không phải người trong phòng -> 404 giống hệt phòng không
+    tồn tại (T-054): id tuần tự, nếu không ai cũng quét được ai chơi với ai. Phòng mở: như cũ."""
+    room = await visible_room(session, room_id, lock=False)
+    if await is_ended(session, room, datetime.now(UTC)) and not await rooms_entered(
+        session, customer_id, [room]
+    ):
         raise errors.not_found()
     return room
 

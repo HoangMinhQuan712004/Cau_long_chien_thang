@@ -89,6 +89,23 @@ async def cancelled_before_end_codes(
     )
 
 
+async def codes_owned_by(
+    session: AsyncSession, tenant_id: int, codes: list[str], refs: list[str]
+) -> set[str]:
+    """Mã booking nào thuộc khách có các ``refs`` – chủ đơn là Host đầu tiên của phòng (T-054)."""
+    if not codes or not refs:
+        return set()
+    return set(
+        await session.scalars(
+            select(Booking.code).where(
+                Booking.tenant_id == tenant_id,
+                Booking.code.in_(sorted(set(codes))),
+                Booking.customer_ref.in_(sorted(set(refs))),
+            )
+        )
+    )
+
+
 async def ending_after(
     session: AsyncSession, tenant_id: int, after: dt.datetime, play_dates: list[dt.date]
 ) -> list[RoomSource]:

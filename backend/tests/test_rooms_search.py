@@ -149,7 +149,7 @@ async def test_other_days_upcoming_and_ended(staff, admin, people):
     assert card["play_date"] == start.astimezone(settings.tz).date().isoformat()
     assert card["my_join_pending"] is False and card["my_join_block"] is None
     assert card["my_invite_id"] is None
-    assert (await other.client.get(f"{ROOMS}/{room.id}")).status_code == 200
+    assert (await other.client.get(f"{ROOMS}/{room.id}")).status_code == 404  # chỉ mới xin vào
     r = await post(other.client, f"/{room.id}/leave", {"version": card["version"]})
     assert r.status_code == 409
 
@@ -230,3 +230,122 @@ async def test_normal_list_keeps_its_shape_and_etag(staff, admin, people):
 
 async def test_search_requires_login(anon):
     assert (await anon.get(ROOMS, params={"q": "BK-20000101-999"})).status_code == 401
+
+
+# ------------------------------------------------------------------ chỉ người trong phòng xem
+
+
+async def statuses(client, room_id: int) -> set[int]:
+    return {
+        (await client.get(f"{ROOMS}/{room_id}{tail}")).status_code
+        for tail in ("", "/matches", "/ranking")
+    }
+
+
+async def join(host, guest, room_id: int) -> dict:
+    """Xin vào + Host duyệt -> chi tiết phòng mới nhất (có id dòng thành viên)."""
+    d = (await guest.client.get(f"{ROOMS}/{room_id}")).json()
+    r = await post(guest.client, f"/{room_id}/join-requests", {"version": d["version"]})
+    assert r.status_code == 200, r.text
+    d = (await host.client.get(f"{ROOMS}/{room_id}")).json()
+    rid = d["join_requests"][0]["id"]
+    r = await post(
+        host.client, f"/{room_id}/join-requests/{rid}/approve", {"version": d["version"]}
+    )
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def test_ended_room_only_for_people_who_were_in_it(staff, admin, people):
+    host, stays, left, kicked = [await people(n) for n in ("Host", "Ở Lại", "Đã Rời", "Bị Mời Ra")]
+    asker, invited, outsider = [await people(n) for n in ("Xin Vào", "Được Mời", "Người Ngoài")]
+    made = await room_for(staff, admin, host.code)
+    room, code = made["room"], made["code"]
+    await join(host, stays, room.id)
+    await join(host, left, room.id)
+    d = await join(host, kicked, room.id)
+
+    r = await post(left.client, f"/{room.id}/leave", {"version": d["version"]})
+    assert r.status_code == 200, r.text
+    d = (await host.client.get(f"{ROOMS}/{room.id}")).json()
+    target = next(m for m in d["members"] if m["display_name"] == "Bị Mời Ra")
+    r = await post(
+        host.client, f"/{room.id}/members/{target['id']}/kick", {"version": d["version"]}
+    )
+    assert r.status_code == 200, r.text
+    d = r.json()
+    r = await post(asker.client, f"/{room.id}/join-requests", {"version": d["version"]})
+    assert r.status_code == 200, r.text
+    r = await post(
+        host.client, f"/{room.id}/invites", {"phone": invited.phone, "version": r.json()["version"]}
+    )
+    assert r.status_code == 200, r.text
+
+    # Còn mở: như cũ, ai cũng xem được
+    assert await statuses(outsider.client, room.id) == {200}
+
+    await move_room(room.id, days=-1, status="closed")
+    for person in (host, stays, left, kicked):
+        assert await statuses(person.client, room.id) == {200}, person.code
+    for person in (asker, invited, outsider):
+        assert await statuses(person.client, room.id) == {404}, person.code
+
+    # Thẻ tìm bằng mã: người ngoài không biết ai chơi, không có nút xem
+    card = (await items(outsider.client, code))[0]
+    assert card["status"] == "ended" and card["can_view"] is False
+    assert card["members"] == [] and card["member_count"] == 0
+    assert card["host"]["display_name"] == "Host"  # sân, giờ, Host vẫn có
+    r = await search(outsider.client, code)
+    assert "Ở Lại" not in r.text
+    for person in (host, stays, left, kicked):
+        card = (await items(person.client, code))[0]
+        assert card["can_view"] is True and card["member_count"] == 2, person.code
+    for person in (asker, invited):
+        assert (await items(person.client, code))[0]["can_view"] is False
+
+
+async def test_scanning_ids_cannot_tell_ended_rooms_from_missing_ones(staff, admin, people):
+    host, outsider = await people("Host"), await people("Người Ngoài")
+    made = await room_for(staff, admin, host.code)
+    room = made["room"]
+    await add_match(room.id, 1, [host.customer_id], [-1], status="finished", win="a")
+    await move_room(room.id, days=-1, status="closed")
+    missing = room.id + 1_000_000
+    for tail in ("", "/matches", "/ranking"):
+        ended = await outsider.client.get(f"{ROOMS}/{room.id}{tail}")
+        none = await outsider.client.get(f"{ROOMS}/{missing}{tail}")
+        assert ended.status_code == none.status_code == 404
+        assert ended.json() == none.json()
+
+
+async def test_first_host_who_handed_over_can_still_view(staff, admin, people):
+    """Chủ đơn rời phòng (Host chuyển người khác), chưa đánh trận nào: vẫn là người trong phòng."""
+    owner, guest = await people("Chủ Đơn"), await people("Host Mới")
+    made = await room_for(staff, admin, owner.code)
+    room = made["room"]
+    d = await join(owner, guest, room.id)
+    r = await post(owner.client, f"/{room.id}/leave", {"version": d["version"]})
+    assert r.status_code == 200, r.text
+    await move_room(room.id, days=-1, status="closed")
+    assert await statuses(owner.client, room.id) == {200}
+    assert await statuses(guest.client, room.id) == {200}
+
+
+async def test_played_member_keeps_view_and_open_rooms_are_unchanged(staff, admin, people):
+    host, player, outsider = await people("Host"), await people("Từng Đánh"), await people("Ngoài")
+    made = await room_for(staff, admin, host.code)
+    room = made["room"]
+    # Chỉ có dấu vết trong trận (Lịch sử chơi + popup T-050 vẫn phải mở được)
+    await add_match(
+        room.id, 1, [host.customer_id], [player.customer_id], status="finished", win="a"
+    )
+
+    card = (await items(outsider.client, made["code"]))[0]
+    assert card["status"] == "open" and card["can_view"] is True and card["member_count"] == 1
+    listed = (await outsider.client.get(ROOMS)).json()["items"]
+    mine = next(c for c in listed if c["id"] == room.id)
+    assert mine["can_view"] is True and mine["member_count"] == 1
+
+    await move_room(room.id, days=-1, status="closed")
+    assert await statuses(player.client, room.id) == {200}
+    assert await statuses(outsider.client, room.id) == {404}

@@ -22,7 +22,8 @@ from app.modules.play_rooms.common import (
     is_closed,
     member_rows,
     person_out,
-    visible_room,
+    readable_room,
+    rooms_entered,
 )
 from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember, PlayRoomRequest
 from app.modules.play_rooms.schemas import (
@@ -51,6 +52,7 @@ async def _cards(
 ) -> list[RoomCard]:
     """Thẻ phòng (không có mã booking, SĐT, id hồ sơ). ``ended``: id phòng không xin vào được."""
     ids = [r.id for r in rooms]
+    entered = await rooms_entered(session, me.customer_id, [r for r in rooms if r.id in ended])
     by_room: dict[int, list[PlayRoomMember]] = {i: [] for i in ids}
     if ids:
         for m in await session.scalars(
@@ -73,6 +75,7 @@ async def _cards(
         ms = sorted(by_room[r.id], key=lambda m: m.customer_id != r.host_customer_id)
         is_mine = any(m.customer_id == me.customer_id for m in ms)
         is_ended = r.id in ended
+        can_view = not is_ended or r.id in entered
         cards.append(
             RoomCard(
                 id=r.id,
@@ -82,10 +85,12 @@ async def _cards(
                 end_at=r.end_at,
                 phase="ongoing" if r.start_at <= now else "upcoming",
                 status="ended" if is_ended else "open",
+                can_view=can_view,
                 play_date=r.start_at.astimezone(settings.tz).date(),
                 host=person_out(people.get(r.host_customer_id)),
-                members=[person_out(people.get(m.customer_id)) for m in ms],
-                member_count=len(ms),
+                # Người ngoài phòng đã kết thúc không biết ai chơi, kể cả khi tìm bằng mã
+                members=[person_out(people.get(m.customer_id)) for m in ms] if can_view else [],
+                member_count=len(ms) if can_view else 0,
                 capacity=CAPACITY,
                 is_mine=is_mine,
                 my_join_pending=not is_ended and (r.id, "join") in mine_pending,
@@ -188,8 +193,9 @@ async def _my_pending(
 
 
 async def room_detail(session: AsyncSession, me: Me, room_id: int) -> RoomDetail:
-    """Phòng đã đóng vẫn xem được (chỉ đọc). Host không đủ điều kiện -> 404."""
-    room = await visible_room(session, room_id, lock=False)
+    """Phòng đã kết thúc chỉ người trong phòng xem được, chỉ đọc (T-054). Host không đủ điều kiện
+    -> 404."""
+    room = await readable_room(session, me.customer_id, room_id)
     return await detail_of(session, me, room)
 
 

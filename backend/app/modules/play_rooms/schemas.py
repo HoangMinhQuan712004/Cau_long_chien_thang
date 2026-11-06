@@ -62,6 +62,10 @@ class RoomCard(BaseModel):
         "“Đã kết thúc”, vào xem chỉ đọc, không xin vào. Khi đó my_join_block, my_invite_id là "
         "null, my_join_pending là false"
     )
+    can_view: bool = Field(
+        description="false: phòng ended và mình không phải người trong phòng – ẩn “Xem phòng”, "
+        "``members`` rỗng, ``member_count`` 0; mở trực tiếp sẽ 404 (T-054)"
+    )
     play_date: dt.date = Field(description="Ngày chơi (giờ Việt Nam)")
     host: PersonOut
     members: list[PersonOut] = Field(description="Cụm avatar (Host đứng đầu)")
