@@ -132,7 +132,7 @@ export type Item = {
   created_at: string;
   actions: ItemAction[];
   /** T-052: giai đoạn của buổi khi hủy (server tính): trước giờ / đang chơi / đã qua; null = không hủy được. */
-  cancel_phase?: CancelPhase | null;
+  cancel_phase?: Api["schemas"]["ItemOut"]["cancel_phase"];
 };
 
 export type SessionDetail = {
@@ -223,7 +223,6 @@ export type SchemaContract = [
 ];
 
 // ---- Hủy (T-051, Admin): hợp đồng theo spec, thay bằng kiểu sinh khi BE handoff ----
-export type CancelPhase = "before" | "playing" | "past";
 export type CancelSkipReason = "started" | "played" | "cancelled" | "uncollectible";
 export type CancelPreview = {
   cancellable: { code: string; play_date: string; start_at: string; resource_name: string; amount: number; payment_status: PaymentStatus }[];
