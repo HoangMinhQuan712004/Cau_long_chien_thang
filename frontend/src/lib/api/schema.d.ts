@@ -4170,6 +4170,11 @@ export interface components {
              */
             source: "counter" | "self_register";
             /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
+            /**
              * Account Created
              * @description True: SĐT chưa có tài khoản -> vừa tạo, mật khẩu ban đầu = SĐT, phải đổi trước ``initial_password_expires_at``. False: SĐT đã có tài khoản – giữ mật khẩu hiện có
              */
@@ -4224,6 +4229,11 @@ export interface components {
              * @enum {string}
              */
             source: "counter" | "self_register";
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
             /** Note */
             note: string | null;
             /** Total Minutes */
@@ -4424,6 +4434,11 @@ export interface components {
              * @enum {string}
              */
             source: "counter" | "self_register";
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
         };
         /**
          * MemberSearchItem

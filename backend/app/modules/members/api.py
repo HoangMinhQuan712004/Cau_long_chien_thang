@@ -14,6 +14,7 @@ from app.core.audit import AuditActor
 from app.core.images import Crop, StoredImage
 from app.modules.members import avatar, demo, enrollment, profiles, self_service, service
 from app.modules.members import room_people as room_people_mod
+from app.modules.members.avatar import avatar_url
 from app.modules.members.enrollment import MemberEnsured
 from app.modules.members.models import TIERS, Customer
 from app.modules.members.room_people import RoomPerson
@@ -35,6 +36,7 @@ __all__ = [
     "room_people",
     "SelfProfile",
     "SelfUpdate",
+    "avatar_url",
     "delete_avatar",
     "get_self_profile",
     "load_avatar",

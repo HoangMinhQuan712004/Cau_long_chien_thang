@@ -54,9 +54,7 @@ def room_link(room_id: int) -> str:
 
 
 def avatar_url(person: members.RoomPerson | None) -> str | None:
-    if person is None or person.avatar_etag is None:
-        return None
-    return f"{settings.API_PREFIX}/member-area/avatars/{person.customer_id}?v={person.avatar_etag}"
+    return members.avatar_url(person.customer_id, person.avatar_etag) if person else None
 
 
 def person_out(person: members.RoomPerson | None) -> PersonOut:

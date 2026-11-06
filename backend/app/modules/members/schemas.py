@@ -89,6 +89,7 @@ class MemberRow(BaseModel):
         description="Người tạo: ``counter`` = quầy / Admin, ``self_register`` = Tự đăng ký online "
         "(T-021; hồ sơ tạm luôn ``counter``)"
     )
+    avatar_url: str | None = Field(description="Đã gồm ?v={etag}; null -> hiện chữ cái")
 
 
 class MemberCreatedOut(MemberRow):

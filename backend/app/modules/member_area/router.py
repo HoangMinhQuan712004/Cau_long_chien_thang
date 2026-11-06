@@ -28,12 +28,6 @@ def no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
 
 
-def avatar_url(customer_id: int, etag: str | None) -> str | None:
-    if etag is None:
-        return None
-    return f"{settings.API_PREFIX}/member-area/avatars/{customer_id}?v={etag}"
-
-
 def short_name(full_name: str) -> str:
     words = full_name.split()
     return words[-1] if words else full_name
@@ -51,7 +45,7 @@ def to_out(p: members.SelfProfile, record_kmh: int | None = None) -> MemberMeOut
         tier=p.tier,
         racket=p.racket,
         show_on_records=p.show_on_records,
-        avatar_url=avatar_url(p.customer_id, p.avatar_etag),
+        avatar_url=members.avatar_url(p.customer_id, p.avatar_etag),
         record_kmh=record_kmh,
         version=p.version,
     )
@@ -137,7 +131,7 @@ async def upload_avatar(
         _actor(member, current.member_code),
     )
     await session.commit()
-    return AvatarOut(avatar_url=avatar_url(member.customer_id, stored.etag))
+    return AvatarOut(avatar_url=members.avatar_url(member.customer_id, stored.etag))
 
 
 @router.delete(

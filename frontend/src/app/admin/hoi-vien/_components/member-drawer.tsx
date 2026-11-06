@@ -114,7 +114,7 @@ function DetailBody({ detail, t }: { detail: MemberDetail; t: Dictionary["member
     <div className="flex flex-col gap-4 sm:gap-5">
       <div {...enter(0)}>
         <div className="flex items-center gap-3">
-          <Avatar name={detail.full_name} />
+          <Avatar name={detail.full_name} url={detail.avatar_url} />
           <div className="flex min-w-0 flex-col gap-0.5 sm:gap-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <p className="text-base font-bold wrap-break-word sm:text-xl">{detail.full_name}</p>

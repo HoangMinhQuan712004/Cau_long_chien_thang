@@ -9,8 +9,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import images
 from app.core.audit import AuditActor, audit, audit_change, audit_detail
+from app.core.config import settings
 from app.core.images import CONTENT_TYPE, StoredImage
 from app.modules.members.models import Customer, CustomerAvatar
+
+
+def avatar_url(customer_id: int, etag: str | None) -> str | None:
+    """Link ảnh hội viên, gồm ``?v={etag}`` để phá cache; chưa có ảnh -> None."""
+    if etag is None:
+        return None
+    return f"{settings.API_PREFIX}/member-area/avatars/{customer_id}?v={etag}"
+
+
+async def etag_of_customer(session: AsyncSession, customer_id: int) -> str | None:
+    """Chỉ đọc etag, không tải bytes của ảnh."""
+    return await session.scalar(
+        select(CustomerAvatar.etag).where(CustomerAvatar.customer_id == customer_id)
+    )
 
 
 async def save(
