@@ -122,6 +122,7 @@ async def event_info(
                     Ticket.tenant_id == tenant_id,
                     Ticket.session_id == ev.id,
                     Ticket.customer_ref.in_(refs),
+                    Ticket.payment_status != "cancelled",
                 )
                 .order_by(Ticket.seq)
             )
@@ -263,9 +264,9 @@ async def _seat_hold(session: AsyncSession, checkout: Checkout) -> Hold:
 async def ticket_checkout_view(session: AsyncSession, ctx: Ctx, checkout: Checkout) -> CheckoutView:
     hold = await _seat_hold(session, checkout)
     ev = await session.get(EventSession, hold.session_id)
-    codes = list(
+    tickets = list(
         await session.scalars(
-            select(Ticket.code).where(Ticket.checkout_id == checkout.id).order_by(Ticket.seq)
+            select(Ticket).where(Ticket.checkout_id == checkout.id).order_by(Ticket.seq)
         )
     )
     return CheckoutView(
@@ -291,7 +292,8 @@ async def ticket_checkout_view(session: AsyncSession, ctx: Ctx, checkout: Checko
             resource_names=await _resource_names(session, checkout.tenant_id, ev),
             seats=hold.seats,
             ticket_price=(hold.amount or 0) // hold.seats,
-            ticket_codes=codes,
+            ticket_codes=[t.code for t in tickets],
+            cancelled_ticket_codes=[t.code for t in tickets if t.payment_status == "cancelled"],
         ),
     )
 
@@ -391,6 +393,9 @@ async def apply_ticket_payment(
 
 
 def _ticket_status(statuses: list[str]) -> str:
+    statuses = [s for s in statuses if s != "cancelled"]
+    if not statuses:
+        return "cancelled"
     if "unpaid" in statuses:
         return "unpaid"
     if all(s == "paid" for s in statuses):
@@ -422,7 +427,11 @@ async def lookup_ticket_checkout(
         hours=0,
         customer_name=checkout.customer_name,
         customer_phone=checkout.customer_phone,
-        amount=checkout.amount,
+        amount=(
+            sum(t.amount for t in tickets if t.payment_status != "cancelled")
+            if checkout.status == "paid"
+            else checkout.amount
+        ),
         payment_method="online_transfer" if checkout.status == "paid" else None,
         paid_at=checkout.paid_at,
         items=[],
@@ -458,7 +467,7 @@ async def lookup_counter_ticket(session: AsyncSession, ctx: Ctx, ticket: Ticket)
         hours=0,
         customer_name=ticket.customer_name,
         customer_phone=ticket.customer_phone,
-        amount=ticket.amount,
+        amount=0 if ticket.payment_status == "cancelled" else ticket.amount,
         payment_method=ticket.payment_method,
         paid_at=ticket.paid_at,
         items=[],
@@ -516,6 +525,7 @@ async def upcoming_events(
                         Ticket.tenant_id == tenant_id,
                         Ticket.session_id.in_(ids),
                         Ticket.customer_ref.in_(refs),
+                        Ticket.payment_status != "cancelled",
                     )
                     .group_by(Ticket.session_id)
                 )

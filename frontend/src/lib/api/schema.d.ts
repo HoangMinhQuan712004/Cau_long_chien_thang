@@ -983,7 +983,7 @@ export interface paths {
          * Collect
          * @description Thu tiền mặt (``method="cash"``; ``transfer`` -> 422 ``E-PAY-0`` cho tới T-007).
          *
-         *     Đã đổi trạng thái / ``version`` cũ -> 409 ``E-012``.
+         *     Đã đổi trạng thái / ``version`` cũ -> 409 ``E-012``; đã hủy -> 409 ``E-PAY-6``.
          */
         post: operations["collect_api_v1_booking_items__code__collect_post"];
         delete?: never;
@@ -2373,6 +2373,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/front-desk/items/{code}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Item
+         * @description Hủy một booking hoặc vé chưa bắt đầu (chỉ Admin): nhả khung / chỗ ngay, không tự hoàn tiền.
+         *
+         *     422 E-001 (lý do) · E-PAY-5 (đã bắt đầu) · E-PAY-7 (đã thu mà chưa xác nhận hoàn) · E-PAY-8 (đã
+         *     có trận trong phòng) · 409 E-PAY-6 (đã hủy / Không thu được) · E-012 (``version`` cũ) · 404.
+         */
+        post: operations["cancel_item_api_v1_front_desk_items__code__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/orders/{order_code}/cancel-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Order Cancel Preview
+         * @description Xem trước hủy cả đơn: khối sẽ hủy, khối bỏ qua kèm lý do, tổng tiền. 404 E-BOOK-3.
+         */
+        get: operations["order_cancel_preview_api_v1_front_desk_orders__order_code__cancel_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/orders/{order_code}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Order
+         * @description Hủy các khối ``codes`` của đơn (lấy từ xem trước). Kiểm tra lại từng khối lúc hủy: khối đã
+         *     bắt đầu / có trận sau lúc xem trước vào ``skipped``, buổi đã chơi giữ nguyên.
+         *
+         *     422 E-001 (lý do; ``codes`` rỗng hoặc có mã ngoài đơn) · E-PAY-7 cho cả lệnh · 404 E-BOOK-3.
+         */
+        post: operations["cancel_order_api_v1_front_desk_orders__order_code__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/web/booking/calendar": {
         parameters: {
             query?: never;
@@ -3119,7 +3185,7 @@ export interface components {
             /** End Hour */
             end_hour: number;
             /** Payment Status */
-            payment_status?: ("unpaid" | "paid" | "uncollectible") | null;
+            payment_status?: ("unpaid" | "paid" | "uncollectible" | "cancelled") | null;
             /** Customer Name */
             customer_name?: string | null;
             /** Phone */
@@ -3198,6 +3264,74 @@ export interface components {
             hour_prices?: {
                 [key: string]: number;
             };
+        };
+        /** CancelIn */
+        CancelIn: {
+            /**
+             * Reason
+             * @description Bắt buộc, tối đa 200 ký tự
+             * @default
+             */
+            reason: string;
+            /** Version */
+            version: number;
+            /**
+             * Refund Confirmed
+             * @description Khoản đã thu: Admin xác nhận đã / sẽ tự hoàn tiền
+             * @default false
+             */
+            refund_confirmed: boolean;
+        };
+        /** CancelPreview */
+        CancelPreview: {
+            /** Cancellable */
+            cancellable: components["schemas"]["CancelPreviewItem"][];
+            /** Skipped */
+            skipped: components["schemas"]["CancelSkipped"][];
+            /**
+             * Refund Total
+             * @description Tổng các khối đã thu sẽ hủy (trừ khỏi doanh thu)
+             */
+            refund_total: number;
+            /**
+             * Unpaid Total
+             * @description Tổng các khối chưa thu sẽ hủy
+             */
+            unpaid_total: number;
+        };
+        /** CancelPreviewItem */
+        CancelPreviewItem: {
+            /** Code */
+            code: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Amount */
+            amount: number;
+            /**
+             * Payment Status
+             * @enum {string}
+             */
+            payment_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
+        };
+        /** CancelSkipped */
+        CancelSkipped: {
+            /** Code */
+            code: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "started" | "played" | "cancelled" | "uncollectible";
         };
         /** CheckoutCreatedOut */
         CheckoutCreatedOut: {
@@ -3292,6 +3426,11 @@ export interface components {
              * @description Mã vé ``{mã sự kiện}-Vnn`` – rỗng khi chưa trả
              */
             ticket_codes: string[];
+            /**
+             * Cancelled Ticket Codes
+             * @description Vé trong ``ticket_codes`` đã bị sân hủy (T-051)
+             */
+            cancelled_ticket_codes?: string[];
         };
         /** CheckoutIn */
         CheckoutIn: {
@@ -3718,7 +3857,7 @@ export interface components {
              */
             created_at: string;
             /** Actions */
-            actions: ("collect" | "uncollectible")[];
+            actions: ("collect" | "uncollectible" | "cancel")[];
         };
         /** ItemPayment */
         ItemPayment: {
@@ -3728,7 +3867,7 @@ export interface components {
              * Payment Status
              * @enum {string}
              */
-            payment_status: "unpaid" | "paid" | "uncollectible";
+            payment_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
             /** Payment Method */
             payment_method?: ("cash" | "transfer" | "online_transfer") | null;
             /** Paid At */
@@ -3741,6 +3880,18 @@ export interface components {
             marked_by?: string | null;
             /** Marked At */
             marked_at?: string | null;
+            /** Cancel Reason */
+            cancel_reason?: string | null;
+            /** Cancelled At */
+            cancelled_at?: string | null;
+            /** Cancelled By Label */
+            cancelled_by_label?: string | null;
+            /**
+             * Refund Amount
+             * @description Số Admin xác nhận hoàn tay (T-051)
+             * @default 0
+             */
+            refund_amount: number;
         };
         /** ItemSchedule */
         ItemSchedule: {
@@ -3837,7 +3988,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "paid" | "unpaid" | "uncollectible" | "pending" | "expired";
+            status: "paid" | "unpaid" | "uncollectible" | "cancelled" | "pending" | "expired";
         };
         /**
          * LookupOut
@@ -3859,7 +4010,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "paid" | "unpaid" | "uncollectible" | "pending" | "expired";
+            status: "paid" | "unpaid" | "uncollectible" | "cancelled" | "pending" | "expired";
             /**
              * Play Date
              * Format: date
@@ -3918,7 +4069,7 @@ export interface components {
              * Pay Status
              * @enum {string}
              */
-            pay_status: "unpaid" | "paid" | "uncollectible";
+            pay_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
         };
         /** MatchList */
         MatchList: {
@@ -3995,6 +4146,12 @@ export interface components {
             resource_name: string;
             /** Amount */
             amount: number;
+            /**
+             * Is Cancelled
+             * @description Nhãn “Đã hủy” (T-051)
+             * @default false
+             */
+            is_cancelled: boolean;
         };
         /**
          * MemberCalendarOut
@@ -4300,10 +4457,10 @@ export interface components {
             source: "counter" | "online";
             /**
              * Pay Status
-             * @description Chung của đơn: còn khối chưa thu -> unpaid; tất cả đã thu -> paid; còn lại -> uncollectible
+             * @description Chung của đơn, bỏ qua khối đã hủy: còn khối chưa thu -> unpaid; tất cả đã thu -> paid; còn lại -> uncollectible; hủy hết -> cancelled
              * @enum {string}
              */
-            pay_status: "unpaid" | "paid" | "uncollectible";
+            pay_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
             /** Amount */
             amount: number;
             /** Items */
@@ -4330,7 +4487,7 @@ export interface components {
              * Pay Status
              * @enum {string}
              */
-            pay_status: "unpaid" | "paid" | "uncollectible";
+            pay_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
         };
         /**
          * MemberRow
@@ -4612,7 +4769,7 @@ export interface components {
              * Pay Status
              * @enum {string}
              */
-            pay_status: "unpaid" | "paid" | "uncollectible";
+            pay_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
         };
         /** NextCodeOut */
         NextCodeOut: {
@@ -4646,7 +4803,7 @@ export interface components {
             id: number;
             /**
              * Kind
-             * @description room.invited · room.join_requested · room.join_approved · room.join_rejected · room.kicked · room.host_assigned · record.approved · record.rejected (T-047)
+             * @description room.invited · room.join_requested · room.join_approved · room.join_rejected · room.kicked · room.host_assigned · record.approved · record.rejected (T-047) · booking.cancelled · room.cancelled (T-051)
              */
             kind: string;
             /**
@@ -4673,6 +4830,34 @@ export interface components {
             resource_code: string;
             /** Start Hour */
             start_hour: number;
+        };
+        /** OrderCancelIn */
+        OrderCancelIn: {
+            /**
+             * Reason
+             * @description Bắt buộc, tối đa 200 ký tự
+             * @default
+             */
+            reason: string;
+            /**
+             * Refund Confirmed
+             * @default false
+             */
+            refund_confirmed: boolean;
+            /**
+             * Codes
+             * @description Mã con lấy từ xem trước
+             */
+            codes: string[];
+        };
+        /** OrderCancelOut */
+        OrderCancelOut: {
+            /** Cancelled */
+            cancelled: string[];
+            /** Skipped */
+            skipped: components["schemas"]["CancelSkipped"][];
+            /** Refund Total */
+            refund_total: number;
         };
         /** OrderCollectIn */
         OrderCollectIn: {
@@ -4774,7 +4959,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "unpaid" | "paid" | "uncollectible";
+            status: "unpaid" | "paid" | "uncollectible" | "cancelled";
             /**
              * Created At
              * Format: date-time
@@ -4994,6 +5179,17 @@ export interface components {
              * @enum {string}
              */
             channel: "counter" | "online";
+            /**
+             * Cancelled
+             * @description Đã thu rồi bị sân hủy: nhãn “Đã hủy · Đã hoàn n đ” (T-051)
+             * @default false
+             */
+            cancelled: boolean;
+            /**
+             * Refund Amount
+             * @default 0
+             */
+            refund_amount: number;
         };
         /** PaymentList */
         PaymentList: {
@@ -5072,12 +5268,12 @@ export interface components {
         PaymentSummary: {
             /**
              * Total
-             * @description Đã thanh toán trong tháng (VND)
+             * @description Đã thanh toán trong tháng (VND), không tính khoản đã hủy
              */
             total: number;
             /**
              * Count
-             * @description Số giao dịch (lượt đặt sân + vé)
+             * @description Số giao dịch (lượt đặt sân + vé), không tính khoản đã hủy
              */
             count: number;
             bookings: components["schemas"]["BookingSummary"];
@@ -5913,6 +6109,11 @@ export interface components {
             paid: number;
             /** Uncollectible */
             uncollectible: number;
+            /**
+             * Cancelled
+             * @default 0
+             */
+            cancelled: number;
         };
         /** RecurringCreated */
         RecurringCreated: {
@@ -5995,7 +6196,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "unpaid" | "paid" | "uncollectible";
+            status: "unpaid" | "paid" | "uncollectible" | "cancelled";
             /**
              * Created At
              * Format: date-time
@@ -6817,7 +7018,7 @@ export interface components {
              * Payment Status
              * @enum {string}
              */
-            payment_status: "unpaid" | "paid" | "uncollectible";
+            payment_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
             /** Amount */
             amount: number;
             /**
@@ -7233,6 +7434,8 @@ export interface components {
             paid: components["schemas"]["TransactionCard"];
             unpaid: components["schemas"]["TransactionCard"];
             uncollectible: components["schemas"]["TransactionCard"];
+            /** @description Cộng cả khoản đã thu và chưa thu đã hủy */
+            cancelled: components["schemas"]["TransactionCard"];
         };
         /** TransactionRow */
         TransactionRow: {
@@ -7272,7 +7475,7 @@ export interface components {
              * Payment Status
              * @enum {string}
              */
-            payment_status: "unpaid" | "paid" | "uncollectible";
+            payment_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
             /** Payment Method */
             payment_method: ("cash" | "transfer" | "online_transfer") | null;
             /**
@@ -7280,6 +7483,15 @@ export interface components {
              * @enum {string}
              */
             source: "counter" | "online";
+            /** Cancel Reason */
+            cancel_reason?: string | null;
+            /** Cancelled By */
+            cancelled_by?: string | null;
+            /**
+             * Refund Amount
+             * @default 0
+             */
+            refund_amount: number;
         };
         /** TransactionsOut */
         TransactionsOut: {
@@ -7534,6 +7746,12 @@ export interface components {
             hours: number;
             /** Amount */
             amount: number;
+            /**
+             * Cancelled
+             * @description Khối đã bị sân hủy sau khi trả (T-051)
+             * @default false
+             */
+            cancelled: boolean;
         };
         /** WebCustomer */
         WebCustomer: {
@@ -9310,7 +9528,7 @@ export interface operations {
                 from?: string | null;
                 to?: string | null;
                 resource?: string | null;
-                status?: ("unpaid" | "paid" | "uncollectible") | null;
+                status?: ("unpaid" | "paid" | "uncollectible" | "cancelled") | null;
                 method?: ("cash" | "transfer") | null;
                 q?: string | null;
                 page?: number;
@@ -11643,7 +11861,7 @@ export interface operations {
     list_recurring_api_v1_front_desk_recurring_get: {
         parameters: {
             query?: {
-                status?: ("unpaid" | "paid" | "uncollectible") | null;
+                status?: ("unpaid" | "paid" | "uncollectible" | "cancelled") | null;
                 q?: string | null;
                 page?: number;
                 size?: number;
@@ -11714,7 +11932,7 @@ export interface operations {
         parameters: {
             query?: {
                 kind?: "all" | "single" | "recurring";
-                status?: ("unpaid" | "paid" | "uncollectible") | null;
+                status?: ("unpaid" | "paid" | "uncollectible" | "cancelled") | null;
                 q?: string | null;
                 /** @description Ngày chơi từ (khối bất kỳ) */
                 date_from?: string | null;
@@ -11736,6 +11954,113 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_item_api_v1_front_desk_items__code__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_cancel_preview_api_v1_front_desk_orders__order_code__cancel_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CancelPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_order_api_v1_front_desk_orders__order_code__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCancelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderCancelOut"];
                 };
             };
             /** @description Validation Error */

@@ -24,7 +24,13 @@ ROLE_NAMES: dict[str, str] = {"staff": "Nhân viên"}
 # Không hiện, không gán / bỏ được. CONTENT_MANAGE: chưa có màn quản lý Tin tức – có màn thì bỏ khỏi
 # đây và thêm lại nhóm "Tin tức" vào _GROUPS
 HIDDEN = frozenset(
-    {Perm.ROLES_MANAGE, Perm.SETTINGS_MENU, Perm.PAYMENTS_SIMULATE, Perm.CONTENT_MANAGE}
+    {
+        Perm.ROLES_MANAGE,
+        Perm.SETTINGS_MENU,
+        Perm.PAYMENTS_SIMULATE,
+        Perm.CONTENT_MANAGE,
+        Perm.BOOKING_CANCEL,
+    }
 )
 
 # (key, nhãn nhóm, [(quyền, nhãn, gợi ý)]) – theo nhóm menu khu quản trị

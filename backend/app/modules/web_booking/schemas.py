@@ -108,6 +108,7 @@ class WebCheckoutItem(BaseModel):
     start_hour: int
     hours: int
     amount: int
+    cancelled: bool = Field(default=False, description="Khối đã bị sân hủy sau khi trả (T-051)")
 
 
 class CheckoutOut(BaseModel):
@@ -152,7 +153,7 @@ class LookupItemOut(BaseModel):
     end_time: str
     hours: int
     amount: int
-    status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
+    status: Literal["paid", "unpaid", "uncollectible", "cancelled", "pending", "expired"]
 
 
 class LookupOut(BaseModel):
@@ -161,7 +162,7 @@ class LookupOut(BaseModel):
 
     kind: Literal["court", "ticket"]
     order_code: str = Field(description="Mã đơn; vé đăng ký tại quầy tra theo mã vé -> mã vé")
-    status: Literal["paid", "unpaid", "uncollectible", "pending", "expired"]
+    status: Literal["paid", "unpaid", "uncollectible", "cancelled", "pending", "expired"]
     play_date: dt.date
     hours: int = Field(description="Tổng giờ của đơn")
     customer_name: str
