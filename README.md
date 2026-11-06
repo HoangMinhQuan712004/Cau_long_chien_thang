@@ -416,7 +416,8 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 - **Chưa có cách ghi số đo thật** (giai đoạn A chỉ đọc). Để thử trên máy dev, nạp số đo giả: `cd backend; .venv\Scripts\python -m app.modules.records.seed_demo` (xóa bằng `--clear`). Lệnh từ chối chạy khi `ENV=production`; biến tên là `ENV`, không phải `APP_ENV`.
 - **Số đo nhập tay và duyệt (T-047, đã vào `dev`):** Admin nhập, sửa, xóa số đo tốc độ của hội viên (có thể gắn sân và video). Hội viên bấm "Gửi cú đập" để tự gửi số đo; số này **chờ Admin duyệt**, chưa tính vào bảng xếp hạng, kỷ lục hay "Video & kỷ lục". Duyệt hoặc từ chối (phải có lý do) thì hội viên nhận thông báo. Hội viên gửi tối đa 5 lượt hợp lệ mỗi 24 giờ. Số đo từ máy đo không sửa hay xóa được. Cần chạy migration `5b7e2c9d41a3` trên server.
 - **Video kỷ lục (T-046, đã vào `dev`):** Admin gắn link YouTube hoặc file `.mp4` / `.webm` (https) vào số đo; hệ thống **không tải file lên**. Hội viên xem ở trang Video & kỷ lục. Nếu sau này thêm `Content-Security-Policy`, phải cho phép `https://www.youtube-nocookie.com` (khung nhúng), `https://i.ytimg.com` (ảnh bìa) và host của file video.
-- Chi tiết: `docs/booking-engine-api.md` mục 13.5, 13.6 và 13.7.
+- **Video & kỷ lục thành dòng thời gian phá kỷ lục (T-048, backend xong, chưa vào `dev`):** API `GET /member-area/record-breaks` trả các lần phá kỷ lục của cả cụm, mới nhất trước, kèm số km/h hơn kỷ lục trước, số ngày giữ kỷ lục và video (nếu có). Nhãn "Kỷ lục ngày dd/mm" lấy theo **ngày dán link video**, không phải ngày đo. Màn này hiện **họ tên thật** kèm biệt danh của người đã bật "Hiện trên Video & kỷ lục" (hoặc của chính mình); Tổng quan và Bảng xếp hạng vẫn chỉ hiện biệt danh. Người ẩn danh hiện "Hội viên ẩn danh". Cần chạy migration `a4c91e7d2f58` (thêm cột `video_set_at`).
+- Chi tiết: `docs/booking-engine-api.md` mục 13.5, 13.6, 13.7 và 13.8.
 
 ### Đăng ký tài khoản = hội viên (T-021)
 

@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -9,7 +9,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
 > **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, đã vào `dev`) – mục 11.2 và 12.11.**
 > **Chưa có:** thu tiền chuyển khoản QR tại quầy (T-007). Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, đã vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
-> **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), đã vào `dev` – mục 13.5, 13.6. Video kỷ lục (T-046) và số đo nhập tay / chờ duyệt (T-047), đã vào `dev` – mục 13.7.**
+> **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), đã vào `dev` – mục 13.5, 13.6. Video kỷ lục (T-046) và số đo nhập tay / chờ duyệt (T-047), đã vào `dev` – mục 13.7. Dòng thời gian phá kỷ lục (T-048, chưa vào `dev`) – mục 13.8.**
 > **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (đã vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
 > Mục 5.1, 10, 11 và 12 (kể cả phần đánh dấu **(T-021)** và mục 12.11) đã có trong `dev`. Chưa có gì trong `main`/production.
@@ -1008,7 +1008,7 @@ R1 chạy ở **4 chỗ**, luôn sau khi chính chủ SĐT nhập đúng OTP: (1
 
 **Production chưa có Zalo.** Không có kênh OTP (`OTP_TEST_MODE` tắt, thiếu Zalo) thì `/auth/register/request` trả 503 `E-AUTH-23`: production tạm không cho khách tự đăng ký cho tới khi có Zalo. Đây là hành vi đúng.
 
-## 13. Khu hội viên: tổng quan, lịch sử thanh toán, phòng chơi, thông báo, lịch sử chơi, xếp hạng tốc độ (T-017, T-018, T-027, T-029, T-030, T-046, T-047)
+## 13. Khu hội viên: tổng quan, lịch sử thanh toán, phòng chơi, thông báo, lịch sử chơi, xếp hạng tốc độ (T-017, T-018, T-027, T-029, T-030, T-046, T-047, T-048)
 
 > Đã vào `dev` (PR #24). Đối chiếu với code `dev` (`member_area/home_router.py`, `play_rooms/`, `member_inbox/`) và handoff BE T-017 mốc 1, mốc 2, T-018. Tên trang đối chiếu theo thư mục `frontend/src/app/hoi-vien/`; nút và nội dung màn chưa kiểm trên giao diện. Nếu code lệch tài liệu này, code đúng.
 
@@ -1302,3 +1302,48 @@ Giới hạn gửi: tối đa **5 lượt hợp lệ mỗi 24 giờ** (cửa s�
 - **Lịch sử thao tác**, nhóm **"Kỷ lục"**: "Gắn video kỷ lục", "Gỡ video kỷ lục" (T-046); "Nhập số đo", "Sửa số đo", "Xóa số đo", "Hội viên gửi số đo", "Duyệt số đo", "Từ chối số đo" (T-047). Action `record.delete` dùng cho cả Admin xóa và hội viên rút lại bản chờ duyệt. Không có SĐT.
 - **Migration `5b7e2c9d41a3`** (nối sau `73296951e195`, **production phải chạy**; trên `dev` được gộp head bằng `d5cf1587486a`): thêm vào `speed_record` các cột `source` (mặc định `device`), `status` (mặc định `approved`), `submitted_by`, `reviewed_by`, `reviewed_at`, `reject_reason` (tối đa 200), `updated_at`, `version`; ràng buộc "rejected thì phải có lý do"; index `(status, measured_at)`. Bản ghi cũ: `device` + `approved`, `updated_at = created_at`. Downgrade **xóa các bản không `approved`** rồi bỏ cột. Không biến môi trường mới.
 - T-046 không có migration (cột `video_url` có từ T-030), thêm quyền `RECORDS_VIDEO_MANAGE`. Nếu sau này thêm `Content-Security-Policy`: `frame-src` cần `https://www.youtube-nocookie.com`, `img-src` cần `https://i.ytimg.com`, `media-src` cần host của file video.
+
+### 13.8 Dòng thời gian phá kỷ lục và ngày dán video (T-048, chưa vào `dev`)
+
+> Đối chiếu với code backend `be/T-048-video-timeline` @ `2a35245` (cục bộ, tạo từ `dev` `01feeb7`). BACKEND đã chạy trên DB thật: ruff, `alembic check` (một head `a4c91e7d2f58`), migration up / down / up, và 55 test của nhóm T-048. **Chưa chạy xong cả bộ test** (dừng ở khoảng 12%); phần còn lại chờ CI. Giao diện chưa kiểm. Không biến cấu hình mới.
+
+**`GET /member-area/record-breaks?period=week|month|year|all`** (điều kiện chung của mục 13). Mặc định `period=all`. `period` sai → 422. `Cache-Control: no-store`. **Không có tham số `date`:** kỳ là kỳ chứa hôm nay theo giờ VN (tuần T2 → CN, tháng và năm dương lịch).
+
+```json
+{ "period": "all", "start": null, "end": null,
+  "items": [ { "id": 41, "speed_kmh": 312, "delta_kmh": 6, "previous_kmh": 306,
+               "is_current": true, "is_baseline": false, "held_days": 3,
+               "measured_at": "…", "label_date": "2026-11-04",
+               "display_name": "Phạm Quang Minh", "nickname": "Minh", "tier": "…",
+               "avatar_url": "…", "racket": "…", "resource_name": "Sân 2",
+               "is_me": false, "video": { "kind": "youtube", "url": "…", "embed_url": "…", "thumbnail_url": "…" } } ] }
+```
+
+- `items` mới nhất trước, **không phân trang** (km/h là số nguyên 50 đến 500 và chuỗi tăng ngặt nên tối đa 451 dòng). `start` và `end` là `null` khi `all`.
+- **Chuỗi:** dùng chung `club_record_breaks` của "Kỷ lục mới" (T-036): chỉ số đo `approved` và hội viên đủ điều kiện như Bảng xếp hạng. Số đo `pending` / `rejected` không vào chuỗi.
+- **Kỳ chỉ lọc dòng theo ngày đo (giờ VN).** `delta_kmh`, `previous_kmh`, `held_days` tính trên **toàn chuỗi**, không tính lại trong kỳ. Dòng đầu tiên trong kỳ vẫn có `delta_kmh`; `held_days` của nó tính tới lần phá kế tiếp dù lần đó nằm ngoài kỳ.
+- `delta_kmh`, `previous_kmh`: hơn kỷ lục ngay trước bao nhiêu km/h, và kỷ lục ngay trước; cả hai `null` ở mốc đầu.
+- **Mốc đầu** (`is_baseline = true`, số đo đầu tiên của chuỗi) **chỉ có ở `all`**. Các kỳ khác không trả dòng này, kể cả khi mốc đầu nằm trong kỳ.
+- `is_current = true` cho đúng **một** dòng của cả chuỗi (lần đang giữ kỷ lục). Kỳ không chứa lần đó thì không dòng nào `true`.
+- `held_days`: số ngày theo ngày giờ VN, lần sau trừ lần này; đang giữ kỷ lục thì hôm nay trừ lần này. Không âm (số đo được lệch tương lai tới 1 phút). `0` = dưới 1 ngày.
+- **`label_date`:** ngày giờ VN của `video_set_at` (lần **dán link** mới nhất, không phải ngày đo). Chưa có video thì lấy ngày đo. Giao diện ghi "Kỷ lục ngày dd/mm" cho lần cũ.
+- `racket` là vợt **hiện tại** trong hồ sơ, không phải vợt lúc đo.
+- `video`: khối như mục 13.7; `null` khi chưa có video (giao diện ghi "Chưa có video"; dòng vẫn có mặt để chuỗi không đứt). Video vẫn phát khi người đó ẩn danh.
+
+**Tên: khác các API hội viên khác.** Theo quyết định của người dùng ngày 06/11, chỉ API này:
+
+| Người | `display_name` | `nickname`, `tier`, `avatar_url`, `racket` |
+|---|---|---|
+| Chính mình (`is_me`), hoặc người đã bật "Hiện trên video & kỷ lục" | **Họ tên thật** | giá trị thật (`nickname` là `null` nếu chưa đặt) |
+| Người khác đang ẩn | "Hội viên ẩn danh" | `null` |
+
+Tổng quan, Bảng xếp hạng (mục 13.6) và `GET /record-videos` vẫn trả `display_name` là **biệt danh, không có thì họ tên**; có test kiểm cả ba. Vì vậy giao diện không cần so `display_name` với `nickname` ở màn này. Không trả `customer_id` hay mã hội viên. `GET /record-videos` (mục 13.7) giữ nguyên, không bị xóa.
+
+**Ngày dán link (`speed_record.video_set_at`).** Mọi đường ghi `video_url` đi qua một hàm chung `SpeedRecord.set_video(url, at)`: gắn hoặc gỡ video (Admin), Admin nhập số đo có video, sửa số đo khi link đổi, hội viên gửi cú đập có video, và seed. Quy tắc:
+
+- Dán lại **đúng link cũ** (kể cả có khoảng trắng thừa) → không đổi ngày. Sửa sang link khác → lấy lần mới nhất. Gỡ link → xóa ngày.
+- **Duyệt** số đo (T-047) không đổi ngày dán.
+- Ràng buộc DB: `(video_url IS NULL) = (video_set_at IS NULL)`. Code hoặc test chèn `video_url` trực tiếp mà thiếu ngày sẽ lỗi; phải gọi `set_video`.
+- Seed dữ liệu thử: link được "dán" 1 ngày sau lần đo để thấy nhãn đi theo ngày dán.
+
+**Migration `a4c91e7d2f58`** (nối sau `d5cf1587486a`, **production phải chạy**): thêm `speed_record.video_set_at timestamptz NULL`. Dòng cũ có `video_url` được điền bằng thời điểm audit `record.video_set` mới nhất của số đo đó, không có thì `created_at`; sau đó mới thêm check ở trên. Downgrade bỏ check và cột, giữ nguyên các dòng. RELEASE kiểm lại chỉ còn **một head** Alembic trước khi gộp (nhánh khác có thể thêm migration).
