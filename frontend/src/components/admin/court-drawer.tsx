@@ -14,7 +14,6 @@ import { toast } from "@/lib/feedback";
 import { CourtForm } from "./court-form";
 import { formOf, type Resource, type ResourceType } from "./court-form-logic";
 import { CourtOverview } from "./court-overview";
-import { CourtRecent } from "./court-recent";
 import { CourtStats } from "./court-stats";
 import { useCourtForm } from "./use-court-form";
 
@@ -118,7 +117,6 @@ export function CourtDrawer({ code, startEditing = false, onDelete, t, resources
         <div className="flex flex-col divide-y">
           <CourtOverview detail={detail} typeName={types.find((t) => t.code === detail.resource.resource_type_code)?.name} />
           <CourtStats code={code} />
-          <CourtRecent code={code} />
         </div>
       ) : null}
     </SidePanel>

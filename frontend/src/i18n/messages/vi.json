@@ -584,8 +584,7 @@
       "week": "Tuần",
       "month": "Tháng",
       "from": "hoặc Từ ngày",
-      "to": "Đến ngày",
-      "hint": "Áp dụng cho toàn bộ báo cáo · so với {n} ngày liền trước ({from} – {to})"
+      "to": "Đến ngày"
     },
     "errors": {
       "fromAfterTo": "Từ ngày phải trước hoặc bằng Đến ngày.",
@@ -603,17 +602,12 @@
       "bookings": {
         "label": "Số lượt đặt",
         "tip": "Số booking và vé xé vé đã thanh toán, tính theo ngày chơi.",
-        "unit": "{n} lượt",
         "tickets": "Kỳ này gồm {n} vé xé vé."
       },
       "members": {
         "label": "Hội viên mới",
-        "tip": "Số hội viên được tạo trong kỳ, không tính hồ sơ tạm.",
-        "unit": "{n} hội viên"
-      },
-      "compare": "so với {n} ngày trước",
-      "same": "Không đổi so với {n} ngày trước",
-      "noPrevious": "Kỳ trước chưa có số liệu"
+        "tip": "Số hội viên được tạo trong kỳ, không tính hồ sơ tạm."
+      }
     },
     "daily": {
       "title": "Doanh thu theo ngày",
@@ -629,8 +623,6 @@
     "courts": {
       "title": "Doanh thu theo sân",
       "subtitle": "{range} · triệu đồng",
-      "lowestOne": "Thấp nhất: {name} · {amount}",
-      "lowestMany": "Thấp nhất ({n} sân): {amount} – {names}",
       "total": "Tổng {n} sân: {total}",
       "bar": "{name} · {amount}",
       "inactive": "(ngừng hoạt động)",

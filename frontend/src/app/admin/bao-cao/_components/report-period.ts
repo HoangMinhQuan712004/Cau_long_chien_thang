@@ -16,12 +16,6 @@ export function presetPeriod(mode: "week" | "month", today = todayVn()): Period 
   return { mode, from: addDaysIso(today, 1 - PRESET_DAYS[mode]), to: today };
 }
 
-/** Kỳ trước: cùng số ngày, ngay trước Từ ngày (BR-005). */
-export function previousRange(from: string, to: string) {
-  const days = daysOf(from, to);
-  return { days, from: addDaysIso(from, -days), to: addDaysIso(from, -1) };
-}
-
 /** Lỗi khoảng ngày (BR-004): E-002 từ > đến, E-003 dài hơn 90 ngày. */
 export type RangeError = "fromAfterTo" | "tooLong";
 

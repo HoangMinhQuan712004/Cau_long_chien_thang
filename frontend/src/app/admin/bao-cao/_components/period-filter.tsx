@@ -2,12 +2,9 @@
 
 import { Button } from "@/components/ui/button";
 import { DateRange, type DateRangeKey, type DateRangeValue } from "@/components/ui/date-range";
-import { CheckIcon } from "@/components/ui/icons";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { cn } from "@/lib/cn";
-import { formatDayMonth } from "@/lib/format";
-import { fill } from "./report-format";
-import { type Period, previousRange } from "./report-period";
+import type { Period } from "./report-period";
 import type { ReportError } from "./use-report";
 
 type Props = {
@@ -25,10 +22,9 @@ type Props = {
 
 const PRESETS = ["week", "month"] as const;
 
-/** Bộ lọc kỳ cho cả màn: nút Tuần / Tháng, Từ ngày – Đến ngày (chọn xong là tính lại), dòng gợi ý kỳ trước hoặc lỗi. */
+/** Bộ lọc kỳ cho cả màn: nút Tuần / Tháng, Từ ngày – Đến ngày (chọn xong là tính lại), dòng lỗi nếu có. */
 export function PeriodFilter({ period, today, error, invalid, onPreset, onRange, t }: Props) {
   const p = t.period;
-  const prev = previousRange(period.from, period.to);
 
   return (
     <section aria-label={p.label} className="flex flex-col gap-2">
@@ -74,12 +70,7 @@ export function PeriodFilter({ period, today, error, invalid, onPreset, onRange,
         <p role="alert" className="text-xs text-danger sm:text-ui">
           {t.errors[error]}
         </p>
-      ) : (
-        <p className="flex items-center gap-1.5 text-xs text-primary sm:text-ui">
-          <CheckIcon className="size-3.5 shrink-0" />
-          {fill(p.hint, { n: prev.days, from: formatDayMonth(prev.from), to: formatDayMonth(prev.to) })}
-        </p>
-      )}
+      ) : null}
     </section>
   );
 }
