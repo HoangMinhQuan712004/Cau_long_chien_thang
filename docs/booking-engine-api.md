@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -1146,7 +1146,7 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
 
 | Method | Path | Ghi chú |
 |---|---|---|
-| GET | `/rooms?scope=all\|mine` | `RoomList = {date, ongoing_count, upcoming_count, mine_count, all_count, items: RoomCard[]}`, xếp theo giờ bắt đầu rồi tên sân. Giao diện: `/hoi-vien/danh-sach-san` |
+| GET | `/rooms?scope=all\|mine&q=` **(`q`: T-054, chưa vào `dev`)** | `RoomList = {date, ongoing_count, upcoming_count, mine_count, all_count, items: RoomCard[]}`, xếp theo giờ bắt đầu rồi tên sân. Giao diện: `/hoi-vien/danh-sach-san` |
 | GET | `/rooms/{id}` | `RoomDetail`. Không có hoặc Host chưa đủ điều kiện → 404 `E-NOT-FOUND`. Giao diện: `/hoi-vien/phong/{id}` |
 | POST | `/rooms/{id}/join-requests` `{version}` | Xin vào; bấm lại không tạo thêm. Tối đa 10 lần/ngày/người → 429 `E-SEC-5` |
 | DELETE | `/rooms/{id}/join-requests/mine` | Hủy xin vào |
@@ -1164,6 +1164,16 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
 | GET | `/rooms/{id}/ranking?format=` | `items[] = {rank, display_name, avatar_url, wins, losses, played, win_rate (0–1), is_me}`. Xếp theo số trận thắng, bằng nhau thì tỉ lệ thắng; đồng hạng khi bằng cả hai (kiểu 1, 1, 3) |
 
 **ETag cho polling:** `GET /rooms`, `/rooms/{id}`, `/matches`, `/ranking` trả `ETag` (weak, theo nội dung và người xem) và `Cache-Control: no-cache, private`. Gửi `If-None-Match` mà không có gì đổi → **304** không có thân. Giao diện hỏi lại mỗi 5 giây và giữ ETag của lần trước.
+
+**Tìm phòng theo mã booking và phòng đã kết thúc (T-054, chưa vào `dev`):** đường thật là `GET /api/v1/member-area/rooms?q=` (spec ghi tắt `/api/v1/rooms`). Đối chiếu code backend `be/T-054-rooms-search` @ `a1732f3` (cục bộ). Nhánh này đã gộp `be/T-052-cancel-started`, nên **T-052 phải lên `dev` trước hoặc cùng T-054**. Không migration. BACKEND chạy 143 test xanh, chưa chạy cả bộ test (chờ CI). Giao diện chưa kiểm.
+
+- **`q`:** bỏ khoảng trắng, không phân biệt hoa thường, phải khớp `^BK-\d{8}-\d{3}(-\d{2})?$` (mã đơn hoặc mã con); phải nhập **đủ mã**, không tìm theo từng ký tự hay một phần. Không khớp định dạng → `items: []`, không lỗi, kể cả `q` rỗng.
+- **Khi có `q`:** bỏ qua `scope`, tìm ở **mọi ngày** (không chỉ hôm nay); khớp đúng mã con, hoặc mọi khối của mã đơn; xếp theo giờ bắt đầu. `Cache-Control: no-store`, **không có ETag**. Số liệu banner (`ongoing_count`…) vẫn là của hôm nay, không theo `q`.
+- **Giới hạn:** 30 lượt tìm mỗi phút mỗi tài khoản, tính cả `q` sai định dạng; quá → 429 `E-SEC-5` kèm `Retry-After`. Danh sách thường (không có `q`) không tính lượt. Lý do: mã đoán được theo ngày, không giới hạn thì dò được lịch đặt của người khác.
+- **Không tìm ra** (cùng kết quả rỗng, không báo lý do): mã không tồn tại, sai định dạng, Host chưa đủ điều kiện, booking đã hủy mà phòng không có trận `finished`, booking chưa có phòng.
+- **`RoomCard` thêm:** `status` (`open` | `ended`; `phase` giữ nguyên) và `play_date` (ngày chơi giờ VN). Danh sách thường luôn `open`. **Không** có mã booking, SĐT hay id hồ sơ trong thẻ.
+- **`ended`** khi phòng đã đóng, hoặc hết giờ cộng ân hạn mà job chưa kịp đóng, hoặc booking đã hủy. Phòng `ended` mở xem chỉ đọc; với nó `my_join_block = null`, `my_invite_id = null`, `my_join_pending = false` (không thêm giá trị mới cho `JoinBlock`), giao diện dựa vào `status` để ẩn nút Xin vào. Xin vào phòng đã đóng bằng API vẫn trả 409 `E-ROOM-1`.
+- **Rủi ro BACKEND đã báo ARCHITECT, chưa đổi:** `GET /rooms/{id}` từ T-017 cho mọi hội viên xem phòng đã đóng theo id tuần tự, không giới hạn tần suất, nên giới hạn tìm kiếm không chặn được việc dò lịch sử chơi. Đang chờ ARCHITECT quyết.
 
 **`RoomCard`:** `{id, resource_name, resource_type_name, start_at, end_at, phase: upcoming|ongoing, host, members[], member_count, capacity, is_mine, my_join_pending, my_invite_id, version}`. Nút theo thứ tự: `is_mine` → "Vào phòng"; `my_invite_id` → "Nhận lời mời" / "Từ chối"; `my_join_pending` → "Đã xin vào" (bấm để hủy); `member_count >= capacity` → "Đã đủ"; còn lại → "Xin vào".
 
