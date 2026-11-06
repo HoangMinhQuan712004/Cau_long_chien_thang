@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Field } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
@@ -157,6 +157,16 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
       ctl.abort();
     };
   }, [key, tick]);
+
+  /** Kiểm một buổi đang sửa: xem trước đúng buổi đó với cùng khách và % giảm, chưa áp vào đơn. */
+  const checkSession = useCallback(
+    async (session: RecurringSessionIn, signal: AbortSignal) => {
+      const res = await getRecurringPreview({ ...(JSON.parse(key) as RecurringPreviewBody), sessions: [session] }, signal);
+      if (!res.ok && !signal.aborted) authFailure(res.error);
+      return res;
+    },
+    [key],
+  );
 
   const preview = result && result.key === key ? result.data : null;
   const okSessions = preview?.sessions.filter((x) => x.ok) ?? [];
@@ -363,7 +373,8 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
           </p>
         ) : null}
         <SessionsPanel
-          preview={preview}
+          // Đang tính lại: giữ danh sách cũ (làm mờ) để các buổi và ô đang sửa không biến mất
+          preview={preview ?? (calculating ? (result?.data ?? null) : null)}
           calculating={calculating}
           resources={resources}
           columns={calendar.columns}
@@ -373,6 +384,7 @@ export function RecurringDialog({ calendar, today, onClose, onChanged, onOpenOrd
           setEditingDay={setEditingDay}
           setTweak={setTweak}
           applySuggestion={applySuggestion}
+          checkSession={checkSession}
           showOk={showOk}
           setShowOk={setShowOk}
         />
