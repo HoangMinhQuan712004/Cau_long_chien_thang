@@ -621,7 +621,7 @@ function CancelDialog({ item, onBack, onClose, onDone, onStale }: StepProps) {
       )}
       <ErrorBanner>
         {phase === "past"
-          ? "Buổi đã qua nên lịch đặt sân không đổi."
+          ? "Buổi sẽ biến khỏi lịch và công suất ngày đó cũng giảm."
           : isTicket
             ? "Chỗ của vé được trả lại và có thể bán lại."
             : "Khung giờ trống lại trên lịch ngay, đặt lại được bằng đơn mới."}{" "}
