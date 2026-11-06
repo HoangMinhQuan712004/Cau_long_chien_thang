@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -1008,7 +1008,7 @@ R1 chạy ở **4 chỗ**, luôn sau khi chính chủ SĐT nhập đúng OTP: (1
 
 **Production chưa có Zalo.** Không có kênh OTP (`OTP_TEST_MODE` tắt, thiếu Zalo) thì `/auth/register/request` trả 503 `E-AUTH-23`: production tạm không cho khách tự đăng ký cho tới khi có Zalo. Đây là hành vi đúng.
 
-## 13. Khu hội viên: tổng quan, lịch sử thanh toán, phòng chơi, thông báo, lịch sử chơi, xếp hạng tốc độ (T-017, T-018, T-027, T-029, T-030, T-046, T-047, T-048)
+## 13. Khu hội viên: tổng quan, lịch sử thanh toán, phòng chơi, thông báo, lịch sử chơi, xếp hạng tốc độ (T-017, T-018, T-027, T-029, T-030, T-046, T-047, T-048, T-049)
 
 > Đã vào `dev` (PR #24). Đối chiếu với code `dev` (`member_area/home_router.py`, `play_rooms/`, `member_inbox/`) và handoff BE T-017 mốc 1, mốc 2, T-018. Tên trang đối chiếu theo thư mục `frontend/src/app/hoi-vien/`; nút và nội dung màn chưa kiểm trên giao diện. Nếu code lệch tài liệu này, code đúng.
 
@@ -1187,8 +1187,9 @@ Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no
 
 ```json
 { "period": "month", "start": "2026-11-01", "end": "2026-11-30", "total_members": 14,
-  "top": [ { "rank": 1, "display_name": "Minh", "avatar_url": "…", "speed_kmh": 312, "is_me": false } ],
-  "me": { "rank": 11, "speed_kmh": 268, "measured_at": "…", "gap_to_top10": 9 },
+  "top": [ { "rank": 1, "display_name": "Minh", "avatar_url": "…", "speed_kmh": 312,
+             "measured_at": "…", "is_me": false, "video": null } ],
+  "me": { "rank": 11, "speed_kmh": 268, "measured_at": "…", "gap_to_top10": 9, "video": null },
   "bar_floor_kmh": 200 }
 ```
 
@@ -1197,6 +1198,7 @@ Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no
 - **Xếp hạng:** mỗi hội viên lấy số đo cao nhất trong kỳ. Bằng km/h thì ai đạt trước xếp trên. Không có đồng hạng: hạng là 1..n liên tục. `total_members` = số hội viên có số đo trong kỳ, sau khi loại người không đủ điều kiện.
 - **Loại khỏi bảng** (và khỏi `total_members`): hội viên **Ngừng**, hoặc không còn tài khoản liên kết đã xác minh (cùng điều kiện như phòng chơi).
 - **Riêng tư:** hội viên tắt "Hiện trên video & kỷ lục" (`show_on_records = false`) hiện là `display_name = "Hội viên ẩn danh"`, `avatar_url = null`, nhưng vẫn được xếp hạng. Mình luôn thấy tên mình (`is_me = true`). Không trả `customer_id` hay mã hội viên của ai.
+- **Video của dòng xếp hạng (T-049, chưa vào `dev`):** mỗi dòng của `top` có thêm `measured_at` (lúc đo của số đo xếp hạng) và `video`; `me` có thêm `video`. `video` là khối như mục 13.7, của **đúng số đo xếp hạng**: số đo cao nhất của người đó trong kỳ, bằng nhau lấy lần sớm hơn, chỉ bản `approved`. Số đo đó không có video thì `video = null`, **kể cả khi số đo khác của người đó có video**. Giao diện chỉ cho bấm xem khi `video` khác `null`. Chỉ thêm trường, không phá vỡ: `display_name` vẫn là biệt danh trước (khác `record-breaks`, mục 13.8). Người ẩn danh vẫn có `video` phát được, tên "Hội viên ẩn danh", `avatar_url = null`; dòng xếp hạng không có id hay định danh nào. Đổi kỳ dùng tham số `period` và `date` sẵn có. `GET /member-area/overview` trả `ranking.top3` cùng kiểu nên cũng có hai trường mới (giao diện Tổng quan không cần đổi). Đối chiếu code `be/T-049-ranking-video` @ `1960e8a` (cục bộ, tạo từ nhánh T-048); không migration, không cấu hình mới. BACKEND chưa chạy cả bộ test cục bộ, chờ CI.
 - Nợ kỹ thuật đã được ARCHITECT chấp nhận cho đợt này: `avatar_url` của người hiện tên là `/api/v1/member-area/avatars/{customer_id}?v=…`, giống phòng chơi (lộ id nội bộ trong đường dẫn ảnh).
 
 **`GET /member-area/me`:** `record_kmh` nay là kỷ lục mọi thời gian của hội viên, `null` khi chưa có số đo (trước đó luôn `null`, xem mục 12.6). Giao diện hiện lại chip "Kỷ lục n km/h".
