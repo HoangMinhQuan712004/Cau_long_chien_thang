@@ -70,6 +70,25 @@ async def cancelled_codes(session: AsyncSession, tenant_id: int, codes: list[str
     )
 
 
+async def cancelled_before_end_codes(
+    session: AsyncSession, tenant_id: int, codes: list[str]
+) -> set[str]:
+    """Mã nào bị hủy **trước** giờ kết thúc: phòng dừng ngay. Hủy từ giờ kết thúc trở đi chỉ là trừ
+    tiền, buổi đã chơi thật nên phòng không đổi (T-052)."""
+    if not codes:
+        return set()
+    return set(
+        await session.scalars(
+            select(Booking.code).where(
+                Booking.tenant_id == tenant_id,
+                Booking.code.in_(sorted(set(codes))),
+                Booking.payment_status == "cancelled",
+                Booking.cancelled_at < Booking.end_at,
+            )
+        )
+    )
+
+
 async def ending_after(
     session: AsyncSession, tenant_id: int, after: dt.datetime, play_dates: list[dt.date]
 ) -> list[RoomSource]:

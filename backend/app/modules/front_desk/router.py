@@ -115,6 +115,7 @@ def _for_viewer(item: ItemOut, principal: Principal) -> ItemOut:
     """Engine liệt kê mọi thao tác hợp lệ; Nhân viên không thấy ``cancel`` (T-051 AC1)."""
     if not principal.has(Perm.BOOKING_CANCEL):
         item.actions = [a for a in item.actions if a != "cancel"]
+        item.cancel_phase = None
     return item
 
 
@@ -355,7 +356,7 @@ async def list_orders(
 
 
 # ---------------------------------------------------------------- hủy booking / vé (T-051)
-# Ở quầy, không ở engine: tra trận qua play_rooms rồi gọi engine (engine không biết phòng, ADR-003)
+# Ở quầy: hủy cả đơn tra trận qua play_rooms rồi gọi engine (engine không biết phòng, ADR-003)
 
 
 @router.post("/items/{code}/cancel", response_model=ItemOut)
@@ -366,15 +367,15 @@ async def cancel_item(
     idem: IdempotencyDep,
     session: SessionDep,
 ):
-    """Hủy một booking hoặc vé chưa bắt đầu (chỉ Admin): nhả khung / chỗ ngay, không tự hoàn tiền.
+    """Hủy một booking hoặc vé (chỉ Admin, T-052): đã thu hủy được mọi lúc, kể cả đang chơi và đã
+    qua; chưa thu chỉ trước giờ bắt đầu. Nhả khung / chỗ ngay, không tự hoàn tiền.
 
-    422 E-001 (lý do) · E-PAY-5 (đã bắt đầu) · E-PAY-7 (đã thu mà chưa xác nhận hoàn) · E-PAY-8 (đã
-    có trận trong phòng) · 409 E-PAY-6 (đã hủy / Không thu được) · E-012 (``version`` cũ) · 404.
+    422 E-001 (lý do) · E-PAY-5 (đã bắt đầu mà chưa thu) · E-PAY-7 (đã thu mà chưa xác nhận hoàn) ·
+    409 E-PAY-6 (đã hủy / Không thu được) · E-012 (``version`` cũ) · 404.
     """
 
     async def run() -> ItemOut:
-        played = await rooms.played_booking_codes(session, [engine.normalize_code(code)])
-        return await engine.cancel_item(session, actor_of(principal), code, data, played)
+        return await engine.cancel_item(session, actor_of(principal), code, data)
 
     return await idem.run(session, principal.key, run)
 
