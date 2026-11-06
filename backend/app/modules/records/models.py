@@ -33,6 +33,7 @@ class SpeedRecord(Base):
         CheckConstraint(
             "status <> 'rejected' OR reject_reason IS NOT NULL", name="speed_reject_reason"
         ),
+        CheckConstraint("(video_url IS NULL) = (video_set_at IS NULL)", name="speed_video_set_at"),
         Index("ix_speed_record_measured_at", "measured_at"),
         Index("ix_speed_record_status_measured_at", "status", "measured_at"),
     )
@@ -47,6 +48,8 @@ class SpeedRecord(Base):
     # Mã số đo phía máy (chống ghi trùng khi máy gửi lại)
     source_ref: Mapped[str] = mapped_column(String(100), unique=True)
     video_url: Mapped[str | None] = mapped_column(String(500))
+    # T-048: lúc dán link (lần mới nhất) – ghi cùng ``video_url`` qua ``set_video``
+    video_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # T-047: nguồn + trạng thái duyệt. Bản ghi cũ (máy đo / seed) là device / approved
     source: Mapped[str] = mapped_column(String(10), default="device", server_default="device")
     status: Mapped[str] = mapped_column(String(10), default="approved", server_default="approved")
@@ -60,6 +63,12 @@ class SpeedRecord(Base):
     # chống ghi đè (lệch -> 409 E-REC-3)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+
+    def set_video(self, url: str | None, at: datetime) -> None:
+        """Đường ghi link video duy nhất (T-048): ngày dán đi cùng link, gỡ link thì xóa ngày.
+        Chỉ gọi khi link thật sự đổi – dán lại đúng link cũ không đổi ngày."""
+        self.video_url = url
+        self.video_set_at = at if url is not None else None
 
 
 # Kỷ lục mọi thời gian / số đo cao nhất của một người

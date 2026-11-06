@@ -171,7 +171,6 @@ async def create(
         speed_kmh=data.speed_kmh,
         measured_at=_check_time(data.measured_at),
         court_code=await _court(session, data.resource_code),
-        video_url=_video(data.video_url),
         source_ref=f"admin:{uuid.uuid4()}",
         source="admin",
         status="approved",
@@ -181,6 +180,7 @@ async def create(
         updated_at=now,
         version=1,
     )
+    r.set_video(_video(data.video_url), now)
     session.add(r)
     await session.flush()
     await session.refresh(r, ["created_at"])
@@ -211,7 +211,7 @@ async def update(
     if "resource_code" in sent and not same_court:  # sân cũ đã ngừng vẫn giữ được khi không đổi
         r.court_code = await _court(session, data.resource_code)
     if "video_url" in sent and (data.video_url or "").strip() != (r.video_url or ""):
-        r.video_url = _video(data.video_url)
+        r.set_video(_video(data.video_url), datetime.now(UTC))
     changes = _diff(before, _values(r))
     if changes:
         touch(r)
@@ -387,7 +387,6 @@ async def submit(session: AsyncSession, me: Submitter, data: SpeedSubmitIn) -> M
         speed_kmh=data.speed_kmh,
         measured_at=measured_at,
         court_code=court,
-        video_url=url,
         source_ref=f"member:{uuid.uuid4()}",
         source="member",
         status="pending",
@@ -395,6 +394,7 @@ async def submit(session: AsyncSession, me: Submitter, data: SpeedSubmitIn) -> M
         updated_at=now,
         version=1,
     )
+    r.set_video(url, now)
     session.add(r)
     await session.flush()
     await session.refresh(r, ["created_at"])
