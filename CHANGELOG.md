@@ -6,7 +6,13 @@ Ghi các thay đổi người dùng hoặc người vận hành nhìn thấy đ�
 
 Các mục T-005, T-006, T-008, T-012 đã có ở link dev; T-013, T-015 (PR #21), và T-016, T-019, T-020 (PR #23), T-021, T-017, T-018 (PR #24), Báo cáo (PR #26) và T-024 (PR #27) cũng đã lên dev. Tất cả chưa lên production (cần người dùng duyệt).
 
-- **Admin nhập số đo tốc độ, hội viên gửi cú đập chờ duyệt (T-047, backend xong, chưa lên dev):**
+- **Bảng xếp hạng: bấm người xếp hạng xem video (T-049, backend xong, chưa lên dev):** API Bảng xếp hạng trả thêm thời điểm đo và video của đúng số đo đang xếp hạng trong kỳ (top 10 và hạng của chính hội viên). Số đo xếp hạng không có video thì không có video, dù người đó có số đo khác có video. Người ẩn danh vẫn xem được video, tên vẫn ẩn. Không đổi DB. Chi tiết: `docs/booking-engine-api.md` mục 13.6.
+- **Video & kỷ lục: dòng thời gian các lần phá kỷ lục (T-048, backend xong, chưa lên dev):**
+  - API mới trả mọi lần phá kỷ lục của cả cụm (mới nhất trước), kèm số km/h hơn kỷ lục trước, kỷ lục trước, số ngày giữ và video; theo Tuần / Tháng / Năm / Mọi thời gian. Lần chưa có video vẫn hiện, ghi "Chưa có video".
+  - Nhãn "Kỷ lục ngày dd/mm" theo ngày dán link video. Hệ thống ghi nhớ ngày này mỗi khi gắn, sửa hoặc gỡ link (dán lại đúng link cũ thì không đổi).
+  - Màn này hiện **họ tên thật** kèm biệt danh (chỉ với người đã bật "Hiện trên Video & kỷ lục" và chính mình); các màn khác không đổi. Người ẩn danh vẫn ẩn.
+  - Có migration `a4c91e7d2f58` (production phải chạy). Chi tiết: `docs/booking-engine-api.md` mục 13.8.
+- **Admin nhập số đo tốc độ, hội viên gửi cú đập chờ duyệt (T-047, đã lên dev):**
   - Admin nhập, sửa, xóa số đo của hội viên đang Hoạt động (kèm sân, video). Số đo từ máy đo không sửa hay xóa được. Sửa dùng số phiên bản: hai nơi sửa cùng lúc thì nơi lưu sau nhận lỗi, không ghi đè.
   - Hội viên "Gửi cú đập": số đo ở trạng thái chờ duyệt, **chưa tính** vào bảng xếp hạng, kỷ lục, "Kỷ lục mới" hay Video & kỷ lục cho tới khi Admin duyệt. Hội viên rút lại được bản chờ duyệt; tối đa 5 lượt hợp lệ mỗi 24 giờ.
   - Duyệt hoặc từ chối (bắt buộc lý do, tối đa 200 ký tự) đều gửi thông báo cho hội viên. Lịch sử thao tác có nhóm "Kỷ lục".
