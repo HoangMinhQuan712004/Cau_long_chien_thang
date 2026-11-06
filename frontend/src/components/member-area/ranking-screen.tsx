@@ -17,10 +17,8 @@ import type { RecordVideo } from "@/lib/video";
 // T-049: dòng / bục / thẻ "Hạng của tôi" có video thì bấm được và mở popup với trình phát của T-048 (không tự phát); không có video thì giữ nguyên, không bấm được.
 
 type Ranking = components["schemas"]["SpeedRanking"];
-// TẠM (T-049): `measured_at` / `video` do BE thêm; bỏ phần giao này sau khi merge nhánh BE và chạy gen:api.
-type VideoFields = { video?: RecordVideo | null };
-type Row = components["schemas"]["SpeedRankingRow"] & VideoFields & { measured_at?: string };
-type Me = NonNullable<Ranking["me"]> & VideoFields;
+type Row = components["schemas"]["SpeedRankingRow"];
+type Me = components["schemas"]["SpeedMe"];
 
 /** Cú đập đang mở trong popup. */
 type Clip = { name: string; speed: number; measuredAt?: string; video: RecordVideo };
@@ -164,9 +162,8 @@ export function RankingScreen() {
   const today = nowMs ? vnDate(new Date(nowMs).toISOString()) : "";
   const canNext = Boolean(data && today && data.end < today);
   const noun = PERIODS.find((x) => x.key === period)?.noun ?? "";
-  const rows: Row[] = data?.top ?? [];
-  const top3 = rows.slice(0, 3);
-  const rest = rows.slice(3, 10);
+  const top3 = (data?.top ?? []).slice(0, 3);
+  const rest = (data?.top ?? []).slice(3, 10);
   const best = data?.top[0]?.speed_kmh ?? 0;
   const floor = data?.bar_floor_kmh ?? 200;
   const me: Me | null = data?.me ?? null;
