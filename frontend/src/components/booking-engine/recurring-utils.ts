@@ -38,7 +38,7 @@ export const reasonText = (r?: string | null) => (r ? (REASON[r] ?? r) : "");
 export const hourOptions = (columns: number[], end = false) => columns.map((h) => ({ value: String(end ? h + 1 : h), label: `${pad(end ? h + 1 : h)}:00` }));
 
 /** Nhãn kiểu gợi ý của BE (T-043, như dev). */
-export const KIND_LABEL: Record<RecurringSuggestion["kind"], string> = { shift: "Lệch giờ", court: "Sân khác" };
+export const KIND_LABEL: Record<RecurringSuggestion["kind"], string> = { shift: "Đổi giờ", court: "Đổi sân" };
 
 /** "12 buổi · S01 · T3, T5, T7 · 10/11 → 28/11" (dòng dưới "Tổng thanh toán"). */
 export function orderSummary(items: { date: string; resource_code: string }[], weekdays: number[]) {

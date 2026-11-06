@@ -21,6 +21,7 @@ from app.modules.booking_engine import api as engine
 from app.modules.booking_engine import common, report_occupancy, report_revenue
 from app.modules.booking_engine.models import Allocation, Booking, OutboxEvent
 from app.modules.booking_engine.tenant import current_tenant_id
+from app.modules.member_inbox.models import MemberNotification
 from app.modules.play_rooms import api as rooms_api
 from app.modules.play_rooms import lifecycle
 from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomRequest
@@ -760,3 +761,44 @@ async def test_online_ticket_partial_cancel(anon, admin):
     assert (await cancel(admin, second, refund_confirmed=True)).status_code == 200
     r = await anon.post(f"{WEB}/lookup", json={"code": second, "phone": phone})
     assert r.json()["status"] == "cancelled" and r.json()["amount"] == 0
+
+
+async def test_event_and_job_notify_each_person_once(admin, staff, people):
+    """Sự kiện và job mỗi phút cùng đóng phòng: khóa dòng + chỉ xét phòng còn mở -> báo một lần,
+    dù hai bên chạy đồng thời, job trước hay sự kiện trước."""
+    owner, guest = await people("Chủ Đơn"), await people("Khách")
+    together, job_first, event_first = [
+        await _room_of(admin, staff, owner) for _ in ("together", "job_first", "event_first")
+    ]
+    rooms = [together[1], job_first[1], event_first[1]]
+    for room in rooms:
+        got = await post(guest.client, f"/{room.id}/join-requests", {"version": room.version})
+        assert got.status_code == 200, got.text
+
+    async def event(code: str) -> None:
+        payload = await outbox_payload(code)
+        await events.publish(events.BOOKING_CANCELLED, {"tenant_id": 1, **payload})
+
+    async def job() -> None:
+        async with SessionLocal() as s:
+            await lifecycle._close_any_cancelled(s, datetime.now(UTC))
+            await s.commit()
+
+    assert (await cancel(admin, together[0]["code"])).status_code == 200
+    assert (await cancel(admin, job_first[0]["code"])).status_code == 200
+    await asyncio.gather(event(together[0]["code"]), job())  # job đóng cả phòng thứ hai
+    await event(job_first[0]["code"])
+    assert (await cancel(admin, event_first[0]["code"])).status_code == 200
+    await event(event_first[0]["code"])
+    await job()
+
+    async with SessionLocal() as s:
+        sent = list(
+            await s.scalars(
+                select(MemberNotification).where(
+                    MemberNotification.customer_id == guest.customer_id,
+                    MemberNotification.kind == "room.cancelled",
+                )
+            )
+        )
+    assert sorted(n.payload["room_id"] for n in sent) == sorted(r.id for r in rooms)
