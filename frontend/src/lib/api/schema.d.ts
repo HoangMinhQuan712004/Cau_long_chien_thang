@@ -6921,6 +6921,18 @@ export interface components {
              * @enum {string}
              */
             phase: "upcoming" | "ongoing";
+            /**
+             * Status
+             * @description ended: phòng đã đóng hoặc buổi đã hủy, chỉ có ở kết quả tìm (T-054): nhãn “Đã kết thúc”, vào xem chỉ đọc, không xin vào. Khi đó my_join_block, my_invite_id là null, my_join_pending là false
+             * @enum {string}
+             */
+            status: "open" | "ended";
+            /**
+             * Play Date
+             * Format: date
+             * @description Ngày chơi (giờ Việt Nam)
+             */
+            play_date: string;
             host: components["schemas"]["PersonOut"];
             /**
              * Members
@@ -7071,7 +7083,7 @@ export interface components {
             all_count: number;
             /**
              * Items
-             * @description Theo giờ bắt đầu, rồi tên sân (lọc theo ``scope``)
+             * @description Theo giờ bắt đầu, rồi tên sân (lọc theo ``scope``); có ``q``: kết quả tìm
              */
             items: components["schemas"]["RoomCard"][];
         };
@@ -11019,6 +11031,8 @@ export interface operations {
             query?: {
                 /** @description mine: phòng có mình */
                 scope?: "all" | "mine";
+                /** @description Đúng mã đơn BK-YYYYMMDD-NNN hoặc mã con -NN (T-054) */
+                q?: string | null;
             };
             header?: {
                 /** @description ETag lần trước -> 304 nếu không đổi */
