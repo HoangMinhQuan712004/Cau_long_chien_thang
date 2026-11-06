@@ -11,6 +11,7 @@ import type {
   RecurringBody,
   RecurringPreview,
   BookingOrderList,
+  CancelPreview,
   RecurringOrderList,
   RecurringPreviewBody,
   SearchResult,
@@ -103,6 +104,19 @@ export const sendUncollectible = (key: string, code: string, reason: string, ver
     body: { reason, version },
     headers: idem(key),
   });
+
+// ---- Hủy (T-051, Admin) ----
+/** Hủy một booking / vé chưa bắt đầu. Đã thu thì phải gửi `refund_confirmed: true`. Lỗi E-PAY-5/6/7/8, 409 khi `version` lệch. */
+export const sendCancelItem = (key: string, code: string, v: { reason: string; version: number; refund_confirmed: boolean }) =>
+  looseApi.POST(`${P}/front-desk/items/{code}/cancel`, { params: { path: { code } }, body: v, headers: idem(key) });
+
+/** Xem trước hủy cả đơn: buổi sẽ hủy / bị bỏ qua + tổng tiền. */
+export const getOrderCancelPreview = (orderCode: string) =>
+  read<CancelPreview>(() => looseApi.GET(`${P}/front-desk/orders/{order_code}/cancel-preview`, { params: { path: { order_code: orderCode } } }));
+
+/** Hủy các buổi trong `codes` (lấy từ xem trước); server kiểm lại từng buổi lúc hủy. */
+export const sendCancelOrder = (key: string, orderCode: string, v: { reason: string; refund_confirmed: boolean; codes: string[] }) =>
+  looseApi.POST(`${P}/front-desk/orders/{order_code}/cancel`, { params: { path: { order_code: orderCode } }, body: v, headers: idem(key) });
 
 // ---- Đặt sân định kỳ (T-035, Admin) ----
 /** Xem trước các buổi + tiền (không ghi). Không có buổi nào thì `count = 0`. */

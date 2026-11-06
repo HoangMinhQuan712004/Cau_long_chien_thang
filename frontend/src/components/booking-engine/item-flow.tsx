@@ -9,11 +9,12 @@ import { cn } from "@/lib/cn";
 import { formatDateTime, formatDayMonthYear, formatLongDate, formatVnd, hhmm } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import { authFailure } from "./booking-dialogs";
-import { getItem, sendCollect, sendUncollectible } from "./requests";
+import { getItem, sendCancelItem, sendCollect, sendUncollectible } from "./requests";
 import type { Item } from "./types";
 import {
   btnCls,
   btnDangerCls,
+  btnDangerOutlineCls,
   btnPrimaryCls,
   btnRowCls,
   ErrorBanner,
@@ -26,7 +27,7 @@ import {
   textareaCls,
 } from "./ui";
 
-// Luồng một booking / vé: Thông tin → Thu tiền | Không thu được. Dùng ở màn Đặt sân, Đơn đặt sân và Lịch sử giao dịch.
+// Luồng một booking / vé: Thông tin → Thu tiền | Không thu được | Hủy (T-051, chỉ Admin). Dùng ở màn Đặt sân, Đơn đặt sân và Lịch sử giao dịch.
 // Thông tin: cấu trúc như dev (Mã đơn / Mã khối, nhóm KHÁCH ĐẶT · LỊCH ĐẶT · THANH TOÁN). Dưới md dọc (điện thoại: bảng trượt
 // từ đáy); từ md ngang 896px: hàng mã + số tiền / trạng thái, dưới là 3 cột nhóm. Chân chỉ khi có thao tác, nút rộng bằng nhau.
 
@@ -41,7 +42,7 @@ type Props = {
   onOpenOrder?: (orderCode: string) => void;
 };
 
-type Step = "info" | "collect" | "bad";
+type Step = "info" | "collect" | "bad" | "cancel";
 
 export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder }: Props) {
   const [item, setItem] = useState<Item | null>(null);
@@ -84,7 +85,10 @@ export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder 
   if (step === "bad") {
     return <UncollectibleDialog item={item} onBack={() => setStep("info")} onClose={onClose} onDone={onChanged} onStale={onStale} />;
   }
-  return <InfoDialog item={item} onClose={onClose} onCollect={() => setStep("collect")} onBad={() => setStep("bad")} onOpenSession={onOpenSession} onOpenOrder={onOpenOrder} />;
+  if (step === "cancel") {
+    return <CancelDialog item={item} onBack={() => setStep("info")} onClose={onClose} onDone={onChanged} onStale={onStale} />;
+  }
+  return <InfoDialog item={item} onClose={onClose} onCollect={() => setStep("collect")} onBad={() => setStep("bad")} onCancel={() => setStep("cancel")} onOpenSession={onOpenSession} onOpenOrder={onOpenOrder} />;
 }
 
 /** Tiêu đề popup = sân ("S01 · Sân 1"); dòng phụ = ngày · giờ · số giờ. */
@@ -180,6 +184,7 @@ function InfoDialog({
   onClose,
   onCollect,
   onBad,
+  onCancel,
   onOpenSession,
   onOpenOrder,
 }: {
@@ -187,6 +192,7 @@ function InfoDialog({
   onClose: () => void;
   onCollect: () => void;
   onBad: () => void;
+  onCancel: () => void;
   onOpenSession?: (code: string) => void;
   onOpenOrder?: (orderCode: string) => void;
 }) {
@@ -197,6 +203,7 @@ function InfoDialog({
   const status = p.payment_status;
   const canCollect = item.actions.includes("collect");
   const canBad = item.actions.includes("uncollectible");
+  const canCancel = item.actions.includes("cancel"); // chỉ Admin, buổi chưa bắt đầu, chưa hủy (T-051 AC1)
   const mono = (code: string) => <span className="font-mono text-ui">{code}</span>;
 
   const booking: KvRow[] = [];
@@ -258,15 +265,21 @@ function InfoDialog({
     ["Số tiền", amount, true],
     ["Trạng thái", badge, true],
   ];
-  if (status === "paid") {
+  const wasPaid = status === "paid" || (status === "cancelled" && Boolean(p.paid_at)); // khoản đã hủy vẫn giữ dấu vết lần thu
+  if (wasPaid) {
     payment.push(["Phương thức", p.payment_method ? METHOD_LABEL[p.payment_method] : "—"]);
     payment.push(["Thời gian TT", p.paid_at ? nowrap(formatDateTime(p.paid_at)) : "—"]);
   }
   payment.push(["Người tạo", twoLines(item.created_by, formatDateTime(item.created_at))]);
-  if (status === "paid") payment.push(["Người thu", nowrap(p.collected_by ?? "—")]);
+  if (wasPaid) payment.push(["Người thu", nowrap(p.collected_by ?? "—")]);
   if (status === "uncollectible") {
     payment.push(["Lý do", p.uncollectible_reason ?? "—"]);
     payment.push(["Người đánh dấu", p.marked_at ? twoLines(p.marked_by ?? "—", formatDateTime(p.marked_at)) : nowrap(p.marked_by ?? "—")]);
+  }
+  if (status === "cancelled") {
+    payment.push(["Lý do hủy", p.cancel_reason ?? "—"]);
+    payment.push(["Người hủy", p.cancelled_at ? twoLines(p.cancelled_by_label ?? "—", formatDateTime(p.cancelled_at)) : nowrap(p.cancelled_by_label ?? "—")]);
+    if (wasPaid) payment.push(["Đã hoàn", (p.refund_amount ?? 0) > 0 ? <span className="font-semibold tabular-nums">{formatVnd(p.refund_amount ?? 0)}</span> : "—"]);
   }
 
   return (
@@ -279,17 +292,26 @@ function InfoDialog({
       footerClassName={raisedFooterCls}
       // Chỉ khi có thao tác: nút rộng bằng nhau (điện thoại chia đôi, dính đáy); không có ⇒ chỉ nút ×
       footer={
-        canCollect || canBad ? (
-          <div className={cn(btnRowCls, canCollect && canBad ? "grid-cols-2 md:ml-auto md:w-96" : "grid-cols-1 sm:ml-auto sm:w-1/2 md:w-48")}>
-            {canBad ? (
-              <button type="button" onClick={onBad} className={cn(btnCls, "border-danger text-danger enabled:hover:bg-danger/10")}>
-                Không thu được
+        canCollect || canBad || canCancel ? (
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+            {canCancel ? (
+              <button type="button" onClick={onCancel} className={cn(btnDangerOutlineCls, "sm:mr-auto")}>
+                {isTicket ? "Hủy vé" : "Hủy booking"}
               </button>
             ) : null}
-            {canCollect ? (
-              <button type="button" onClick={onCollect} className={cn(btnPrimaryCls, "whitespace-nowrap")}>
-                Thu tiền · {formatVnd(p.amount)}
-              </button>
+            {canCollect || canBad ? (
+              <div className={cn(btnRowCls, canCollect && canBad ? "grid-cols-2 md:w-96" : "grid-cols-1 sm:w-1/2 md:w-48", !canCancel && "sm:ml-auto")}>
+                {canBad ? (
+                  <button type="button" onClick={onBad} className={cn(btnCls, "border-danger text-danger enabled:hover:bg-danger/10")}>
+                    Không thu được
+                  </button>
+                ) : null}
+                {canCollect ? (
+                  <button type="button" onClick={onCollect} className={cn(btnPrimaryCls, "whitespace-nowrap")}>
+                    Thu tiền · {formatVnd(p.amount)}
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : undefined
@@ -474,6 +496,119 @@ function UncollectibleDialog({ item, onBack, onClose, onDone, onStale }: StepPro
         {noun} chuyển sang Không thu được, không tính vào doanh thu và không thu tiền lại được.{" "}
         {item.kind === "ticket" ? "Chỗ của vé vẫn được tính, số chỗ không giảm." : "Khung vẫn giữ trên lịch, không bán lại."} Thao tác được ghi vào Lịch sử thao tác.
       </ErrorBanner>
+    </Modal>
+  );
+}
+
+/** Hủy booking / vé (T-051, ADR-013): chỉ trừ số liệu, Admin tự hoàn tiền cho khách. Lý do bắt buộc; đã thu thì phải tick xác nhận hoàn tiền. */
+function CancelDialog({ item, onBack, onClose, onDone, onStale }: StepProps) {
+  const reasonId = useId();
+  const refundId = useId();
+  const [reason, setReason] = useState("");
+  const [refunded, setRefunded] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [banner, setBanner] = useState("");
+  const isTicket = item.kind === "ticket";
+  const noun = isTicket ? "vé" : "booking";
+  const amount = item.payment.amount;
+  const collected = item.payment.payment_status === "paid";
+  const errs = {
+    reason: !reason.trim() ? "Vui lòng nhập Lý do." : reason.trim().length > 200 ? "Lý do tối đa 200 ký tự." : "",
+    refund: collected && !refunded ? "Vui lòng xác nhận việc hoàn tiền cho khách." : "",
+  };
+
+  async function confirm() {
+    setSubmitted(true);
+    setBanner("");
+    if (errs.reason || errs.refund) return;
+    setBusy(true);
+    try {
+      const res = await write((key) => sendCancelItem(key, item.code, { reason: reason.trim(), version: item.version, refund_confirmed: refunded }));
+      if (!res.ok) {
+        const e = res.error;
+        if (authFailure(e)) return;
+        // Dữ liệu đổi ở nơi khác (E-012), buổi đã bắt đầu (E-PAY-5) hoặc đã hủy / Không thu được (E-PAY-6): tải lại bản mới
+        if (e.code === "E-012" || e.code === "E-PAY-5" || e.code === "E-PAY-6") return void (await onStale(errorText(e)));
+        setBanner(errorText(e));
+        return;
+      }
+      toast(`Đã hủy ${noun} · ${item.code}`, collected ? `Đã trừ ${formatVnd(amount)} khỏi doanh thu` : "Khung đã trống lại");
+      onDone();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      sheet
+      size="medium"
+      title={isTicket ? "Hủy vé" : "Hủy booking"}
+      subtitle={`${courtTitle(item)} · ${whenLine(item)}`}
+      footerClassName={raisedFooterCls}
+      footer={
+        <div className={cn(btnRowCls, "grid-cols-2")}>
+          <button type="button" onClick={onBack} disabled={busy} className={btnCls}>
+            Quay lại
+          </button>
+          <button type="button" onClick={confirm} disabled={busy} className={cn(btnDangerCls, "whitespace-nowrap")}>
+            {busy ? "Đang hủy…" : `Xác nhận hủy ${noun}`}
+          </button>
+        </div>
+      }
+    >
+      {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
+      <StatusAmount item={item} />
+      <CustomerBlock item={item} />
+      <p className="text-sm text-muted">
+        Mã {isTicket ? "vé" : "booking"}: <span className="font-mono text-ui text-foreground">{item.code}</span>
+      </p>
+      <div>
+        <label htmlFor={reasonId} className="mb-1.5 block text-label font-semibold text-muted">
+          Lý do <span className="text-danger">*</span>
+        </label>
+        <textarea
+          id={reasonId}
+          value={reason}
+          maxLength={200}
+          placeholder="Khách báo không đến được, trùng lịch"
+          onChange={(e) => setReason(e.target.value)}
+          aria-invalid={Boolean(submitted && errs.reason) || undefined}
+          className={`${textareaCls} min-h-20`}
+        />
+        <div className="mt-1 flex text-xs">
+          {submitted && errs.reason ? <span className="text-danger">{errs.reason}</span> : null}
+          <span className="ml-auto text-muted">{reason.length} / 200</span>
+        </div>
+      </div>
+      {collected ? (
+        <div className="space-y-2">
+          <ErrorBanner>
+            Sẽ trừ <b>{formatVnd(amount)}</b> khỏi doanh thu. Hệ thống không tự hoàn tiền, bạn tự trả cho khách.
+          </ErrorBanner>
+          <label htmlFor={refundId} className="flex min-h-11 cursor-pointer items-start gap-2 text-sm">
+            <input id={refundId} type="checkbox" checked={refunded} onChange={(e) => setRefunded(e.target.checked)} aria-invalid={Boolean(submitted && errs.refund) || undefined} className="mt-0.5 size-5 shrink-0 accent-primary" />
+            <span>
+              Tôi đã hoàn / sẽ tự hoàn tiền cho khách <span className="text-danger">*</span>
+              {submitted && errs.refund ? <span className="block text-xs text-danger">{errs.refund}</span> : null}
+            </span>
+          </label>
+        </div>
+      ) : (
+        <p className="rounded-md bg-primary-softer p-2.5 text-sm">{item.payment.payment_status === "unpaid" ? `Khoản ${formatVnd(amount)} chưa thu nên không ảnh hưởng doanh thu.` : "Khoản này chưa thu."}</p>
+      )}
+      <ErrorBanner>
+        {isTicket ? "Chỗ của vé được trả lại và có thể bán lại." : "Khung giờ trống lại trên lịch ngay, đặt lại được bằng đơn mới."} Đã hủy thì không khôi phục được, mã {item.code} không dùng lại. Thao tác được ghi vào Lịch sử thao tác.
+      </ErrorBanner>
+      <p className="text-xs text-muted">
+        {item.customer.kind === "member"
+          ? "Hội viên có tài khoản sẽ nhận thông báo (không kèm lý do). Nếu khách chưa có tài khoản, hãy tự báo khách."
+          : "Khách không có tài khoản nên không nhận được thông báo nào, hãy tự báo khách."}
+      </p>
     </Modal>
   );
 }

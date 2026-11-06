@@ -86,13 +86,14 @@ export function TransactionsScreen({
     ["paid", "Đã thanh toán"],
     ["unpaid", "Chưa thanh toán"],
     ["uncollectible", "Không thu được"],
+    ["cancelled", "Đã hủy"], // T-051: khoản đã hủy tách riêng, không còn nằm trong Đã thanh toán / Chưa thanh toán
   ];
 
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold sm:text-2xl">Lịch sử giao dịch</h1>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(([k, label]) => (
           <div key={k} className="rounded-lg border border-border bg-surface p-4">
             <p className="text-sm text-muted">{label}</p>
@@ -217,6 +218,13 @@ export function TransactionsScreen({
                   <td className="px-3 py-2.5">{r.payment_method ? METHOD_LABEL[r.payment_method] : "—"}</td>
                   <td className="px-3 py-2.5">
                     <StatusBadge status={r.payment_status} />
+                    {r.payment_status === "cancelled" ? (
+                      <span className="mt-1 block max-w-56 text-xs text-muted">
+                        {r.cancel_reason ? <span className="block break-words">Lý do: {r.cancel_reason}</span> : null}
+                        {r.cancelled_by ? <span className="block">Hủy bởi {r.cancelled_by}</span> : null}
+                        {(r.refund_amount ?? 0) > 0 ? <span className="block font-medium text-foreground">Đã hoàn {formatVnd(r.refund_amount ?? 0)}</span> : null}
+                      </span>
+                    ) : null}
                   </td>
                 </tr>
               ))
