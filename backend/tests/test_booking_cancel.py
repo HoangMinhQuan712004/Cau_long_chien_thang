@@ -802,3 +802,24 @@ async def test_event_and_job_notify_each_person_once(admin, staff, people):
             )
         )
     assert sorted(n.payload["room_id"] for n in sent) == sorted(r.id for r in rooms)
+
+
+async def test_owner_is_notified_once_when_the_event_is_delivered_again(admin, staff, people):
+    """Outbox có thể giao lại (T-51-1): lần sau, kể cả đồng thời, không tạo thông báo thứ hai."""
+    hv = await people("Chủ Đơn")
+    together = await new_booking(admin, staff, hour=8, customer=member(hv.code))
+    again = await new_booking(admin, staff, hour=9, customer=member(hv.code))
+    for b in (together, again):
+        assert (await cancel(admin, b["code"])).status_code == 200
+
+    payload = await outbox_payload(together["code"])
+    await asyncio.gather(
+        *(events.publish(events.BOOKING_CANCELLED, dict(payload)) for _ in range(3))
+    )
+    payload = await outbox_payload(again["code"])
+    await events.publish(events.BOOKING_CANCELLED, payload)
+    await events.publish(events.BOOKING_CANCELLED, payload)
+
+    got = [n["text"] for n in (await notifications(hv.client))["items"]]
+    for b in (together, again):
+        assert sum(f"({b['order_code']}) đã bị sân hủy." in t for t in got) == 1, got

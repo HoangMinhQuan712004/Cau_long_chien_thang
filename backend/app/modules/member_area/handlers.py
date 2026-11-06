@@ -65,7 +65,9 @@ async def notify_owner(payload: dict) -> None:
         customer_id = await _member_with_account(session, ref)
         if customer_id is None:
             return
-        inbox.notify(session, customer_id, "booking.cancelled", cancelled_text(payload), code=code)
+        await inbox.notify_once(
+            session, customer_id, "booking.cancelled", code, cancelled_text(payload)
+        )
         await session.commit()
         await inbox.publish_created(session)
     logger.info("Notified member about cancelled item %s", code)
