@@ -19,6 +19,8 @@ from app.modules.records import video
 from app.modules.records.models import SpeedRecord
 from app.modules.records.schemas import (
     Period,
+    RecordBreakItem,
+    RecordBreakList,
     RecordVideoCard,
     RecordVideoList,
     SpeedMe,
@@ -55,12 +57,18 @@ class _Best:
     customer_id: int
     speed_kmh: int
     measured_at: datetime
+    video_url: str | None  # T-049: link của đúng số đo này
 
 
 async def _best_in(session: AsyncSession, start: datetime, end: datetime) -> list[_Best]:
     """Số đo cao nhất của từng người trong [start, end) – bằng nhau lấy lần đạt sớm hơn."""
     rows = await session.execute(
-        select(SpeedRecord.customer_id, SpeedRecord.speed_kmh, SpeedRecord.measured_at)
+        select(
+            SpeedRecord.customer_id,
+            SpeedRecord.speed_kmh,
+            SpeedRecord.measured_at,
+            SpeedRecord.video_url,
+        )
         .where(APPROVED, SpeedRecord.measured_at >= start, SpeedRecord.measured_at < end)
         .order_by(
             SpeedRecord.customer_id,
@@ -70,7 +78,7 @@ async def _best_in(session: AsyncSession, start: datetime, end: datetime) -> lis
         )
         .ext(distinct_on(SpeedRecord.customer_id))
     )
-    return [_Best(cid, kmh, at) for cid, kmh, at in rows]
+    return [_Best(*row) for row in rows]
 
 
 async def eligible(session: AsyncSession, ids: set[int]) -> dict[int, members.RoomPerson]:
@@ -106,7 +114,9 @@ async def ranking(
             display_name=p.display_name if shown else ANONYMOUS,
             avatar_url=_avatar_url(p) if shown else None,
             speed_kmh=b.speed_kmh,
+            measured_at=b.measured_at,
             is_me=is_me,
+            video=video.parse(b.video_url),
         )
 
     me = None
@@ -114,7 +124,11 @@ async def ranking(
         if b.customer_id == customer_id:
             gap = ordered[TOP - 1].speed_kmh - b.speed_kmh if rank > TOP else None
             me = SpeedMe(
-                rank=rank, speed_kmh=b.speed_kmh, measured_at=b.measured_at, gap_to_top10=gap
+                rank=rank,
+                speed_kmh=b.speed_kmh,
+                measured_at=b.measured_at,
+                gap_to_top10=gap,
+                video=video.parse(b.video_url),
             )
             break
     return SpeedRanking(
@@ -164,12 +178,15 @@ class RecordBreak:
     court_code: str | None
     is_current: bool
     video_url: str | None = None  # T-046: link Admin gắn (phát cả khi người đó ẩn danh)
+    id: int = 0
+    previous_kmh: int | None = None  # kỷ lục ngay trước; None = số đo đầu tiên của cụm
+    video_set_at: datetime | None = None  # T-048: lần dán link mới nhất
 
 
 async def club_record_breaks(
-    session: AsyncSession, viewer_id: int, limit: int
+    session: AsyncSession, viewer_id: int, limit: int | None
 ) -> list[RecordBreak]:
-    """``limit`` lần phá kỷ lục cụm gần nhất (mới nhất trước).
+    """``limit`` lần phá kỷ lục cụm gần nhất, mới nhất trước (``None`` = cả chuỗi – T-048).
 
     Đi theo thời gian, mỗi số đo vượt mức cao nhất trước đó của cả cụm là một lần phá. Chỉ tính số
     đo của hội viên đủ điều kiện như Bảng xếp hạng (Hoạt động, có liên kết). Ẩn danh như T-030.
@@ -188,6 +205,7 @@ async def club_record_breaks(
             SpeedRecord.measured_at,
             SpeedRecord.court_code,
             SpeedRecord.video_url,
+            SpeedRecord.video_set_at,
             SpeedRecord.id,
             previous.label("previous"),
         )
@@ -218,9 +236,72 @@ async def club_record_breaks(
                 court_code=r.court_code,
                 is_current=i == 0,
                 video_url=r.video_url,
+                id=r.id,
+                previous_kmh=r.previous,
+                video_set_at=r.video_set_at,
             )
         )
     return out
+
+
+# ------------------------------------------------------------------ dòng thời gian (T-048)
+
+
+def _local_date(at: datetime) -> date:
+    return at.astimezone(settings.tz).date()
+
+
+async def record_breaks(
+    session: AsyncSession, viewer_id: int, period: VideoPeriod, today: date
+) -> RecordBreakList:
+    """Dòng thời gian phá kỷ lục. ``delta``, kỷ lục trước và số ngày giữ tính trên **toàn chuỗi**,
+    kỳ chỉ lọc các dòng hiện ra (theo ngày đo); mốc đầu chỉ có ở "Mọi thời gian"."""
+    chain = await club_record_breaks(session, viewer_id, None)
+    first = last = None
+    if period != "all":
+        first, last = period_bounds(period, today)
+    days = [_local_date(b.measured_at) for b in chain]
+    shown: list[tuple[RecordBreak, int]] = []
+    for i, (b, day) in enumerate(zip(chain, days, strict=True)):
+        if first is not None and (b.previous_kmh is None or not first <= day <= last):
+            continue
+        # Mới nhất trước: lần sau của dòng i là dòng i - 1. Số đo được lệch 1 phút nên chặn âm
+        shown.append((b, max(0, ((days[i - 1] if i else today) - day).days)))
+    cards = await members.record_cards(session, {b.customer_id for b, _ in shown if b.shown})
+    courts = (
+        {c.code: c.name for c in (await engine.list_resources(session)).items}
+        if any(b.court_code for b, _ in shown)
+        else {}
+    )
+    items = []
+    for b, held_days in shown:
+        clip = video.parse(b.video_url)
+        card = cards.get(b.customer_id) if b.shown else None
+        items.append(
+            RecordBreakItem(
+                id=b.id,
+                speed_kmh=b.speed_kmh,
+                delta_kmh=b.delta_kmh,
+                previous_kmh=b.previous_kmh,
+                is_current=b.is_current,
+                is_baseline=b.previous_kmh is None,
+                held_days=held_days,
+                measured_at=b.measured_at,
+                label_date=_local_date(
+                    b.video_set_at if clip and b.video_set_at else b.measured_at
+                ),
+                # Riêng API này: họ tên thật + biệt danh (người dùng chốt 06/11)
+                display_name=card.full_name if card else b.display_name,
+                nickname=card.nickname if card else None,
+                tier=card.tier if card else None,
+                avatar_url=b.avatar_url,
+                racket=card.racket if card else None,
+                resource_name=courts.get(b.court_code) if b.court_code else None,
+                is_me=b.customer_id == viewer_id,
+                video=clip,
+            )
+        )
+    return RecordBreakList(period=period, start=first, end=last, items=items)
 
 
 # ------------------------------------------------------------------ Video & kỷ lục (T-046)

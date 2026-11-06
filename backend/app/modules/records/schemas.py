@@ -6,12 +6,24 @@ from pydantic import AwareDatetime, BaseModel, Field
 Period = Literal["week", "month", "year"]
 
 
+class VideoOut(BaseModel):
+    kind: Literal["youtube", "file"]
+    url: str = Field(description="Link Admin đã dán")
+    embed_url: str | None = Field(description="YouTube: youtube-nocookie.com/embed/{id}")
+    thumbnail_url: str | None = Field(description="YouTube: ảnh xem trước i.ytimg.com")
+
+
 class SpeedRankingRow(BaseModel):
     rank: int
     display_name: str = Field(description="'Hội viên ẩn danh' khi người đó tắt Hiện trên kỷ lục")
     avatar_url: str | None = Field(description="null với người ẩn danh (FE dùng avatar chung)")
     speed_kmh: int
+    measured_at: dt.datetime = Field(description="Lúc đo của số đo xếp hạng trong kỳ")
     is_me: bool
+    video: VideoOut | None = Field(
+        description="Video của đúng số đo xếp hạng; số đo đó không có thì null, không lấy số đo "
+        "khác. Ẩn danh vẫn phát"
+    )
 
 
 class SpeedMe(BaseModel):
@@ -21,6 +33,7 @@ class SpeedMe(BaseModel):
     gap_to_top10: int | None = Field(
         description="km/h hạng 10 − của mình; null khi mình đã trong top 10"
     )
+    video: VideoOut | None = Field(description="Video của đúng số đo xếp hạng của mình")
 
 
 class SpeedRanking(BaseModel):
@@ -34,13 +47,6 @@ class SpeedRanking(BaseModel):
 
 
 # ------------------------------------------------------------------ video kỷ lục (T-046)
-
-
-class VideoOut(BaseModel):
-    kind: Literal["youtube", "file"]
-    url: str = Field(description="Link Admin đã dán")
-    embed_url: str | None = Field(description="YouTube: youtube-nocookie.com/embed/{id}")
-    thumbnail_url: str | None = Field(description="YouTube: ảnh xem trước i.ytimg.com")
 
 
 class VideoIn(BaseModel):
@@ -165,3 +171,44 @@ class RecordVideoList(BaseModel):
     start: dt.date | None = Field(description="null khi period = all")
     end: dt.date | None
     items: list[RecordVideoCard] = Field(description="Mới nhất trước, tối đa 60")
+
+
+# ------------------------------------------------------------------ dòng thời gian (T-048)
+
+
+class RecordBreakItem(BaseModel):
+    """Một lần phá kỷ lục cụm. Ẩn danh như T-030: chỉ còn số đo, sân, thời điểm và video."""
+
+    id: int
+    speed_kmh: int
+    delta_kmh: int | None = Field(description="Hơn kỷ lục trước bao nhiêu km/h; null = mốc đầu")
+    previous_kmh: int | None = Field(description="Kỷ lục ngay trước; null = mốc đầu")
+    is_current: bool = Field(description="Đang giữ kỷ lục của cả cụm")
+    is_baseline: bool = Field(description="Số đo đầu tiên của chuỗi; chỉ có khi period = all")
+    held_days: int = Field(
+        description="Số ngày giữ kỷ lục theo ngày giờ VN: lần sau − lần này; đang giữ: hôm nay − "
+        "lần này. 0 = dưới 1 ngày"
+    )
+    measured_at: dt.datetime
+    label_date: dt.date = Field(
+        description="Ngày trên nhãn “Kỷ lục ngày dd/mm” (giờ VN): lần dán link video mới nhất; "
+        "chưa có video thì ngày đo"
+    )
+    display_name: str = Field(
+        description="Họ tên thật (khác các API khác, nơi đây là biệt danh nếu có); 'Hội viên ẩn "
+        "danh' khi người đó tắt Hiện trên kỷ lục"
+    )
+    nickname: str | None = Field(description="null khi không đặt biệt danh hoặc ẩn danh")
+    tier: str | None
+    avatar_url: str | None
+    racket: str | None = Field(description="Vợt hiện tại trong hồ sơ, không phải vợt lúc đo")
+    resource_name: str | None
+    is_me: bool
+    video: VideoOut | None = Field(description="null: “Chưa có video”")
+
+
+class RecordBreakList(BaseModel):
+    period: VideoPeriod
+    start: dt.date | None = Field(description="null khi period = all")
+    end: dt.date | None = Field(description="Ngày cuối kỳ, tính cả ngày này; null khi period = all")
+    items: list[RecordBreakItem] = Field(description="Mới nhất trước, không phân trang")

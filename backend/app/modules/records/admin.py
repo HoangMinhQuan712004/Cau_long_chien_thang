@@ -145,7 +145,7 @@ async def set_video(
     r = await locked(session, record_id)
     if r.video_url != clean:
         before = r.video_url
-        r.video_url = clean
+        r.set_video(clean, datetime.now(UTC))
         touch(r)
         await _audit(session, actor, "record.video_set", r, before, clean)
         await session.flush()
@@ -159,7 +159,7 @@ async def remove_video(
     r = await locked(session, record_id)
     if r.video_url is not None:
         before = r.video_url
-        r.video_url = None
+        r.set_video(None, datetime.now(UTC))
         touch(r)
         await _audit(session, actor, "record.video_removed", r, before, None)
         await session.flush()
