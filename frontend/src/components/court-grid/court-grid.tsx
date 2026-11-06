@@ -63,6 +63,7 @@ const TONE: Record<GridTone, string> = {
 
 const ARROWS: Record<string, [number, number]> = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] };
 const pad2 = (n: number) => String(n).padStart(2, "0");
+const hourLabel = (h: number) => `${h}h`;
 const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary";
 
 type Props = {
@@ -81,7 +82,6 @@ type Props = {
   mergeBlocks?: boolean;
   /** "compact": lưới khách (ô nhỏ); "roomy": lưới admin (ô to, đủ chỗ cho tên + SĐT). */
   size?: "compact" | "roomy";
-  hourLabel?: (hour: number) => string;
   /** Vạch "bây giờ": giờ dạng số thực (14.5 = 14:30), null = ẩn. */
   nowAt?: number | null;
   /** Cuộn ngang tới cột giờ này khi `scrollKey` đổi (ví dụ đổi ngày). */
@@ -92,6 +92,20 @@ type Props = {
   /** Lớp thêm cho khung cuộn (vd `md:min-h-0` khi lưới nằm trong cột flex cao bằng màn hình). */
   className?: string;
 };
+
+/**
+ * Mốc trên thước giờ: vạch nhỏ nằm đúng ranh giới giờ (mép trái phần tử cha), nhãn căn giữa vạch.
+ * Mốc đầu căn trái, mốc cuối căn phải theo vạch ⇒ nhãn không chui vào cột Sân, không thò khỏi mép khung, với mọi độ dài nhãn.
+ */
+function RulerMark({ label, edge, isNow }: { label: string; edge?: "start" | "end"; isNow: boolean }) {
+  const shift = edge === "start" ? "" : edge === "end" ? "-translate-x-full" : "-translate-x-1/2";
+  return (
+    <>
+      <span className={cn("absolute top-1.5 left-0 whitespace-nowrap", shift, isNow && "font-bold text-primary")}>{label}</span>
+      <span aria-hidden className={cn("absolute bottom-0 left-0 h-1.5 w-px", shift, isNow ? "bg-primary" : "bg-border-strong")} />
+    </>
+  );
+}
 
 export function CourtGrid({
   label,
@@ -104,7 +118,6 @@ export function CourtGrid({
   busy = false,
   mergeBlocks = false,
   size = "compact",
-  hourLabel = (h) => `${h}h`,
   nowAt = null,
   scrollToHour = null,
   scrollToNow = false,
@@ -122,8 +135,10 @@ export function CourtGrid({
     if (!sc) return;
     const target = scrollToNow ? Math.floor(vnMinutes(new Date().toISOString()) / 60) - 1 : scrollToHour;
     const el = target == null ? null : sc.querySelector<HTMLElement>(`[data-col="${Math.max(first, target)}"]`);
-    const lab = sc.querySelector<HTMLElement>("[data-label]");
-    sc.scrollLeft = el ? el.offsetLeft - (lab?.offsetWidth ?? 0) : 0;
+    const start = sc.querySelector<HTMLElement>(`[data-col="${first}"]`);
+    // Lùi thêm nửa nhãn + 4px: nhãn căn giữa vạch của giờ đích không bị cột Sân che
+    const halfLabel = el?.firstElementChild instanceof HTMLElement ? el.firstElementChild.offsetWidth / 2 + 4 : 0;
+    sc.scrollLeft = el ? el.offsetLeft - (start?.offsetLeft ?? 0) - halfLabel : 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ cuộn khi đổi ngày, không giật mỗi lần tải lại lịch
   }, [scrollKey]);
 
@@ -146,16 +161,15 @@ export function CourtGrid({
   }
 
   const rowH = roomy ? "h-14 sm:h-16" : "h-11";
-  const colW = "w-(--col)";
   // Lưới khách trên điện thoại: chữ và cột tên sân nhỏ hơn để thấy nhiều giờ hơn (người dùng 03/11)
   const cellText = roomy ? "text-2xs" : "text-[10px] sm:text-[11px]";
   const cellBase = `m-0.5 flex ${rowH} shrink-0 flex-col items-center justify-center rounded-md border ${cellText} leading-tight`;
-  // Lưới admin: cột giờ giãn lấp đủ bề ngang khung (100cqw của khung cuộn), không nhỏ hơn --col-min ⇒ chỉ cuộn khi thiếu chỗ
+  // Cột giờ giãn lấp đủ bề ngang khung (100cqw của khung cuộn), không nhỏ hơn --col-min ⇒ chỉ cuộn khi thiếu chỗ
   const vars = roomy
     ? "[--c0:5.5rem] [--col-min:4.75rem] sm:[--c0:8.5rem] sm:[--col-min:5.5rem] xl:[--c0:10rem]"
-    : "[--c0:4.5rem] [--col:3.25rem] sm:[--c0:6.5rem] sm:[--col:3.5rem]";
-  const fluid = roomy ? ({ "--n": columns.length, "--col": "max(var(--col-min), calc((100cqw - var(--c0) - 1px) / var(--n)))" } as CSSProperties) : undefined;
-  const headH = roomy ? "h-9" : "h-8";
+    : "[--c0:4.5rem] [--col-min:3.25rem] sm:[--c0:6.5rem] sm:[--col-min:3.5rem]";
+  const gridStyle = { "--n": columns.length, "--col": "max(var(--col-min), calc((100cqw - var(--c0) - 1px) / var(--n)))" } as CSSProperties;
+  const headH = roomy ? "h-10" : "h-8";
 
   return (
     <div
@@ -169,8 +183,8 @@ export function CourtGrid({
       // isolate: z-index của cột/hàng dính chỉ so trong lưới ⇒ không nổi đè header, ngăn kéo menu, popup của trang.
       // @container: cột giờ tính theo bề ngang khung; overscroll: vuốt ngang không kéo theo trang / nút Back.
       className={cn(
-        "relative isolate overflow-auto overscroll-x-contain border border-border bg-surface [scrollbar-width:thin]",
-        roomy ? "@container rounded-lg" : "max-h-[70dvh] rounded-xl",
+        "@container relative isolate overflow-auto overscroll-x-contain border border-border bg-surface [scrollbar-width:thin]",
+        roomy ? "rounded-lg" : "max-h-[70dvh] rounded-xl",
         isScrollable && "cursor-grab",
         isDragging && "cursor-grabbing select-none [&_*]:cursor-grabbing!",
         busy && "opacity-60",
@@ -178,20 +192,22 @@ export function CourtGrid({
       )}
       aria-busy={busy}
     >
-      <div ref={gridRef} role="group" aria-label={label} style={fluid} className={`relative min-w-max ${vars}`}>
-        <div className={`sticky top-0 z-(--z-grid) flex ${headH} border-b border-border bg-surface ${roomy ? "text-xs font-semibold" : "text-[11px] sm:text-xs"} text-muted`}>
-          <div data-label className={`sticky left-0 z-40 flex w-(--c0) shrink-0 items-center bg-surface ${roomy ? "border-r border-border px-2 sm:px-3" : "pl-2 font-semibold"}`}>
+      <div ref={gridRef} role="group" aria-label={label} style={gridStyle} className={`relative min-w-max ${vars}`}>
+        <div className={`sticky top-0 z-(--z-grid) flex ${headH} border-b border-border/60 bg-surface font-medium text-muted ${roomy ? "text-xs" : "text-[11px] sm:text-xs"}`}>
+          <div className={`sticky left-0 z-40 flex w-(--c0) shrink-0 items-center bg-surface ${roomy ? "px-2 sm:px-3" : "pl-2 font-semibold"}`}>
             Sân
           </div>
           {columns.map((h) => (
-            <div
-              key={h}
-              data-col={h}
-              className={`flex ${colW} shrink-0 items-center justify-center ${roomy ? "border-r border-border" : "font-medium"} ${nowAt != null && Math.floor(nowAt) === h ? "font-bold text-primary" : ""}`}
-            >
-              {hourLabel(h)}
+            <div key={h} data-col={h} className="relative w-(--col) shrink-0">
+              <RulerMark label={hourLabel(h)} edge={h === first ? "start" : undefined} isNow={nowAt != null && Math.floor(nowAt) === h} />
             </div>
           ))}
+          {/* Vạch giờ đóng cửa: mốc kết thúc của cột cuối */}
+          {columns.length ? (
+            <div className="relative w-0 shrink-0">
+              <RulerMark label={hourLabel(first + columns.length)} edge="end" isNow={false} />
+            </div>
+          ) : null}
         </div>
 
         {rows.map((row, r) => {
@@ -296,7 +312,7 @@ export function CourtGrid({
         {nowAt != null && nowAt >= first && nowAt <= first + columns.length ? (
           <div
             aria-hidden
-            className={`pointer-events-none absolute bottom-0 z-10 w-px bg-danger ${roomy ? "top-9" : "top-6"}`}
+            className={`pointer-events-none absolute bottom-0 z-10 w-px bg-danger ${roomy ? "top-10" : "top-6"}`}
             style={{ left: `calc(var(--c0) + var(--col) * ${(nowAt - first).toFixed(3)})` }}
           />
         ) : null}
