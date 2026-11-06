@@ -57,12 +57,18 @@ class _Best:
     customer_id: int
     speed_kmh: int
     measured_at: datetime
+    video_url: str | None  # T-049: link của đúng số đo này
 
 
 async def _best_in(session: AsyncSession, start: datetime, end: datetime) -> list[_Best]:
     """Số đo cao nhất của từng người trong [start, end) – bằng nhau lấy lần đạt sớm hơn."""
     rows = await session.execute(
-        select(SpeedRecord.customer_id, SpeedRecord.speed_kmh, SpeedRecord.measured_at)
+        select(
+            SpeedRecord.customer_id,
+            SpeedRecord.speed_kmh,
+            SpeedRecord.measured_at,
+            SpeedRecord.video_url,
+        )
         .where(APPROVED, SpeedRecord.measured_at >= start, SpeedRecord.measured_at < end)
         .order_by(
             SpeedRecord.customer_id,
@@ -72,7 +78,7 @@ async def _best_in(session: AsyncSession, start: datetime, end: datetime) -> lis
         )
         .ext(distinct_on(SpeedRecord.customer_id))
     )
-    return [_Best(cid, kmh, at) for cid, kmh, at in rows]
+    return [_Best(*row) for row in rows]
 
 
 async def eligible(session: AsyncSession, ids: set[int]) -> dict[int, members.RoomPerson]:
@@ -110,7 +116,9 @@ async def ranking(
             display_name=p.display_name if shown else ANONYMOUS,
             avatar_url=_avatar_url(p) if shown else None,
             speed_kmh=b.speed_kmh,
+            measured_at=b.measured_at,
             is_me=is_me,
+            video=video.parse(b.video_url),
         )
 
     me = None
@@ -118,7 +126,11 @@ async def ranking(
         if b.customer_id == customer_id:
             gap = ordered[TOP - 1].speed_kmh - b.speed_kmh if rank > TOP else None
             me = SpeedMe(
-                rank=rank, speed_kmh=b.speed_kmh, measured_at=b.measured_at, gap_to_top10=gap
+                rank=rank,
+                speed_kmh=b.speed_kmh,
+                measured_at=b.measured_at,
+                gap_to_top10=gap,
+                video=video.parse(b.video_url),
             )
             break
     return SpeedRanking(

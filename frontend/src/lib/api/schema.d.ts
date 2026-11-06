@@ -1916,6 +1916,9 @@ export interface paths {
          *     Mỗi hội viên lấy số đo cao nhất trong kỳ, bằng nhau thì ai đạt trước xếp trên. Chỉ hội viên
          *     Hoạt động có tài khoản liên kết. Tắt "Hiện trên kỷ lục" -> "Hội viên ẩn danh" (mình luôn thấy
          *     tên mình). Không trả id của người khác. ``period`` / ``date`` sai -> 422.
+         *
+         *     T-049: ``video`` là video của đúng số đo xếp hạng (ẩn danh vẫn phát); số đo đó không có video
+         *     thì null, không lấy video của số đo khác.
          */
         get: operations["speed_ranking_api_v1_member_area_speed_ranking_get"];
         put?: never;
@@ -6896,6 +6899,8 @@ export interface components {
              * @description km/h hạng 10 − của mình; null khi mình đã trong top 10
              */
             gap_to_top10: number | null;
+            /** @description Video của đúng số đo xếp hạng của mình */
+            video: components["schemas"]["VideoOut"] | null;
         };
         /** SpeedRanking */
         SpeedRanking: {
@@ -6950,8 +6955,16 @@ export interface components {
             avatar_url: string | null;
             /** Speed Kmh */
             speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             * @description Lúc đo của số đo xếp hạng trong kỳ
+             */
+            measured_at: string;
             /** Is Me */
             is_me: boolean;
+            /** @description Video của đúng số đo xếp hạng; số đo đó không có thì null, không lấy số đo khác. Ẩn danh vẫn phát */
+            video: components["schemas"]["VideoOut"] | null;
         };
         /**
          * SpeedRecordCreateIn
