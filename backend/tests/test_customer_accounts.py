@@ -135,7 +135,7 @@ async def test_google_concurrent_first_sign_in_makes_one_account():
         ),
         pytest.param(lambda: id_token(aud="other-client"), id="aud"),
         pytest.param(lambda: id_token(iss="https://evil.example"), id="iss"),
-        pytest.param(lambda: id_token(exp=datetime.now(UTC) - timedelta(minutes=1)), id="expired"),
+        pytest.param(lambda: id_token(exp=datetime.now(UTC) - timedelta(minutes=2)), id="expired"),
         pytest.param(lambda: "khong-phai-jwt", id="garbage"),
     ],
 )
@@ -144,6 +144,63 @@ async def test_google_rejects_bad_tokens(anon, credential):
     r = await anon.post(GOOGLE, json={"credential": credential()})
     assert r.status_code == 401
     assert r.json()["detail"]["code"] == "E-AUTH-20"
+
+
+# ------------------------------------------------------------------ lệch giờ (T-055)
+
+
+def shifted(seconds: float, **claims) -> str:
+    """Token mà ``iat`` lệch ``seconds`` so với giờ máy chủ (dương = Google nhanh hơn)."""
+    at = datetime.now(UTC) + timedelta(seconds=seconds)
+    return id_token(iat=at, exp=at + timedelta(minutes=5), **claims)
+
+
+@pytest.mark.parametrize(
+    ("credential", "status"),
+    [
+        pytest.param(lambda: shifted(5), 200, id="iat_5s_ahead"),
+        pytest.param(lambda: shifted(55), 200, id="iat_55s_ahead"),
+        pytest.param(lambda: shifted(120), 401, id="iat_120s_ahead"),
+        pytest.param(
+            lambda: shifted(5, nbf=datetime.now(UTC) + timedelta(seconds=5)), 200, id="nbf_5s"
+        ),
+        pytest.param(
+            lambda: shifted(0, nbf=datetime.now(UTC) + timedelta(seconds=120)), 401, id="nbf_120s"
+        ),
+        pytest.param(
+            lambda: id_token(exp=datetime.now(UTC) - timedelta(seconds=30)), 200, id="expired_30s"
+        ),
+        pytest.param(
+            lambda: id_token(exp=datetime.now(UTC) - timedelta(seconds=90)), 401, id="expired_90s"
+        ),
+    ],
+)
+async def test_google_tolerates_60s_clock_skew(anon, credential, status):
+    """AC1–AC3: lệch giờ trong 60 giây thì qua, quá thì 401 E-AUTH-20 như cũ."""
+    r = await _client().post(GOOGLE, json={"credential": credential()})
+    assert r.status_code == status, r.text
+    if status == 401:
+        assert r.json()["detail"]["code"] == "E-AUTH-20"
+
+
+async def test_google_rejection_logs_only_the_error_type(anon, caplog):
+    """AC4: log có loại lỗi; không có token, email, sub, aud."""
+    sub = "sub-" + uuid.uuid4().hex
+    cases = {
+        "ImmatureSignatureError": shifted(120, sub=sub),
+        "ExpiredSignatureError": id_token(sub=sub, exp=datetime.now(UTC) - timedelta(minutes=5)),
+        "InvalidAudienceError": id_token(sub=sub, aud="other-client-id"),
+        "InvalidIssuerError": id_token(sub=sub, iss="https://evil.example"),
+    }
+    with caplog.at_level("WARNING", logger="app.modules.auth.google"):
+        for credential in cases.values():
+            r = await anon.post(GOOGLE, json={"credential": credential})
+            assert r.status_code == 401, r.text
+    text = caplog.text
+    for kind in cases:
+        assert f"Google sign-in rejected: {kind}" in text, kind
+    for secret in (*cases.values(), sub, "khach@gmail.com", "other-client-id", "evil.example"):
+        assert secret not in text
 
 
 async def test_google_bad_tokens_count_toward_ip_limit(anon, monkeypatch):
