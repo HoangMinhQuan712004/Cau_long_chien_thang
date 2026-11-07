@@ -5,9 +5,12 @@
 - Tìm theo ``google_sub``; chưa có -> tạo khách (không mật khẩu, không SĐT).
   **Không bao giờ nối tài khoản theo email.** Tạo đồng thời -> một tài khoản.
 - Token sai tính vào giới hạn đăng nhập sai theo IP (AC3).
+- Cho lệch giờ 60 giây với ``iat`` / ``nbf`` / ``exp`` (T-055): đồng hồ máy chủ chậm một chút thì
+  token vừa cấp bị coi là "phát hành ở tương lai". Token bị từ chối chỉ log **loại** lỗi.
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from functools import cache
 
@@ -23,6 +26,9 @@ from app.modules.auth.models import Role, User
 
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 GOOGLE_ISSUERS = ["accounts.google.com", "https://accounts.google.com"]
+CLOCK_LEEWAY_SECONDS = 60  # T-055: máy chủ lệch giờ với Google
+
+logger = logging.getLogger(__name__)
 DEFAULT_NAME = "Khách Google"
 
 
@@ -63,12 +69,19 @@ def _signing_key(credential: str):
     return _jwks_client().get_signing_key_from_jwt(credential).key
 
 
+def _log_rejected(error: Exception) -> None:
+    """Chỉ tên loại lỗi: thông điệp của PyJWT có thể chứa giá trị claim (aud, iss...)."""
+    logger.warning("Google sign-in rejected: %s", type(error).__name__)
+
+
 async def verify_id_token(credential: str) -> GoogleIdentity:
     try:
         key = await asyncio.to_thread(_signing_key, credential)
     except jwt.PyJWKClientConnectionError as e:
+        logger.warning("Google sign-in: signing keys unavailable (%s)", type(e).__name__)
         raise GoogleUnavailable from e
     except jwt.PyJWTError as e:
+        _log_rejected(e)
         raise GoogleTokenError from e
     try:
         payload = jwt.decode(
@@ -78,11 +91,14 @@ async def verify_id_token(credential: str) -> GoogleIdentity:
             audience=settings.GOOGLE_CLIENT_ID,
             issuer=GOOGLE_ISSUERS,
             options={"require": ["exp", "iat", "iss", "aud", "sub"]},
+            leeway=CLOCK_LEEWAY_SECONDS,
         )
     except jwt.PyJWTError as e:
+        _log_rejected(e)
         raise GoogleTokenError from e
     sub = payload["sub"]
     if not isinstance(sub, str) or not sub or len(sub) > 255:
+        logger.warning("Google sign-in rejected: InvalidSubject")
         raise GoogleTokenError
     name = payload.get("name")
     email = payload.get("email") if payload.get("email_verified") is True else None
