@@ -141,15 +141,23 @@ async def test_seed_twice_then_clear_keeps_real_data(admin, clean, capsys):
         ]
         assert [r["id"] for r in o["open_rooms"]] == [r["id"] for r in free[:3]]
         async with SessionLocal() as s:
-            demo_rooms = set(
-                await s.scalars(
-                    select(PlayRoom.id).where(
-                        PlayRoom.host_customer_id.in_(select(Customer.id).where(DEMO))
+            demo_open = (
+                await s.execute(
+                    select(PlayRoom.id, PlayRoom.start_at).where(
+                        PlayRoom.host_customer_id.in_(select(Customer.id).where(DEMO)),
+                        PlayRoom.status == "open",
                     )
                 )
-            )
-        free_demo = [r for r in free if r["id"] in demo_rooms]
-        assert len(free_demo) >= 2 and any(r["tier_range"] for r in free_demo), free_demo
+            ).all()
+        free_demo = [r for r in free if r["id"] in {i for i, _ in demo_open}]
+        today = datetime.now(settings.tz).date()
+        days = {at.astimezone(settings.tz).date() for _, at in demo_open}
+        # Sau ~19h (VN) không còn đủ 3 giờ trống hôm nay -> seed dồn phòng mẫu sang NGÀY MAI, mà
+        # Danh sách sân chỉ có phòng hôm nay còn mở => khi đó chỉ kiểm phòng mẫu nằm ở ngày mai
+        if days == {today}:
+            assert len(free_demo) >= 2 and any(r["tier_range"] for r in free_demo), free_demo
+        else:
+            assert days == {today + timedelta(days=1)} and free_demo == [], (days, free_demo)
         assert len(o["recent_records"]) >= 3 and o["recent_records"][0]["is_current"]
         assert o["ranking"]["me"] is not None and len(o["ranking"]["top3"]) == 3
 
