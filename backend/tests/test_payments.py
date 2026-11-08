@@ -281,7 +281,7 @@ async def test_transactions_filters_cards_and_paging(admin, staff):
     )
     e = entries[0]
     assert set(e) == {
-        "id", "kind", "method", "source", "amount", "occurred_at", "order_code", "customer_name",
+        "kind", "method", "source", "amount", "occurred_at", "order_code", "customer_name",
         "customer_phone_masked", "member_code", "actor_label", "items",
     }  # fmt: skip
     assert (e["kind"], e["method"], e["source"], e["amount"]) == ("in", "cash", "counter", amount)

@@ -225,7 +225,6 @@ async def list_transactions(
         ),
         items=[
             TransactionEntry(
-                id=e.id,
                 kind=e.kind,
                 method="cash" if e.method == "cash" else "transfer",
                 source=e.source,

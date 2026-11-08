@@ -555,9 +555,10 @@ class TransactionEntryItem(BaseModel):
 
 
 class TransactionEntry(BaseModel):
-    """Một lần nhận tiền (``in``) hoặc hoàn tiền (``refund``) – sổ tiền vào (T-057, ADR-014)."""
+    """Một lần nhận tiền (``in``) hoặc hoàn tiền (``refund``) – sổ tiền vào (T-057, ADR-014).
 
-    id: int
+    Không có id số nội bộ (T-006 SEC4): FE dùng vị trí dòng trong trang làm key."""
+
     kind: Literal["in", "refund"]
     method: Literal["cash", "transfer"] = Field(description="transfer gồm cả chuyển khoản online")
     source: Literal["counter", "counter_qr", "online"]
