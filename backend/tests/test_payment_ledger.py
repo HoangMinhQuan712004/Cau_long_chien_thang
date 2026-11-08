@@ -204,8 +204,8 @@ async def test_order_cancel_is_one_refund_entry_and_unpaid_cancel_writes_nothing
 
 
 async def test_online_money_is_one_system_entry_and_resend_adds_nothing(anon, admin):
-    court = await new_court(admin)
-    r = await checkout(anon, [(court["code"], 19), (court["code"], 20)])
+    one, two = await new_court(admin), await new_court(admin)  # hai sân -> hai khối
+    r = await checkout(anon, [(one["code"], 19), (two["code"], 19)])
     assert r.status_code == 201, r.text
     co = r.json()
     payload = sepay_payload(co["pay_ref"], co["amount"])
