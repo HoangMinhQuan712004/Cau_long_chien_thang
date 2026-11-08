@@ -340,7 +340,7 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 | Lịch sử thanh toán hội viên | Có `cancelled` + `refund_amount`; **không cộng** vào `summary`; chưa thu rồi hủy thì không hiện |
 | Hồ sơ hội viên | `MemberBooking.is_cancelled`; thống kê không đếm buổi hủy; `GET /me/member/bookings` có `total` gồm cả dòng hủy để phân trang đúng |
 | Buổi sắp tới (Tổng quan) | Loại buổi hủy |
-| Phòng chơi | Luôn loại khỏi Danh sách sân và Phòng của tôi. Phòng **không có trận `finished`** → 404 ngay sau commit hủy. Phòng **có trận `finished`** vẫn ở Lịch sử chơi và thống kê tháng, mở được `/rooms/{id}` và `/matches` ở chế độ **chỉ đọc** |
+| Phòng chơi | Luôn loại khỏi Danh sách sân và Phòng của tôi. Phòng **không có trận `finished`** → 404 ngay sau commit hủy. Phòng **có trận `finished`** vẫn ở Lịch sử chơi và thống kê tháng, mở được `/rooms/{id}` và `/matches` ở chế độ **chỉ đọc** nếu mình là người trong phòng (T-054: người ngoài nhận 404) |
 | Tiền về trễ cho lượt đã `paid` | `outcome = refund_needed`, không tạo booking, không chiếm chỗ |
 
 #### Sự kiện và thông báo
@@ -1165,15 +1165,20 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
 
 **ETag cho polling:** `GET /rooms`, `/rooms/{id}`, `/matches`, `/ranking` trả `ETag` (weak, theo nội dung và người xem) và `Cache-Control: no-cache, private`. Gửi `If-None-Match` mà không có gì đổi → **304** không có thân. Giao diện hỏi lại mỗi 5 giây và giữ ETag của lần trước.
 
-**Tìm phòng theo mã booking và phòng đã kết thúc (T-054, chưa vào `dev`):** đường thật là `GET /api/v1/member-area/rooms?q=` (spec ghi tắt `/api/v1/rooms`). Đối chiếu code backend `be/T-054-rooms-search` @ `a1732f3` (cục bộ). Nhánh này đã gộp `be/T-052-cancel-started`, nên **T-052 phải lên `dev` trước hoặc cùng T-054**. Không migration. BACKEND chạy 143 test xanh, chưa chạy cả bộ test (chờ CI). Giao diện chưa kiểm.
+**Tìm phòng theo mã booking và phòng đã kết thúc (T-054, chưa vào `dev`):** đường thật là `GET /api/v1/member-area/rooms?q=` (spec ghi tắt `/api/v1/rooms`). Đối chiếu code backend `be/T-054-rooms-search` @ `2cfbc4d` (cục bộ; thêm `can_view` sau bản đầu `a1732f3`). Nhánh này đã gộp `be/T-052-cancel-started`, nên **T-052 phải lên `dev` trước hoặc cùng T-054**. Không migration. BACKEND chạy 143 test xanh, chưa chạy cả bộ test (chờ CI). Giao diện chưa kiểm.
 
 - **`q`:** bỏ khoảng trắng, không phân biệt hoa thường, phải khớp `^BK-\d{8}-\d{3}(-\d{2})?$` (mã đơn hoặc mã con); phải nhập **đủ mã**, không tìm theo từng ký tự hay một phần. Không khớp định dạng → `items: []`, không lỗi, kể cả `q` rỗng.
 - **Khi có `q`:** bỏ qua `scope`, tìm ở **mọi ngày** (không chỉ hôm nay); khớp đúng mã con, hoặc mọi khối của mã đơn; xếp theo giờ bắt đầu. `Cache-Control: no-store`, **không có ETag**. Số liệu banner (`ongoing_count`…) vẫn là của hôm nay, không theo `q`.
 - **Giới hạn:** 30 lượt tìm mỗi phút mỗi tài khoản, tính cả `q` sai định dạng; quá → 429 `E-SEC-5` kèm `Retry-After`. Danh sách thường (không có `q`) không tính lượt. Lý do: mã đoán được theo ngày, không giới hạn thì dò được lịch đặt của người khác.
 - **Không tìm ra** (cùng kết quả rỗng, không báo lý do): mã không tồn tại, sai định dạng, Host chưa đủ điều kiện, booking đã hủy mà phòng không có trận `finished`, booking chưa có phòng.
-- **`RoomCard` thêm:** `status` (`open` | `ended`; `phase` giữ nguyên) và `play_date` (ngày chơi giờ VN). Danh sách thường luôn `open`. **Không** có mã booking, SĐT hay id hồ sơ trong thẻ.
-- **`ended`** khi phòng đã đóng, hoặc hết giờ cộng ân hạn mà job chưa kịp đóng, hoặc booking đã hủy. Phòng `ended` mở xem chỉ đọc; với nó `my_join_block = null`, `my_invite_id = null`, `my_join_pending = false` (không thêm giá trị mới cho `JoinBlock`), giao diện dựa vào `status` để ẩn nút Xin vào. Xin vào phòng đã đóng bằng API vẫn trả 409 `E-ROOM-1`.
-- **Rủi ro BACKEND đã báo ARCHITECT, chưa đổi:** `GET /rooms/{id}` từ T-017 cho mọi hội viên xem phòng đã đóng theo id tuần tự, không giới hạn tần suất, nên giới hạn tìm kiếm không chặn được việc dò lịch sử chơi. Đang chờ ARCHITECT quyết.
+- **`RoomCard` thêm:** `status` (`open` | `ended`; `phase` giữ nguyên), `play_date` (ngày chơi giờ VN) và `can_view`. Danh sách thường luôn `open`. **Không** có mã booking, SĐT hay id hồ sơ trong thẻ.
+- **`ended`** khi phòng đã đóng, hoặc hết giờ cộng ân hạn mà job chưa kịp đóng, hoặc booking đã hủy. Với phòng `ended`: `my_join_block = null`, `my_invite_id = null`, `my_join_pending = false` (không thêm giá trị mới cho `JoinBlock`); giao diện dựa vào `status` để ẩn nút Xin vào. Xin vào phòng đã đóng bằng API vẫn trả 409 `E-ROOM-1`.
+- **Đổi quy tắc T-017: phòng đã kết thúc chỉ "người trong phòng" xem được.** Trước đây mọi hội viên mở được `GET /rooms/{id}` của phòng đã đóng theo id tuần tự, nên có thể quét ai chơi với ai. Từ T-054, phòng `ended` mà mình **không** là người trong phòng thì:
+  - `GET /rooms/{id}`, `GET /rooms/{id}/matches` và `GET /rooms/{id}/ranking` trả **404 `E-NOT-FOUND`**, giống hệt phòng không tồn tại;
+  - trong kết quả tìm, thẻ phòng có `can_view = false`, `members = []`, `member_count = 0` (người ngoài không biết ai chơi, kể cả khi tìm đúng mã); giao diện ẩn nút "Xem phòng";
+  - phòng đang mở: như cũ (`can_view = true`).
+  - **"Người trong phòng"** = Host hiện tại, hoặc người **từng** là thành viên (kể cả đã rời hoặc bị mời ra), tính từ dấu vết còn lại: chủ đơn, yêu cầu hoặc lời mời đã `accepted`, đội trong các trận, và người sở hữu booking. Người chỉ xin vào hoặc chỉ được mời mà chưa vào thì **không** tính. Người trong phòng xem được ở chế độ chỉ đọc.
+  - Mục 13.5 (Lịch sử chơi) mở phòng qua cùng quy tắc này: người từng chơi trận trong phòng luôn là người trong phòng nên mở được.
 
 **`RoomCard`:** `{id, resource_name, resource_type_name, start_at, end_at, phase: upcoming|ongoing, host, members[], member_count, capacity, is_mine, my_join_pending, my_invite_id, version}`. Nút theo thứ tự: `is_mine` → "Vào phòng"; `my_invite_id` → "Nhận lời mời" / "Từ chối"; `my_join_pending` → "Đã xin vào" (bấm để hủy); `member_count >= capacity` → "Đã đủ"; còn lại → "Xin vào".
 
