@@ -1143,29 +1143,27 @@ async def test_ac31_online_booking_visible_to_counter_and_history(anon, admin, s
     assert item["customer"]["name"] == "QA Online Quầy"
     assert item["customer"]["phone"] == ph, "quầy thấy SĐT đầy đủ (bỏ che số ở màn quản trị)"
     assert item["actions"] == [], "paid online booking has no collect/uncollectible actions"
-    tx = (
-        await admin.get(
+    received = (
+        datetime.now(settings.tz).date().isoformat()
+    )  # sổ theo ngày tiền về, không phải ngày chơi
+    code = co["items"][0]["code"]
+
+    async def ledger(**extra):
+        r = await admin.get(
             f"{BK}/transactions",
-            params={
-                "from": day().isoformat(),
-                "to": day().isoformat(),
-                "q": co["items"][0]["code"],
-            },
+            params={"from": received, "to": received, "q": code, **extra},
         )
-    ).json()
-    assert tx["total"] == 1 and tx["rows"][0]["code"] == co["items"][0]["code"]
-    only_transfer = (
-        await admin.get(
-            f"{BK}/transactions",
-            params={
-                "from": day().isoformat(),
-                "to": day().isoformat(),
-                "method": "transfer",
-                "q": co["items"][0]["code"],
-            },
-        )
-    ).json()
-    assert only_transfer["total"] == 1, "'Chuyển khoản' filter includes online transfers"
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    tx = await ledger()
+    assert tx["total"] == 1 and [i["code"] for i in tx["items"][0]["items"]] == [code]
+    entry = tx["items"][0]
+    assert (entry["kind"], entry["method"], entry["source"]) == ("in", "transfer", "online")
+    assert entry["actor_label"] == "Hệ thống" and entry["amount"] == co["items"][0]["amount"]
+    assert ph not in str(entry), "SĐT được che"
+    assert (await ledger(method="transfer"))["total"] == 1, "'Chuyển khoản' gồm cả tiền về online"
+    assert (await ledger(method="cash"))["total"] == 0
 
 
 async def test_ac32_bank_transactions_screen_removed(admin):

@@ -888,27 +888,48 @@ async def test_ac21_replay_same_key_one_write_no_e012(admin):
 # ---------------------------------------------------------------------------
 
 
+def codes_in(entry: dict) -> list[str]:
+    return [i["code"] for i in entry["items"]]
+
+
 async def test_ac22_defaults_cards_and_paging(admin):
+    """T-057 (ADR-014): Lịch sử giao dịch = sổ tiền vào; khoản chưa thu không có dòng."""
+    unpaid = await new_booking(admin)
+    paid = []
     for _ in range(3):
-        await new_booking(admin)
+        res, bk = await new_booking(admin)
+        await w(
+            admin,
+            "POST",
+            f"{B}/items/{bk['code']}/collect",
+            {"method": "cash", "version": bk["version"]},
+        )
+        paid.append(bk["code"])
     r = await admin.get(f"{B}/transactions")
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["page"] == 1 and len(d["rows"]) <= 8
-    for k in ("paid", "unpaid", "uncollectible"):
-        assert {"amount", "count"} <= set(d["cards"][k])
-    assert d["cards"]["unpaid"]["count"] >= 3
-    total = sum(d["cards"][k]["count"] for k in d["cards"])
-    assert d["total"] == total, "cards follow the same filter as rows"
+    assert d["page"] == 1 and d["size"] == 8 and len(d["items"]) <= 8
+    assert set(d["cards"]) == {"net", "cash", "transfer", "refund"}
+    assert all(isinstance(v, int) for v in d["cards"].values())
+    assert d["cards"]["net"] == d["cards"]["cash"] + d["cards"]["transfer"] - d["cards"]["refund"]
+    assert d["total"] >= 3
+    seen = [c for e in d["items"] for c in codes_in(e)]
+    assert unpaid[1]["code"] not in seen, "khoản chưa thanh toán không có dòng"
+    assert {"unpaid", "uncollectible", "paid", "cancelled"}.isdisjoint(d["cards"])
     if d["total"] > 8:
         p2 = (await admin.get(f"{B}/transactions", params={"page": 2})).json()
-        assert p2["page"] == 2 and {x["code"] for x in p2["rows"]}.isdisjoint(
-            {x["code"] for x in d["rows"]}
+
+        def key(e):
+            return (e["kind"], e["occurred_at"], tuple(codes_in(e)))
+
+        assert p2["page"] == 2 and {key(x) for x in p2["items"]}.isdisjoint(
+            {key(x) for x in d["items"]}
         )
 
 
 async def test_ac22_filters(admin):
     res, bk = await new_booking(admin, customer=temp("QA Lọc Tên", "0966123456"))
+    unpaid_res, unpaid = await new_booking(admin, customer=temp("QA Lọc Chưa Thu", "0966123457"))
     await w(
         admin,
         "POST",
@@ -916,28 +937,30 @@ async def test_ac22_filters(admin):
         {"method": "cash", "version": bk["version"]},
     )
     base = {"from": today().isoformat(), "to": today().isoformat()}
-    by_code = (
-        await admin.get(f"{B}/transactions", params={**base, "q": bk["code"].lower()})
-    ).json()
-    assert [r["code"] for r in by_code["rows"]] == [bk["code"]]
-    by_phone = (await admin.get(f"{B}/transactions", params={**base, "q": "0966 123.456"})).json()
-    assert bk["code"] in [r["code"] for r in by_phone["rows"]]
-    by_name = (await admin.get(f"{B}/transactions", params={**base, "q": "lọc tên"})).json()
-    assert bk["code"] in [r["code"] for r in by_name["rows"]]
-    paid = (
-        await admin.get(f"{B}/transactions", params={**base, "status": "paid", "q": bk["code"]})
-    ).json()
-    assert paid["cards"]["paid"]["count"] == 1
-    cash = (
-        await admin.get(f"{B}/transactions", params={**base, "method": "cash", "q": bk["code"]})
-    ).json()
-    assert cash["total"] == 1
-    unp = (
-        await admin.get(f"{B}/transactions", params={**base, "status": "unpaid", "q": bk["code"]})
-    ).json()
-    assert unp["total"] == 0
-    by_res = (await admin.get(f"{B}/transactions", params={**base, "resource": res["code"]})).json()
-    assert [r["code"] for r in by_res["rows"]] == [bk["code"]]
+
+    async def get(**params):
+        r = await admin.get(f"{B}/transactions", params={**base, **params})
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    by_code = await get(q=bk["code"].lower())
+    assert by_code["total"] == 1 and codes_in(by_code["items"][0]) == [bk["code"]]
+    entry = by_code["items"][0]
+    assert (entry["kind"], entry["method"], entry["source"]) == ("in", "cash", "counter")
+    assert entry["amount"] == bk["amount"] and entry["customer_name"] == "QA Lọc Tên"
+    assert "0966123456" not in str(entry), "SĐT được che"
+    assert bk["code"] in (await get(q="0966 123.456"))["items"][0]["items"][0]["code"]
+    assert bk["code"] in [c for e in (await get(q="lọc tên"))["items"] for c in codes_in(e)]
+    assert (await get(q=bk["code"], method="cash"))["total"] == 1
+    assert (await get(q=bk["code"], method="transfer"))["total"] == 0
+    assert (await get(q=bk["code"], kind="in"))["total"] == 1
+    assert (await get(q=bk["code"], kind="refund"))["total"] == 0
+    assert (await get(q=unpaid["code"]))["total"] == 0, "chưa thu: không có dòng"
+    by_res = await get(resource=res["code"])
+    assert [codes_in(e) for e in by_res["items"]] == [[bk["code"]]]
+    assert (await get(resource=unpaid_res["code"]))["total"] == 0
+    # tham số trạng thái cũ đã bỏ: không còn lọc theo trạng thái
+    assert (await get(q=bk["code"], status="unpaid"))["total"] == 1
 
 
 async def test_ac22_range_errors(admin):
@@ -959,32 +982,34 @@ async def test_ac22_range_errors(admin):
     assert ok.status_code == 200, "92 days inclusive is the maximum"
 
 
-async def test_ac22_revenue_counts_play_date_and_paid_only(admin):
-    before = (
-        await admin.get(
-            f"{B}/transactions", params={"from": today().isoformat(), "to": today().isoformat()}
-        )
-    ).json()
+async def test_ac22_revenue_counts_receipt_day_and_ignores_unpaid(admin):
+    """Thẻ theo ngày tiền về: chưa thu không đổi thẻ; thu tiền mặt hôm nay cộng vào hôm nay."""
+    t = today().isoformat()
+    y = (today() - timedelta(days=1)).isoformat()
+
+    async def cards(day):
+        r = await admin.get(f"{B}/transactions", params={"from": day, "to": day})
+        assert r.status_code == 200, r.text
+        return r.json()["cards"]
+
+    before, before_y = await cards(t), await cards(y)
     res, bk = await new_booking(admin)
-    mid = (
-        await admin.get(
-            f"{B}/transactions", params={"from": today().isoformat(), "to": today().isoformat()}
-        )
-    ).json()
-    assert mid["cards"]["paid"]["amount"] == before["cards"]["paid"]["amount"]
-    assert mid["cards"]["unpaid"]["amount"] == before["cards"]["unpaid"]["amount"] + bk["amount"]
+    assert await cards(t) == before, "đặt mà chưa thu: thẻ không đổi"
     await w(
         admin,
         "POST",
         f"{B}/items/{bk['code']}/collect",
         {"method": "cash", "version": bk["version"]},
     )
-    after = (
-        await admin.get(
-            f"{B}/transactions", params={"from": today().isoformat(), "to": today().isoformat()}
-        )
-    ).json()
-    assert after["cards"]["paid"]["amount"] == before["cards"]["paid"]["amount"] + bk["amount"]
+    after = await cards(t)
+    assert after["cash"] == before["cash"] + bk["amount"]
+    assert after["net"] == before["net"] + bk["amount"]
+    assert after["transfer"] == before["transfer"] and after["refund"] == before["refund"]
+    assert await cards(y) == before_y, "ngày khác không đổi"
+    only_res = (
+        await admin.get(f"{B}/transactions", params={"from": t, "to": t, "resource": res["code"]})
+    ).json()["cards"]
+    assert only_res["net"] == bk["amount"], "thẻ theo bộ lọc sân"
 
 
 async def test_ac23_transactions_admin_only(staff, customer, anon):
