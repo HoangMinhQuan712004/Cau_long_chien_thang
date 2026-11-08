@@ -7992,10 +7992,10 @@ export interface components {
         /**
          * TransactionEntry
          * @description Một lần nhận tiền (``in``) hoặc hoàn tiền (``refund``) – sổ tiền vào (T-057, ADR-014).
+         *
+         *     Không có id số nội bộ (T-006 SEC4): FE dùng vị trí dòng trong trang làm key.
          */
         TransactionEntry: {
-            /** Id */
-            id: number;
             /**
              * Kind
              * @enum {string}
