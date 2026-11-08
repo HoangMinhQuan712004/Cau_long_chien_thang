@@ -335,7 +335,8 @@ export function TransactionsScreen({
                 return (
                   <li key={`${data.page}-${row}`} className="rounded-lg border border-border bg-surface p-3">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 space-y-1">
+                      {/* w-0 flex-1: tên dài không đẩy bề rộng tối thiểu của thẻ (trang không bị giãn ngang trên điện thoại) */}
+                      <div className="w-0 min-w-0 flex-1 space-y-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <KindBadge e={e} />
                           <OrderCode e={e} />

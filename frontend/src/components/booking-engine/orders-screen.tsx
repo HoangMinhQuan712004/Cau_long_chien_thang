@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Modal } from "@/components/ui/modal";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
 import { addDaysIso, formatDate, formatDayMonthYear, formatVnd } from "@/lib/format";
 import { authFailure } from "./booking-dialogs";
+import { CollectQrDialog } from "./collect-qr";
 import { ItemFlow } from "./item-flow";
 import { OrderFlow } from "./order-flow";
 import { getBookingOrders, sendCollectOrder } from "./requests";
@@ -286,26 +286,24 @@ export function OrdersScreen({ today, initialQ = "" }: { today: string; /** Mở
       ) : null}
 
       {dialog?.kind === "collect" ? (
-        <Modal
-          open
+        // T-058: mặc định QR chuyển khoản, có nút "Khách trả tiền mặt"
+        <CollectQrDialog
+          key={dialog.row.order_code}
+          orderCode={dialog.row.order_code}
+          busy={busy}
+          banner={banner}
           onClose={() => setDialog(null)}
-          title="Thu cả đơn"
-          footer={
-            <>
-              <button type="button" onClick={() => setDialog(null)} className={btnCls} disabled={busy}>
-                Hủy
-              </button>
-              <button type="button" onClick={() => void collect(dialog.row)} disabled={busy} className={btnPrimaryCls}>
-                {busy ? "Đang thu…" : "Xác nhận đã thu"}
-              </button>
-            </>
+          onConfirmCash={() => void collect(dialog.row)}
+          onPaid={() => {
+            setDialog(null);
+            void load();
+          }}
+          cashBody={
+            <p className="text-sm">
+              Thu <b>{formatVnd(dialog.row.total)}</b> tiền mặt cho đơn <b className="font-mono">{dialog.row.order_code}</b> ({dialog.row.sessions} {dialog.row.kind === "recurring" ? "buổi" : "khối"}). Mọi khối thành Đã thanh toán, chỉ thu một lần.
+            </p>
           }
-        >
-          {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
-          <p className="text-sm">
-            Thu <b>{formatVnd(dialog.row.total)}</b> tiền mặt cho đơn <b className="font-mono">{dialog.row.order_code}</b> ({dialog.row.sessions} {dialog.row.kind === "recurring" ? "buổi" : "khối"}). Mọi khối thành Đã thanh toán, chỉ thu một lần.
-          </p>
-        </Modal>
+        />
       ) : null}
       {dialog?.kind === "order" ? (
         <OrderFlow key={`${dialog.code}-${dialog.cancel ? "cancel" : "view"}`} orderCode={dialog.code} startCancel={dialog.cancel} onClose={() => setDialog(null)} onChanged={() => void load()} onOpenItem={(code) => setDialog({ kind: "item", code })} />

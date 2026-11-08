@@ -211,6 +211,18 @@ export type Transactions = {
   size: number;
 };
 
+// ---- Thu cả đơn bằng QR (T-058): hợp đồng theo spec, thay bằng kiểu sinh khi BE handoff ----
+export type CollectQr = {
+  order_code: string;
+  /** Nội dung chuyển khoản = mã đơn bỏ gạch ("BK20261106001"). */
+  pay_ref: string;
+  /** Tổng các khối chưa thu lúc hỏi; 0 khi đã thu hết. */
+  amount: number;
+  status: "unpaid" | "paid";
+  blocks: number;
+  bank: import("@/components/web-booking/types").Bank;
+};
+
 /** Khách gửi lên: đúng một trong hai (server tự dựng snapshot – ADR-004 S8). */
 export type CustomerPayload = { member_code: string } | { temp: { full_name: string; phone: string; note?: string } };
 
