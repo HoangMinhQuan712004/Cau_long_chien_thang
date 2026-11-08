@@ -16,6 +16,7 @@ from app.modules.booking_engine import (
     booking_service,
     cancel_service,
     config_service,
+    counter_qr,
     customer_history,
     demo,
     holds,
@@ -43,6 +44,7 @@ from app.modules.booking_engine.dto import (
     CheckoutCreated,
     CheckoutView,
     CollectIn,
+    CollectQrInfo,
     CounterOrderIn,
     CounterOrderOut,
     CustomerBookingRow,
@@ -314,6 +316,15 @@ async def collect_order(
 ) -> OrderCollectOut:
     """Thu cả đơn: mọi khối chưa thanh toán -> tiền mặt. 404 E-BOOK-3 · 409 E-BOOK-4."""
     return await orders.collect_order(session, _tid(tenant_id), actor, order_code, data)
+
+
+async def collect_qr_info(
+    session: AsyncSession, order_code: str, *, tenant_id: int | None = None
+) -> CollectQrInfo:
+    """Thu cả đơn bằng QR (T-058): số tiền chưa thu + nội dung chuyển khoản. Chỉ đọc.
+
+    404 E-BOOK-3 · 409 E-BOOK-4 (không còn khối chưa thu, cũng không có khối đã thu)."""
+    return await counter_qr.collect_qr_info(session, _tid(tenant_id), order_code)
 
 
 # ---- Sự kiện / vé

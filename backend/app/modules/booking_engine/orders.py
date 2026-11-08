@@ -154,6 +154,7 @@ async def collect_order(
 
     Khối đã thu / Không thu được giữ nguyên. Không còn khối nào chưa thu -> 409 ``E-BOOK-4``.
     """
+    from app.modules.booking_engine import ledger
     from app.modules.booking_engine.booking_service import booking_item, normalize_code
     from app.modules.booking_engine.payment_service import cash_only, mark_paid
 
@@ -171,6 +172,10 @@ async def collect_order(
         raise AppError("E-BOOK-4", "Đơn không còn khối nào chưa thanh toán.", 409)
     for b in unpaid:
         mark_paid(session, ctx, tenant_id, actor, b)
+    # Một lần thu = một dòng sổ, dù nhiều khối (T-057 AC2)
+    await ledger.record_in(
+        session, tenant_id, unpaid, method="cash", occurred_at=ctx.now, actor=actor
+    )
     # Dòng tổng của cả đơn (màn Lịch sử thao tác hiện từng khối ``payment.collect`` ở trên)
     audit(
         session,
