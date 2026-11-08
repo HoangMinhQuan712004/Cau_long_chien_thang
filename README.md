@@ -512,9 +512,11 @@ không biết gì về cầu lông: sân, giờ mở, cao điểm, giá, giữ c
 Khi cần có thể tách thành service riêng. Chi tiết: [docs/booking-engine-api.md](docs/booking-engine-api.md).
 
 **Thanh toán tách khỏi chỗ.** Booking có `payment_status`: Chưa thanh toán → Đã thanh toán hoặc Không thu được (hai trạng thái cuối).
-Từ T-051 Admin còn hủy được booking, vé hoặc đơn (thành **Đã hủy**, trạng thái cuối): khoản **đã thu** hủy được mọi lúc (T-052, chưa vào `dev`), khoản chưa thu chỉ trước giờ bắt đầu. Chỗ trống lại ngay, khoản đã thu được trừ khỏi doanh thu của ngày chơi nhưng **hệ thống không tự hoàn tiền**, Admin tự trả khách. Chi tiết: `docs/booking-engine-api.md` mục 5.2. Tại quầy chơi trước, trả sau; hiện chỉ thu tiền mặt (chuyển khoản QR tại quầy là T-007).
+Từ T-051 Admin còn hủy được booking, vé hoặc đơn (thành **Đã hủy**, trạng thái cuối): khoản **đã thu** hủy được mọi lúc (T-052, chưa vào `dev`), khoản chưa thu chỉ trước giờ bắt đầu. Chỗ trống lại ngay, khoản đã thu được trừ khỏi doanh thu nhưng **hệ thống không tự hoàn tiền**, Admin tự trả khách. Chi tiết: `docs/booking-engine-api.md` mục 5.2. Tại quầy chơi trước, trả sau; hiện chỉ thu tiền mặt (chuyển khoản QR tại quầy là T-007).
 Khách đặt online (T-008) trả trước: giữ chỗ 5 phút, booking chỉ được tạo khi SePay báo tiền về, xem mục "Đặt online và SePay".
 Giá được server tính và chốt lúc đặt.
+
+**Sổ tiền vào và doanh thu (T-057, T-058, chưa vào `dev`).** Mỗi lần nhận hoặc hoàn tiền là một dòng trong sổ `payment_entry`. **Lịch sử giao dịch** chỉ hiện tiền vào (tiền mặt và chuyển khoản), mỗi dòng một lần nhận tiền; hoàn tiền là dòng âm ở ngày hủy; màn chỉ xem, SĐT che. **Báo cáo doanh thu tính theo ngày tiền về** (hoàn tiền trừ ngày hủy, ngày có thể âm); lượt đặt và công suất vẫn theo ngày chơi. Thu cả đơn tại quầy có popup QR (nội dung chuyển khoản = mã đơn bỏ gạch, chỉ nhận **đúng** số tiền; lệch thì ra "cần hoàn") kèm nút tiền mặt. Migration có backfill: **backup production trước khi lên**. Chi tiết: `docs/booking-engine-api.md` mục 5.3.
 
 **Module giao tiếp qua service + event.** Module không query bảng của module khác; engine ghi sự kiện (vd. `booking.created`)
 vào bảng outbox trong cùng transaction, worker phát cho `notifications`.
