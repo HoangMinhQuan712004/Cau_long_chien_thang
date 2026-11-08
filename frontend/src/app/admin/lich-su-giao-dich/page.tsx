@@ -26,8 +26,9 @@ async function TransactionsLoader() {
   const api = await authedApi(); // đọc cookie trước khi dùng giờ hiện tại
   await connection(); // giờ hiện tại chỉ dùng ở request, không prerender
   const today = todayVn();
+  const from = addDaysIso(today, -6); // 7 ngày tiền về gần nhất (T-057)
   const [tx, resources] = await Promise.all([
-    authedGetJson<Transactions>("/api/v1/booking/transactions", { from: addDaysIso(today, -6), to: today }),
+    authedGetJson<Transactions>("/api/v1/booking/transactions", { from, to: today }),
     api.GET("/api/v1/booking/resources"),
   ]);
 
@@ -37,6 +38,8 @@ async function TransactionsLoader() {
   return (
     <TransactionsScreen
       initial={tx.data}
+      from={from}
+      to={today}
       resources={resources.data.items.map((r) => ({ code: r.code, name: r.name }))}
       today={today}
     />
