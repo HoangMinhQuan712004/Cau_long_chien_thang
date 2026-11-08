@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import SYSTEM_ACTOR, audit, audit_detail
 from app.core.errors import AppError
-from app.modules.booking_engine import ledger, outbox, ticket_online
+from app.modules.booking_engine import counter_qr, ledger, outbox, ticket_online
 from app.modules.booking_engine.audit_fields import paid_changes
 from app.modules.booking_engine.booking_service import calendar, snapshot_values
 from app.modules.booking_engine.codes import next_code
@@ -579,8 +579,8 @@ async def apply_online_payment(
         .where(Checkout.tenant_id == tenant_id, Checkout.pay_ref == data.pay_ref.upper())
         .with_for_update()
     )
-    if checkout is None:
-        return OnlinePaymentResult(outcome="unmatched")
+    if checkout is None:  # T-058: mã đơn quầy (QR "Thu cả đơn"), hoặc không khớp gì
+        return await counter_qr.apply_order_payment(session, tenant_id, data)
     in_time = data.transaction_at <= checkout.expires_at + grace()
     if checkout.status != "pending" or not in_time:
         # Đã thanh toán (tiền thừa) / hết hạn / quá ân hạn: không tạo booking, cần hoàn.

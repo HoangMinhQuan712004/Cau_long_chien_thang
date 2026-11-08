@@ -820,6 +820,16 @@ class OrderCollectOut(BaseModel):
     bookings: list[ItemOut] = Field(description="Mọi khối của đơn sau khi thu")
 
 
+class CollectQrInfo(BaseModel):
+    """Thu cả đơn bằng QR (T-058): số tiền + nội dung chuyển khoản; lớp gọi ghép thông tin NH."""
+
+    order_code: str
+    pay_ref: str = Field(description="Nội dung chuyển khoản = mã đơn bỏ gạch, vd BK20261106001")
+    amount: int = Field(description="Tổng các khối Chưa thanh toán hiện tại; 0 khi đã thu hết")
+    status: Literal["unpaid", "paid"] = Field(description="paid: không còn khối chưa thu")
+    blocks: int = Field(description="Số khối chưa thu")
+
+
 # ---------- Khu hội viên: lịch, đơn của mình, sự kiện + mua vé (T-023) ----------
 
 
