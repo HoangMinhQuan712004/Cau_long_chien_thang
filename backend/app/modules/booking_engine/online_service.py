@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import SYSTEM_ACTOR, audit, audit_detail
 from app.core.errors import AppError
-from app.modules.booking_engine import outbox, ticket_online
+from app.modules.booking_engine import ledger, outbox, ticket_online
 from app.modules.booking_engine.audit_fields import paid_changes
 from app.modules.booking_engine.booking_service import calendar, snapshot_values
 from app.modules.booking_engine.codes import next_code
@@ -671,6 +671,15 @@ async def apply_online_payment(
         created.append(booking)
     checkout.status = "paid"
     checkout.paid_at = data.transaction_at
+    await ledger.record_in(
+        session,
+        tenant_id,
+        created,
+        method="online_transfer",
+        occurred_at=data.transaction_at,
+        actor=ledger.GATEWAY_ACTOR,
+        reference=data.reference,
+    )
     # Thu tiền QR: tiền về xác nhận qua bên thứ 3 -> người làm là Hệ thống (SRS Lịch sử thao tác
     # BR-009); 1 lần thanh toán = 1 dòng dù nhiều booking
     audit(
