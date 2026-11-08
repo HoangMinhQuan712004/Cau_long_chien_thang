@@ -54,14 +54,19 @@ function DayTick({ x = 0, y = 0, payload }: { x?: number; y?: number; payload?: 
 export function DailyChart({ daily, range, scrollLabel, t }: Props) {
   const total = daily.reduce((sum, d) => sum + d.revenue, 0);
   const average = daily.length ? total / daily.length : 0;
-  const ticks = millionTicks(Math.max(...daily.map((d) => d.revenue), average));
+  // Doanh thu theo ngày tiền về, trừ hoàn tiền vào ngày hủy (T-057) ⇒ có thể có ngày âm: trục xuống dưới 0
+  const values = daily.map((d) => d.revenue);
+  const ticks = millionTicks(Math.max(...values, average), Math.min(0, ...values, average));
   const top = ticks[ticks.length - 1];
-  // Nhiều ngày cùng cao nhất ⇒ ngày muộn nhất; kỳ chưa có doanh thu ⇒ không đánh dấu
-  const peak = total > 0 ? daily.reduce((best, d, i) => (d.revenue >= daily[best].revenue ? i : best), 0) : -1;
-  // Cột nền cao hết trục ở T7, CN (cột đặt trước đường nên nằm dưới)
-  const rows = daily.map((d) => ({ ...d, weekend: isWeekend(d.date) ? top : 0 }));
+  const bottom = ticks[0];
+  const hasMoney = values.some((v) => v !== 0);
+  const highest = Math.max(...values);
+  // Nhiều ngày cùng cao nhất ⇒ ngày muộn nhất; kỳ chưa có ngày thu dương ⇒ không đánh dấu
+  const peak = highest > 0 ? daily.reduce((best, d, i) => (d.revenue >= daily[best].revenue ? i : best), 0) : -1;
+  // Cột nền phủ hết trục (cả phần âm) ở T7, CN (cột đặt trước đường nên nằm dưới)
+  const rows = daily.map((d) => ({ ...d, weekend: isWeekend(d.date) ? [bottom, top] : null }));
   // Kỳ chưa có doanh thu: không ghi "0,0" chồng lên đường, không vẽ trung bình (trùng trục 0)
-  const showLabels = daily.length <= LABEL_MAX_DAYS && total > 0;
+  const showLabels = daily.length <= LABEL_MAX_DAYS && hasMoney;
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -87,9 +92,11 @@ export function DailyChart({ daily, range, scrollLabel, t }: Props) {
               interval={0}
             />
             {/* Trục dọc vẽ ở ScrollChart (đứng yên khi cuộn); trục ẩn ở đây chỉ để lưới theo đúng mốc */}
-            <YAxis hide ticks={ticks} domain={[0, top]} />
+            <YAxis hide ticks={ticks} domain={[bottom, top]} />
             <Bar dataKey="weekend" fill={C.soft} isAnimationActive={false} activeBar={false} />
-            {total > 0 ? <ReferenceLine y={average} stroke={C.average} strokeDasharray="5 4" strokeWidth={1.5} /> : null}
+            {/* Có ngày âm: vạch 0 đậm hơn lưới để thấy rõ phần dưới 0 */}
+            {bottom < 0 ? <ReferenceLine y={0} stroke={C.axis} strokeWidth={1} /> : null}
+            {hasMoney ? <ReferenceLine y={average} stroke={C.average} strokeDasharray="5 4" strokeWidth={1.5} /> : null}
             {/* Hộp chú thích vẽ ngoài khung cuộn (TipBridge) cho khỏi bị cắt ở mép */}
             <Tooltip cursor={false} isAnimationActive={false} content={() => null} />
             <TipBridge<(typeof rows)[number]>
@@ -101,6 +108,7 @@ export function DailyChart({ daily, range, scrollLabel, t }: Props) {
               strokeWidth={2.5}
               isAnimationActive={false}
               // > 14 ngày: bỏ chấm từng ngày (30 chấm dính nhau), chỉ hiện chấm khi rê
+              // Ngày âm (hoàn nhiều hơn thu): chấm viền đỏ
               dot={daily.length > LABEL_MAX_DAYS ? false : ({ cx, cy, index }) => (
                 <circle
                   key={index}
@@ -108,7 +116,7 @@ export function DailyChart({ daily, range, scrollLabel, t }: Props) {
                   cy={cy}
                   r={index === peak ? 5 : 3.5}
                   fill={index === peak ? C.primary : C.surface}
-                  stroke={C.primary}
+                  stroke={daily[index]?.revenue < 0 ? C.danger : C.primary}
                   strokeWidth={2}
                 />
               )}
