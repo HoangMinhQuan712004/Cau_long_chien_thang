@@ -183,8 +183,8 @@ export type TransactionEntryItem = {
   amount: number;
 };
 
+/** Không có id nội bộ (T-057, SEC4 của QA): FE lấy vị trí dòng trong trang làm key. */
 export type TransactionEntry = {
-  id: number;
   kind: "in" | "refund";
   /** `transfer` gồm cả tiền SePay của khách đặt online. */
   method: "cash" | "transfer";

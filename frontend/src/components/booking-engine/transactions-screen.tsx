@@ -126,6 +126,7 @@ export function TransactionsScreen({
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Dòng đang mở rộng, theo vị trí trong trang (API không trả id dòng sổ); tải trang / bộ lọc mới thì đóng hết
   const [open, setOpen] = useState<Set<number>>(() => new Set());
   const filtersRef = useRef(filters);
   const first = useRef(true);
@@ -159,11 +160,11 @@ export function TransactionsScreen({
   }, [filters, run]);
 
   const set = (p: Partial<Filters>) => setFilters((f) => ({ ...f, page: 1, ...p }));
-  const toggle = (id: number) =>
+  const toggle = (row: number) =>
     setOpen((s) => {
       const next = new Set(s);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(row)) next.delete(row);
+      else next.add(row);
       return next;
     });
 
@@ -282,11 +283,11 @@ export function TransactionsScreen({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.map((e) => {
-                    const isOpen = open.has(e.id);
-                    const panel = `tx-items-${e.id}`;
+                  {data.items.map((e, row) => {
+                    const isOpen = open.has(row);
+                    const panel = `tx-items-${row}`;
                     return (
-                      <Fragment key={e.id}>
+                      <Fragment key={`${data.page}-${row}`}>
                         <tr className={`border-b border-border align-top ${isOpen ? "bg-primary-softer/50" : "hover:bg-primary-softer/40"}`}>
                           <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">{formatDateTime(e.occurred_at)}</td>
                           <td className="px-3 py-2.5">
@@ -306,7 +307,7 @@ export function TransactionsScreen({
                           <td className="px-3 py-2.5">
                             {contentText(e)}
                             <span className="block">
-                              <ExpandButton open={isOpen} count={e.items.length} onClick={() => toggle(e.id)} id={panel} />
+                              <ExpandButton open={isOpen} count={e.items.length} onClick={() => toggle(row)} id={panel} />
                             </span>
                           </td>
                           <td className="px-3 py-2.5">{e.actor_label}</td>
@@ -328,11 +329,11 @@ export function TransactionsScreen({
 
             {/* Điện thoại / tablet: thẻ */}
             <ul className="space-y-2 lg:hidden">
-              {data.items.map((e) => {
-                const isOpen = open.has(e.id);
-                const panel = `tx-items-m-${e.id}`;
+              {data.items.map((e, row) => {
+                const isOpen = open.has(row);
+                const panel = `tx-items-m-${row}`;
                 return (
-                  <li key={e.id} className="rounded-lg border border-border bg-surface p-3">
+                  <li key={`${data.page}-${row}`} className="rounded-lg border border-border bg-surface p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -354,7 +355,7 @@ export function TransactionsScreen({
                       <span>
                         {METHOD_LABEL[e.method]} · {SOURCE_LABEL[e.source]} · {e.actor_label}
                       </span>
-                      <ExpandButton open={isOpen} count={e.items.length} onClick={() => toggle(e.id)} id={panel} />
+                      <ExpandButton open={isOpen} count={e.items.length} onClick={() => toggle(row)} id={panel} />
                     </div>
                     {isOpen ? (
                       <div id={panel} className="mt-2">
