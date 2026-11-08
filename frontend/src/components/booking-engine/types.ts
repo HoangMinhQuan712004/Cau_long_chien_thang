@@ -172,33 +172,43 @@ export type SearchResult = {
   codes?: string[];
 };
 
-export type TransactionRow = {
-  kind: "booking" | "ticket";
+// ---- Lịch sử giao dịch = sổ tiền vào (T-057, ADR-014): mỗi dòng một lần nhận tiền / một lần hoàn ----
+export type TransactionEntryItem = {
   code: string;
-  order_code?: string | null;
+  kind: "booking" | "ticket";
+  resource_name: string;
   play_date: string;
-  start_time: string;
-  end_time: string;
-  resource_codes: string[];
-  customer_name: string;
-  phone: string | null;
+  start_at: string;
+  end_at: string;
   amount: number;
-  payment_status: PaymentStatus;
-  payment_method: PaymentMethod | null;
-  source: Source;
-  cancel_reason?: string | null;
-  cancelled_by?: string | null;
-  refund_amount?: number;
+};
+
+export type TransactionEntry = {
+  id: number;
+  kind: "in" | "refund";
+  /** `transfer` gồm cả tiền SePay của khách đặt online. */
+  method: "cash" | "transfer";
+  source: "counter" | "counter_qr" | "online";
+  /** Luôn dương; dòng hoàn hiện "−". */
+  amount: number;
+  occurred_at: string;
+  /** Mã đơn booking; vé là mã sự kiện. */
+  order_code: string | null;
+  customer_name: string;
+  customer_phone_masked: string | null;
+  member_code?: string | null;
+  /** "Hệ thống" cho tiền SePay. */
+  actor_label: string;
+  items: TransactionEntryItem[];
 };
 
 export type Transactions = {
-  date_from: string;
-  date_to: string;
-  rows: TransactionRow[];
-  page: number;
-  page_size: number;
+  /** VND theo cả bộ lọc (không chỉ trang này): net = cash + transfer − refund. */
+  cards: { net: number; cash: number; transfer: number; refund: number };
+  items: TransactionEntry[];
   total: number;
-  cards: Record<Exclude<PaymentStatus, "cancelled">, { amount: number; count: number }> & { cancelled?: { amount: number; count: number } };
+  page: number;
+  size: number;
 };
 
 /** Khách gửi lên: đúng một trong hai (server tự dựng snapshot – ADR-004 S8). */
@@ -219,7 +229,7 @@ export type SchemaContract = [
   Accepts<Api["schemas"]["ItemOut"], Item>,
   Accepts<Api["schemas"]["SessionOut"], SessionDetail>,
   Accepts<Api["schemas"]["SearchResult"], SearchResult>,
-  Accepts<Api["schemas"]["TransactionsOut"], Transactions>,
+  // TransactionsOut (T-057) viết tay theo spec tới khi BE handoff ⇒ sinh lại schema.d.ts rồi thêm lại dòng kiểm
 ];
 
 // ---- Hủy (T-051, Admin): hợp đồng theo spec, thay bằng kiểu sinh khi BE handoff ----

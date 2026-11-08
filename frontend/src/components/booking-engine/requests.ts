@@ -53,12 +53,13 @@ export const getItem = (code: string) =>
 export const getSession = (code: string) =>
   read<SessionDetail>(() => looseApi.GET(`${P}/booking/sessions/{code}`, { params: { path: { code } } }));
 
+/** Lọc sổ tiền vào theo ngày nhận / hoàn tiền (giờ VN, ≤ 92 ngày), T-057. */
 export type TransactionFilters = {
   from?: string;
   to?: string;
   resource?: string;
-  status?: string;
-  method?: string;
+  method?: "" | "cash" | "transfer";
+  kind?: "" | "in" | "refund";
   q?: string;
   page?: number;
 };

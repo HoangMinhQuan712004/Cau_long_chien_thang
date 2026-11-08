@@ -41,14 +41,21 @@ const courtText = (o: BookingOrderRow) => {
   return `${o.resource_name}${others > 0 ? ` (+${others} sân khác)` : ""}`;
 };
 
-export function OrdersScreen({ today }: { today: string }) {
+/** Ngày chơi đầu của mã đơn "BK-YYYYMMDD-NNN" (mã theo ngày chơi), không phải mã đơn ⇒ null. */
+const codeDate = (code: string) => {
+  const m = /^BK-(\d{4})(\d{2})(\d{2})-\d{3}/i.exec(code);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+};
+
+export function OrdersScreen({ today, initialQ = "" }: { today: string; /** Mở từ link mã đơn (`?q=`, T-057). */ initialQ?: string }) {
   const [kind, setKind] = useState<"all" | BookingOrderKind>("all");
   const [status, setStatus] = useState<"all" | BookingOrderStatus>("all");
-  // Mặc định: 30 ngày gần nhất và sắp tới
-  const [from, setFrom] = useState(addDaysIso(today, -30));
-  const [to, setTo] = useState(addDaysIso(today, 30));
-  const [input, setInput] = useState("");
-  const [q, setQ] = useState("");
+  // Mặc định: 30 ngày gần nhất và sắp tới; mở theo mã đơn cũ / xa ⇒ nới khoảng ngày cho có ngày chơi đầu của đơn
+  const linked = codeDate(initialQ);
+  const [from, setFrom] = useState(() => (linked && linked < addDaysIso(today, -30) ? linked : addDaysIso(today, -30)));
+  const [to, setTo] = useState(() => (linked && linked > addDaysIso(today, 30) ? linked : addDaysIso(today, 30)));
+  const [input, setInput] = useState(initialQ);
+  const [q, setQ] = useState(initialQ);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<BookingOrderList | null>(null);
   const [error, setError] = useState("");
