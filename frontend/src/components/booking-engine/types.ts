@@ -211,7 +211,7 @@ export type Transactions = {
   size: number;
 };
 
-// ---- Thu cả đơn bằng QR (T-058): hợp đồng theo spec, thay bằng kiểu sinh khi BE handoff ----
+// ---- Thu cả đơn bằng QR (T-058); SchemaContract bên dưới kiểm khớp CollectQrOut ----
 export type CollectQr = {
   order_code: string;
   /** Nội dung chuyển khoản = mã đơn bỏ gạch ("BK20261106001"). */
@@ -241,7 +241,8 @@ export type SchemaContract = [
   Accepts<Api["schemas"]["ItemOut"], Item>,
   Accepts<Api["schemas"]["SessionOut"], SessionDetail>,
   Accepts<Api["schemas"]["SearchResult"], SearchResult>,
-  // TransactionsOut (T-057) viết tay theo spec tới khi BE handoff ⇒ sinh lại schema.d.ts rồi thêm lại dòng kiểm
+  Accepts<Api["schemas"]["TransactionsOut"], Transactions>,
+  Accepts<Api["schemas"]["CollectQrOut"], CollectQr>,
 ];
 
 // ---- Hủy (T-051, Admin): hợp đồng theo spec, thay bằng kiểu sinh khi BE handoff ----

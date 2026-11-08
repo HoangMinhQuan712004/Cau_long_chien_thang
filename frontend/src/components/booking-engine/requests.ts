@@ -79,7 +79,7 @@ export const sendCounterBooking = (
 ) => looseApi.POST(`${P}/front-desk/bookings`, { body: v, headers: idem(key) });
 
 /** Thu tiền mặt mọi khối Chưa thanh toán của đơn. */
-/** QR chuyển khoản cho "Thu cả đơn" (T-058); hỏi lại định kỳ khi popup mở. 409 E-PAY-9 chưa cài nhận tiền, E-PAY-6 hết khoản chưa thu. */
+/** QR chuyển khoản cho "Thu cả đơn" (T-058); hỏi lại định kỳ khi popup mở. 409 E-PAY-9 chưa cài nhận tiền, 409 E-BOOK-4 hết khối chưa thu, 404 E-BOOK-3. */
 export const getCollectQr = (orderCode: string) =>
   read<CollectQr>(() =>
     looseApi.GET(`${P}/front-desk/orders/{code}/collect-qr`, { params: { path: { code: orderCode } }, cache: "no-store" }),

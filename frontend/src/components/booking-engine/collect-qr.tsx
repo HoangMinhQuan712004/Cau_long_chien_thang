@@ -70,8 +70,9 @@ export function CollectQrDialog({ orderCode, cashBody, onConfirmCash, busy, bann
       const e = res.error;
       if (authFailure(e)) return onClose();
       if (e.code === "E-PAY-9") return setQr({ state: "unavailable", message: errorText(e) });
-      // E-PAY-6: đơn không còn khoản chưa thu (đã thu ở máy khác / đã hủy) ⇒ báo và tải lại danh sách
-      if (e.code === "E-PAY-6") {
+      // E-BOOK-4: đơn không còn khối chưa thu (đã thu ở máy khác / đã hủy) ⇒ báo và tải lại danh sách.
+      // 404 E-BOOK-3 (không có đơn) và lỗi khác: nhánh lỗi chung bên dưới
+      if (e.code === "E-BOOK-4") {
         done.current = true;
         toast(errorText(e), orderCode, "info");
         onPaidRef.current();
