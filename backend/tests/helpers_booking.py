@@ -4,11 +4,25 @@ import asyncio
 import uuid
 from datetime import date, datetime, time, timedelta
 
+from sqlalchemy import select, update
+
 from app.core.config import settings
+from app.core.db import SessionLocal
+from app.modules.booking_engine.models import Resource, ResourceSchedule
 from tests.conftest import API, idem
 
 BK = f"{API}/booking"
 FD = f"{API}/front-desk"
+
+
+async def set_legacy_schedule(code: str, **values) -> None:
+    """Dữ liệu cũ có :30 (API không còn tạo được): ghi thẳng vào mọi phiên bản lịch của sân."""
+    async with SessionLocal() as s:
+        ids = select(Resource.id).where(Resource.code == code)
+        await s.execute(
+            update(ResourceSchedule).where(ResourceSchedule.resource_id.in_(ids)).values(**values)
+        )
+        await s.commit()
 
 
 def now() -> datetime:

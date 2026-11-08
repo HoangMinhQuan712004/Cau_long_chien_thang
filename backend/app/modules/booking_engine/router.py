@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Path, Query, Response, status
 
 from app.core.db import SessionDep
 from app.core.idempotency import IdempotencyDep
+from app.core.middleware import require_origin
 from app.core.permissions import Perm, Principal, require
 from app.core.ratelimit import rate_limit
 from app.modules.booking_engine import api, resource_router
@@ -47,6 +48,7 @@ router = APIRouter(prefix="/booking", tags=["booking"])
 
 ResourceViewer = Annotated[Principal, Depends(require(Perm.BOOKING_RESOURCES_VIEW))]
 ConfigManager = Annotated[Principal, Depends(require(Perm.BOOKING_CONFIG_MANAGE))]
+ResourceDeleter = Annotated[Principal, Depends(require(Perm.BOOKING_RESOURCES_DELETE))]
 Quoter = Annotated[Principal, Depends(require(Perm.BOOKING_QUOTE))]
 CalendarViewer = Annotated[Principal, Depends(require(Perm.BOOKING_CALENDAR_VIEW))]
 CodeSearcher = Annotated[Principal, Depends(require(Perm.BOOKING_SEARCH))]
@@ -71,6 +73,8 @@ def _actor(p: Principal) -> Actor:
 def for_viewer(item: ItemOut, p: Principal) -> ItemOut:
     """Chỉ giữ thao tác mà người xem có quyền làm."""
     item.actions = [a for a in item.actions if p.has(ACTION_PERMS[a])]
+    if "cancel" not in item.actions:
+        item.cancel_phase = None
     return item
 
 
@@ -93,6 +97,27 @@ async def create_resource(
         principal.key,
         lambda: api.create_resource(session, _actor(principal), data),
         status_code=status.HTTP_201_CREATED,
+    )
+
+
+@router.delete(
+    "/resources/{code}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    dependencies=[Depends(require_origin)],
+)
+async def delete_resource(
+    code: str, principal: ResourceDeleter, idem: IdempotencyDep, session: SessionDep
+):
+    """Xóa sân: ẩn khỏi mọi màn vận hành, giữ lịch sử; mã không dùng lại.
+
+    409 ``E-CFG-11`` (còn lịch chưa kết thúc, kèm ``count``) · 404 (không có / đã xóa).
+    """
+    return await idem.run(
+        session,
+        principal.key,
+        lambda: api.delete_resource(session, _actor(principal), code),
+        status_code=status.HTTP_204_NO_CONTENT,
     )
 
 

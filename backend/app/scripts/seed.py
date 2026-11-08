@@ -94,7 +94,7 @@ async def seed_booking_engine(session) -> None:
     await booking_engine.ensure_tenant(session, code="chien-thang", name="Sân cầu lông Chiến Thắng")
     await booking_engine.upsert_resource_type(session, "thuong", "Sân thường", 1)
     await booking_engine.upsert_resource_type(session, "vip", "Sân VIP", 2)
-    if settings.is_production or (await booking_engine.list_resources(session)).items:
+    if settings.is_production or await booking_engine.resource_names(session):
         return
 
     for name, rtype, open_time, close_time, peaks, active in DEMO_RESOURCES:

@@ -106,7 +106,7 @@ export const sendUncollectible = (key: string, code: string, reason: string, ver
   });
 
 // ---- Hủy (T-051, Admin) ----
-/** Hủy một booking / vé chưa bắt đầu. Đã thu thì phải gửi `refund_confirmed: true`. Lỗi E-PAY-5/6/7/8, 409 khi `version` lệch. */
+/** Hủy một booking / vé (T-052: cả buổi đang chơi / đã qua nếu đã thu). Đã thu thì phải gửi `refund_confirmed: true`. Lỗi E-PAY-5/6/7, 409 khi `version` lệch. */
 export const sendCancelItem = (key: string, code: string, v: { reason: string; version: number; refund_confirmed: boolean }) =>
   looseApi.POST(`${P}/front-desk/items/{code}/cancel`, { params: { path: { code } }, body: v, headers: idem(key) });
 

@@ -563,7 +563,7 @@ async def test_sec7_bad_google_tokens_are_rejected(gsetup, anon, variant):
     elif variant == "wrong_iss":
         token = gtoken(iss="https://evil.example")
     elif variant == "expired":
-        token = gtoken(exp=now - 10, iat=now - 100)
+        token = gtoken(exp=now - 120, iat=now - 200)
     elif variant == "no_exp":
         token = gtoken(exp=...)
     elif variant == "garbage":

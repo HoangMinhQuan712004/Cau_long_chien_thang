@@ -933,7 +933,13 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Resource
+         * @description Xóa sân: ẩn khỏi mọi màn vận hành, giữ lịch sử; mã không dùng lại.
+         *
+         *     409 ``E-CFG-11`` (còn lịch chưa kết thúc, kèm ``count``) · 404 (không có / đã xóa).
+         */
+        delete: operations["delete_resource_api_v1_booking_resources__code__delete"];
         options?: never;
         head?: never;
         /**
@@ -1647,7 +1653,8 @@ export interface paths {
         };
         /**
          * Get Room
-         * @description Chi tiết phòng (cả phòng đã đóng – chỉ xem). 404 nếu không có / Host chưa đủ điều kiện.
+         * @description Chi tiết phòng. 404 nếu không có / Host không đủ điều kiện / phòng đã kết thúc mà mình không
+         *     phải người trong phòng (T-054); người trong phòng xem được, chỉ đọc.
          */
         get: operations["get_room_api_v1_member_area_rooms__room_id__get"];
         put?: never;
@@ -2093,12 +2100,12 @@ export interface paths {
          * Speed Ranking
          * @description Top 10 cú đập nhanh nhất trong kỳ (tuần T2→CN / tháng / năm, giờ VN) + hạng của tôi.
          *
-         *     Mỗi hội viên lấy số đo cao nhất trong kỳ, bằng nhau thì ai đạt trước xếp trên. Chỉ hội viên
-         *     Hoạt động có tài khoản liên kết. Tắt "Hiện trên kỷ lục" -> "Hội viên ẩn danh" (mình luôn thấy
-         *     tên mình). Không trả id của người khác. ``period`` / ``date`` sai -> 422.
+         *     Xếp theo từng cú (T-053): một người chiếm được nhiều bậc; bằng km/h thì cú đạt trước xếp trên.
+         *     Hạng của tôi là hạng cú tốt nhất của mình. Chỉ hội viên Hoạt động có tài khoản liên kết. Tắt
+         *     "Hiện trên kỷ lục" -> "Hội viên ẩn danh" (mình luôn thấy tên mình). Không trả id của người
+         *     khác. ``period`` / ``date`` sai -> 422.
          *
-         *     T-049: ``video`` là video của đúng số đo xếp hạng (ẩn danh vẫn phát); số đo đó không có video
-         *     thì null, không lấy video của số đo khác.
+         *     T-049: ``video`` là video của đúng cú đó (ẩn danh vẫn phát).
          */
         get: operations["speed_ranking_api_v1_member_area_speed_ranking_get"];
         put?: never;
@@ -2564,10 +2571,11 @@ export interface paths {
         put?: never;
         /**
          * Cancel Item
-         * @description Hủy một booking hoặc vé chưa bắt đầu (chỉ Admin): nhả khung / chỗ ngay, không tự hoàn tiền.
+         * @description Hủy một booking hoặc vé (chỉ Admin, T-052): đã thu hủy được mọi lúc, kể cả đang chơi và đã
+         *     qua; chưa thu chỉ trước giờ bắt đầu. Nhả khung / chỗ ngay, không tự hoàn tiền.
          *
-         *     422 E-001 (lý do) · E-PAY-5 (đã bắt đầu) · E-PAY-7 (đã thu mà chưa xác nhận hoàn) · E-PAY-8 (đã
-         *     có trận trong phòng) · 409 E-PAY-6 (đã hủy / Không thu được) · E-012 (``version`` cũ) · 404.
+         *     422 E-001 (lý do) · E-PAY-5 (đã bắt đầu mà chưa thu) · E-PAY-7 (đã thu mà chưa xác nhận hoàn) ·
+         *     409 E-PAY-6 (đã hủy / Không thu được) · E-012 (``version`` cũ) · 404.
          */
         post: operations["cancel_item_api_v1_front_desk_items__code__cancel_post"];
         delete?: never;
@@ -4081,6 +4089,11 @@ export interface components {
             created_at: string;
             /** Actions */
             actions: ("collect" | "uncollectible" | "cancel")[];
+            /**
+             * Cancel Phase
+             * @description Lúc này so với giờ chơi, để popup chọn câu cảnh báo (T-052); null: không hủy được
+             */
+            cancel_phase?: ("before" | "playing" | "past") | null;
         };
         /** ItemPayment */
         ItemPayment: {
@@ -5317,11 +5330,16 @@ export interface components {
         };
         /**
          * OverviewRanking
-         * @description Bảng xếp hạng tốc độ **tháng này** (như T-030).
+         * @description Bảng xếp hạng tốc độ **tháng này**, xếp theo từng cú đập (T-053).
          */
         OverviewRanking: {
             /** Total Members */
             total_members: number;
+            /**
+             * Total Records
+             * @description Số cú đập trong tháng – mẫu của “#n / m”
+             */
+            total_records: number;
             /** @description null: mình chưa có số đo trong tháng */
             me: components["schemas"]["OverviewRankingMe"] | null;
             /** Top3 */
@@ -6915,6 +6933,23 @@ export interface components {
              * @enum {string}
              */
             phase: "upcoming" | "ongoing";
+            /**
+             * Status
+             * @description ended: phòng đã đóng hoặc buổi đã hủy, chỉ có ở kết quả tìm (T-054): nhãn “Đã kết thúc”, vào xem chỉ đọc, không xin vào. Khi đó my_join_block, my_invite_id là null, my_join_pending là false
+             * @enum {string}
+             */
+            status: "open" | "ended";
+            /**
+             * Can View
+             * @description false: phòng ended và mình không phải người trong phòng – ẩn “Xem phòng”, ``members`` rỗng, ``member_count`` 0; mở trực tiếp sẽ 404 (T-054)
+             */
+            can_view: boolean;
+            /**
+             * Play Date
+             * Format: date
+             * @description Ngày chơi (giờ Việt Nam)
+             */
+            play_date: string;
             host: components["schemas"]["PersonOut"];
             /**
              * Members
@@ -7065,7 +7100,7 @@ export interface components {
             all_count: number;
             /**
              * Items
-             * @description Theo giờ bắt đầu, rồi tên sân (lọc theo ``scope``)
+             * @description Theo giờ bắt đầu, rồi tên sân (lọc theo ``scope``); có ``q``: kết quả tìm
              */
             items: components["schemas"]["RoomCard"][];
         };
@@ -7520,8 +7555,18 @@ export interface components {
         };
         /** SpeedMe */
         SpeedMe: {
-            /** Rank */
+            /**
+             * Rank
+             * @description Hạng cú tốt nhất của mình trong kỳ (T-053)
+             */
             rank: number;
+            /**
+             * Display Name
+             * @description Cùng tên với bục và danh sách: biệt danh trước
+             */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
             /**
              * Speed Kmh
              * @description Số đo cao nhất của mình trong kỳ
@@ -7565,8 +7610,13 @@ export interface components {
              */
             total_members: number;
             /**
+             * Total Records
+             * @description Số cú đập trong kỳ – mẫu của “#n / m” (T-053)
+             */
+            total_records: number;
+            /**
              * Top
-             * @description Tối đa 10, hạng 1 trước
+             * @description Tối đa 10 **cú đập**, hạng 1 trước; một người có thể chiếm nhiều bậc
              */
             top: components["schemas"]["SpeedRankingRow"][];
             /** @description null: mình chưa có số đo trong kỳ */
@@ -7596,9 +7646,14 @@ export interface components {
             /**
              * Measured At
              * Format: date-time
-             * @description Lúc đo của số đo xếp hạng trong kỳ
+             * @description Lúc đo của đúng cú đập này
              */
             measured_at: string;
+            /**
+             * Resource Name
+             * @description Sân của đúng cú đập này (T-053)
+             */
+            resource_name?: string | null;
             /** Is Me */
             is_me: boolean;
             /** @description Video của đúng số đo xếp hạng; số đo đó không có thì null, không lấy số đo khác. Ẩn danh vẫn phát */
@@ -9759,6 +9814,38 @@ export interface operations {
             };
         };
     };
+    delete_resource_api_v1_booking_resources__code__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_resource_api_v1_booking_resources__code__patch: {
         parameters: {
             query?: never;
@@ -11013,6 +11100,8 @@ export interface operations {
             query?: {
                 /** @description mine: phòng có mình */
                 scope?: "all" | "mine";
+                /** @description Đúng mã đơn BK-YYYYMMDD-NNN hoặc mã con -NN (T-054) */
+                q?: string | null;
             };
             header?: {
                 /** @description ETag lần trước -> 304 nếu không đổi */

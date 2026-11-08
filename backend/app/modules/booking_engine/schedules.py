@@ -1,5 +1,6 @@
 """Giờ mở cửa / khung cao điểm theo phiên bản có ngày hiệu lực (T-005 D3, D4, D6)."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 
@@ -50,13 +51,21 @@ class Hours:
         return self.open_minute <= start_minute and end_minute <= self.close_minute
 
 
+def ensure_whole_hours(times: Iterable[str]) -> None:
+    """Giờ MỚI chỉ được tròn giờ (người dùng chốt 2026-11-06). Không kiểm trong ``validate_hours``:
+    lịch cũ có :30 vẫn lưu được khi sửa trường khác, và vẫn tính giá theo nửa giờ."""
+    if any(not t.endswith(":00") for t in times):
+        raise AppError(
+            "E-CFG-12", "Giờ mở cửa, giờ đóng cửa và khung cao điểm chỉ được chọn tròn giờ.", 422
+        )
+
+
 def validate_hours(open_time: str, close_time: str, peak_bands: list[tuple[str, str]]) -> Hours:
     """Kiểm D6.
 
-    Đóng cửa sau mở cửa ≥ 60 phút (E-CFG-2); cao điểm ≥ 30 phút, trong giờ mở,
-    không chồng nhau (E-CFG-5).
+    Đóng cửa sau mở cửa ≥ 60 phút (E-CFG-2); cao điểm trong giờ mở, không chồng nhau (E-CFG-5).
 
-    Định dạng "HH:MM" (bội 30 phút, tối đa 24:00) đã được DTO kiểm.
+    Định dạng "HH:MM" (tối đa 24:00) đã được DTO kiểm.
     """
     o, c = to_minute(open_time), to_minute(close_time)
     if o >= 24 * 60 or c - o < MIN_OPEN_MINUTES:
@@ -66,7 +75,7 @@ def validate_hours(open_time: str, close_time: str, peak_bands: list[tuple[str, 
         if b - a < MIN_PEAK_MINUTES or a < o or b > c:
             raise AppError(
                 "E-CFG-5",
-                "Khung cao điểm phải dài ít nhất 30 phút và nằm trong giờ mở cửa "
+                "Khung cao điểm phải dài ít nhất 1 tiếng và nằm trong giờ mở cửa "
                 f"({open_time} – {close_time}).",
                 422,
             )

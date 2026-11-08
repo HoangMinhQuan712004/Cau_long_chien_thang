@@ -27,6 +27,7 @@ from app.modules.booking_engine import (
     recurring,
     recurring_list,
     report_figures,
+    resource_delete,
     rooms_feed,
     session_service,
     ticket_online,
@@ -106,6 +107,18 @@ async def create_resource(
     session: AsyncSession, actor: Actor, data: ResourceCreate, *, tenant_id: int | None = None
 ) -> ResourceOut:
     return await config_service.create_resource(session, _tid(tenant_id), actor, data)
+
+
+async def resource_names(session: AsyncSession, *, tenant_id: int | None = None) -> dict[str, str]:
+    """Mã sân -> tên, gồm cả sân đã xóa – dùng để hiện lịch sử."""
+    return await config_service.resource_names(session, _tid(tenant_id))
+
+
+async def delete_resource(
+    session: AsyncSession, actor: Actor, code: str, *, tenant_id: int | None = None
+) -> None:
+    """Ẩn sân, giữ lịch sử. Còn lịch chưa kết thúc -> 409 ``E-CFG-11``. Không commit."""
+    await resource_delete.delete_resource(session, _tid(tenant_id), actor, code)
 
 
 async def update_resource(
@@ -367,12 +380,11 @@ async def cancel_item(
     actor: Actor,
     code: str,
     data: CancelIn,
-    played: set[str],
     *,
     tenant_id: int | None = None,
 ) -> ItemOut:
-    """Hủy booking / vé (T-051). ``played``: mã khối đã có trận trong phòng (lớp gọi tra)."""
-    return await cancel_service.cancel_item(session, _tid(tenant_id), actor, code, data, played)
+    """Hủy booking / vé (T-051, T-052)."""
+    return await cancel_service.cancel_item(session, _tid(tenant_id), actor, code, data)
 
 
 async def order_block_codes(
@@ -413,6 +425,20 @@ async def cancelled_booking_codes(
 ) -> set[str]:
     """Mã booking nào đã hủy (phòng chơi ẩn ngay, không chờ worker – T-051)."""
     return await rooms_feed.cancelled_codes(session, _tid(tenant_id), codes)
+
+
+async def cancelled_before_end_codes(
+    session: AsyncSession, codes: list[str], *, tenant_id: int | None = None
+) -> set[str]:
+    """Mã booking bị hủy trước giờ kết thúc – phòng dừng ngay (T-052)."""
+    return await rooms_feed.cancelled_before_end_codes(session, _tid(tenant_id), codes)
+
+
+async def booking_codes_owned_by(
+    session: AsyncSession, codes: list[str], refs: list[str], *, tenant_id: int | None = None
+) -> set[str]:
+    """Mã booking nào thuộc khách có các ``refs`` (phòng chơi, T-054). Chỉ đọc."""
+    return await rooms_feed.codes_owned_by(session, _tid(tenant_id), codes, refs)
 
 
 async def collect(

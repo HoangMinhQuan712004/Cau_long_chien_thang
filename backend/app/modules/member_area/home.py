@@ -147,7 +147,9 @@ async def _ranking(session: AsyncSession, customer_id: int, today: dt.date) -> O
         if r.me
         else None
     )
-    return OverviewRanking(total_members=r.total_members, me=me, top3=r.top[:3])
+    return OverviewRanking(
+        total_members=r.total_members, total_records=r.total_records, me=me, top3=r.top[:3]
+    )
 
 
 async def _recent_records(session: AsyncSession, customer_id: int) -> list[RecentRecord]:
@@ -155,7 +157,7 @@ async def _recent_records(session: AsyncSession, customer_id: int) -> list[Recen
     breaks = await records.club_record_breaks(session, customer_id, RECENT_RECORDS_MAX)
     if not breaks:
         return []
-    names = {r.code: r.name for r in (await engine.list_resources(session)).items}
+    names = await engine.resource_names(session)
     rackets = await members.rackets_of(session, {b.customer_id for b in breaks if b.shown})
     return [
         RecentRecord(

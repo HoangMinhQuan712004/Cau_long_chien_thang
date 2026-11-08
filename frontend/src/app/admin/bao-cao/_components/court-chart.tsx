@@ -66,23 +66,18 @@ function CourtTick({ x = 0, y = 0, payload, width = 0, visibleTicksCount = 1, by
   );
 }
 
-/** Doanh thu theo sân: cột theo mã sân, nhãn "19,7 tr" khi đủ chỗ; sân thấp nhất cột nhạt + "↓" và dòng tóm tắt (BR-015). */
+/** Doanh thu theo sân: cột theo mã sân, nhãn "19,7 tr" khi đủ chỗ; sân thấp nhất cột nhạt + "↓" (BR-015). */
 export function CourtChart({ courts, range, scrollLabel, t }: Props) {
   const total = courts.reduce((sum, c) => sum + c.revenue, 0);
   const ticks = millionTicks(Math.max(0, ...courts.map((c) => c.revenue)));
   const min = Math.min(...courts.map((c) => c.revenue));
   // Mọi sân bằng nhau (gồm cả kỳ chưa có doanh thu) ⇒ không đánh dấu; nhiều sân cùng thấp nhất ⇒ đánh dấu tất cả
   const hasLowest = courts.some((c) => c.revenue !== min);
-  const lowestCourts = hasLowest ? courts.filter((c) => c.revenue === min) : [];
-  const lowest = new Set(lowestCourts.map((c) => c.code));
+  const lowest = new Set(hasLowest ? courts.filter((c) => c.revenue === min).map((c) => c.code) : []);
   const byCode = new Map(courts.map((c) => [c.code, c]));
   // Hộp chú thích: tên đầy đủ (+ "ngừng hoạt động") · số tiền đầy đủ
   const tipText = (c: Court) =>
     fill(t.bar, { name: c.is_active ? c.name : `${c.name} ${t.inactive}`, amount: money(c.revenue) });
-  const lowestNames = lowestCourts.map((c) => c.name).join(", ");
-  const lowestText = lowestCourts.length === 1
-    ? fill(t.lowestOne, { name: lowestNames, amount: money(min) })
-    : fill(t.lowestMany, { n: lowestCourts.length, amount: money(min), names: lowestNames });
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -141,15 +136,6 @@ export function CourtChart({ courts, range, scrollLabel, t }: Props) {
         </ResponsiveContainer>
       </ScrollChart>
 
-      {/* Chú giải + tóm tắt sân thấp nhất thay cho chữ lặp dưới từng cột */}
-      {lowestCourts.length ? (
-        // Hiện đủ danh sách sân thấp nhất, tự xuống dòng (ký hiệu đứng đầu dòng đầu)
-        <p className="flex min-w-0 items-start gap-1.5 text-xs text-muted sm:text-ui">
-          <i aria-hidden className="mt-0.5 h-3 w-2.5 shrink-0 rounded-t-xs bg-primary/40" />
-          <b aria-hidden className="font-bold text-danger">↓</b>
-          <span className="min-w-0 wrap-break-word tabular-nums">{lowestText}</span>
-        </p>
-      ) : null}
       <p className="text-xs font-semibold tabular-nums sm:text-ui">
         {fill(t.total, { n: courts.length, total: money(total) })}
       </p>

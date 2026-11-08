@@ -331,11 +331,12 @@ async def test_ac5_report_revenue_daily_and_heatmap_drop_exactly_the_cancelled_s
 # ---------------------------------------------------------------- AC9: trận đấu
 
 
-async def test_ac9_drawn_match_does_not_block_and_finished_results_survive(
+async def test_ac9_matches_no_longer_block_and_finished_results_survive(
     admin, staff, people, clock
 ):
+    """T-052 đổi T-051: E-PAY-8 đã bỏ. Chưa tới giờ + trận `finished` vẫn hủy được; trận đã xong giữ
+    nguyên và vẫn ở Lịch sử chơi (chỉ đọc); trận `drawn` -> `abandoned`; phòng không còn ở Danh sách sân."""
     host, other = await people("QA Chủ Trận"), await people("QA Người Kia")
-    # Buổi A có trận đã xong: không hủy được, kết quả còn nguyên trong Lịch sử chơi
     court = await new_court(admin)
     a = await new_booking(
         staff, admin, hour=8, day=tomorrow(), court=court, customer={"member_code": host.code}
@@ -350,25 +351,37 @@ async def test_ac9_drawn_match_does_not_block_and_finished_results_survive(
         rb = await s.scalar(select(PlayRoom).where(PlayRoom.booking_code == b["code"]))
     await add_match(ra.id, 1, [host.customer_id], [other.customer_id], status="finished", win="a")
     await add_match(rb.id, 1, [host.customer_id], [other.customer_id], status="drawn", win="a")
-
-    r = await cancel(admin, a["code"])
-    assert r.status_code == 422 and code_of(r) == "E-PAY-8"
-    assert (await row_of(a["code"])).payment_status == "unpaid"
-    assert await active_allocations(a["code"]) == 1
     month = tomorrow().strftime("%Y-%m")
-    rows = (await host.client.get(f"{MA}/play-history", params={"month": month})).json()["items"]
-    assert any(i["room_id"] == ra.id and i["matches"] == 1 for i in rows)
+
+    async def history() -> dict:
+        r = await host.client.get(f"{MA}/play-history", params={"month": month})
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    before = await history()
+    r = await cancel(admin, a["code"])
+    assert r.status_code == 200, r.text  # không còn E-PAY-8
+    assert (await row_of(a["code"])).payment_status == "cancelled"
+    assert await active_allocations(a["code"]) == 0
+    after = await history()
+    assert after["summary"] == before["summary"], "số trận / thắng / thua không đổi sau khi hủy"
+    assert any(i["room_id"] == ra.id and i["matches"] == 1 for i in after["items"])
     ms = (await host.client.get(f"{MA}/rooms/{ra.id}/matches")).json()
     assert ms["total"] == 1
+    assert (await host.client.get(f"{MA}/rooms/{ra.id}/ranking")).status_code == 200
+    assert (await host.client.get(f"{MA}/rooms/{ra.id}")).status_code == 200
+    listed = (await host.client.get(f"{MA}/rooms", params={"scope": "all"})).json()["items"]
+    assert ra.id not in [x["id"] for x in listed], "không hiện ở Danh sách sân"
 
     r = await cancel(admin, b["code"])
     assert r.status_code == 200, r.text
+    await events.publish(events.BOOKING_CANCELLED, {"tenant_id": 1, **await _outbox(b["code"])})
     async with SessionLocal() as s:
         m = await s.scalar(select(PlayMatch).where(PlayMatch.room_id == rb.id))
+        fin = await s.scalar(select(PlayMatch).where(PlayMatch.room_id == ra.id))
+    assert m.status == "abandoned" and fin.status == "finished"
+    # phòng không có trận đã xong: ẩn như T-051
     assert (await host.client.get(f"{MA}/rooms/{rb.id}")).status_code == 404
-    # buổi A vẫn thấy được và vẫn trong lịch sử
-    assert (await host.client.get(f"{MA}/rooms/{ra.id}")).status_code == 200
-    assert m is not None
 
 
 # ---------------------------------------------------------------- AC10/AC11: phòng, danh sách sân, thông báo

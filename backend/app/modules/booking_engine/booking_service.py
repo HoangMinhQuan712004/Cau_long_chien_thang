@@ -27,7 +27,11 @@ from app.modules.booking_engine.common import (
     profile_label,
     sqlstate,
 )
-from app.modules.booking_engine.config_service import _resource_by_code, price_slots
+from app.modules.booking_engine.config_service import (
+    _resource_by_code,
+    lock_live_resources,
+    price_slots,
+)
 from app.modules.booking_engine.dto import (
     Actor,
     CalendarBlock,
@@ -47,6 +51,7 @@ from app.modules.booking_engine.dto import (
 )
 from app.modules.booking_engine.holds import expire_holds, hold_visible, seat_hold_counted
 from app.modules.booking_engine.models import (
+    RESOURCE_LIVE,
     Allocation,
     Booking,
     EventSession,
@@ -157,7 +162,7 @@ async def calendar(
     resources = list(
         await session.scalars(
             select(Resource)
-            .where(Resource.tenant_id == tenant_id)
+            .where(Resource.tenant_id == tenant_id, RESOURCE_LIVE)
             .order_by(Resource.sort_order, Resource.code)
         )
     )
@@ -185,6 +190,7 @@ async def calendar(
                 Booking.tenant_id == tenant_id,
                 Booking.play_date == day,
                 Booking.payment_status != "cancelled",
+                Booking.resource_id.in_(by_id),  # sân đã xóa: không có hàng trên lịch
             )
             .order_by(Booking.start_at)
         )
@@ -230,7 +236,9 @@ async def calendar(
     unpaid_tickets_total = 0
     for ev in sessions:
         s_min, e_min = ctx.minute_of(day, ev.start_at), ctx.minute_of(day, ev.end_at)
-        ev_res = res_of.get(ev.id, [])
+        ev_res = [r for r in res_of.get(ev.id, []) if r.id in by_id]
+        if not ev_res:
+            continue
         busy_resources.update(r.id for r in ev_res)
         add_span(s_min, e_min)
         tickets, unpaid, held = counts.get(ev.id, (0, 0, 0))
@@ -261,6 +269,7 @@ async def calendar(
             Allocation.tenant_id == tenant_id,
             Allocation.kind == "hold",
             Allocation.active.is_(True),
+            Allocation.resource_id.in_(by_id),
             Allocation.time_range.overlaps(Range(day_start, day_end, bounds="[)")),
             hold_visible(ctx.now),
         )
@@ -394,17 +403,26 @@ async def search(session: AsyncSession, tenant_id: int, raw: str) -> SearchResul
 # ------------------------------------------------------------------ thông tin booking / vé
 
 
-def payment_actions(item: Booking | Ticket, start_at, ctx: Ctx) -> list[str]:
-    """Thao tác được phép lúc này (BR-013, BR-015, T-051).
+def cancel_phase(item: Booking | Ticket, start_at, end_at, ctx: Ctx) -> str | None:
+    """``before`` / ``playing`` / ``past`` nếu hủy được lúc này, không thì None (T-052): đã thu hủy
+    được mọi lúc; chưa thu chỉ trước giờ bắt đầu."""
+    if item.payment_status not in ("unpaid", "paid"):
+        return None
+    if ctx.now < start_at:
+        return "before"
+    if item.payment_status != "paid":
+        return None
+    return "playing" if ctx.now < end_at else "past"
 
-    ``cancel`` chưa xét trận trong phòng chơi (engine không biết phòng): có trận -> E-PAY-8.
-    """
+
+def payment_actions(item: Booking | Ticket, start_at, end_at, ctx: Ctx) -> list[str]:
+    """Thao tác được phép lúc này (BR-013, BR-015, T-051, T-052)."""
     actions: list[str] = []
     if item.payment_status == "unpaid":
         actions.append("collect")
         if item.source == "counter" and ctx.now >= start_at:
             actions.append("uncollectible")
-    if item.payment_status in ("unpaid", "paid") and ctx.now < start_at:
+    if cancel_phase(item, start_at, end_at, ctx) is not None:
         actions.append("cancel")
     return actions
 
@@ -459,7 +477,8 @@ async def booking_item(session: AsyncSession, ctx: Ctx, b: Booking) -> ItemOut:
         note=b.note,
         created_by=b.created_by_label,
         created_at=b.created_at,
-        actions=payment_actions(b, b.start_at, ctx),
+        actions=payment_actions(b, b.start_at, b.end_at, ctx),
+        cancel_phase=cancel_phase(b, b.start_at, b.end_at, ctx),
     )
 
 
@@ -484,7 +503,8 @@ async def ticket_item(session: AsyncSession, ctx: Ctx, t: Ticket) -> ItemOut:
         note=t.note,
         created_by=t.created_by_label,
         created_at=t.created_at,
-        actions=payment_actions(t, ev.start_at, ctx),
+        actions=payment_actions(t, ev.start_at, ev.end_at, ctx),
+        cancel_phase=cancel_phase(t, ev.start_at, ev.end_at, ctx),
     )
 
 
@@ -568,6 +588,7 @@ async def create_counter_order(
     planned.sort(key=lambda p: (p[0].sort_order, p[0].code, p[1]))
 
     await expire_holds(session)
+    await lock_live_resources(session, {r.id for r, _, _, _ in planned})
     order_code = await next_code(session, tenant_id, ctx.code_prefix, data.date)
     snapshot = snapshot_values(customer)
     order = new_order(tenant_id, order_code, data.date, "counter", snapshot, actor.label)

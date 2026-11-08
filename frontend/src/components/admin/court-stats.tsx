@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { formatDayMonthYear, formatNumber, formatVnd } from "@/lib/format";
 import { SECTION, SECTION_TITLE } from "./court-overview";
 
-// Thống kê dùng sân theo kỳ (Tuần / Tháng / Năm), so với kỳ trước cùng số ngày. Đổi kỳ chỉ gọi lại /stats.
+// Thống kê dùng sân theo kỳ (Tuần / Tháng / Năm). Đổi kỳ chỉ gọi lại /stats.
 
 type Stats = components["schemas"]["ResourceStatsOut"];
 type Period = Stats["period"];
@@ -17,18 +17,6 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: "month", label: "Tháng" },
   { key: "year", label: "Năm" },
 ];
-
-/** ▲ 12% / ▼ 5% so kỳ trước; kỳ trước = 0 ⇒ không so được. */
-function Delta({ now, prev }: { now: number; prev: number }) {
-  if (!prev) return <span className="text-ui text-muted">Kỳ trước chưa có số liệu</span>;
-  const pct = Math.round(((now - prev) / prev) * 100);
-  const up = pct >= 0;
-  return (
-    <span className={cn("text-ui font-semibold tabular-nums", up ? "text-primary" : "text-danger")}>
-      {up ? "▲" : "▼"} {Math.abs(pct)}% <span className="font-normal text-muted">so kỳ trước</span>
-    </span>
-  );
-}
 
 export function CourtStats({ code }: { code: string }) {
   const [period, setPeriod] = useState<Period>("week");
@@ -51,10 +39,10 @@ export function CourtStats({ code }: { code: string }) {
 
   const figures = stats
     ? [
-        { label: "Lấp đầy", value: `${formatNumber(Math.round(stats.occupancy_pct))}%`, delta: null },
-        { label: "Giờ đã bán", value: formatNumber(stats.booked_hours), delta: <Delta now={stats.booked_hours} prev={stats.prev.booked_hours} /> },
-        { label: "Lượt đặt", value: formatNumber(stats.bookings_count), delta: <Delta now={stats.bookings_count} prev={stats.prev.bookings_count} /> },
-        { label: "Doanh thu", value: formatVnd(stats.revenue), delta: <Delta now={stats.revenue} prev={stats.prev.revenue} /> },
+        { label: "Lấp đầy", value: `${formatNumber(Math.round(stats.occupancy_pct))}%` },
+        { label: "Giờ đã bán", value: formatNumber(stats.booked_hours) },
+        { label: "Lượt đặt", value: formatNumber(stats.bookings_count) },
+        { label: "Doanh thu", value: formatVnd(stats.revenue) },
       ]
     : [];
 
@@ -90,7 +78,6 @@ export function CourtStats({ code }: { code: string }) {
               <div key={x.label} className="flex flex-col gap-0.5">
                 <dt className="text-ui text-muted">{x.label}</dt>
                 <dd className="text-lg font-bold tabular-nums">{x.value}</dd>
-                {x.delta}
               </div>
             ))}
           </dl>

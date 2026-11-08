@@ -83,8 +83,13 @@ class Resource(Base):
     __tablename__ = "resource"
     __table_args__ = (
         UniqueConstraint("tenant_id", "code"),
+        # Sân đã xóa nhường lại tên (mã thì không dùng lại, xem ``uq`` tenant + code)
         Index(
-            "uq_resource_tenant_id_lower_name", "tenant_id", func.lower(text("name")), unique=True
+            "uq_resource_tenant_id_lower_name",
+            "tenant_id",
+            func.lower(text("name")),
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
         ),
         {"schema": SCHEMA},
     )
@@ -100,10 +105,15 @@ class Resource(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     attributes: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    # Đã xóa: ẩn khỏi mọi màn vận hành, luôn kèm ``is_active = False``; lịch sử vẫn nối tới dòng này
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+RESOURCE_LIVE = Resource.deleted_at.is_(None)  # điều kiện lọc chung: sân chưa xóa
 
 
 class ResourceSchedule(Base):

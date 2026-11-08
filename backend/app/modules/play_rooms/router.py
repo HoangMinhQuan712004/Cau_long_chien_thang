@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import ratelimit
 from app.core.db import SessionDep
 from app.core.idempotency import IdempotencyDep
 from app.core.middleware import require_origin
@@ -45,6 +46,7 @@ router = APIRouter(prefix="/member-area", tags=["member-area"])
 
 RoomId = Annotated[int, Path(ge=1)]
 WRITE = [Depends(require_origin)]
+SEARCH_PER_MINUTE = 30  # T-054: lượt tìm theo mã booking / tài khoản
 
 
 IfNoneMatch = Annotated[str | None, Header(description="ETag lần trước -> 304 nếu không đổi")]
@@ -94,9 +96,20 @@ async def list_rooms(
     session: SessionDep,
     if_none_match: IfNoneMatch = None,
     scope: Annotated[Literal["all", "mine"], Query(description="mine: phòng có mình")] = "all",
+    q: Annotated[
+        str | None, Query(description="Đúng mã đơn BK-YYYYMMDD-NNN hoặc mã con -NN (T-054)")
+    ] = None,
 ):
     """Danh sách sân hôm nay còn mở + số liệu banner (AC4–AC6). 403 E-HV-8 (chưa là hội viên)."""
-    return _etag_response(await views.list_rooms(session, _me(member), scope), if_none_match)
+    me = _me(member)
+    if q is None:
+        return _etag_response(await views.list_rooms(session, me, scope), if_none_match)
+    # Mã đoán được theo ngày: giới hạn để không dò được lịch đặt của người khác
+    retry_after = await ratelimit.check("room.search", str(me.user_id), SEARCH_PER_MINUTE, 60)
+    if retry_after is not None:
+        raise ratelimit.too_many(retry_after)
+    body = await views.list_rooms(session, me, scope, q)
+    return JSONResponse(jsonable_encoder(body), headers={"Cache-Control": "no-store"})
 
 
 @router.get("/rooms/by-booking/{code}", response_model=RoomRef)
@@ -125,7 +138,8 @@ async def get_room(
     session: SessionDep,
     if_none_match: IfNoneMatch = None,
 ):
-    """Chi tiết phòng (cả phòng đã đóng – chỉ xem). 404 nếu không có / Host chưa đủ điều kiện."""
+    """Chi tiết phòng. 404 nếu không có / Host không đủ điều kiện / phòng đã kết thúc mà mình không
+    phải người trong phòng (T-054); người trong phòng xem được, chỉ đọc."""
     return _etag_response(await views.room_detail(session, _me(member), room_id), if_none_match)
 
 

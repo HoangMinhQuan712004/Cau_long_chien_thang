@@ -20,7 +20,8 @@ from app.modules.booking_engine.report_dto import (  # noqa: F401 – mặt ti�
     RevenueTotals,
 )
 
-# "HH:MM", bội 30 phút; "24:00" = nửa đêm cuối ngày (chỉ có nghĩa với giờ đóng cửa)
+# "HH:MM"; "24:00" = nửa đêm cuối ngày (chỉ có nghĩa với giờ đóng cửa). Vẫn nhận :30 ở đây: form gửi
+# lại nguyên giá trị cũ không được lỗi; giá trị MỚI phải tròn giờ, xem ``ensure_whole_hours``
 HHMM = Annotated[str, StringConstraints(pattern=r"^(([01]\d|2[0-3]):(00|30)|24:00)$")]
 DayType = Literal["weekday", "weekend", "holiday"]
 Band = Literal["offpeak", "peak"]
@@ -401,6 +402,11 @@ class ItemOut(BaseModel):
     created_by: str
     created_at: dt.datetime
     actions: list[Literal["collect", "uncollectible", "cancel"]]
+    cancel_phase: Literal["before", "playing", "past"] | None = Field(
+        default=None,
+        description="Lúc này so với giờ chơi, để popup chọn câu cảnh báo (T-052); null: không hủy "
+        "được",
+    )
 
 
 class CollectIn(StrictIn):
