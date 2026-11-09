@@ -5159,15 +5159,14 @@ export interface components {
         };
         /**
          * OrderOut
-         * @description Một đơn đặt sân (quầy / online / định kỳ) – SĐT đã che, không gồm vé.
+         * @description Một đơn đặt sân (quầy / online / định kỳ), không gồm vé. SĐT đầy đủ như các màn quản trị
+         *     khác (người dùng chốt 2026-11-09); quyền ``booking.orders.view``.
          */
         OrderOut: {
             /** Order Code */
             order_code: string;
             /** Customer Name */
             customer_name: string;
-            /** Phone Masked */
-            phone_masked: string | null;
             /** Resource Code */
             resource_code: string;
             /** Resource Name */
@@ -5218,6 +5217,8 @@ export interface components {
             created_at: string;
             /** Created By */
             created_by: string;
+            /** Phone */
+            phone: string;
             /**
              * Kind
              * @description single = đơn ngày · recurring
@@ -6408,8 +6409,6 @@ export interface components {
             order_code: string;
             /** Customer Name */
             customer_name: string;
-            /** Phone Masked */
-            phone_masked: string | null;
             /** Resource Code */
             resource_code: string;
             /** Resource Name */
@@ -6460,6 +6459,8 @@ export interface components {
             created_at: string;
             /** Created By */
             created_by: string;
+            /** Phone Masked */
+            phone_masked: string | null;
         };
         /** RecurringPreview */
         RecurringPreview: {

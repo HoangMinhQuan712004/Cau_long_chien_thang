@@ -84,8 +84,9 @@ async def test_orders_kinds_statuses_dates_search_and_privacy(anon, admin, staff
     assert (rec["kind"], rec["discount_pct"], rec["blocks"]) == ("recurring", 5, 1)
     assert by_code[counter_order]["play_date"] == today().isoformat()
     assert by_code[counter_order]["resource_names"] == [court["name"]]
-    assert all(p not in str(d) for p in phones)  # SĐT che
-    assert by_code[counter_order]["phone_masked"] == f"{phones[0][:4]} xxx {phones[0][-3:]}"
+    # SĐT đầy đủ ở màn Đơn đặt sân (người dùng chốt 2026-11-09; trước đây che)
+    assert by_code[counter_order]["phone"] == phones[0]
+    assert "phone_masked" not in by_code[counter_order]
 
     # Lọc loại × trạng thái
     assert codes(await orders(admin, q=tag, kind="single")) == [online_order, counter_order]

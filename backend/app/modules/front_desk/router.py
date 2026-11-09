@@ -221,12 +221,9 @@ async def create_recurring(
     return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
 
 
-class RecurringOrderOut(BaseModel):
-    """Một đơn định kỳ (T-039) – SĐT đã che."""
-
+class _OrderBase(BaseModel):
     order_code: str
     customer_name: str
-    phone_masked: str | None
     resource_code: str
     resource_name: str
     weekdays: list[int] = Field(description="ISO 1 = T2 … 7 = CN (các thứ có buổi)")
@@ -242,6 +239,12 @@ class RecurringOrderOut(BaseModel):
     status: Literal["unpaid", "paid", "uncollectible", "cancelled"]
     created_at: dt.datetime
     created_by: str
+
+
+class RecurringOrderOut(_OrderBase):
+    """Một đơn định kỳ (T-039) – SĐT đã che."""
+
+    phone_masked: str | None
 
 
 class RecurringOrderListOut(BaseModel):
@@ -284,9 +287,11 @@ async def list_recurring(
 # ------------------------------------------------------------------ đơn đặt sân (T-041)
 
 
-class OrderOut(RecurringOrderOut):
-    """Một đơn đặt sân (quầy / online / định kỳ) – SĐT đã che, không gồm vé."""
+class OrderOut(_OrderBase):
+    """Một đơn đặt sân (quầy / online / định kỳ), không gồm vé. SĐT đầy đủ như các màn quản trị
+    khác (người dùng chốt 2026-11-09); quyền ``booking.orders.view``."""
 
+    phone: str
     kind: Literal["single", "recurring"] = Field(description="single = đơn ngày · recurring")
     source: Literal["counter", "online"]
     member_code: str | None = Field(description="Mã HV khi khách là hội viên")
@@ -342,10 +347,7 @@ async def list_orders(
     )
     return OrderListOut(
         items=[
-            OrderOut(
-                **row.model_dump(exclude={"customer_phone"}),
-                phone_masked=mask_phone(row.customer_phone),
-            )
+            OrderOut(**row.model_dump(exclude={"customer_phone"}), phone=row.customer_phone)
             for row in out.items
         ],
         counts=OrderCountsOut(**out.counts.model_dump()),
