@@ -8,8 +8,8 @@ export { fill, weekdayIndex } from "@/lib/format";
 const ONE_DECIMAL = new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const INTEGER = new Intl.NumberFormat("vi-VN");
 
-/** Tiền đầy đủ: "99.850.000 đ" (không dùng ₫); âm: "−300.000 đ". */
-export const money = (n: number) => `${n < 0 ? "−" : ""}${INTEGER.format(Math.abs(n))} đ`;
+/** Tiền đầy đủ: "99.850.000 đ" (không dùng ₫). */
+export const money = (n: number) => `${INTEGER.format(n)} đ`;
 
 /** Số nguyên có chấm ngăn nghìn: "1.234". */
 export const count = (n: number) => INTEGER.format(n);
@@ -17,9 +17,8 @@ export const count = (n: number) => INTEGER.format(n);
 /** Làm tròn 1 chữ số, nửa lên (tiền là số nguyên VND nên n/100.000 không lệch dấu phẩy động ở .5). */
 export const round1 = (x: number) => Math.round(x * 10) / 10;
 
-/** Tiền ra triệu, 1 chữ số: 16.950.000 ⇒ "17,0"; > 0 mà tròn ra 0 ⇒ "<0,1"; âm (hoàn nhiều hơn thu, T-057) ⇒ "−0,3", "−<0,1". */
-export function millions(n: number): string {
-  if (n < 0) return `−${millions(-n)}`;
+/** Tiền ra triệu, 1 chữ số: 16.950.000 ⇒ "17,0"; > 0 mà tròn ra 0 ⇒ "<0,1". */
+export function millions(n: number) {
   const m = Math.round(n / 100_000) / 10;
   return n > 0 && m === 0 ? `<${ONE_DECIMAL.format(0.1)}` : ONE_DECIMAL.format(m);
 }

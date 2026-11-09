@@ -98,14 +98,7 @@ GROUPS: tuple[ActionGroup, ...] = (
             _t("ticket.create", "Đăng ký vé"),
             # Thu tiền QR: tiền về xác nhận qua bên thứ 3, người làm là Hệ thống (BR-009)
             # T-023: tiền về cho lượt mua vé online cũng là Thu tiền QR (Hệ thống)
-            # T-058: QR "Thu cả đơn" của đơn quầy – tiền về cũng do Hệ thống ghi
-            _t(
-                "payment.collect",
-                "Thu tiền",
-                "booking.online.paid",
-                "ticket.online.paid",
-                "booking.counter_qr.paid",
-            ),
+            _t("payment.collect", "Thu tiền", "booking.online.paid", "ticket.online.paid"),
             _t("payment.uncollectible", "Không thu được"),
             _t("payment.cancelled", "Hủy booking / vé"),
         ),

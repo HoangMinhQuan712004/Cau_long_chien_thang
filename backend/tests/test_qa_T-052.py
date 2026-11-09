@@ -186,17 +186,14 @@ async def test_ac3_past_cancel_deducts_only_the_play_day_and_capacity(admin, sta
     assert other_a == other_b, "ngày khác không đổi"
     assert slots_b == 1 and slots_a == 0, "công suất ngày đó giảm"
     cards_a = (await admin.get(f"{BK}/transactions", params=params)).json()["cards"]
-    # Sổ tiền vào: thu giữ nguyên, thêm một dòng hoàn cùng số tiền; thẻ Thực thu trừ đi, thẻ Hoàn tiền cộng thêm
-    assert cards_a["refund"] == cards_b["refund"] + amount
-    assert cards_a["net"] == cards_b["net"] - amount
-    assert cards_a["cash"] == cards_b["cash"], "tiền mặt đã nhận không bị sửa, hoàn là dòng riêng"
+    assert cards_a["paid"]["amount"] == cards_b["paid"]["amount"] - amount
+    assert cards_a["cancelled"]["amount"] == cards_b["cancelled"]["amount"] + amount
+    assert cards_a["cancelled"]["count"] == cards_b["cancelled"]["count"] + 1
     # Lọc theo mã: bảng 8 dòng / trang, các test khác cũng hủy buổi cùng ngày trên CSDL dùng chung
-    wide = {**params, "q": past["code"]}
-    entries = (await admin.get(f"{BK}/transactions", params=wide)).json()["items"]
-    assert sorted(e["kind"] for e in entries) == ["in", "refund"], entries
-    refund = next(e for e in entries if e["kind"] == "refund")
-    assert refund["amount"] == amount and refund["actor_label"]
-    assert [i["code"] for i in refund["items"]] == [past["code"]]
+    filtered = {**params, "status": "cancelled", "q": past["code"]}
+    rows = (await admin.get(f"{BK}/transactions", params=filtered)).json()["rows"]
+    row = next(x for x in rows if x["code"] == past["code"])
+    assert row["cancel_reason"] == REASON and row["refund_amount"] == amount and row["cancelled_by"]
     assert await audits(past["code"]) == 1
     # Khung đã qua không hiện trên lịch và không ảnh hưởng ai đặt được
     cal = (await admin.get(f"{BK}/calendar", params={"date": DAY.isoformat()})).json()

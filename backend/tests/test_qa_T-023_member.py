@@ -219,14 +219,11 @@ async def test_ac13_member_ticket_flows_into_history_admin_screens_and_reports(a
             params={"q": ev["code"], "from": today().isoformat(), "to": today().isoformat()},
         )
     ).json()
-    entries = [e for e in tx["items"] if any(i["code"].startswith(ev["code"]) for i in e["items"])]
-    assert len(entries) == 1, "một lần tiền về = một dòng sổ cho cả 2 vé"
-    entry = entries[0]
-    assert (entry["kind"], entry["method"], entry["source"]) == ("in", "transfer", "online")
-    assert entry["amount"] == 90_000 and entry["actor_label"] == "Hệ thống"
-    assert [(i["kind"], i["amount"]) for i in entry["items"]] == [("ticket", 45_000)] * 2
-    assert sorted(i["code"] for i in entry["items"]) == [f"{ev['code']}-V01", f"{ev['code']}-V02"]
-    assert me.phone not in str(entry), "SĐT được che"
+    tickets = [r for r in tx["rows"] if r["kind"] == "ticket" and r["code"].startswith(ev["code"])]
+    assert len(tickets) == 2 and all(
+        r["source"] == "online" and r["payment_status"] == "paid" and r["amount"] == 45_000
+        for r in tickets
+    )
     # Báo cáo doanh thu: cộng đúng một lần
     after = (await admin.get(f"{API}/admin/reports/overview")).json()["revenue"]
     assert after["current"] - base["current"] == 90_000, (base, after)

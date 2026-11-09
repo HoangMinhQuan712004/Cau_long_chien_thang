@@ -172,55 +172,33 @@ export type SearchResult = {
   codes?: string[];
 };
 
-// ---- Lịch sử giao dịch = sổ tiền vào (T-057, ADR-014): mỗi dòng một lần nhận tiền / một lần hoàn ----
-export type TransactionEntryItem = {
-  code: string;
+export type TransactionRow = {
   kind: "booking" | "ticket";
-  resource_name: string;
+  code: string;
+  order_code?: string | null;
   play_date: string;
-  start_at: string;
-  end_at: string;
-  amount: number;
-};
-
-/** Không có id nội bộ (T-057, SEC4 của QA): FE lấy vị trí dòng trong trang làm key. */
-export type TransactionEntry = {
-  kind: "in" | "refund";
-  /** `transfer` gồm cả tiền SePay của khách đặt online. */
-  method: "cash" | "transfer";
-  source: "counter" | "counter_qr" | "online";
-  /** Luôn dương; dòng hoàn hiện "−". */
-  amount: number;
-  occurred_at: string;
-  /** Mã đơn booking; vé là mã sự kiện. */
-  order_code: string | null;
+  start_time: string;
+  end_time: string;
+  resource_codes: string[];
   customer_name: string;
-  customer_phone_masked: string | null;
-  member_code?: string | null;
-  /** "Hệ thống" cho tiền SePay. */
-  actor_label: string;
-  items: TransactionEntryItem[];
+  phone: string | null;
+  amount: number;
+  payment_status: PaymentStatus;
+  payment_method: PaymentMethod | null;
+  source: Source;
+  cancel_reason?: string | null;
+  cancelled_by?: string | null;
+  refund_amount?: number;
 };
 
 export type Transactions = {
-  /** VND theo cả bộ lọc (không chỉ trang này): net = cash + transfer − refund. */
-  cards: { net: number; cash: number; transfer: number; refund: number };
-  items: TransactionEntry[];
-  total: number;
+  date_from: string;
+  date_to: string;
+  rows: TransactionRow[];
   page: number;
-  size: number;
-};
-
-// ---- Thu cả đơn bằng QR (T-058); SchemaContract bên dưới kiểm khớp CollectQrOut ----
-export type CollectQr = {
-  order_code: string;
-  /** Nội dung chuyển khoản = mã đơn bỏ gạch ("BK20261106001"). */
-  pay_ref: string;
-  /** Tổng các khối chưa thu lúc hỏi; 0 khi đã thu hết. */
-  amount: number;
-  status: "unpaid" | "paid";
-  blocks: number;
-  bank: import("@/components/web-booking/types").Bank;
+  page_size: number;
+  total: number;
+  cards: Record<Exclude<PaymentStatus, "cancelled">, { amount: number; count: number }> & { cancelled?: { amount: number; count: number } };
 };
 
 /** Khách gửi lên: đúng một trong hai (server tự dựng snapshot – ADR-004 S8). */
@@ -242,7 +220,6 @@ export type SchemaContract = [
   Accepts<Api["schemas"]["SessionOut"], SessionDetail>,
   Accepts<Api["schemas"]["SearchResult"], SearchResult>,
   Accepts<Api["schemas"]["TransactionsOut"], Transactions>,
-  Accepts<Api["schemas"]["CollectQrOut"], CollectQr>,
 ];
 
 // ---- Hủy (T-051, Admin): hợp đồng theo spec, thay bằng kiểu sinh khi BE handoff ----

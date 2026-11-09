@@ -12,7 +12,6 @@ import type {
   RecurringPreview,
   BookingOrderList,
   CancelPreview,
-  CollectQr,
   RecurringOrderList,
   RecurringPreviewBody,
   SearchResult,
@@ -54,13 +53,12 @@ export const getItem = (code: string) =>
 export const getSession = (code: string) =>
   read<SessionDetail>(() => looseApi.GET(`${P}/booking/sessions/{code}`, { params: { path: { code } } }));
 
-/** Lọc sổ tiền vào theo ngày nhận / hoàn tiền (giờ VN, ≤ 92 ngày), T-057. */
 export type TransactionFilters = {
   from?: string;
   to?: string;
   resource?: string;
-  method?: "" | "cash" | "transfer";
-  kind?: "" | "in" | "refund";
+  status?: string;
+  method?: string;
   q?: string;
   page?: number;
 };
@@ -79,12 +77,6 @@ export const sendCounterBooking = (
 ) => looseApi.POST(`${P}/front-desk/bookings`, { body: v, headers: idem(key) });
 
 /** Thu tiền mặt mọi khối Chưa thanh toán của đơn. */
-/** QR chuyển khoản cho "Thu cả đơn" (T-058); hỏi lại định kỳ khi popup mở. 409 E-PAY-9 chưa cài nhận tiền, 409 E-BOOK-4 hết khối chưa thu, 404 E-BOOK-3. */
-export const getCollectQr = (orderCode: string) =>
-  read<CollectQr>(() =>
-    looseApi.GET(`${P}/front-desk/orders/{code}/collect-qr`, { params: { path: { code: orderCode } }, cache: "no-store" }),
-  );
-
 export const sendCollectOrder = (key: string, orderCode: string) =>
   looseApi.POST(`${P}/booking/orders/{order_code}/collect`, { params: { path: { order_code: orderCode } }, body: { method: "cash" }, headers: idem(key) });
 

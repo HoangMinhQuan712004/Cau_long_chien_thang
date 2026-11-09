@@ -9,8 +9,6 @@ from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.modules.booking_engine import ledger
-from app.modules.booking_engine.dto import Actor
 from app.modules.booking_engine.models import (
     DEFAULT_TENANT_SETTINGS,
     Allocation,
@@ -44,13 +42,9 @@ def _code() -> str:
     return f"RP-{uuid.uuid4().hex[:12].upper()}"
 
 
-TEST_ACTOR = Actor(type="system", label="Test")
-
-
-def _paid(status: str, start: datetime) -> dict:
-    """Đã thu: tiền về đúng lúc bắt đầu chơi -> ngày tiền về = ngày chơi, so cùng mốc như cũ."""
+def _paid(status: str, day: date) -> dict:
     if status == "paid":
-        return {"payment_status": "paid", "payment_method": "cash", "paid_at": start}
+        return {"payment_status": "paid", "payment_method": "cash", "paid_at": at(day, 23)}
     if status == "uncollectible":
         return {"payment_status": "uncollectible", "uncollectible_reason": "Khách bỏ về"}
     return {"payment_status": "unpaid"}
@@ -156,13 +150,12 @@ class Venue:
             start_at=at(day, hour),
             end_at=at(day, hour + hours),
             amount=amount,
-            **_paid(status, at(day, hour)),
+            **_paid(status, day),
             **BY_TEST,
             **CUSTOMER,
         )
         self.s.add(row)
         await self.s.flush()
-        await self._ledger([row])
         self._alloc(code, day, hour, hours, kind="booking", booking_id=row.id)
         await self.s.flush()
         return row
@@ -192,9 +185,8 @@ class Venue:
         await self.s.flush()
         for code in codes:
             self._alloc(code, day, hour, hours, kind="session", session_id=ev.id)
-        rows = []
         for seq, amount in enumerate(tickets, start=1):
-            rows.append(
+            self.s.add(
                 Ticket(
                     tenant_id=self.tid,
                     session_id=ev.id,
@@ -202,24 +194,13 @@ class Venue:
                     code=f"{ev.code}-V{seq:02d}",
                     source="counter",
                     amount=amount,
-                    **_paid(status, at(day, hour)),
+                    **_paid(status, day),
                     **BY_TEST,
                     **CUSTOMER,
                 )
             )
-        self.s.add_all(rows)
         await self.s.flush()
-        for t in rows:
-            await self._ledger([t])
         return ev
-
-    async def _ledger(self, rows: list) -> None:
-        """Sổ tiền vào (T-057): báo cáo đọc tiền từ sổ, không từ dòng booking / vé."""
-        paid = [r for r in rows if r.payment_status == "paid"]
-        if paid:
-            await ledger.record_in(
-                self.s, self.tid, paid, method="cash", occurred_at=paid[0].paid_at, actor=TEST_ACTOR
-            )
 
 
 async def add_customer(
