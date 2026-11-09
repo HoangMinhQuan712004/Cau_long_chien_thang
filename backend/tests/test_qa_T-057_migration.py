@@ -45,7 +45,8 @@ def money_columns(
         if online_pay:
             who = ("'web'", "NULL", "'Khách đặt online'")
             method = "'online_transfer'"
-            cols["gateway_ref"] = f"'sepay:{online_pay}{t[9:11]}{t[12:14]}:{k}'"
+            gw = f"sepay:{online_pay}{t[9:11]}{t[12:14]}"
+            cols["gateway_ref"] = f"'{gw}:{k}'"
         else:
             who = rng.choice(COLLECTORS)
             method = rng.choice(METHODS)
@@ -58,6 +59,8 @@ def money_columns(
             "collected_by_label": who[2],
         }
         meta |= {"paid_at": t, "method": method, "who": who}
+        if online_pay:
+            meta["gw"] = gw
         if status == "cancelled":
             c = rng.choice(CANCEL_T)
             refund = amount if rng.random() < 0.7 else 0
@@ -74,6 +77,131 @@ def money_columns(
     elif status == "uncollectible":
         cols |= {"payment_status": "'uncollectible'", "uncollectible_reason": "'Khách bỏ về'"}
     return cols | {"_meta": meta}  # type: ignore[dict-item]
+
+
+ONLINE_WHO = ("'web'", "NULL", "'Khách đặt online'")
+
+
+def shared_transaction_cases() -> tuple[dict, list[str]]:
+    """Sửa 09/11: một giao dịch SePay trả nhiều khối thuộc nhiều đơn (dữ liệu trước T-019 trên dev).
+
+    A: hai đơn, id đơn ngược thứ tự mã (mã nhỏ nhất ở id lớn hơn); B: ba đơn, một đơn hai khối, một khối lệch 1 giây;
+    C: hai vé của hai khách; E: hai giao dịch KHÁC nhau trong cùng một đơn, cùng giây → hai dòng (không nuốt mã giao dịch).
+    """
+    st: list[str] = []
+    for oid, code in ((20, "025"), (21, "020"), (22, "030"), (23, "028"), (24, "029")):
+        st.append(order(oid, f"BK-20261101-{code}", "'online'"))
+    bookings: list[dict] = []
+    tickets: list[dict] = []
+
+    def add_booking(bid: int, oid: int, seq: int, amount: int, at: str, gateway_ref: str) -> None:
+        st.append(
+            booking(
+                bid,
+                oid,
+                seq,
+                amount,
+                payment_status="'paid'",
+                payment_method="'online_transfer'",
+                paid_at=f"'{at}'",
+                collected_by_type=ONLINE_WHO[0],
+                collected_by_id=ONLINE_WHO[1],
+                collected_by_label=ONLINE_WHO[2],
+                gateway_ref=f"'{gateway_ref}'",
+            )
+        )
+        bookings.append(
+            {
+                "id": bid,
+                "order": oid,
+                "status": "paid",
+                "amount": amount,
+                "paid_at": f"'{at}'",
+                "method": "'online_transfer'",
+                "who": ONLINE_WHO,
+                "gw": gateway_ref.rsplit(":", 1)[0],
+            }
+        )
+
+    add_booking(1001, 20, 1, 300_000, "2026-10-30 10:00:00+07", "sepay:sharedA:1")
+    add_booking(1002, 21, 1, 300_000, "2026-10-30 10:00:00+07", "sepay:sharedA:2")
+    add_booking(1003, 22, 1, 100_000, "2026-10-30 11:00:00+07", "sepay:sharedB:1")
+    add_booking(1004, 22, 2, 50_000, "2026-10-30 11:00:00+07", "sepay:sharedB:2")
+    add_booking(1005, 23, 1, 70_000, "2026-10-30 11:00:01+07", "sepay:sharedB:3")
+    add_booking(1006, 24, 1, 40_000, "2026-10-30 13:00:00+07", "sepay:sharedE1:1")
+    add_booking(1007, 24, 2, 50_000, "2026-10-30 13:00:00+07", "sepay:sharedE2:1")
+    for tid, cust in ((101, "p"), (102, "q")):
+        at = "2026-10-30 12:00:00+07"
+        st.append(
+            ticket(
+                tid,
+                tid,
+                30_000,
+                cust,
+                payment_status="'paid'",
+                payment_method="'online_transfer'",
+                paid_at=f"'{at}'",
+                collected_by_type=ONLINE_WHO[0],
+                collected_by_id=ONLINE_WHO[1],
+                collected_by_label=ONLINE_WHO[2],
+                gateway_ref=f"'sepay:sharedC:{tid - 100}'",
+            )
+        )
+        tickets.append(
+            {
+                "id": tid,
+                "ref": cust,
+                "status": "paid",
+                "amount": 30_000,
+                "paid_at": f"'{at}'",
+                "method": "'online_transfer'",
+                "who": ONLINE_WHO,
+                "gw": "sepay:sharedC",
+            }
+        )
+    cases = [
+        {
+            "name": "A hai đơn",
+            "reference": "sepay:sharedA",
+            "amount": 600_000,
+            "order_code": "BK-20261101-020",
+            "items": 2,
+            "item_codes": ["BK-20-01", "BK-21-01"],
+        },
+        {
+            "name": "B ba đơn",
+            "reference": "sepay:sharedB",
+            "amount": 220_000,
+            "order_code": "BK-20261101-028",
+            "items": 3,
+            "item_codes": ["BK-22-01", "BK-22-02", "BK-23-01"],
+        },
+        {
+            "name": "C hai vé",
+            "reference": "sepay:sharedC",
+            "amount": 60_000,
+            "order_code": "BK-20261101-900",
+            "items": 2,
+            "item_codes": ["SK-V101", "SK-V102"],
+        },
+        {
+            "name": "E1 giao dịch riêng",
+            "reference": "sepay:sharedE1",
+            "amount": 40_000,
+            "order_code": "BK-20261101-029",
+            "items": 1,
+            "item_codes": ["BK-24-01"],
+        },
+        {
+            "name": "E2 giao dịch riêng",
+            "reference": "sepay:sharedE2",
+            "amount": 50_000,
+            "order_code": "BK-20261101-029",
+            "items": 1,
+            "item_codes": ["BK-24-02"],
+        },
+    ]
+    return {"bookings": bookings, "tickets": tickets, "cases": cases}, st
 
 
 async def test_random_backfill_matches_an_independent_oracle(mig_db):
@@ -127,6 +255,13 @@ async def test_random_backfill_matches_an_independent_oracle(mig_db):
         cols.pop("gateway_ref", None)
         statements.append(ticket(tid, tid, amount, who_ref, **cols))
         tickets.append({"id": tid, "ref": who_ref, **meta})
+    # Sửa 09/11: một giao dịch SePay phủ nhiều đơn / nhiều khách vé phải ra MỘT dòng sổ
+    shared_expect, extra = shared_transaction_cases()
+    statements += extra
+    for row in shared_expect["bookings"]:
+        bookings.append(row)
+    for row in shared_expect["tickets"]:
+        tickets.append(row)
     await write(*statements)
     await alembic(command.upgrade, TARGET)
 
@@ -188,6 +323,40 @@ async def test_random_backfill_matches_an_independent_oracle(mig_db):
         in_b
     ) + len(in_t) + len(rf_b) + len(rf_t)
 
+    # P8: ca "một reference, nhiều đơn" – một dòng, mã đơn nhỏ nhất, mỗi mục giữ mã của mình
+    for case in shared_expect["cases"]:
+        rows = await fetch(
+            "SELECT e.id, e.amount, e.order_code, e.kind, e.source, e.actor_label, "
+            "(SELECT count(*) FROM booking.payment_entry_item i WHERE i.entry_id = e.id), e.occurred_at "
+            f"FROM booking.payment_entry e WHERE e.reference = '{case['reference']}'"
+        )
+        assert len(rows) == 1, f"{case['name']}: một giao dịch = một dòng, có {len(rows)}"
+        eid, amount, order_code, kind, source, label, n_items, _occurred = rows[0]
+        assert (amount, order_code, kind, source, label, n_items) == (
+            case["amount"],
+            case["order_code"],
+            "in",
+            "online",
+            "Hệ thống",
+            case["items"],
+        ), (case["name"], rows[0])
+        [(inside,)] = await fetch(
+            "SELECT e.occurred_at BETWEEN min(coalesce(b.paid_at, t.paid_at)) AND max(coalesce(b.paid_at, t.paid_at)) "
+            "FROM booking.payment_entry e JOIN booking.payment_entry_item i ON i.entry_id=e.id "
+            "LEFT JOIN booking.booking b ON b.id=i.booking_id LEFT JOIN booking.ticket t ON t.id=i.ticket_id "
+            f"WHERE e.id = {eid} GROUP BY e.id"
+        )
+        assert inside, f"{case['name']}: giờ nằm trong khoảng giờ thu của các mục"
+        codes = {
+            r[0]
+            for r in await fetch(
+                "SELECT coalesce(b.code, t.code) FROM booking.payment_entry_item i "
+                "LEFT JOIN booking.booking b ON b.id=i.booking_id LEFT JOIN booking.ticket t ON t.id=i.ticket_id "
+                f"WHERE i.entry_id = {eid}"
+            )
+        }
+        assert codes == set(case["item_codes"]), f"{case['name']}: mỗi mục giữ mã của mình"
+
     # P3: dòng = Σ mục; P5: không trộn giờ thu / phương thức trong một dòng
     bad = await fetch(
         "SELECT e.id FROM booking.payment_entry e JOIN booking.payment_entry_item i ON i.entry_id=e.id GROUP BY e.id, e.amount HAVING sum(i.amount) <> e.amount"
@@ -196,13 +365,13 @@ async def test_random_backfill_matches_an_independent_oracle(mig_db):
     mixed = await fetch(
         "SELECT e.id FROM booking.payment_entry e JOIN booking.payment_entry_item i ON i.entry_id=e.id "
         "LEFT JOIN booking.booking b ON b.id=i.booking_id LEFT JOIN booking.ticket t ON t.id=i.ticket_id "
-        "WHERE e.kind='in' GROUP BY e.id HAVING count(DISTINCT coalesce(b.paid_at, t.paid_at))>1 OR count(DISTINCT coalesce(b.payment_method, t.payment_method))>1"
+        "WHERE e.kind='in' AND coalesce(e.reference, '') NOT LIKE 'sepay:shared%' GROUP BY e.id HAVING count(DISTINCT coalesce(b.paid_at, t.paid_at))>1 OR count(DISTINCT coalesce(b.payment_method, t.payment_method))>1"
     )
     assert mixed == [], "mỗi dòng thu là một lần nhận tiền"
     wrong_time = await fetch(
         "SELECT e.id FROM booking.payment_entry e JOIN booking.payment_entry_item i ON i.entry_id=e.id "
         "LEFT JOIN booking.booking b ON b.id=i.booking_id LEFT JOIN booking.ticket t ON t.id=i.ticket_id "
-        "WHERE (e.kind='in' AND e.occurred_at <> coalesce(b.paid_at, t.paid_at)) OR (e.kind='refund' AND e.occurred_at <> coalesce(b.cancelled_at, t.cancelled_at))"
+        "WHERE coalesce(e.reference, '') NOT LIKE 'sepay:shared%' AND (e.kind='in' AND e.occurred_at <> coalesce(b.paid_at, t.paid_at)) OR (e.kind='refund' AND e.occurred_at <> coalesce(b.cancelled_at, t.cancelled_at))"
     )
     assert wrong_time == [], "thu = paid_at, hoàn = cancelled_at"
     wrong_source = await fetch(
@@ -211,8 +380,15 @@ async def test_random_backfill_matches_an_independent_oracle(mig_db):
     assert wrong_source == []
 
     # P4: số dòng = số khóa gộp (khóa BE công bố trong handoff)
-    in_keys = {(r["order"], r["paid_at"], r["method"], r["who"]) for r in counted(bookings)} | {
-        ("ticket", r["ref"], r["paid_at"], r["method"], r["who"]) for r in counted(tickets)
+    # Dòng có mã giao dịch gộp THEO mã giao dịch (không theo đơn / khách); còn lại như cũ
+    in_keys = {
+        ("gw", r["gw"]) if r.get("gw") else (r["order"], r["paid_at"], r["method"], r["who"])
+        for r in counted(bookings)
+    } | {
+        ("gw", r["gw"])
+        if r.get("gw")
+        else ("ticket", r["ref"], r["paid_at"], r["method"], r["who"])
+        for r in counted(tickets)
     }
     rf_keys = {
         (r["order"], r["cancelled_at"], r["method"], "Admin")
