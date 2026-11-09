@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import SYSTEM_ACTOR, audit, audit_detail
 from app.core.errors import AppError
-from app.modules.booking_engine import outbox
+from app.modules.booking_engine import ledger, outbox
 from app.modules.booking_engine.audit_fields import paid_changes
 from app.modules.booking_engine.booking_service import (
     normalize_code,
@@ -316,7 +316,7 @@ async def apply_ticket_payment(
     )
     seq = await session.scalar(select(func.max(Ticket.seq)).where(Ticket.session_id == ev.id)) or 0
     price = (hold.amount or 0) // hold.seats
-    codes = []
+    codes, tickets = [], []
     for n in range(1, hold.seats + 1):
         ticket = Ticket(
             tenant_id=tenant_id,
@@ -344,10 +344,20 @@ async def apply_ticket_payment(
         )
         session.add(ticket)
         codes.append(ticket.code)
+        tickets.append(ticket)
     await session.flush()
     hold.status = "converted"
     checkout.status = "paid"
     checkout.paid_at = data.transaction_at
+    await ledger.record_in(
+        session,
+        tenant_id,
+        tickets,
+        method="online_transfer",
+        occurred_at=data.transaction_at,
+        actor=ledger.GATEWAY_ACTOR,
+        reference=data.reference,
+    )
     # Như booking online: tiền về qua bên thứ 3 -> người làm là Hệ thống; 1 lần trả = 1 dòng
     audit(
         session,

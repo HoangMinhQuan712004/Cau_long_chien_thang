@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.core.privacy import mask_phone
 from app.modules.booking_engine.models import Booking, BookingOrder, Resource
 from tests.conftest import API, idem, is_staff_label
 from tests.helpers_booking import (
@@ -248,6 +249,7 @@ async def test_ticket_collect_and_uncollectible(admin, staff):
 
 
 async def test_transactions_filters_cards_and_paging(admin, staff):
+    """Sổ tiền vào (T-057): một dòng mỗi lần thu, SĐT che; lọc phương thức, loại, mã, SĐT, sân."""
     tag = f"TX{uuid.uuid4().hex[:6]}"
     hour = await safe_hour()
     phones = [random_phone() for _ in range(10)]
@@ -257,9 +259,8 @@ async def test_transactions_filters_cards_and_paging(admin, staff):
         r = await book(staff, court["code"], hour, customer=temp(f"{tag} khách {i}", phone))
         assert r.status_code == 201, r.text
         codes.append(r.json()["code"])
-    await collect(staff, codes[0])
-    await collect(staff, codes[1])
-    await uncollectible(staff, codes[2])
+    for code in codes[:9]:  # codes[9] chưa thu -> không có trong sổ
+        assert (await collect(staff, code)).status_code == 200
     amount = (await staff.get(f"{BK}/items/{codes[0]}")).json()["payment"]["amount"]
 
     async def tx(**params):
@@ -270,40 +271,53 @@ async def test_transactions_filters_cards_and_paging(admin, staff):
     data = await tx()
     assert data["date_to"] == today().isoformat()
     assert data["date_from"] == (today() - timedelta(days=6)).isoformat()
-    assert data["total"] == 10 and data["page_size"] == 8 and len(data["rows"]) == 8
-    assert data["cards"] == {
-        "paid": {"amount": 2 * amount, "count": 2},
-        "unpaid": {"amount": 7 * amount, "count": 7},
-        "uncollectible": {"amount": amount, "count": 1},
-        "cancelled": {"amount": 0, "count": 0},
-    }
+    assert data["total"] == 9 and data["size"] == 8 and len(data["items"]) == 8
     page2 = await tx(page=2)
-    assert len(page2["rows"]) == 2
-    seen = [row["code"] for row in data["rows"] + page2["rows"]]
-    assert sorted(seen) == sorted(codes)
-    row = data["rows"][0]
-    assert set(row) == {
-        "kind", "code", "order_code", "play_date", "start_time", "end_time", "resource_codes",
-        "customer_name", "phone", "amount", "payment_status", "payment_method", "source",
-        "cancel_reason", "cancelled_by", "refund_amount",
+    assert len(page2["items"]) == 1
+    entries = data["items"] + page2["items"]
+    assert sorted(i["code"] for e in entries for i in e["items"]) == sorted(codes[:9])
+    assert [e["occurred_at"] for e in entries] == sorted(
+        (e["occurred_at"] for e in entries), reverse=True
+    )
+    e = entries[0]
+    assert set(e) == {
+        "kind", "method", "source", "amount", "occurred_at", "order_code", "customer_name",
+        "customer_phone_masked", "member_code", "actor_label", "items",
     }  # fmt: skip
-    assert {row["phone"] for row in data["rows"] + page2["rows"]} == set(phones)  # SĐT đầy đủ
+    assert (e["kind"], e["method"], e["source"], e["amount"]) == ("in", "cash", "counter", amount)
+    assert is_staff_label(e["actor_label"])
+    assert set(e["items"][0]) == {
+        "code",
+        "kind",
+        "resource_name",
+        "play_date",
+        "start_at",
+        "end_at",
+        "amount",
+    }
+    assert {x["customer_phone_masked"] for x in entries} == {mask_phone(p) for p in phones[:9]}
+    raw = (await admin.get(f"{BK}/transactions", params={"q": tag})).text
+    assert not any(p in raw for p in phones)  # SĐT đầy đủ không ra API
 
-    assert (await tx(status="paid"))["total"] == 2
-    cash = await tx(method="cash")
-    assert cash["total"] == 2 and {r["payment_status"] for r in cash["rows"]} == {"paid"}
+    assert (await tx(method="cash"))["total"] == 9
     assert (await tx(method="transfer"))["total"] == 0
+    assert (await tx(kind="refund"))["total"] == 0
+    assert (await tx(status="paid"))["total"] == 9  # tham số cũ bị bỏ qua
 
-    # Tìm theo mã (thường, khoảng trắng) / SĐT có dấu chấm
-    r = await admin.get(f"{BK}/transactions", params={"q": f" {codes[3].lower()} "})
-    assert [x["code"] for x in r.json()["rows"]] == [codes[3]]
-    dotted = f"{phones[4][:4]}.{phones[4][4:7]}.{phones[4][7:]}"
-    r = await admin.get(f"{BK}/transactions", params={"q": dotted})
-    assert [x["code"] for x in r.json()["rows"]] == [codes[4]]
-    # Lọc sân
+    # Tìm theo mã con (thường, khoảng trắng) / mã đơn / SĐT có dấu chấm
+    async def found(q: str) -> list[str]:
+        r = await admin.get(f"{BK}/transactions", params={"q": q})
+        return [i["code"] for x in r.json()["items"] for i in x["items"]]
+
+    assert await found(f" {codes[3].lower()} ") == [codes[3]]
+    assert await found(codes[3].rsplit("-", 1)[0]) == [codes[3]]
+    assert await found(f"{phones[4][:4]}.{phones[4][4:7]}.{phones[4][7:]}") == [codes[4]]
+    assert await found(phones[9]) == []
+    # Lọc sân: dòng + thẻ của sân đó
     court_code = (await staff.get(f"{BK}/items/{codes[5]}")).json()["schedule"]["resource_codes"][0]
-    r = await admin.get(f"{BK}/transactions", params={"resource": court_code})
-    assert [x["code"] for x in r.json()["rows"]] == [codes[5]]
+    r = (await admin.get(f"{BK}/transactions", params={"resource": court_code})).json()
+    assert [i["code"] for x in r["items"] for i in x["items"]] == [codes[5]]
+    assert r["cards"] == {"net": amount, "cash": amount, "transfer": 0, "refund": 0}
 
 
 async def test_transactions_include_tickets_and_resource_filter(admin, staff):
@@ -332,10 +346,15 @@ async def test_transactions_include_tickets_and_resource_filter(admin, staff):
         )
     ).json()
     r = await admin.get(f"{BK}/transactions", params={"resource": b["code"]})
-    rows = r.json()["rows"]
-    assert [x["code"] for x in rows] == [t["code"]]
-    assert rows[0]["kind"] == "ticket" and rows[0]["resource_codes"] == [a["code"], b["code"]]
-    assert rows[0]["amount"] == 30_000
+    assert r.json()["items"] == []  # vé chưa thu: không có trong sổ
+    assert (await collect(staff, t["code"])).status_code == 200
+    r = (await admin.get(f"{BK}/transactions", params={"resource": b["code"]})).json()
+    [entry] = r["items"]
+    assert entry["order_code"] == ev["code"] and entry["amount"] == 30_000
+    [item] = entry["items"]
+    assert (item["code"], item["kind"], item["amount"]) == (t["code"], "ticket", 30_000)
+    assert item["resource_name"] == f"{a['name']}, {b['name']}"
+    assert r["cards"]["cash"] == 30_000
 
 
 async def test_transactions_date_rules_and_permissions(admin, staff):

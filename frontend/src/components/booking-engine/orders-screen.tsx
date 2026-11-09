@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Modal } from "@/components/ui/modal";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
 import { addDaysIso, formatDate, formatDayMonthYear, formatVnd } from "@/lib/format";
 import { authFailure } from "./booking-dialogs";
+import { CollectQrDialog } from "./collect-qr";
 import { ItemFlow } from "./item-flow";
 import { OrderFlow } from "./order-flow";
 import { getBookingOrders, sendCollectOrder } from "./requests";
@@ -41,14 +41,21 @@ const courtText = (o: BookingOrderRow) => {
   return `${o.resource_name}${others > 0 ? ` (+${others} sân khác)` : ""}`;
 };
 
-export function OrdersScreen({ today }: { today: string }) {
+/** Ngày chơi đầu của mã đơn "BK-YYYYMMDD-NNN" (mã theo ngày chơi), không phải mã đơn ⇒ null. */
+const codeDate = (code: string) => {
+  const m = /^BK-(\d{4})(\d{2})(\d{2})-\d{3}/i.exec(code);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+};
+
+export function OrdersScreen({ today, initialQ = "" }: { today: string; /** Mở từ link mã đơn (`?q=`, T-057). */ initialQ?: string }) {
   const [kind, setKind] = useState<"all" | BookingOrderKind>("all");
   const [status, setStatus] = useState<"all" | BookingOrderStatus>("all");
-  // Mặc định: 30 ngày gần nhất và sắp tới
-  const [from, setFrom] = useState(addDaysIso(today, -30));
-  const [to, setTo] = useState(addDaysIso(today, 30));
-  const [input, setInput] = useState("");
-  const [q, setQ] = useState("");
+  // Mặc định: 30 ngày gần nhất và sắp tới; mở theo mã đơn cũ / xa ⇒ nới khoảng ngày cho có ngày chơi đầu của đơn
+  const linked = codeDate(initialQ);
+  const [from, setFrom] = useState(() => (linked && linked < addDaysIso(today, -30) ? linked : addDaysIso(today, -30)));
+  const [to, setTo] = useState(() => (linked && linked > addDaysIso(today, 30) ? linked : addDaysIso(today, 30)));
+  const [input, setInput] = useState(initialQ);
+  const [q, setQ] = useState(initialQ);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<BookingOrderList | null>(null);
   const [error, setError] = useState("");
@@ -279,26 +286,24 @@ export function OrdersScreen({ today }: { today: string }) {
       ) : null}
 
       {dialog?.kind === "collect" ? (
-        <Modal
-          open
+        // T-058: mặc định QR chuyển khoản, có nút "Khách trả tiền mặt"
+        <CollectQrDialog
+          key={dialog.row.order_code}
+          orderCode={dialog.row.order_code}
+          busy={busy}
+          banner={banner}
           onClose={() => setDialog(null)}
-          title="Thu cả đơn"
-          footer={
-            <>
-              <button type="button" onClick={() => setDialog(null)} className={btnCls} disabled={busy}>
-                Hủy
-              </button>
-              <button type="button" onClick={() => void collect(dialog.row)} disabled={busy} className={btnPrimaryCls}>
-                {busy ? "Đang thu…" : "Xác nhận đã thu"}
-              </button>
-            </>
+          onConfirmCash={() => void collect(dialog.row)}
+          onPaid={() => {
+            setDialog(null);
+            void load();
+          }}
+          cashBody={
+            <p className="text-sm">
+              Thu <b>{formatVnd(dialog.row.total)}</b> tiền mặt cho đơn <b className="font-mono">{dialog.row.order_code}</b> ({dialog.row.sessions} {dialog.row.kind === "recurring" ? "buổi" : "khối"}). Mọi khối thành Đã thanh toán, chỉ thu một lần.
+            </p>
           }
-        >
-          {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
-          <p className="text-sm">
-            Thu <b>{formatVnd(dialog.row.total)}</b> tiền mặt cho đơn <b className="font-mono">{dialog.row.order_code}</b> ({dialog.row.sessions} {dialog.row.kind === "recurring" ? "buổi" : "khối"}). Mọi khối thành Đã thanh toán, chỉ thu một lần.
-          </p>
-        </Modal>
+        />
       ) : null}
       {dialog?.kind === "order" ? (
         <OrderFlow key={`${dialog.code}-${dialog.cancel ? "cancel" : "view"}`} orderCode={dialog.code} startCancel={dialog.cancel} onClose={() => setDialog(null)} onChanged={() => void load()} onOpenItem={(code) => setDialog({ kind: "item", code })} />
