@@ -519,14 +519,19 @@ async def test_ac12_late_money_replays_and_never_disturbs_the_rebooked_slot(
     assert [b.payment_status for b in same] == ["cancelled"]
     assert new_row.payment_status == "unpaid" and await active_allocations(new_row.code) == 1
     assert await active_allocations(old.code) == 0
-    # Lịch sử giao dịch không cộng lượt tiền về trễ vào Đã thanh toán của khoản đã hủy
-    tx = (
-        await admin.get(
-            f"{BK}/transactions",
-            params={"from": day.isoformat(), "to": day.isoformat(), "status": "cancelled"},
-        )
-    ).json()
-    assert old.code in [row["code"] for row in tx["rows"]]
+    # Sổ tiền vào: khoản đã thu rồi hủy có đúng 1 dòng thu + 1 dòng hoàn; tiền về trễ không ghi thêm dòng
+    wide = {
+        "from": (day - timedelta(days=3)).isoformat(),
+        "to": (day + timedelta(days=3)).isoformat(),
+        "q": old.code,
+    }
+    tx = (await admin.get(f"{BK}/transactions", params=wide)).json()
+    assert sorted(e["kind"] for e in tx["items"]) == ["in", "refund"], tx["items"]
+    assert sum(e["amount"] if e["kind"] == "in" else -e["amount"] for e in tx["items"]) == 0
+    assert all([i["code"] for i in e["items"]] == [old.code] for e in tx["items"])
+    assert await simulate(admin, co["pay_ref"], co["amount"]) != "applied"
+    again = (await admin.get(f"{BK}/transactions", params=wide)).json()
+    assert again["total"] == tx["total"] == 2, "tiền về trễ vào 'cần xử lý', không vào sổ"
 
 
 # ---------------------------------------------------------------- AC13: đồng thời

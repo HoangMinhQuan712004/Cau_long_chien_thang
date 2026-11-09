@@ -1,29 +1,32 @@
-"""Lịch sử giao dịch (T-006 §3 BR-020, FR-010).
+"""Lịch sử giao dịch = sổ tiền vào (T-057, ADR-014; trước đây T-006 BR-020, FR-010).
 
-Mỗi dòng = 1 booking hoặc 1 vé, lọc theo ngày chơi; 4 thẻ tổng theo đúng bộ lọc.
+Mỗi dòng = một lần nhận tiền hoặc một lần hoàn, lọc theo ngày ``occurred_at`` (giờ của sân);
+4 thẻ (thực thu, tiền mặt, chuyển khoản, hoàn) theo bộ lọc ngày + sân. Chỉ đọc.
 """
 
 import re
 from datetime import timedelta
 
-from sqlalchemy import String, exists, func, literal, or_, select, union_all
-from sqlalchemy.dialects.postgresql import aggregate_order_by, array
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
+from app.core.privacy import mask_phone
+from app.modules.booking_engine.booking_service import session_resources
 from app.modules.booking_engine.common import context
 from app.modules.booking_engine.dto import (
-    TransactionCard,
     TransactionCards,
-    TransactionRow,
+    TransactionEntry,
+    TransactionEntryItem,
     TransactionsOut,
     TransactionsQuery,
 )
 from app.modules.booking_engine.models import (
     Allocation,
     Booking,
-    BookingOrder,
     EventSession,
+    PaymentEntry,
+    PaymentEntryItem,
     Resource,
     Ticket,
 )
@@ -39,27 +42,121 @@ def _like(value: str) -> str:
     return f"%{escaped}%"
 
 
-def _filters(item, q: TransactionsQuery, resource_match):
-    """Điều kiện chung cho booking / vé (cột trạng thái, phương thức, tìm kiếm)."""
-    conds = []
-    if q.status:
-        conds.append(item.payment_status == q.status)
-    if q.method:
-        methods = ("cash",) if q.method == "cash" else TRANSFER_METHODS
-        conds += [item.payment_status == "paid", item.payment_method.in_(methods)]
-    if q.resource:
-        conds.append(resource_match)
-    text = (q.q or "").strip()
-    if text:
-        found = [
-            item.code.ilike(_like(text.replace(" ", ""))),
-            item.customer_name.ilike(_like(text)),
-        ]
-        digits = re.sub(r"[\s.]", "", text)
-        if digits.isdigit():
-            found.append(item.customer_phone.like(_like(digits)))
-        conds.append(or_(*found))
-    return conds
+def _on_resource(code: str):
+    """Dòng có mục thuộc sân ``code`` (booking: sân của khối; vé: một trong các sân sự kiện)."""
+    on_booking = (
+        select(PaymentEntryItem.id)
+        .join(Booking, Booking.id == PaymentEntryItem.booking_id)
+        .join(Resource, Resource.id == Booking.resource_id)
+        .where(PaymentEntryItem.entry_id == PaymentEntry.id, Resource.code == code)
+    )
+    on_ticket = (
+        select(PaymentEntryItem.id)
+        .join(Ticket, Ticket.id == PaymentEntryItem.ticket_id)
+        .join(Allocation, Allocation.session_id == Ticket.session_id)
+        .join(Resource, Resource.id == Allocation.resource_id)
+        .where(PaymentEntryItem.entry_id == PaymentEntry.id, Resource.code == code)
+    )
+    return or_(exists(on_booking), exists(on_ticket))
+
+
+def _search(text: str):
+    """Mã đơn / mã con / mã vé, tên khách, SĐT (chữ số)."""
+    code = _like(text.replace(" ", ""))
+    found = [
+        PaymentEntry.order_code.ilike(code),
+        PaymentEntry.customer_name.ilike(_like(text)),
+        exists(
+            select(PaymentEntryItem.id)
+            .join(Booking, Booking.id == PaymentEntryItem.booking_id)
+            .where(PaymentEntryItem.entry_id == PaymentEntry.id, Booking.code.ilike(code))
+        ),
+        exists(
+            select(PaymentEntryItem.id)
+            .join(Ticket, Ticket.id == PaymentEntryItem.ticket_id)
+            .where(PaymentEntryItem.entry_id == PaymentEntry.id, Ticket.code.ilike(code))
+        ),
+    ]
+    digits = re.sub(r"[\s.]", "", text)
+    if digits.isdigit():
+        found.append(PaymentEntry.customer_phone.like(_like(digits)))
+    return or_(*found)
+
+
+async def _items(
+    session: AsyncSession, tenant_id: int, entry_ids: list[int]
+) -> dict[int, list[TransactionEntryItem]]:
+    if not entry_ids:
+        return {}
+    rows: list[tuple[int, int, TransactionEntryItem]] = []
+    for item_id, entry_id, amount, code, day, start, end, name in await session.execute(
+        select(
+            PaymentEntryItem.id,
+            PaymentEntryItem.entry_id,
+            PaymentEntryItem.amount,
+            Booking.code,
+            Booking.play_date,
+            Booking.start_at,
+            Booking.end_at,
+            Resource.name,
+        )
+        .join(Booking, Booking.id == PaymentEntryItem.booking_id)
+        .join(Resource, Resource.id == Booking.resource_id)
+        .where(PaymentEntryItem.entry_id.in_(entry_ids))
+    ):
+        rows.append(
+            (
+                entry_id,
+                item_id,
+                TransactionEntryItem(
+                    code=code,
+                    kind="booking",
+                    resource_name=name,
+                    play_date=day,
+                    start_at=start,
+                    end_at=end,
+                    amount=amount,
+                ),
+            )
+        )
+    tickets = list(
+        await session.execute(
+            select(
+                PaymentEntryItem.id,
+                PaymentEntryItem.entry_id,
+                PaymentEntryItem.amount,
+                Ticket.code,
+                EventSession.id,
+                EventSession.play_date,
+                EventSession.start_at,
+                EventSession.end_at,
+            )
+            .join(Ticket, Ticket.id == PaymentEntryItem.ticket_id)
+            .join(EventSession, EventSession.id == Ticket.session_id)
+            .where(PaymentEntryItem.entry_id.in_(entry_ids))
+        )
+    )
+    courts = await session_resources(session, tenant_id, list({t[4] for t in tickets}))
+    for item_id, entry_id, amount, code, session_id, day, start, end in tickets:
+        rows.append(
+            (
+                entry_id,
+                item_id,
+                TransactionEntryItem(
+                    code=code,
+                    kind="ticket",
+                    resource_name=", ".join(r.name for r in courts.get(session_id, [])),
+                    play_date=day,
+                    start_at=start,
+                    end_at=end,
+                    amount=amount,
+                ),
+            )
+        )
+    by_entry: dict[int, list[TransactionEntryItem]] = {}
+    for entry_id, _, item in sorted(rows, key=lambda r: r[1]):
+        by_entry.setdefault(entry_id, []).append(item)
+    return by_entry
 
 
 async def list_transactions(
@@ -72,126 +169,77 @@ async def list_transactions(
         raise AppError("E-016", "Từ ngày không được sau Đến ngày.", 422)
     if (date_to - date_from).days + 1 > MAX_DAYS:
         raise AppError("E-020", f"Chỉ xem được tối đa {MAX_DAYS} ngày mỗi lần.", 422)
+
+    scope = [
+        PaymentEntry.tenant_id == tenant_id,
+        PaymentEntry.occurred_at >= ctx.at(date_from, 0),
+        PaymentEntry.occurred_at < ctx.at(date_to + timedelta(days=1), 0),
+    ]
     resource_code = (q.resource or "").strip().upper()
+    if resource_code:
+        scope.append(_on_resource(resource_code))
 
-    bookings = (
-        select(
-            literal("booking", String).label("kind"),
-            Booking.code,
-            BookingOrder.code.label("order_code"),
-            Booking.play_date,
-            Booking.start_at,
-            Booking.end_at,
-            array([Resource.code]).label("resource_codes"),
-            Resource.code.label("sort_resource"),
-            Booking.customer_name,
-            Booking.customer_phone,
-            Booking.amount,
-            Booking.payment_status,
-            Booking.payment_method,
-            Booking.source,
-            Booking.cancel_reason,
-            Booking.cancelled_by_label,
-            Booking.refund_amount,
-        )
-        .join(Resource, Resource.id == Booking.resource_id)
-        .join(BookingOrder, BookingOrder.id == Booking.order_id)
-        .where(
-            Booking.tenant_id == tenant_id,
-            Booking.play_date.between(date_from, date_to),
-            *_filters(Booking, q, Resource.code == resource_code),
-        )
-    )
+    def total_of(*conds):
+        return func.coalesce(func.sum(PaymentEntry.amount).filter(and_(*conds)), 0)
 
-    session_resource = (
-        select(Resource.code)
-        .join(Allocation, Allocation.resource_id == Resource.id)
-        .where(Allocation.session_id == Ticket.session_id)
-        .correlate(Ticket)
-    )
-    ticket_codes = (
-        select(func.array_agg(aggregate_order_by(Resource.code, Resource.sort_order)))
-        .join(Allocation, Allocation.resource_id == Resource.id)
-        .where(Allocation.session_id == Ticket.session_id)
-        .correlate(Ticket)
-        .scalar_subquery()
-    )
-    tickets = (
-        select(
-            literal("ticket", String).label("kind"),
-            Ticket.code,
-            literal(None, String).label("order_code"),
-            EventSession.play_date,
-            EventSession.start_at,
-            EventSession.end_at,
-            func.coalesce(ticket_codes, array([], type_=String)).label("resource_codes"),
-            func.coalesce(
-                session_resource.with_only_columns(func.min(Resource.code)).scalar_subquery(), ""
-            ).label("sort_resource"),
-            Ticket.customer_name,
-            Ticket.customer_phone,
-            Ticket.amount,
-            Ticket.payment_status,
-            Ticket.payment_method,
-            Ticket.source,
-            Ticket.cancel_reason,
-            Ticket.cancelled_by_label,
-            Ticket.refund_amount,
+    cash, transfer, refund = (
+        await session.execute(
+            select(
+                total_of(PaymentEntry.kind == "in", PaymentEntry.method == "cash"),
+                total_of(PaymentEntry.kind == "in", PaymentEntry.method.in_(TRANSFER_METHODS)),
+                total_of(PaymentEntry.kind == "refund"),
+            ).where(*scope)
         )
-        .join(EventSession, EventSession.id == Ticket.session_id)
-        .where(
-            Ticket.tenant_id == tenant_id,
-            EventSession.play_date.between(date_from, date_to),
-            *_filters(Ticket, q, exists(session_resource.where(Resource.code == resource_code))),
-        )
-    )
-    u = union_all(bookings, tickets).subquery("tx")
+    ).one()
 
-    cards = {
-        s: TransactionCard(amount=0, count=0)
-        for s in ("paid", "unpaid", "uncollectible", "cancelled")
-    }
-    for status, amount, count in await session.execute(
-        select(u.c.payment_status, func.coalesce(func.sum(u.c.amount), 0), func.count()).group_by(
-            u.c.payment_status
-        )
-    ):
-        cards[status] = TransactionCard(amount=int(amount), count=count)
-    total = sum(c.count for c in cards.values())
+    conds = list(scope)
+    if q.method:
+        methods = ("cash",) if q.method == "cash" else TRANSFER_METHODS
+        conds.append(PaymentEntry.method.in_(methods))
+    if q.kind:
+        conds.append(PaymentEntry.kind == q.kind)
+    text = (q.q or "").strip()
+    if text:
+        conds.append(_search(text))
 
+    total = await session.scalar(select(func.count(PaymentEntry.id)).where(*conds)) or 0
     page = max(1, q.page)
-    rows = await session.execute(
-        select(u)
-        .order_by(u.c.start_at.desc(), u.c.sort_resource, u.c.code)
-        .limit(PAGE_SIZE)
-        .offset((page - 1) * PAGE_SIZE)
+    entries = list(
+        await session.scalars(
+            select(PaymentEntry)
+            .where(*conds)
+            .order_by(PaymentEntry.occurred_at.desc(), PaymentEntry.id.desc())
+            .limit(PAGE_SIZE)
+            .offset((page - 1) * PAGE_SIZE)
+        )
     )
+    items = await _items(session, tenant_id, [e.id for e in entries])
     return TransactionsOut(
         date_from=date_from,
         date_to=date_to,
-        rows=[
-            TransactionRow(
-                kind=r.kind,
-                code=r.code,
-                order_code=r.order_code,
-                play_date=r.play_date,
-                start_time=ctx.hhmm(r.play_date, r.start_at),
-                end_time=ctx.hhmm(r.play_date, r.end_at),
-                resource_codes=list(r.resource_codes or []),
-                customer_name=r.customer_name,
-                phone=r.customer_phone,
-                amount=r.amount,
-                payment_status=r.payment_status,
-                payment_method=r.payment_method,
-                source=r.source,
-                cancel_reason=r.cancel_reason,
-                cancelled_by=r.cancelled_by_label,
-                refund_amount=r.refund_amount,
+        cards=TransactionCards(
+            net=int(cash) + int(transfer) - int(refund),
+            cash=int(cash),
+            transfer=int(transfer),
+            refund=int(refund),
+        ),
+        items=[
+            TransactionEntry(
+                kind=e.kind,
+                method="cash" if e.method == "cash" else "transfer",
+                source=e.source,
+                amount=e.amount,
+                occurred_at=e.occurred_at,
+                order_code=e.order_code,
+                customer_name=e.customer_name,
+                customer_phone_masked=mask_phone(e.customer_phone),
+                member_code=e.member_code,
+                actor_label=e.actor_label,
+                items=items.get(e.id, []),
             )
-            for r in rows
+            for e in entries
         ],
-        page=page,
-        page_size=PAGE_SIZE,
         total=total,
-        cards=TransactionCards(**cards),
+        page=page,
+        size=PAGE_SIZE,
     )

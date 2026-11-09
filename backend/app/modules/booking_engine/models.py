@@ -578,6 +578,75 @@ class Allocation(Base):
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
 
 
+class PaymentEntry(Base):
+    """Sổ tiền vào (ADR-014, T-057): một dòng = **một lần** nhận (``in``) hoặc hoàn (``refund``).
+
+    Ghi cùng transaction với lần thu / hoàn; chỉ thêm, không sửa, không xóa (trừ dọn dữ liệu mẫu).
+    Doanh thu = Σ in − Σ refund theo ngày ``occurred_at``. ``reference`` = ``sepay:{id}`` cho tiền
+    về qua cổng -> webhook gửi lại không ghi hai lần.
+    """
+
+    __tablename__ = "payment_entry"
+    __table_args__ = (
+        CheckConstraint("kind IN ('in', 'refund')", name="kind"),
+        CheckConstraint("method IN ('cash', 'transfer', 'online_transfer')", name="method"),
+        CheckConstraint("source IN ('counter', 'counter_qr', 'online')", name="source"),
+        CheckConstraint("amount > 0", name="amount_positive"),
+        Index("ix_payment_entry_tenant_occurred_at", "tenant_id", "occurred_at"),
+        Index(
+            "uq_payment_entry_tenant_reference",
+            "tenant_id",
+            "reference",
+            unique=True,
+            postgresql_where=text("reference IS NOT NULL"),
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
+    kind: Mapped[str] = mapped_column(String(10))
+    # Hoàn: phương thức của khoản gốc
+    method: Mapped[str] = mapped_column(String(20))
+    source: Mapped[str] = mapped_column(String(20))
+    amount: Mapped[int] = mapped_column(Integer)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Mã đơn (booking) hoặc mã sự kiện (vé)
+    order_code: Mapped[str | None] = mapped_column(String(30))
+    customer_name: Mapped[str] = mapped_column(String(100))
+    customer_phone: Mapped[str] = mapped_column(String(15))  # đầy đủ – chỉ để tìm, API che
+    member_code: Mapped[str | None] = mapped_column(String(10))
+    actor_type: Mapped[str] = mapped_column(String(20))
+    actor_id: Mapped[int | None] = mapped_column(BigInteger)
+    actor_label: Mapped[str] = mapped_column(String(100))
+    reference: Mapped[str | None] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PaymentEntryItem(Base):
+    """Mục của một dòng sổ: một booking **hoặc** một vé và phần tiền của nó (Σ mục = tiền dòng)."""
+
+    __tablename__ = "payment_entry_item"
+    __table_args__ = (
+        CheckConstraint("(booking_id IS NULL) <> (ticket_id IS NULL)", name="one_target"),
+        CheckConstraint("amount > 0", name="amount_positive"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
+    entry_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA}.payment_entry.id", ondelete="CASCADE"), index=True
+    )
+    booking_id: Mapped[int | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.booking.id", ondelete="RESTRICT"), index=True
+    )
+    ticket_id: Mapped[int | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.ticket.id", ondelete="RESTRICT"), index=True
+    )
+    amount: Mapped[int] = mapped_column(Integer)
+
+
 class OutboxEvent(Base):
     """Sự kiện ghi cùng transaction nghiệp vụ; worker phát qua ``core.events`` sau commit."""
 
