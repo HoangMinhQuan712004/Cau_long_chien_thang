@@ -273,6 +273,10 @@ async def test_transactions_show_order_code(staff, admin):
     court = await new_court(admin)
     r = await book(staff, court["code"], await safe_hour())
     item = r.json()
+    r = await admin.post(
+        f"{BK}/items/{item['code']}/collect", json={"method": "cash", "version": 1}, headers=idem()
+    )
+    assert r.status_code == 200, r.text
     data = (await admin.get(f"{BK}/transactions", params={"q": item["order_code"]})).json()
-    row = next(x for x in data["rows"] if x["code"] == item["code"])
-    assert row["order_code"] == item["order_code"]
+    entry = next(x for x in data["items"] if x["order_code"] == item["order_code"])
+    assert [i["code"] for i in entry["items"]] == [item["code"]]

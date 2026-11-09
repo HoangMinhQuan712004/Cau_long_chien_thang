@@ -407,18 +407,22 @@ async def list_transactions(
     session: SessionDep,
     date_from: Annotated[date | None, Query(alias="from")] = None,
     date_to: Annotated[date | None, Query(alias="to")] = None,
-    resource: Annotated[str | None, Query(max_length=10)] = None,
-    status: Annotated[
-        Literal["unpaid", "paid", "uncollectible", "cancelled"] | None, Query()
+    resource: Annotated[
+        str | None, Query(max_length=10, description="Dòng có mục ở sân này")
     ] = None,
-    method: Annotated[Literal["cash", "transfer"] | None, Query()] = None,
+    method: Annotated[
+        Literal["cash", "transfer"] | None, Query(description="transfer gồm cả online")
+    ] = None,
+    kind: Annotated[
+        Literal["in", "refund"] | None, Query(description="Thu tiền / Hoàn tiền")
+    ] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     page: Annotated[int, Query(ge=1, le=10_000)] = 1,
 ):
-    """Lịch sử giao dịch (chỉ Admin): lọc theo ngày chơi (mặc định 7 ngày), 8 dòng / trang.
+    """Lịch sử giao dịch = sổ tiền vào (T-057): mỗi dòng một lần nhận / hoàn tiền, lọc theo ngày
+    tiền về (giờ VN, mặc định 7 ngày), 8 dòng / trang. Chỉ xem.
 
-    ``method`` chọn phương thức -> chỉ dòng Đã thanh toán; "transfer" gồm cả online.
-    Lỗi: E-016 (từ > đến), E-020 (> 92 ngày).
+    Thẻ ``cards`` theo bộ lọc ngày + sân. Lỗi: E-016 (từ > đến), E-020 (> 92 ngày).
     """
     return await api.list_transactions(
         session,
@@ -426,8 +430,8 @@ async def list_transactions(
             date_from=date_from,
             date_to=date_to,
             resource=resource,
-            status=status,
             method=method,
+            kind=kind,
             q=q,
             page=page,
         ),

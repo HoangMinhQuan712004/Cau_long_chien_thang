@@ -58,16 +58,22 @@ export function ChartSkeleton({ className = CHART_HEIGHT }: { className?: string
 
 const STEPS_M = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
 
-/** Mốc trục dọc tròn theo triệu (0, 5 tr, 10 tr…), ≤ 5 mốc, đỉnh cao hơn giá trị lớn nhất một chút. */
-export function millionTicks(maxValue: number) {
+/**
+ * Mốc trục dọc tròn theo triệu (0, 5 tr, 10 tr…), ≤ 5 mốc phía dương, đỉnh cao hơn giá trị lớn nhất một chút.
+ * `minValue` < 0 (ngày / sân hoàn tiền nhiều hơn thu, T-057) ⇒ thêm mốc âm cùng bước, mốc đầu = đáy trục.
+ */
+export function millionTicks(maxValue: number, minValue = 0) {
   const max = Math.max(maxValue * 1.1, 1_000_000);
-  const step = (STEPS_M.find((s) => Math.ceil(max / (s * 1_000_000)) <= 4) ?? 1000) * 1_000_000;
+  const low = Math.min(minValue * 1.1, 0);
+  const span = max - low;
+  const step = (STEPS_M.find((s) => Math.ceil(span / (s * 1_000_000)) <= 4) ?? 1000) * 1_000_000;
   const top = Math.ceil(max / step) * step;
-  return Array.from({ length: top / step + 1 }, (_, i) => i * step);
+  const bottom = Math.floor(low / step) * step;
+  return Array.from({ length: (top - bottom) / step + 1 }, (_, i) => bottom + i * step);
 }
 
-/** Nhãn mốc trục dọc: "0", "5 tr". */
-export const millionAxisLabel = (v: number) => (v === 0 ? "0" : `${v / 1_000_000} tr`);
+/** Nhãn mốc trục dọc: "0", "5 tr", "−1 tr". */
+export const millionAxisLabel = (v: number) => (v === 0 ? "0" : `${v < 0 ? "−" : ""}${Math.abs(v) / 1_000_000} tr`);
 
 /** Màu dùng trong SVG (thuộc tính fill/stroke nhận var()). */
 export const CHART_COLOR = {

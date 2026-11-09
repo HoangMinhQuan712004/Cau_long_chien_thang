@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import AppError
-from app.modules.booking_engine import session_service
+from app.modules.booking_engine import ledger, session_service
 from app.modules.booking_engine.codes import next_code
 from app.modules.booking_engine.common import EXCLUSION_VIOLATION, context, sqlstate
 from app.modules.booking_engine.config_service import price_slots
@@ -31,6 +31,8 @@ from app.modules.booking_engine.models import (
     Checkout,
     EventSession,
     Hold,
+    PaymentEntry,
+    PaymentEntryItem,
     Resource,
     Ticket,
 )
@@ -143,6 +145,15 @@ async def seed_booking(
                         )
                     )
                     await session.flush()
+                    if payment:
+                        await ledger.record_in(
+                            session,
+                            tenant_id,
+                            [booking],
+                            method=payment.method,
+                            occurred_at=payment.paid_at,
+                            actor=DEMO_ACTOR,
+                        )
             except IntegrityError as e:
                 if sqlstate(e) == EXCLUSION_VIOLATION:
                     continue  # khung đã có người -> thử chỗ khác
@@ -189,8 +200,9 @@ async def seed_event(
                     EventSession.tenant_id == tenant_id, EventSession.code == out.code
                 )
             )
+            tickets = []
             for seq, buyer in enumerate(buyers, start=1):
-                session.add(
+                tickets.append(
                     Ticket(
                         tenant_id=tenant_id,
                         session_id=ev.id,
@@ -209,7 +221,18 @@ async def seed_event(
                         **snapshot_values(buyer),
                     )
                 )
+            session.add_all(tickets)
             await session.flush()
+            # Mỗi người mua một lần trả (như đơn vé online)
+            for t in tickets:
+                await ledger.record_in(
+                    session,
+                    tenant_id,
+                    [t],
+                    method="online_transfer",
+                    occurred_at=paid_at,
+                    actor=DEMO_ACTOR,
+                )
             return ev.code
     return None
 
@@ -264,6 +287,29 @@ async def purge_demo(session: AsyncSession, tenant_id: int, phones: list[str]) -
 
     async def run(name: str, stmt) -> None:
         counts[name] = (await session.execute(stmt)).rowcount or 0
+
+    demo_tickets = select(Ticket.id).where(
+        Ticket.tenant_id == tenant_id,
+        or_(
+            Ticket.session_id.in_(events),
+            Ticket.customer_phone.in_(phones),
+            Ticket.checkout_id.in_(checkouts),
+        ),
+    )
+    # Dòng sổ của khoản mẫu (mục xóa theo, ON DELETE CASCADE) – trước khi xóa booking / vé
+    await run(
+        "payment_entries",
+        delete(PaymentEntry).where(
+            PaymentEntry.id.in_(
+                select(PaymentEntryItem.entry_id).where(
+                    or_(
+                        PaymentEntryItem.booking_id.in_(bookings),
+                        PaymentEntryItem.ticket_id.in_(demo_tickets),
+                    )
+                )
+            )
+        ),
+    )
 
     await run(
         "allocations",

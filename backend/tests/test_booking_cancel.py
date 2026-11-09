@@ -271,27 +271,23 @@ async def test_transactions_and_reports_drop_cancelled(admin, staff):
     assert (await cancel(admin, paid["code"], version=2, refund_confirmed=True)).status_code == 200
     assert (await cancel(admin, unpaid["code"])).status_code == 200
 
-    out = (await admin.get(f"{BK}/transactions", params=params)).json()
-    cards = out["cards"]
+    # Sổ tiền vào (T-057): khoản đã thu -> thêm dòng Hoàn tiền ngày hủy; khoản chưa thu: không ghi
+    cards = (await admin.get(f"{BK}/transactions", params=params)).json()["cards"]
     amount = paid["payment"]["amount"]
-    other = unpaid["payment"]["amount"]
-    assert cards["paid"]["amount"] == before["paid"]["amount"] - amount
-    assert cards["unpaid"]["amount"] == before["unpaid"]["amount"] - other
-    assert cards["cancelled"]["amount"] == before["cancelled"]["amount"] + amount + other
-    assert cards["cancelled"]["count"] == before["cancelled"]["count"] + 2
+    assert cards["cash"] == before["cash"]
+    assert cards["refund"] == before["refund"] + amount
+    assert cards["net"] == before["net"] - amount
 
-    # Lọc theo mã: cùng ngày có thể đã có nhiều khoản hủy, trang 1 không chắc chứa dòng cần xem
-    async def row_of(code: str, **filters) -> dict | None:
+    async def entries_of(code: str, **filters) -> list[dict]:
         r = await admin.get(f"{BK}/transactions", params={**params, "q": code, **filters})
         assert r.status_code == 200, r.text
-        return next((x for x in r.json()["rows"] if x["code"] == code), None)
+        return r.json()["items"]
 
-    row = await row_of(paid["code"], status="cancelled")
-    assert row["cancel_reason"] == REASON and row["cancelled_by"]
-    assert row["refund_amount"] == amount
-    assert (await row_of(unpaid["code"], status="cancelled"))["refund_amount"] == 0
-    # Lọc theo phương thức chỉ lấy khoản còn Đã thanh toán
-    assert await row_of(paid["code"], method="cash") is None
+    got = await entries_of(paid["code"])
+    assert [(e["kind"], e["amount"]) for e in got] == [("refund", amount), ("in", amount)]
+    assert got[0]["actor_label"] and [i["code"] for i in got[0]["items"]] == [paid["code"]]
+    assert [e["kind"] for e in await entries_of(paid["code"], kind="refund")] == ["refund"]
+    assert await entries_of(unpaid["code"]) == []
 
     totals_after, slots_after = await _report(court_id)
     assert totals_after.revenue == totals_before.revenue - amount
@@ -893,7 +889,7 @@ async def test_cancel_phase_follows_time_status_and_permission(admin, staff, clo
 
 
 async def test_past_paid_booking_cancels_without_touching_the_room(admin, staff, people, clock):
-    """AC1, AC3: trừ doanh thu đúng ngày chơi, công suất giảm; phòng không đổi, không báo phòng."""
+    """AC1, AC3: trừ doanh thu (ngày hủy – T-057), công suất giảm; phòng không đổi, không báo."""
     owner, asker = await people("Chủ Đơn"), await people("Xin Vào")
     b, room = await _room_of(admin, staff, owner)
     code = b["code"]
@@ -918,8 +914,8 @@ async def test_past_paid_booking_cancels_without_touching_the_room(admin, staff,
     assert totals_after.revenue == totals_before.revenue - amount
     assert slots_after == slots_before - 1
     cards = (await admin.get(f"{BK}/transactions", params=params)).json()["cards"]
-    assert cards["paid"]["amount"] == cards_before["paid"]["amount"] - amount
-    assert cards["cancelled"]["amount"] == cards_before["cancelled"]["amount"] + amount
+    assert cards["cash"] == cards_before["cash"]
+    assert cards["refund"] == cards_before["refund"] + amount
 
     payload = await outbox_payload(code)
     assert payload["past"] is True

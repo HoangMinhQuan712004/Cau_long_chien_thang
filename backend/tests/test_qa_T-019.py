@@ -451,9 +451,11 @@ async def test_ac4_calendar_and_transactions_carry_order_code(admin):
         )
     tx = await admin.get(f"{BK}/transactions", params={"q": order["order_code"]})
     assert tx.status_code == 200, tx.text
-    rows = [r for r in tx.json()["rows"] if r.get("order_code") == order["order_code"]]
-    assert len(rows) == 2, tx.json()["rows"]
-    assert all(r["code"].startswith(order["order_code"] + "-") for r in rows), (
+    entries = [r for r in tx.json()["items"] if r.get("order_code") == order["order_code"]]
+    assert len(entries) == 2, tx.json()["items"]  # thu từng khối = mỗi lần thu một dòng sổ
+    codes = [i["code"] for e in entries for i in e["items"]]
+    assert sorted(codes) == sorted(x["code"] for x in order["bookings"])
+    assert all(c.startswith(order["order_code"] + "-") for c in codes), (
         "transactions show order + child code"
     )
 

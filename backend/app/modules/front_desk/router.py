@@ -8,7 +8,7 @@ cùng commit hoặc cùng rollback.
 import datetime as dt
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query, Response, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +24,7 @@ from app.modules.booking_engine.dto import (
     Actor,
     CancelIn,
     CancelPreview,
+    CollectQrInfo,
     CounterBlockIn,
     CounterOrderIn,
     CounterOrderOut,
@@ -38,6 +39,8 @@ from app.modules.booking_engine.dto import (
 )
 from app.modules.members import api as members
 from app.modules.members.api import CustomerIn
+from app.modules.payments import api as payments
+from app.modules.payments.api import BankInfo
 from app.modules.play_rooms import api as rooms
 
 router = APIRouter(prefix="/front-desk", tags=["front-desk"])
@@ -46,6 +49,7 @@ CounterBooker = Annotated[Principal, Depends(require(Perm.BOOKING_COUNTER_CREATE
 RecurringBooker = Annotated[Principal, Depends(require(Perm.BOOKING_RECURRING))]
 OrdersViewer = Annotated[Principal, Depends(require(Perm.BOOKING_ORDERS_VIEW))]
 Canceller = Annotated[Principal, Depends(require(Perm.BOOKING_CANCEL))]
+Collector = Annotated[Principal, Depends(require(Perm.BOOKING_COLLECT))]
 TicketSeller = Annotated[Principal, Depends(require(Perm.BOOKING_TICKET_CREATE))]
 
 
@@ -380,6 +384,37 @@ async def cancel_item(
         return await engine.cancel_item(session, actor_of(principal), code, data)
 
     return await idem.run(session, principal.key, run)
+
+
+class CollectQrOut(CollectQrInfo):
+    bank: BankInfo = Field(description="Như trang thanh toán online: ngân hàng, số TK, chủ TK, QR")
+
+
+@router.get("/orders/{order_code}/collect-qr", response_model=CollectQrOut)
+async def order_collect_qr(
+    order_code: Annotated[str, Path(max_length=40)],
+    _: OrdersViewer,
+    __: Collector,
+    session: SessionDep,
+    response: Response,
+):
+    """Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại mỗi 3 giây tới khi ``status = paid``.
+
+    Số tiền = tổng khối Chưa thanh toán (như ``POST /booking/orders/{code}/collect``); nội dung
+    chuyển khoản ``pay_ref`` = mã đơn bỏ gạch. Tiền về đúng số -> webhook thu cả đơn; lệch số ->
+    Tiền về cần xử lý (cần hoàn). 404 E-BOOK-3 · 409 E-BOOK-4 (không còn khối chưa thu) ·
+    409 E-PAY-9 (chưa cài nhận chuyển khoản).
+    """
+    response.headers["Cache-Control"] = "no-store"
+    info = await engine.collect_qr_info(session, order_code)
+    bank = await payments.bank_info(session, info.amount, info.pay_ref)
+    if bank is None:
+        raise AppError(
+            "E-PAY-9",
+            "Chưa cài đặt nhận tiền chuyển khoản. Vào Cài đặt thanh toán hoặc thu tiền mặt.",
+            409,
+        )
+    return CollectQrOut(**info.model_dump(), bank=bank)
 
 
 @router.get("/orders/{order_code}/cancel-preview", response_model=CancelPreview)
