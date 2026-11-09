@@ -1220,6 +1220,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking/items/{code}/move-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Move Targets
+         * @description Sân đổi sang được cho booking (cùng ngày, cùng giờ): đang hoạt động, mở cửa đủ khung, còn
+         *     trống – theo thứ tự danh mục, mọi loại sân. 409 E-BOOK-6 · 404.
+         */
+        get: operations["move_targets_api_v1_booking_items__code__move_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/items/{code}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move Booking
+         * @description Đổi sân một booking: giữ mã, giá đã chốt, tiền đã thu (kể cả đổi khác loại sân).
+         *
+         *     409 ``E-BOOK-6`` (vé / sự kiện / giữ chỗ, đã hủy, Không thu được, đã kết thúc, cùng sân) ·
+         *     409 ``E-BOOK-8`` (sân đích đã có lịch) · 422 ``E-BOOK-7`` (sân đích ngừng / đóng cửa khung
+         *     đó) · 404 (mã / sân không có) · 409 ``E-012`` (``version`` cũ).
+         */
+        post: operations["move_booking_api_v1_booking_items__code__move_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/booking/transactions": {
         parameters: {
             query?: never;
@@ -4141,7 +4186,7 @@ export interface components {
              */
             created_at: string;
             /** Actions */
-            actions: ("collect" | "uncollectible" | "cancel")[];
+            actions: ("collect" | "uncollectible" | "cancel" | "move")[];
             /**
              * Cancel Phase
              * @description Lúc này so với giờ chơi, để popup chọn câu cảnh báo (T-052); null: không hủy được
@@ -4945,6 +4990,28 @@ export interface components {
             /** Previous */
             previous: number;
         };
+        /**
+         * MoveIn
+         * @description Đổi sân: cùng ngày, cùng giờ; giá + tiền + mã giữ nguyên.
+         */
+        MoveIn: {
+            /** Resource Code */
+            resource_code: string;
+            /** Version */
+            version: number;
+        };
+        /** MoveTarget */
+        MoveTarget: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Type Name
+             * @description Loại sân – đổi khác loại vẫn giữ giá đã chốt
+             */
+            type_name: string;
+        };
         /** MyBookingsOut */
         MyBookingsOut: {
             /** Items */
@@ -5212,15 +5279,14 @@ export interface components {
         };
         /**
          * OrderOut
-         * @description Một đơn đặt sân (quầy / online / định kỳ) – SĐT đã che, không gồm vé.
+         * @description Một đơn đặt sân (quầy / online / định kỳ), không gồm vé. SĐT đầy đủ như các màn quản trị
+         *     khác (người dùng chốt 2026-11-09); quyền ``booking.orders.view``.
          */
         OrderOut: {
             /** Order Code */
             order_code: string;
             /** Customer Name */
             customer_name: string;
-            /** Phone Masked */
-            phone_masked: string | null;
             /** Resource Code */
             resource_code: string;
             /** Resource Name */
@@ -5271,6 +5337,8 @@ export interface components {
             created_at: string;
             /** Created By */
             created_by: string;
+            /** Phone */
+            phone: string;
             /**
              * Kind
              * @description single = đơn ngày · recurring
@@ -6461,8 +6529,6 @@ export interface components {
             order_code: string;
             /** Customer Name */
             customer_name: string;
-            /** Phone Masked */
-            phone_masked: string | null;
             /** Resource Code */
             resource_code: string;
             /** Resource Name */
@@ -6513,6 +6579,8 @@ export interface components {
             created_at: string;
             /** Created By */
             created_by: string;
+            /** Phone Masked */
+            phone_masked: string | null;
         };
         /** RecurringPreview */
         RecurringPreview: {
@@ -10473,6 +10541,75 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UncollectibleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_targets_api_v1_booking_items__code__move_targets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoveTarget"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_booking_api_v1_booking_items__code__move_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveIn"];
             };
         };
         responses: {

@@ -379,6 +379,7 @@ async def test_hours_change_blocked_by_bookings_outside_new_hours(admin):
             "date": day.isoformat(),
             "start_time": "20:00",
             "end_time": "22:00",
+            "kind": "booking",  # thêm loại chỗ chiếm (Đổi sân, 2026-11-09)
         }
         assert detail["more"] == 0
         assert (await get_resource(admin, code))["pending_schedule"] is None
@@ -739,7 +740,11 @@ async def test_delete_resource_blocked_while_schedule_unfinished(admin, anon):
     assert r.status_code == 409, r.text
     detail = r.json()["detail"]
     assert detail["code"] == "E-CFG-11" and detail["count"] == 1
-    assert detail["message"] == "Sân còn 1 lịch sắp tới, hãy xử lý trước khi xóa."
+    assert detail["message"] == (
+        "Sân còn 1 lịch sắp tới, hãy đổi sân hoặc hủy các lịch này trước khi xóa."
+    )
+    assert [(i["code"], i["kind"]) for i in detail["items"]] == [("BK-TEST-DEL-1", "booking")]
+    assert detail["more"] == 0
     await release(booked)
     await release(past)
 

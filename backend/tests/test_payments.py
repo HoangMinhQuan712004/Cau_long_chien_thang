@@ -68,7 +68,9 @@ async def test_collect_cash(admin, staff):
     r = await collect(staff, b["code"])
     assert r.status_code == 200, r.text
     item = r.json()
-    assert item["version"] == 2 and item["actions"] == []
+    assert item["version"] == 2 and item["actions"] == [
+        "move"
+    ]  # # Đổi sân (người dùng chốt 2026-11-09)
     pay = item["payment"]
     assert (pay["payment_status"], pay["payment_method"]) == ("paid", "cash")
     assert is_staff_label(pay["collected_by"]) and pay["paid_at"]
@@ -134,7 +136,8 @@ async def test_uncollectible_keeps_slot(admin, staff):
     hour = await safe_hour()
     court = await new_court(admin)
     b = (await book(staff, court["code"], hour)).json()
-    assert b["actions"] == ["collect", "uncollectible"]  # khung đang diễn ra: đã tới giờ
+    # Khung đang diễn ra: đã tới giờ; chưa kết thúc nên vẫn Đổi sân được
+    assert b["actions"] == ["collect", "uncollectible", "move"]
     for reason in ("   ", "x" * 201):
         r = await uncollectible(staff, b["code"], reason=reason)
         assert r.status_code == 422 and r.json()["detail"]["code"] == "E-001"
@@ -157,7 +160,7 @@ async def test_uncollectible_before_start_or_online(admin, staff):
     hour = await safe_hour()
     if hour <= 22:
         b = await new_booking(admin, staff, hour=hour + 1)
-        assert b["actions"] == ["collect"]
+        assert b["actions"] == ["collect", "move"]
         r = await uncollectible(staff, b["code"])
         assert r.status_code == 422 and r.json()["detail"]["code"] == "E-PAY-1"
 

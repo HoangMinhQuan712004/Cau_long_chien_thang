@@ -356,7 +356,7 @@ async def update_resource(
                 raise AppError(
                     "E-CFG-4",
                     f"{label.capitalize()} còn {len(busy)} lịch đặt từ hôm nay. "
-                    f"Chuyển các lịch này sang {label} khác trước khi ngừng {label}.",
+                    f"Đổi sân hoặc hủy các lịch này trước khi ngừng {label}.",
                     409,
                     **occupancy.listing(busy),
                 )

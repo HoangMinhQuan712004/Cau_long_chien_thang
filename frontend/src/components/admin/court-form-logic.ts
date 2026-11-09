@@ -144,7 +144,8 @@ export function fitPeaks(peaks: Band[], open: string, close: string): { peaks: B
 
 export const hasErrors = (e: Errors) => Boolean(e.name || e.close || e.overlap || Object.keys(e.peaks).length);
 
-type Conflict = { code: string; date: string; start_time: string; end_time: string };
+/** Một chỗ chiếm trong lỗi E-CFG-3 / 4 / 11; `kind` để biết mở popup nào. */
+export type Conflict = { code: string | null; date: string; start_time: string; end_time: string; kind?: "booking" | "session" | "hold" | null };
 
 /** Lỗi từ server hiện ở đầu form (E-CFG-3/4 kèm danh sách khung vướng; E-CFG-7 = dữ liệu đã đổi, cần tải lại). */
 export type Banner = { text: string; items?: Conflict[]; more?: number; reload?: boolean };

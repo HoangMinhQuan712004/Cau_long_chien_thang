@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
+import { formatPhone } from "@/lib/phone";
 import { addDaysIso, formatDate, formatDayMonthYear, formatVnd } from "@/lib/format";
 import { authFailure } from "./booking-dialogs";
 import { CollectQrDialog } from "./collect-qr";
@@ -225,7 +226,7 @@ export function OrdersScreen({ today, initialQ = "" }: { today: string; /** Mở
                   <span className="mt-1 block text-sm font-medium">
                     {o.customer_name}
                     {o.member_code ? <span className="ml-1.5 rounded bg-background px-1.5 py-0.5 font-mono text-xs font-normal text-muted">{o.member_code}</span> : null}
-                    {o.phone_masked ? <span className="font-normal text-muted"> · {o.phone_masked}</span> : null}
+                    {o.phone ? <span className="font-normal text-muted tabular-nums"> · {formatPhone(o.phone)}</span> : null}
                   </span>
                   {o.kind === "recurring" ? (
                     <>
