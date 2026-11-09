@@ -16,6 +16,8 @@ concurrency:
 
 permissions:
   contents: read
+  # job `changes` tra cứu dấu "cây code đã test xanh ở PR" (artifact) khi push lên dev
+  actions: read
 
 jobs:
   # Chỉ chạy phần code bị đổi: so với nhánh đích (PR) hoặc commit trước (push).
@@ -26,6 +28,7 @@ jobs:
     outputs:
       backend: ${{ steps.diff.outputs.backend }}
       frontend: ${{ steps.diff.outputs.frontend }}
+      tests_done: ${{ steps.tested.outputs.tests_done }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -47,8 +50,29 @@ jobs:
           echo "backend=$(echo "$FILES" | grep -q '^backend/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "frontend=$(echo "$FILES" | grep -q '^frontend/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
-  backend:
-    name: Backend (lint, migrations, tests)
+      # T-059: push lên dev mà đúng cây code này đã chạy đủ test xanh ở CI của PR -> không chạy lại pytest.
+      # Dấu = artifact `tested-tree-<git tree>` do job `backend` tạo CHỈ khi PR xanh toàn bộ.
+      # Cây khác (dev đổi giữa lúc PR chạy và lúc merge) -> không có dấu -> chạy đủ như cũ.
+      # `main` (production) không dùng dấu này: luôn chạy đủ.
+      - id: tested
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IS_DEV_PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
+        run: |
+          echo "tests_done=false" >> "$GITHUB_OUTPUT"
+          [ "$IS_DEV_PUSH" = true ] || exit 0
+          TREE=$(git rev-parse 'HEAD^{tree}')
+          N=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=tested-tree-$TREE" \
+            --jq '[.artifacts[] | select(.expired == false)] | length' || echo 0)
+          echo "tree=$TREE marks=$N"
+          if [ "${N:-0}" -gt 0 ]; then
+            echo "tests_done=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Cây code $TREE đã test xanh ở PR: bỏ pytest, vẫn chạy ruff + migration."
+          fi
+
+  # Ruff + migration chỉ chạy ở đây (một job), không lặp ở từng shard test
+  backend-lint:
+    name: Backend lint and migrations
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
@@ -70,8 +94,6 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql+asyncpg://caulong:caulong@localhost:5432/caulong
-      # Test chạy trên DB riêng (conftest tự drop/create bảng)
-      TEST_DATABASE_URL: postgresql+asyncpg://caulong:caulong@localhost:5432/postgres
       SECRET_KEY: ci-only-secret-key-0123456789abcdefghijklmnop
     steps:
       - uses: actions/checkout@v7
@@ -100,8 +122,112 @@ jobs:
       - name: Migrations roundtrip (downgrade -> upgrade)
         run: alembic downgrade base && alembic upgrade head
 
+  # pytest chia 3 shard theo file (cân theo dung lượng file), mỗi shard chạy 2 worker xdist, mỗi worker một DB riêng
+  backend-tests:
+    name: Backend tests (shard ${{ matrix.shard }}/3)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' && needs.changes.outputs.tests_done != 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: caulong
+          POSTGRES_PASSWORD: caulong
+          POSTGRES_DB: caulong
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U caulong"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://caulong:caulong@localhost:5432/caulong
+      # Test chạy trên DB riêng (conftest tự tạo `<tên>_gwN_test` cho từng worker xdist, cần quyền CREATEDB)
+      TEST_DATABASE_URL: postgresql+asyncpg://caulong:caulong@localhost:5432/postgres
+      SECRET_KEY: ci-only-secret-key-0123456789abcdefghijklmnop
+      SHARD: ${{ matrix.shard }}
+      SHARDS: "3"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      # Mỗi file test thuộc đúng một shard: xếp file lớn trước, đưa vào shard đang nhẹ nhất (xác định, không ngẫu nhiên)
+      - name: Select this shard's test files
+        run: |
+          python - <<'PY' > shard-files.txt
+          import glob, os
+          shards = int(os.environ["SHARDS"]); mine = int(os.environ["SHARD"]) - 1
+          files = sorted(glob.glob("tests/test_*.py"), key=lambda f: (-os.path.getsize(f), f))
+          load = [0] * shards; pick = [[] for _ in range(shards)]
+          for f in files:
+              i = load.index(min(load)); load[i] += os.path.getsize(f); pick[i].append(f)
+          print("\n".join(sorted(pick[mine])))
+          PY
+          echo "files in shard $SHARD: $(wc -l < shard-files.txt)"
+
+      - name: Count collected tests (shard)
+        run: |
+          N=$(pytest --collect-only -q $(cat shard-files.txt) | grep -cE '::')
+          echo "tests in shard $SHARD: $N"
+          echo "shard $SHARD: $N tests, $(wc -l < shard-files.txt) files" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Tests
-        run: pytest
+        run: pytest -q -n 2 --durations=15 $(cat shard-files.txt)
+
+  # Job tổng: CD và (nếu bật) quy tắc bảo vệ nhánh chỉ cần phụ thuộc MỘT tên job này
+  # (giữ nguyên tên cũ `Backend (lint, migrations, tests)`).
+  backend:
+    name: Backend (lint, migrations, tests)
+    needs: [changes, backend-lint, backend-tests]
+    # always(): vẫn chạy khi shard bị bỏ qua (đã test ở PR) để kết luận đúng; không chạy khi backend không đổi
+    if: always() && needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: All required parts passed
+        env:
+          LINT: ${{ needs.backend-lint.result }}
+          TESTS: ${{ needs.backend-tests.result }}
+          TESTS_DONE: ${{ needs.changes.outputs.tests_done }}
+        run: |
+          echo "lint=$LINT tests=$TESTS tests_done=$TESTS_DONE"
+          [ "$LINT" = success ] || { echo "::error::Ruff / migration không xanh"; exit 1; }
+          if [ "$TESTS_DONE" = true ]; then
+            [ "$TESTS" = skipped ] || { echo "::error::Trạng thái shard bất thường: $TESTS"; exit 1; }
+          else
+            [ "$TESTS" = success ] || { echo "::error::pytest không xanh ở mọi shard ($TESTS)"; exit 1; }
+          fi
+
+      # Chỉ khi PR đã xanh đầy đủ (có chạy test) mới đóng dấu cây code, để lần push dev sau khỏi chạy lại pytest
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request' && needs.changes.outputs.tests_done != 'true'
+      - name: Mark this code tree as tested
+        if: github.event_name == 'pull_request' && needs.changes.outputs.tests_done != 'true'
+        run: |
+          TREE=$(git rev-parse 'HEAD^{tree}')
+          echo "$TREE" > tested-tree.txt
+          echo "tree=$TREE" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v7
+        if: github.event_name == 'pull_request' && needs.changes.outputs.tests_done != 'true'
+        with:
+          name: tested-tree-${{ env.tree }}
+          path: tested-tree.txt
+          retention-days: 2
 
   frontend:
     name: Frontend (lint, typecheck, build)
