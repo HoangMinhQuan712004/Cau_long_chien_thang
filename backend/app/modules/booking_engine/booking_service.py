@@ -293,8 +293,9 @@ async def calendar(
             )
         )
 
-    # Hàng: sân hoạt động + sân ngừng còn chỗ chiếm trong ngày
-    shown = [r for r in resources if r.is_active or r.id in busy_resources]
+    # Hàng: mọi sân chưa xóa; sân hoạt động trước, sân ngừng (xám, mọi giờ không bán) xuống cuối,
+    # trong mỗi nhóm giữ thứ tự danh mục. Lịch khách chỉ lấy sân hoạt động (``public_calendar``)
+    shown = sorted(resources, key=lambda r: not r.is_active)
     hours_of: dict[int, Hours | None] = {}
     for r in shown:
         sched = effective_on(schedules.get(r.id, []), day)

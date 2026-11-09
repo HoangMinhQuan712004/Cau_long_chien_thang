@@ -34,7 +34,12 @@ async def test_calendar_seed_layout(staff):
     cal = await calendar(staff)
     codes = [r["code"] for r in cal["resources"]]
     assert codes[:5] == ["S01", "S02", "S03", "S04", "S05"]
-    assert "S06" not in codes  # sân ngừng, không có chỗ chiếm
+    # Sân ngừng vẫn hiện xám, xuống cuối danh sách (người dùng chốt 2026-11-09)
+    flags = [r["is_active"] for r in cal["resources"]]
+    assert flags == sorted(flags, reverse=True), "sân hoạt động trước, sân ngừng sau cùng"
+    assert (
+        "S06" in codes and not next(r for r in cal["resources"] if r["code"] == "S06")["is_active"]
+    )
     s05 = next(r for r in cal["resources"] if r["code"] == "S05")
     assert 5 in s05["off_hours"]  # S05 mở 06:00 -> ô 05:00 Xám
     s01 = next(r for r in cal["resources"] if r["code"] == "S01")
