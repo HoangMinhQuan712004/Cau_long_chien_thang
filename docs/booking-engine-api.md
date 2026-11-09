@@ -8,7 +8,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 > **khách đặt online, thanh toán QR SePay, tra cứu booking, tiền về không khớp chỉ ghi vào DB, không có màn xử lý (T-008, bỏ màn ngày 02/11), Admin tự cài tài khoản nhận tiền và khóa SePay (T-012) – mục 10**.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
 > **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, đã vào `dev`) – mục 11.2 và 12.11.**
-> **Thu cả đơn bằng QR tại quầy và sổ tiền vào (T-058, T-057, chưa vào `dev`):** mục 5.3. (Thu chuyển khoản QR cho **từng mục** tại quầy, T-007, vẫn chưa có.) Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, đã vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
+> **Thu cả đơn bằng QR tại quầy và sổ tiền vào (T-058, T-057, đã vào `dev`):** mục 5.3. (Thu chuyển khoản QR cho **từng mục** tại quầy, T-007, vẫn chưa có.) Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, đã vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
 > **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), đã vào `dev` – mục 13.5, 13.6. Video kỷ lục (T-046) và số đo nhập tay / chờ duyệt (T-047), đã vào `dev` – mục 13.7. Dòng thời gian phá kỷ lục (T-048, đã vào `dev`) – mục 13.8.**
 > **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (đã vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
@@ -102,7 +102,7 @@ vẫn là 422 mặc định của FastAPI, khi đó `detail` là **mảng**.
 | E-PAY-6 | 409 | **(T-051)** Mục đã Đã hủy / Không thu được: không hủy được; `collect` hoặc `uncollectible` lên mục đã hủy |
 | E-PAY-7 | 422 | **(T-051)** Hủy khoản đã thu mà chưa xác nhận hoàn tiền (`refund_confirmed`) |
 | E-PAY-8 | 422 | **(T-051; đã bỏ ở T-052)** Không còn trả ở hủy từng mục. Mã giữ chỗ, không dùng lại |
-| E-PAY-9 | 409 | **(T-058, chưa vào `dev`)** Chưa cài đặt nhận tiền chuyển khoản (`GET /front-desk/orders/{code}/collect-qr`) |
+| E-PAY-9 | 409 | **(T-058)** Chưa cài đặt nhận tiền chuyển khoản (`GET /front-desk/orders/{code}/collect-qr`) |
 
 Thông báo thành công (E-005, E-006, E-008, E-011, E-022, E-026) không có trong API: giao diện tự dựng từ response.
 
@@ -197,7 +197,7 @@ Quyền theo bảng mục 3. "Hôm nay" tính theo `Asia/Ho_Chi_Minh`.
 | POST | `/api/v1/booking/items/{code}/collect` | Thu tiền. Body `{method: "cash", version}` → `ItemOut`; `"transfer"` → 422 `E-PAY-0` |
 | POST | `/api/v1/booking/orders/{order_code}/collect` **(T-019)** | Thu cả đơn bằng tiền mặt (xem 5.1) |
 | POST | `/api/v1/booking/items/{code}/uncollectible` | Không thu được. Body `{reason, version}` (lý do 1–200 ký tự) → `ItemOut` |
-| GET | `/api/v1/booking/transactions?from&to&resource&method&kind&q&page` | Lịch sử giao dịch = sổ tiền vào (Admin). **Đổi phá vỡ ở T-057, chưa vào `dev`**: mục 5.3 |
+| GET | `/api/v1/booking/transactions?from&to&resource&method&kind&q&page` | Lịch sử giao dịch = sổ tiền vào (Admin). **Đổi phá vỡ ở T-057 (đã vào `dev`)**: mục 5.3 |
 
 ### Khách đặt (`customer`)
 
@@ -225,7 +225,7 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 - `customer`: `{name, phone, profile_label, kind, member_code, tier}`.
 - `schedule`: `{resource_codes[], resource_names[], play_date, start_time, end_time, session?}`.
 - `payment`: `{amount, payment_status, payment_method?, paid_at?, collected_by?, uncollectible_reason?, marked_by?, marked_at?, cancel_reason?, cancelled_at?, cancelled_by_label?, refund_amount? (T-051)}`.
-- `payment_status`: `unpaid` → `paid` hoặc `unpaid` → `uncollectible`. Hai trạng thái cuối **không đổi**. **(T-051, chưa vào `dev`)** Có thêm `unpaid` hoặc `paid` → `cancelled` (Admin, trước giờ bắt đầu), cũng là trạng thái cuối; xem mục 5.2.
+- `payment_status`: `unpaid` → `paid` hoặc `unpaid` → `uncollectible`. Hai trạng thái cuối **không đổi**. **(T-051)** Có thêm `unpaid` hoặc `paid` → `cancelled` (Admin, trước giờ bắt đầu), cũng là trạng thái cuối; xem mục 5.2.
 - `actions[]`: chỉ gồm thao tác được phép **lúc này** và người đang đăng nhập có quyền (`collect`, `uncollectible`, và `cancel` cho Admin, T-051).
 - `price_breakdown[]`: `{start_time, end_time, band, label, price}` – giá từng khung chốt lúc đặt (vé: mảng rỗng).
 - Gửi `collect`/`uncollectible` với `version` cũ hoặc khi đã đổi trạng thái → 409 `E-012`, không ghi đè.
@@ -276,7 +276,7 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 
 ### Lịch sử giao dịch (`/booking/transactions`, chỉ Admin)
 
-> **Đã thay bởi sổ tiền vào ở T-057 (chưa vào `dev`): xem mục 5.3.** Đoạn dưới là hợp đồng cũ, còn đúng cho tới khi T-057 lên `dev`.
+> **Đã thay bởi sổ tiền vào ở T-057 (đã vào `dev`): xem mục 5.3.** Đoạn dưới là hợp đồng cũ, **không còn đúng** trên `dev`; giữ lại để so sánh.
 
 - Bộ lọc: `from`, `to` (ngày chơi; mặc định hôm nay trừ 6 ngày đến hôm nay, tối đa 92 ngày → `E-020`, từ > đến → `E-016`), `resource`, `status`, `method`
   (chọn phương thức ⇒ chỉ lấy `paid`; "Chuyển khoản" gồm cả online), `q` (mã booking/vé, tên, SĐT), `page` (8 dòng/trang).
@@ -285,7 +285,7 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 
 ### 5.2 Hủy booking, vé và đơn (T-051, T-052, ADR-013)
 
-> **T-051 đã vào `dev`** (migration `c7e2a91f4d36`). **T-052 chưa vào `dev`:** đối chiếu với code backend `be/T-052-cancel-started` @ `f9c10ab` (cục bộ, tạo từ `dev` `c8cfeda`); T-052 **đổi quy tắc** của T-051 (mục dưới là quy tắc mới). Không migration, không cấu hình mới. BACKEND ghi 298 test xanh; **1 test QA đỏ đúng dự kiến** (`test_qa_T-051.py::test_ac9_…` còn chờ `E-PAY-8` đã bỏ, QA sửa theo spec) nên CI đỏ tới khi QA sửa; chưa chạy cả bộ test. Giao diện chưa kiểm. Spec: `board/tasks/T-051-huy-booking-va-ve.md`, `T-052-huy-buoi-da-bat-dau.md`; quyết định: `board/decisions/ADR-013-huy-thanh-toan.md` (kèm phụ lục T-052).
+> **T-051 đã vào `dev`** (migration `c7e2a91f4d36`). **T-052 cũng đã vào `dev`** (PR #53): đối chiếu ban đầu với code backend `be/T-052-cancel-started` @ `f9c10ab`; T-052 **đổi quy tắc** của T-051 (mục dưới là quy tắc mới). Không migration, không cấu hình mới. BACKEND ghi 298 test xanh; **1 test QA đỏ đúng dự kiến** (`test_qa_T-051.py::test_ac9_…` còn chờ `E-PAY-8` đã bỏ, QA sửa theo spec) nên CI đỏ tới khi QA sửa; chưa chạy cả bộ test. Giao diện chưa kiểm. Spec: `board/tasks/T-051-huy-booking-va-ve.md`, `T-052-huy-buoi-da-bat-dau.md`; quyết định: `board/decisions/ADR-013-huy-thanh-toan.md` (kèm phụ lục T-052).
 
 **Quy tắc thay đổi.** Trước đây `payment_status` chỉ có `unpaid → paid` hoặc `unpaid → uncollectible`, hai trạng thái cuối. Từ T-051 có thêm trạng thái cuối thứ ba **`cancelled` (Đã hủy)**:
 
@@ -301,7 +301,7 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 - `ItemOut.cancel_phase` (T-052): `before` (trước giờ bắt đầu) · `playing` (đang chơi) · `past` (đã qua) · `null`. Chỉ khác `null` khi người xem có quyền hủy và `actions[]` có `cancel`. Giao diện chọn câu cảnh báo của hộp thoại theo trường này.
 - **Chỉ Admin.** Quyền mới `booking.cancel` thuộc nhóm chỉ Admin: không gán được cho Nhân viên hay Tài khoản tại máy, và ẩn khỏi tab Phân quyền. Nhân viên không thấy `cancel` trong `actions[]`.
 - **Nhả chỗ ngay:** `allocation.active = false` cùng transaction. Exclusion constraint `ex_allocation_no_overlap` **không đổi** (có test so định nghĩa trước và sau); khung trống lại nhờ điều kiện `WHERE active` sẵn có. Mã booking và vé **không dùng lại**.
-- **Tiền: chỉ trừ số liệu, không tự hoàn.** Với khoản đã thu, `refund_amount` = toàn bộ `amount`; `paid_at` và `payment_method` giữ nguyên. Hệ thống **không hoàn qua SePay**: Admin tự trả tiền cho khách ngoài hệ thống, và `refund_amount` chỉ là ghi nhận theo xác nhận của Admin, không phải bằng chứng đã chuyển tiền. Không hoàn một phần. Mọi lần hủy đều nhả chỗ nên công suất của ngày đã qua cũng giảm. **Doanh thu:** T-052 trừ vào ngày chơi; **ADR-014 (T-057, chưa vào `dev`) thay quy tắc đó**: hoàn tiền là một dòng sổ `refund` và trừ vào **ngày hủy**, số liệu các ngày cũ không đổi (mục 5.3).
+- **Tiền: chỉ trừ số liệu, không tự hoàn.** Với khoản đã thu, `refund_amount` = toàn bộ `amount`; `paid_at` và `payment_method` giữ nguyên. Hệ thống **không hoàn qua SePay**: Admin tự trả tiền cho khách ngoài hệ thống, và `refund_amount` chỉ là ghi nhận theo xác nhận của Admin, không phải bằng chứng đã chuyển tiền. Không hoàn một phần. Mọi lần hủy đều nhả chỗ nên công suất của ngày đã qua cũng giảm. **Doanh thu:** T-052 trừ vào ngày chơi; **ADR-014 (T-057, đã vào `dev`) thay quy tắc đó**: hoàn tiền là một dòng sổ `refund` và trừ vào **ngày hủy**, số liệu các ngày cũ không đổi (mục 5.3).
 
 #### Endpoint (tiền tố `/api/v1/front-desk`, quyền `booking.cancel`, lệnh ghi cần `Idempotency-Key` và `Origin`)
 
@@ -363,9 +363,9 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 - **Downgrade từ chối chạy khi đã có dòng `cancelled`** (không có trạng thái cũ nào đúng để trả về). RELEASE kiểm lại chỉ còn một head trước khi gộp.
 - Không biến môi trường mới.
 
-### 5.3 Sổ tiền vào, Lịch sử giao dịch, Báo cáo doanh thu và Thu cả đơn bằng QR (T-057, T-058, ADR-014, chưa vào `dev`)
+### 5.3 Sổ tiền vào, Lịch sử giao dịch, Báo cáo doanh thu và Thu cả đơn bằng QR (T-057, T-058, ADR-014, đã vào `dev`)
 
-> Đối chiếu với code backend `be/T-057-payment-ledger` @ `bb1c10d` và `be/T-058-counter-qr` @ `c649a4f` (cục bộ, tạo từ `dev` `cff771e`; nhánh T-058 xếp chồng trên T-057 và có `schema.d.ts` cho cả hai: gộp nhánh T-058 là đủ). BACKEND chạy khoảng 420 test liên quan xanh, up / down / up migration và `alembic check` sạch; **chưa chạy cả bộ test**. **8 test QA đỏ đúng dự kiến** vì contract đổi (QA sửa; danh sách trong handoff). Giao diện chưa kiểm. Quyết định: `board/decisions/ADR-014-so-tien-vao.md`.
+> **Đã vào `dev`** (PR #58, merge `a7ca754`, 09/11; lần đưa lên đầu, PR #56, làm CD đỏ và dev 502 vì backfill, đã revert ở PR #57 rồi đưa lại sau khi sửa migration). Đối chiếu code backend `be/T-057-payment-ledger` @ `bb1c10d`, `be/T-058-counter-qr` @ `c649a4f` và bản sửa backfill `be/T-057-fix-backfill-ref` @ `2f2fab6`. 8 test QA đỏ ở bản đầu đã được QA sửa trong PR #58. Giao diện chưa kiểm ở đây (QA kiểm trên link dev). Quyết định: `board/decisions/ADR-014-so-tien-vao.md`.
 
 **Quy tắc thay đổi (ADR-014, thay phụ lục T-052 của ADR-013).** Doanh thu không còn tính theo ngày chơi mà theo **ngày tiền về / ngày hoàn** (`occurred_at`, giờ `Asia/Ho_Chi_Minh`). Hủy có hoàn tiền thì **trừ vào ngày hủy**, không sửa ngày cũ. Lịch sử giao dịch chỉ hiện **tiền vào**, mỗi dòng là **một lần nhận hoặc trả tiền**. Thu tiền, Không thu được, Hủy làm ở màn Đơn đặt sân (Lịch sử giao dịch chỉ xem).
 
@@ -450,15 +450,26 @@ Khóa dòng booking như thu tiền mặt, nên tiền về cùng lúc với b�
 
 **Thử trên link dev hoặc local:** đơn Chưa thanh toán → `GET /front-desk/orders/{code}/collect-qr` → `POST /api/v1/payments/dev/simulate {pay_ref, amount}` → gọi lại `collect-qr` thấy `status = paid` → Lịch sử giao dịch có một dòng Chuyển khoản / Hệ thống / `counter_qr`.
 
-#### Migration `e3a17c9b5d24` (backfill) – **production phải backup trước**
+#### Migration `e3a17c9b5d24` (backfill) – **production phải backup và thử trên bản sao dữ liệu thật trước**
 
-Tạo hai bảng sổ và **điền dữ liệu cũ** từ `booking` / `ticket`:
+Nối sau `bb86440fad96`. Tạo hai bảng sổ và **điền dữ liệu cũ** từ `booking` / `ticket`.
 
-- `in` booking: gộp theo `(order_id, paid_at, payment_method, collected_by_type/id/label)`; điều kiện `paid_at` có, trạng thái `paid` hoặc `cancelled`, `amount > 0`.
-- `in` vé: gộp theo `(session_id, checkout_id, customer_ref, paid_at, payment_method, collected_by…)`; có thêm khách và lượt online để hai người mua cùng giây không bị gộp.
-- `refund`: gộp tương tự nhưng theo `cancelled_at` và `cancelled_by_*`; tiền = `refund_amount`.
-- `source` = `online` khi `online_transfer`, còn lại `counter`. SePay: người thu "Hệ thống", `reference` = `gateway_ref` bỏ đuôi `:n`. Mục 0 đ bỏ qua.
-- Test migration kiểm: Σ `in` − Σ `refund` = Σ đã thu − Σ `refund_amount` trên booking và vé; up / down / up; `alembic check` sạch. Downgrade xóa hai bảng.
+> **Lỗi lần đưa lên dev đầu (PR #56):** migration T-019 (`5b98d354dd77`) từng tách mỗi booking cũ thành một đơn riêng, nên một giao dịch SePay cũ trả 2 khối thành ra phủ 2 đơn. Khóa gộp cũ có `order_id` sinh 2 dòng sổ cùng `reference`, vi phạm `uq_payment_entry_tenant_reference` → CD đỏ, dev 502. Đã sửa **ngay trong migration** (không thêm revision) ở `2f2fab6`.
+
+- **Dòng `in` có `gateway_ref`** (booking và vé): gộp theo `(tenant, gateway_ref bỏ đuôi :n)`: **một giao dịch SePay = một dòng sổ**, `reference` = `gateway_ref` bỏ đuôi `:n`. Dòng phủ nhiều đơn lấy `order_code` = **mã đơn nhỏ nhất** (so theo `COLLATE "C"`). Hai giao dịch SePay khác nhau cùng đơn, cùng giây vẫn ra 2 dòng.
+- **Dòng `in` không có `gateway_ref`** (tiền mặt, QR quầy cũ): gộp theo `(order_id, paid_at, payment_method, collected_by_type/id/label)` với booking; với vé là `(session_id, checkout_id, customer_ref, paid_at, payment_method, collected_by…)`. Điều kiện chung: `paid_at` có, trạng thái `paid` hoặc `cancelled`, `amount > 0`.
+- **`refund`:** không đổi, gộp theo `(đơn, cancelled_at, phương thức gốc, cancelled_by_*)`, `reference` để trống; tiền = `refund_amount`.
+- `source` = `online` khi `online_transfer`, còn lại `counter`. SePay: người thu "Hệ thống". Mục 0 đ bỏ qua.
+- Test migration kiểm: Σ `in` − Σ `refund` = Σ đã thu − Σ `refund_amount` trên booking và vé (gồm ca "một reference, hai đơn" và "một reference, hai vé, hai khách"); up / down / up; `alembic check` sạch. Downgrade xóa hai bảng.
+- **Dev:** RELEASE chạy thử trên bản sao DB dev trước khi đẩy: Σ sổ `in` = Σ nguồn = 13.704.000 đ; `sepay:42637` = 1 dòng 600.000 đ, 2 mục.
+- **Trước production,** chạy truy vấn đọc này để biết có bao nhiêu giao dịch phủ nhiều đơn (với bản sửa thì kết quả nào cũng chạy được):
+
+```sql
+SELECT regexp_replace(gateway_ref, ':[0-9]+$', ''), count(DISTINCT order_id)
+FROM booking.booking WHERE gateway_ref IS NOT NULL
+GROUP BY 1 HAVING count(DISTINCT order_id) > 1;
+```
+
 - Không biến cấu hình mới.
 
 ## 6. Biến môi trường
@@ -1247,7 +1258,7 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
 
 | Method | Path | Ghi chú |
 |---|---|---|
-| GET | `/rooms?scope=all\|mine&q=` **(`q`: T-054, chưa vào `dev`)** | `RoomList = {date, ongoing_count, upcoming_count, mine_count, all_count, items: RoomCard[]}`, xếp theo giờ bắt đầu rồi tên sân. Giao diện: `/hoi-vien/danh-sach-san` |
+| GET | `/rooms?scope=all\|mine&q=` **(`q`: T-054)** | `RoomList = {date, ongoing_count, upcoming_count, mine_count, all_count, items: RoomCard[]}`, xếp theo giờ bắt đầu rồi tên sân. Giao diện: `/hoi-vien/danh-sach-san` |
 | GET | `/rooms/{id}` | `RoomDetail`. Không có hoặc Host chưa đủ điều kiện → 404 `E-NOT-FOUND`. Giao diện: `/hoi-vien/phong/{id}` |
 | POST | `/rooms/{id}/join-requests` `{version}` | Xin vào; bấm lại không tạo thêm. Tối đa 10 lần/ngày/người → 429 `E-SEC-5` |
 | DELETE | `/rooms/{id}/join-requests/mine` | Hủy xin vào |
@@ -1266,7 +1277,7 @@ Tiền tố `/api/v1/member-area`. Chung cho mọi endpoint:
 
 **ETag cho polling:** `GET /rooms`, `/rooms/{id}`, `/matches`, `/ranking` trả `ETag` (weak, theo nội dung và người xem) và `Cache-Control: no-cache, private`. Gửi `If-None-Match` mà không có gì đổi → **304** không có thân. Giao diện hỏi lại mỗi 5 giây và giữ ETag của lần trước.
 
-**Tìm phòng theo mã booking và phòng đã kết thúc (T-054, chưa vào `dev`):** đường thật là `GET /api/v1/member-area/rooms?q=` (spec ghi tắt `/api/v1/rooms`). Đối chiếu code backend `be/T-054-rooms-search` @ `2cfbc4d` (cục bộ; thêm `can_view` sau bản đầu `a1732f3`). Nhánh này đã gộp `be/T-052-cancel-started`, nên **T-052 phải lên `dev` trước hoặc cùng T-054**. Không migration. BACKEND chạy 143 test xanh, chưa chạy cả bộ test (chờ CI). Giao diện chưa kiểm.
+**Tìm phòng theo mã booking và phòng đã kết thúc (T-054, đã vào `dev`):** đường thật là `GET /api/v1/member-area/rooms?q=` (spec ghi tắt `/api/v1/rooms`). Đối chiếu code backend `be/T-054-rooms-search` @ `2cfbc4d` (cục bộ; thêm `can_view` sau bản đầu `a1732f3`). Nhánh này đã gộp `be/T-052-cancel-started`; cả hai đã lên `dev` cùng PR #53. Không migration. BACKEND chạy 143 test xanh, chưa chạy cả bộ test (chờ CI). Giao diện chưa kiểm.
 
 - **`q`:** bỏ khoảng trắng, không phân biệt hoa thường, phải khớp `^BK-\d{8}-\d{3}(-\d{2})?$` (mã đơn hoặc mã con); phải nhập **đủ mã**, không tìm theo từng ký tự hay một phần. Không khớp định dạng → `items: []`, không lỗi, kể cả `q` rỗng.
 - **Khi có `q`:** bỏ qua `scope`, tìm ở **mọi ngày** (không chỉ hôm nay); khớp đúng mã con, hoặc mọi khối của mã đơn; xếp theo giờ bắt đầu. `Cache-Control: no-store`, **không có ETag**. Số liệu banner (`ongoing_count`…) vẫn là của hôm nay, không theo `q`.
@@ -1398,10 +1409,10 @@ Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no
 
 - Kỳ theo giờ VN: tuần T2 → CN, tháng dương lịch, năm dương lịch. `start` và `end` là ngày, `end` tính cả ngày đó.
 - `top` tối đa 10 dòng. `me = null` khi mình chưa có số đo trong kỳ. `gap_to_top10` = km/h hạng 10 − km/h của mình; `null` khi đã trong top 10. `bar_floor_kmh` = 200, mốc đầu thanh tốc độ cho giao diện.
-- **Xếp hạng theo từng cú đập (T-053, chưa vào `dev`; thay quy tắc "mỗi hội viên một số đo cao nhất" của T-030):** mỗi **cú đập** (số đo `approved` trong kỳ) là một dòng. Thứ tự: km/h giảm dần, bằng nhau thì cú đo sớm hơn xếp trên, rồi tới `id`. Mỗi cú một hạng, không đồng hạng: hạng là 1..n liên tục, và **một người có thể chiếm nhiều bậc** (kể cả cả top 3). `total_records` = số cú trong kỳ (mẫu của "#n / m"); `total_members` giữ nghĩa là số hội viên có số đo trong kỳ, sau khi loại người không đủ điều kiện.
+- **Xếp hạng theo từng cú đập (T-053, đã vào `dev`; thay quy tắc "mỗi hội viên một số đo cao nhất" của T-030):** mỗi **cú đập** (số đo `approved` trong kỳ) là một dòng. Thứ tự: km/h giảm dần, bằng nhau thì cú đo sớm hơn xếp trên, rồi tới `id`. Mỗi cú một hạng, không đồng hạng: hạng là 1..n liên tục, và **một người có thể chiếm nhiều bậc** (kể cả cả top 3). `total_records` = số cú trong kỳ (mẫu của "#n / m"); `total_members` giữ nghĩa là số hội viên có số đo trong kỳ, sau khi loại người không đủ điều kiện.
 - **Loại khỏi bảng** (và khỏi `total_members`): hội viên **Ngừng**, hoặc không còn tài khoản liên kết đã xác minh (cùng điều kiện như phòng chơi).
 - **Riêng tư:** hội viên tắt "Hiện trên video & kỷ lục" (`show_on_records = false`) hiện là `display_name = "Hội viên ẩn danh"`, `avatar_url = null`, nhưng vẫn được xếp hạng. Mình luôn thấy tên mình (`is_me = true`). Không trả `customer_id` hay mã hội viên của ai.
-- **Thay đổi trường (T-053, chưa vào `dev`; chỉ thêm, không phá vỡ):** `SpeedRanking.total_records`; `SpeedRankingRow.resource_name` (sân của đúng cú đó; `measured_at` và `video` cũng theo đúng cú đó); `SpeedMe.display_name` và `avatar_url` (biệt danh trước, cùng tên với bục và danh sách). `me.rank` là hạng **cú tốt nhất** của mình trong kỳ; `gap_to_top10` = km/h hạng 10 trừ km/h cú tốt nhất của mình, `null` khi cú đó đã trong top 10. Vẫn chỉ `approved` và hội viên Hoạt động có liên kết. Ẩn danh: mỗi bậc của người đó đều là "Hội viên ẩn danh", không có id. `GET /member-area/overview`: `ranking.total_records` mới; `top3` và `me` theo quy tắc mới. Không migration. Đối chiếu `be/T-053-ranking-per-record` @ `331e131` (cục bộ); BACKEND ghi 1 test QA đỏ đúng dự kiến (`test_qa_T-030::test_ac2_order_best_per_member_…` còn kiểm quy tắc cũ, QA phải sửa) và chưa chạy cả bộ test.
+- **Thay đổi trường (T-053, đã vào `dev`; chỉ thêm, không phá vỡ):** `SpeedRanking.total_records`; `SpeedRankingRow.resource_name` (sân của đúng cú đó; `measured_at` và `video` cũng theo đúng cú đó); `SpeedMe.display_name` và `avatar_url` (biệt danh trước, cùng tên với bục và danh sách). `me.rank` là hạng **cú tốt nhất** của mình trong kỳ; `gap_to_top10` = km/h hạng 10 trừ km/h cú tốt nhất của mình, `null` khi cú đó đã trong top 10. Vẫn chỉ `approved` và hội viên Hoạt động có liên kết. Ẩn danh: mỗi bậc của người đó đều là "Hội viên ẩn danh", không có id. `GET /member-area/overview`: `ranking.total_records` mới; `top3` và `me` theo quy tắc mới. Không migration. Đối chiếu `be/T-053-ranking-per-record` @ `331e131` (cục bộ); BACKEND ghi 1 test QA đỏ đúng dự kiến (`test_qa_T-030::test_ac2_order_best_per_member_…` còn kiểm quy tắc cũ, QA phải sửa) và chưa chạy cả bộ test.
 - **Video của dòng xếp hạng (T-049, đã vào `dev`):** mỗi dòng của `top` có thêm `measured_at` (lúc đo của số đo xếp hạng) và `video`; `me` có thêm `video`. `video` là khối như mục 13.7, của **đúng cú đập ở dòng đó** (từ T-053 mỗi dòng là một cú; `me` là cú tốt nhất của mình), chỉ bản `approved`. Cú đó không có video thì `video = null`, **kể cả khi cú khác của người đó có video**. Giao diện chỉ cho bấm xem khi `video` khác `null`. Chỉ thêm trường, không phá vỡ: `display_name` vẫn là biệt danh trước (khác `record-breaks`, mục 13.8). Người ẩn danh vẫn có `video` phát được, tên "Hội viên ẩn danh", `avatar_url = null`; dòng xếp hạng không có id hay định danh nào. Đổi kỳ dùng tham số `period` và `date` sẵn có. `GET /member-area/overview` trả `ranking.top3` cùng kiểu nên cũng có hai trường mới (giao diện Tổng quan không cần đổi). Đối chiếu code `be/T-049-ranking-video` @ `1960e8a` (cục bộ, tạo từ nhánh T-048); không migration, không cấu hình mới. BACKEND chưa chạy cả bộ test cục bộ, chờ CI.
 - Nợ kỹ thuật đã được ARCHITECT chấp nhận cho đợt này: `avatar_url` của người hiện tên là `/api/v1/member-area/avatars/{customer_id}?v=…`, giống phòng chơi (lộ id nội bộ trong đường dẫn ảnh).
 
