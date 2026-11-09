@@ -229,8 +229,8 @@ function MobileBar() {
   if (home) {
     return (
       // Không overflow-hidden (hình sân SVG tự cắt trong khung): để bảng Thông báo của chuông thả xuống không bị cắt;
-      // z-header để bảng nằm trên phần nội dung bên dưới
-      <header className="relative z-(--z-header) bg-appbar text-surface lg:hidden">
+      // z-header để bảng nằm trên phần nội dung bên dưới. Dính đầu trang khi cuộn (T-056), chừa tai thỏ iOS (safe-area)
+      <header className="sticky top-0 z-(--z-header) bg-appbar pt-[env(safe-area-inset-top)] text-surface shadow-sm lg:hidden">
         <CourtPattern />
         <div className="relative flex items-center gap-3 px-4 pt-4 pb-5">
           <div className="min-w-0 flex-1">
@@ -247,7 +247,7 @@ function MobileBar() {
   }
 
   return (
-    <header className="sticky top-0 z-(--z-header) bg-appbar text-surface shadow-sm lg:hidden">
+    <header className="sticky top-0 z-(--z-header) bg-appbar pt-[env(safe-area-inset-top)] text-surface shadow-sm lg:hidden">
       <div className="grid h-14 grid-cols-[3rem_1fr_3rem] items-center px-1">
         <Link
           href={screen?.back ?? HOME_HREF}
