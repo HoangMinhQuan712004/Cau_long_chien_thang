@@ -33,6 +33,7 @@ dependencies = [
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
+    "pytest-xdist>=3.6",  # chạy song song: pytest -n auto (T-059), mỗi worker một DB
     "ruff>=0.6",
 ]
 
@@ -55,6 +56,9 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
+# Chạy song song (``-n auto``): mỗi file test ở trọn một worker – test trong file có thể dựa vào
+# fixture cấp module / thứ tự; không có ``-n`` thì không ảnh hưởng (T-059)
+addopts = "--dist=loadfile"
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Query", "fastapi.Depends"]
