@@ -13,19 +13,42 @@ from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 
-# Dùng DB riêng cho test: <tên db>_test (phải set TRƯỚC khi import app.core.db)
-settings.DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL",
-    make_url(settings.DATABASE_URL)
-    .set(database=f"{make_url(settings.DATABASE_URL).database}_test")
-    .render_as_string(hide_password=False),
-)
+
+def _test_database_url() -> str:
+    """DB test: ``<tên db>_test`` (hoặc ``TEST_DATABASE_URL``). Chạy song song (pytest-xdist,
+    T-059): mỗi worker một DB riêng ``<tên>_gw0_test``… – mã ``BK-YYYYMMDD-NNN`` tuần tự theo ngày,
+    số đếm và thẻ tổng phụ thuộc dữ liệu chung nên các worker không được dùng chung DB."""
+    url = make_url(
+        os.environ.get("TEST_DATABASE_URL")
+        or make_url(settings.DATABASE_URL).set(
+            database=f"{make_url(settings.DATABASE_URL).database}_test"
+        )
+    )
+    worker = os.environ.get("PYTEST_XDIST_WORKER")
+    if worker:
+        name = url.database or ""
+        base, test = (name[: -len("_test")], "_test") if name.endswith("_test") else (name, "")
+        url = url.set(database=f"{base}_{worker}{test}")
+    return url.render_as_string(hide_password=False)
+
+
+# Phải set TRƯỚC khi import app.core.db
+settings.DATABASE_URL = _test_database_url()
 
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
+from pwdlib import PasswordHash  # noqa: E402
+from pwdlib.hashers.argon2 import Argon2Hasher  # noqa: E402
 from sqlalchemy import delete, text, update  # noqa: E402
+from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
 
-from app.core import queue, ratelimit  # noqa: E402
+from app.core import queue, ratelimit, security  # noqa: E402
+
+# Argon2 rẻ CHỈ khi test (T-059): bản ``recommended`` (m=64 MiB, t=3, p=4) tốn ~0,2 giây và 64 MiB
+# mỗi lần băm / so – mỗi lần đăng nhập của fixture. Vẫn là argon2id thật (``$argon2id$…``), chỉ
+# hạ tham số; đặt trước seed để mọi hash trong DB test cùng tham số. Code ứng dụng không đổi.
+security.password_hash = PasswordHash((Argon2Hasher(time_cost=1, memory_cost=8, parallelism=1),))
+
 from app.core.db import SessionLocal, engine  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
@@ -85,12 +108,28 @@ def _alembic_upgrade_head() -> None:
     command.upgrade(cfg, "head")
 
 
+async def _create_database_if_missing(database_url: str) -> None:
+    """DB của worker xdist (hoặc DB test lần đầu) chưa có thì tạo."""
+    url = make_url(database_url)
+    server = create_async_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    try:
+        async with server.connect() as conn:
+            found = await conn.scalar(
+                text("SELECT 1 FROM pg_database WHERE datname = :n"), {"n": url.database}
+            )
+            if not found:
+                await conn.execute(text(f'CREATE DATABASE "{url.database}"'))
+    finally:
+        await server.dispose()
+
+
 @pytest.fixture(scope="session", autouse=True)
 async def setup_db() -> AsyncIterator[None]:
     """DB test dựng bằng migration thật (schema ``booking``, trigger ``audit_log``, EXCLUDE…)."""
     refusal = reset_refusal(settings.DATABASE_URL, settings.ENV, os.environ.get("CI"))
     if refusal:
         pytest.exit(refusal, returncode=2)
+    await _create_database_if_missing(settings.DATABASE_URL)
     async with engine.begin() as conn:
         # Xóa sạch (gồm bảng legacy_* và enum của luồng cũ – không còn trong metadata)
         await conn.execute(text("DROP SCHEMA IF EXISTS booking CASCADE"))
