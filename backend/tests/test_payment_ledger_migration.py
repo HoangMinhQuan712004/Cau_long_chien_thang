@@ -25,6 +25,7 @@ T2 = "'2026-11-02 11:00+07'"
 T3 = "'2026-11-03 12:00+07'"
 T4 = "'2026-11-05 09:00+07'"
 T5 = "'2026-11-06 09:00+07'"
+T6 = "'2026-11-07 09:00+07'"
 CUSTOMER = {
     "customer_ref": "'1'",
     "customer_kind": "'temp'",
@@ -196,6 +197,42 @@ async def test_backfill_groups_each_payment_and_totals_match(mig_db):
         # Vé: hai khách khác nhau thu cùng lúc -> hai dòng; một vé hủy có hoàn
         ticket(1, 1, 30_000, "a", **paid(T2)),
         ticket(2, 2, 30_000, "b", **cancelled(T2, T5, 30_000)),
+        # Dữ liệu trước T-019: một giao dịch SePay trả 2 khối, bị tách thành 2 đơn -> một dòng sổ,
+        # mã đơn nhỏ nhất (Sửa 09/11). Vé: một giao dịch trả 2 vé -> một dòng.
+        order(5, "BK-20261110-005", channel="'online'"),
+        order(4, "BK-20261110-004", channel="'online'"),
+        booking(
+            9,
+            5,
+            1,
+            300_000,
+            gateway_ref="'sepay:42637:2'",
+            **paid(T6, "'online_transfer'", **ONLINE),
+        ),
+        booking(
+            10,
+            4,
+            1,
+            300_000,
+            gateway_ref="'sepay:42637:1'",
+            **paid(T6, "'online_transfer'", **ONLINE),
+        ),
+        ticket(
+            3,
+            3,
+            30_000,
+            "c",
+            gateway_ref="'sepay:888:1'",
+            **paid(T6, "'online_transfer'", **ONLINE),
+        ),
+        ticket(
+            4,
+            4,
+            30_000,
+            "d",
+            gateway_ref="'sepay:888:2'",
+            **paid(T6, "'online_transfer'", **ONLINE),
+        ),
     )
     await alembic(command.upgrade, TARGET)
 
@@ -214,6 +251,10 @@ async def test_backfill_groups_each_payment_and_totals_match(mig_db):
          170_000),
         ("refund", "cash", "counter", 60_000, "BK-20261110-001", "Admin", None, 1, 60_000),
         ("refund", "cash", "counter", 30_000, "BK-20261110-003", "Admin", None, 1, 30_000),
+        ("in", "online_transfer", "online", 60_000, "BK-20261110-003", "Hệ thống", "sepay:888", 2,
+         60_000),
+        ("in", "online_transfer", "online", 600_000, "BK-20261110-004", "Hệ thống", "sepay:42637",
+         2, 600_000),
     ]  # fmt: skip
 
     # Cổng AC8: Σ in − Σ refund của sổ = Σ đã thu − Σ đã hoàn trên booking + vé
@@ -226,7 +267,7 @@ async def test_backfill_groups_each_payment_and_totals_match(mig_db):
         "SELECT paid_at, payment_status, amount, refund_amount FROM booking.booking UNION ALL "
         "SELECT paid_at, payment_status, amount, refund_amount FROM booking.ticket) x"
     )
-    assert ledger == source == 210_000 + 70_000 + 170_000 + 60_000 - 90_000
+    assert ledger == source == 210_000 + 70_000 + 170_000 + 60_000 + 600_000 + 60_000 - 90_000
     await write(entry())  # dãy id tiếp tục sau backfill (không đụng id đã dùng)
 
     await alembic(command.downgrade, BEFORE)
@@ -237,9 +278,9 @@ async def test_backfill_groups_each_payment_and_totals_match(mig_db):
         )
         == []
     )
-    assert (await fetch("SELECT count(*) FROM booking.booking"))[0][0] == 8
+    assert (await fetch("SELECT count(*) FROM booking.booking"))[0][0] == 10
     await alembic(command.upgrade, "head")
-    assert (await fetch("SELECT count(*) FROM booking.payment_entry"))[0][0] == 7
+    assert (await fetch("SELECT count(*) FROM booking.payment_entry"))[0][0] == 9
     await alembic(lambda cfg, _rev: command.check(cfg), "head")
 
 

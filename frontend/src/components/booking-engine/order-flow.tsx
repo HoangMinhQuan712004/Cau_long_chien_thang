@@ -6,6 +6,7 @@ import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
 import { formatDayMonthYear, formatTime, formatVnd, hhmm } from "@/lib/format";
 import { authFailure } from "./booking-dialogs";
+import { CollectQrDialog } from "./collect-qr";
 import { getItem, getOrderCancelPreview, searchCode, sendCancelOrder, sendCollectOrder } from "./requests";
 import type { CancelPreview, CancelResult, CancelSkipReason, Item, OrderCollect } from "./types";
 import { btnCls, btnDangerCls, btnDangerOutlineCls, btnPrimaryCls, ErrorBanner, resourceLabels, StatusBadge, SummaryBox, textareaCls } from "./ui";
@@ -124,31 +125,29 @@ export function OrderFlow({ orderCode, onClose, onChanged, onOpenItem, startCanc
   // Một hộp, hai bước (danh sách → xác nhận thu): đổi nội dung thay vì mở hộp thứ hai
   // (ẩn hộp thứ nhất sẽ kích hoạt onClose và đóng cả luồng).
   if (confirming) {
+    // T-058: mặc định QR chuyển khoản; "Khách trả tiền mặt" ⇒ bước xác nhận tiền mặt như trước
     return (
-      <Modal
-        open
+      <CollectQrDialog
+        orderCode={orderCode}
+        busy={busy}
+        banner={banner}
         onClose={onClose}
-        title="Thu cả đơn"
-        footer={
-          <>
-            <button type="button" onClick={() => setConfirming(false)} disabled={busy} className={btnCls}>
-              Quay lại
-            </button>
-            <button type="button" onClick={() => void collectAll()} disabled={busy} className={btnPrimaryCls}>
-              {busy ? "Đang thu…" : "Xác nhận đã thu tiền mặt"}
-            </button>
-          </>
+        onBack={() => setConfirming(false)}
+        onConfirmCash={() => void collectAll()}
+        onPaid={() => {
+          onChanged();
+          onClose();
+        }}
+        cashBody={
+          <SummaryBox>
+            <p className="font-semibold">{orderCode}</p>
+            <p>
+              {unpaid.length} khối chưa thanh toán · <b>{formatVnd(unpaidAmount)}</b>
+            </p>
+            <p className="text-muted">Các khối đã thanh toán hoặc Không thu được giữ nguyên.</p>
+          </SummaryBox>
         }
-      >
-        {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
-        <SummaryBox>
-          <p className="font-semibold">{orderCode}</p>
-          <p>
-            {unpaid.length} khối chưa thanh toán · <b>{formatVnd(unpaidAmount)}</b>
-          </p>
-          <p className="text-muted">Các khối đã thanh toán hoặc Không thu được giữ nguyên.</p>
-        </SummaryBox>
-      </Modal>
+      />
     );
   }
 

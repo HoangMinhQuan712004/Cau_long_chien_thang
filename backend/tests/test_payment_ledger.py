@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.modules.booking_engine import common, report_revenue
+from app.modules.booking_engine import common, ledger, report_revenue
 from app.modules.booking_engine.models import Booking, PaymentEntry, PaymentEntryItem
 from app.modules.booking_engine.tenant import current_tenant_id
 from tests.conftest import API, idem
@@ -235,6 +235,38 @@ async def test_online_money_is_one_system_entry_and_resend_adds_nothing(anon, ad
             .where(PaymentEntry.reference == f"sepay:{stray['id']}")
         )
     assert n == 0
+
+
+async def test_search_finds_an_entry_by_any_item_code(admin, clock):
+    """Sửa 09/11 (4): một dòng phủ hai đơn (dữ liệu cũ) -> tìm được bằng mã của bất kỳ mục nào."""
+    day = FAR + timedelta(days=40)
+    clock(day, 1)
+    court = await new_court(admin)
+    first, second = [
+        (
+            await book(
+                admin, court["code"], hour, customer=temp("Hai Đơn", random_phone()), day=day
+            )
+        ).json()["code"]
+        for hour in (20, 22)
+    ]
+    async with SessionLocal() as s:
+        items = list(await s.scalars(select(Booking).where(Booking.code.in_((first, second)))))
+        await ledger.record_in(
+            s,
+            current_tenant_id(),
+            sorted(items, key=lambda b: b.code),
+            method="online_transfer",
+            occurred_at=at(day, 10),
+            actor=ledger.GATEWAY_ACTOR,
+            reference=f"sepay:t057-{second}",
+        )
+        await s.commit()
+    first_order, second_order = (c.rsplit("-", 1)[0] for c in (first, second))
+    for q in (first_order, second_order, second):
+        [entry] = (await entries(admin, day, q=q))["items"]
+        assert entry["order_code"] == first_order, q
+        assert sorted(i["code"] for i in entry["items"]) == [first, second]
 
 
 # ------------------------------------------------------------------ AC11
