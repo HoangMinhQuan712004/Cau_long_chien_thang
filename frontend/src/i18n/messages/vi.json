@@ -597,7 +597,7 @@
       "explain": "Giải thích cách tính",
       "revenue": {
         "label": "Tổng doanh thu",
-        "tip": "Tiền đã thu (tiền mặt và chuyển khoản) của booking và vé xé vé, tính theo ngày nhận tiền; tiền hoàn trừ vào ngày hủy."
+        "tip": "Tổng tiền sân của booking và vé xé vé đã thanh toán, tính theo ngày chơi."
       },
       "bookings": {
         "label": "Số lượt đặt",
@@ -611,7 +611,7 @@
     },
     "daily": {
       "title": "Doanh thu theo ngày",
-      "subtitle": "{range} · tiền thu theo ngày nhận tiền của cả {n} sân",
+      "subtitle": "{range} · tổng tiền sân của cả {n} sân",
       "legendLine": "Doanh thu theo ngày",
       "legendAverage": "Trung bình kỳ · {avg} tr/ngày",
       "legendWeekend": "Cuối tuần",

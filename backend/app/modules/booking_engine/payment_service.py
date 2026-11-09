@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import audit, audit_change, audit_detail
 from app.core.errors import AppError
-from app.modules.booking_engine import ledger, outbox
+from app.modules.booking_engine import outbox
 from app.modules.booking_engine.audit_fields import paid_changes
 from app.modules.booking_engine.booking_service import booking_item, normalize_code, ticket_item
 from app.modules.booking_engine.common import STALE_ITEM, Ctx, audit_actor, context, not_found
@@ -133,9 +133,6 @@ async def collect(
     item, _ = await lock_item(session, tenant_id, code)
     _check_fresh(item, data.version)
     mark_paid(session, ctx, tenant_id, actor, item)
-    await ledger.record_in(
-        session, tenant_id, [item], method="cash", occurred_at=ctx.now, actor=actor
-    )
     return await view_of(session, ctx, item)
 
 

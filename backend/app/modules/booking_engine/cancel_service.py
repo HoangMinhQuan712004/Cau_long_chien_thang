@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import audit, audit_change, audit_detail
 from app.core.errors import AppError
-from app.modules.booking_engine import ledger, outbox
+from app.modules.booking_engine import outbox
 from app.modules.booking_engine.booking_service import normalize_code, session_resources
 from app.modules.booking_engine.common import STALE_ITEM, Ctx, audit_actor, context
 from app.modules.booking_engine.dto import (
@@ -177,7 +177,6 @@ async def cancel_item(
     if item.payment_status == "paid" and not data.refund_confirmed:
         raise _refund_unconfirmed()
     await _apply(session, ctx, actor, item, reason)
-    await ledger.record_refunds(session, tenant_id, [item], occurred_at=ctx.now, actor=actor)
     return await view_of(session, ctx, item)
 
 
@@ -271,8 +270,6 @@ async def cancel_order(
     refund_total = sum(b.amount for b in chosen if b.payment_status == "paid")
     for b in chosen:
         await _apply(session, ctx, actor, b, reason)
-    # Hoàn trừ vào ngày hủy (ADR-014): một dòng cho cả lần hủy
-    await ledger.record_refunds(session, tenant_id, chosen, occurred_at=ctx.now, actor=actor)
     await session.flush()
     return OrderCancelOut(
         cancelled=[b.code for b in chosen], skipped=skipped, refund_total=refund_total

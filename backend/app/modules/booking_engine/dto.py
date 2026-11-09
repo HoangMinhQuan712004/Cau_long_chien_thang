@@ -538,57 +538,51 @@ class TransactionsQuery(BaseModel):
     date_from: dt.date | None = None
     date_to: dt.date | None = None
     resource: str | None = None
+    status: PaymentStatus | None = None
     method: Literal["cash", "transfer"] | None = None
-    kind: Literal["in", "refund"] | None = None
     q: str | None = None
     page: int = 1
 
 
-class TransactionEntryItem(BaseModel):
-    code: str = Field(description="Booking: mã con · vé: mã vé")
+class TransactionRow(BaseModel):
     kind: Literal["booking", "ticket"]
-    resource_name: str = Field(description="Tên sân; vé: các sân của sự kiện, cách bằng dấu phẩy")
+    code: str = Field(description="Booking: mã con · vé: mã vé")
+    order_code: str | None = Field(default=None, description="Booking: mã đơn")
     play_date: dt.date
-    start_at: dt.datetime
-    end_at: dt.datetime
-    amount: int = Field(description="Phần tiền của mục trong dòng (dương)")
-
-
-class TransactionEntry(BaseModel):
-    """Một lần nhận tiền (``in``) hoặc hoàn tiền (``refund``) – sổ tiền vào (T-057, ADR-014).
-
-    Không có id số nội bộ (T-006 SEC4): FE dùng vị trí dòng trong trang làm key."""
-
-    kind: Literal["in", "refund"]
-    method: Literal["cash", "transfer"] = Field(description="transfer gồm cả chuyển khoản online")
-    source: Literal["counter", "counter_qr", "online"]
-    amount: int = Field(description="Luôn dương; hoàn tiền FE hiện dấu −")
-    occurred_at: dt.datetime
-    order_code: str | None = Field(description="Mã đơn; vé: mã sự kiện")
+    start_time: str
+    end_time: str
+    resource_codes: list[str]
     customer_name: str
-    customer_phone_masked: str | None
-    member_code: str | None = None
-    actor_label: str = Field(description='Người thu / hủy; tiền về qua cổng: "Hệ thống"')
-    items: list[TransactionEntryItem]
+    phone: str | None
+    amount: int
+    payment_status: PaymentStatus
+    payment_method: PaymentMethod | None
+    source: Source
+    cancel_reason: str | None = None
+    cancelled_by: str | None = None
+    refund_amount: int = 0
+
+
+class TransactionCard(BaseModel):
+    amount: int
+    count: int
 
 
 class TransactionCards(BaseModel):
-    """VND, theo bộ lọc ngày + sân (không theo phương thức / loại / tìm kiếm)."""
-
-    net: int = Field(description="cash + transfer − refund")
-    cash: int
-    transfer: int
-    refund: int
+    paid: TransactionCard
+    unpaid: TransactionCard
+    uncollectible: TransactionCard
+    cancelled: TransactionCard = Field(description="Cộng cả khoản đã thu và chưa thu đã hủy")
 
 
 class TransactionsOut(BaseModel):
     date_from: dt.date
     date_to: dt.date
-    cards: TransactionCards
-    items: list[TransactionEntry] = Field(description="Mới nhất trước (theo occurred_at)")
-    total: int
+    rows: list[TransactionRow]
     page: int
-    size: int
+    page_size: int
+    total: int
+    cards: TransactionCards
 
 
 # ---------- Bảng giá công khai (trang chủ) ----------
@@ -818,16 +812,6 @@ class OrderCollectOut(BaseModel):
     collected: list[str] = Field(description="Mã con vừa thu")
     amount: int = Field(description="Tổng tiền vừa thu")
     bookings: list[ItemOut] = Field(description="Mọi khối của đơn sau khi thu")
-
-
-class CollectQrInfo(BaseModel):
-    """Thu cả đơn bằng QR (T-058): số tiền + nội dung chuyển khoản; lớp gọi ghép thông tin NH."""
-
-    order_code: str
-    pay_ref: str = Field(description="Nội dung chuyển khoản = mã đơn bỏ gạch, vd BK20261106001")
-    amount: int = Field(description="Tổng các khối Chưa thanh toán hiện tại; 0 khi đã thu hết")
-    status: Literal["unpaid", "paid"] = Field(description="paid: không còn khối chưa thu")
-    blocks: int = Field(description="Số khối chưa thu")
 
 
 # ---------- Khu hội viên: lịch, đơn của mình, sự kiện + mua vé (T-023) ----------

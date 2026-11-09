@@ -1,6 +1,6 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { CHART_COLOR as C, millionTicks } from "./chart-parts";
 import { TipBridge, usePinTip } from "./chart-tip-layer";
@@ -69,8 +69,7 @@ function CourtTick({ x = 0, y = 0, payload, width = 0, visibleTicksCount = 1, by
 /** Doanh thu theo sân: cột theo mã sân, nhãn "19,7 tr" khi đủ chỗ; sân thấp nhất cột nhạt + "↓" (BR-015). */
 export function CourtChart({ courts, range, scrollLabel, t }: Props) {
   const total = courts.reduce((sum, c) => sum + c.revenue, 0);
-  // Sân có hoàn tiền nhiều hơn thu trong kỳ (T-057) ⇒ cột âm, trục xuống dưới 0
-  const ticks = millionTicks(Math.max(0, ...courts.map((c) => c.revenue)), Math.min(0, ...courts.map((c) => c.revenue)));
+  const ticks = millionTicks(Math.max(0, ...courts.map((c) => c.revenue)));
   const min = Math.min(...courts.map((c) => c.revenue));
   // Mọi sân bằng nhau (gồm cả kỳ chưa có doanh thu) ⇒ không đánh dấu; nhiều sân cùng thấp nhất ⇒ đánh dấu tất cả
   const hasLowest = courts.some((c) => c.revenue !== min);
@@ -103,29 +102,25 @@ export function CourtChart({ courts, range, scrollLabel, t }: Props) {
               interval={0}
             />
             {/* Trục dọc vẽ ở ScrollChart (đứng yên khi cuộn); trục ẩn ở đây chỉ để lưới theo đúng mốc */}
-            <YAxis hide ticks={ticks} domain={[ticks[0], ticks[ticks.length - 1]]} />
-            {ticks[0] < 0 ? <ReferenceLine y={0} stroke={C.axis} strokeWidth={1} /> : null}
+            <YAxis hide ticks={ticks} domain={[0, ticks[ticks.length - 1]]} />
             {/* Recharts chỉ lo vùng rê + nền cột; hộp chú thích vẽ ngoài khung cuộn (TipBridge) */}
             <Tooltip cursor={{ fill: C.soft }} isAnimationActive={false} content={() => null} />
             <TipBridge<Court> text={tipText} />
             <Bar dataKey="revenue" radius={[4, 4, 0, 0]} isAnimationActive={false}>
               {courts.map((c) => (
-                <Cell key={c.code} fill={c.revenue < 0 ? C.danger : C.primary} fillOpacity={lowest.has(c.code) ? 0.4 : 1} />
+                <Cell key={c.code} fill={C.primary} fillOpacity={lowest.has(c.code) ? 0.4 : 1} />
               ))}
               {/* Nhãn 1 dòng, chỉ khi vừa bề rộng cột (không chồng nhãn bên cạnh); cột 0 đ để trống (rê vẫn thấy) */}
               <LabelList
                 dataKey="revenue"
-                content={({ x, y, width, height, value }) => {
+                content={({ x, y, width, value }) => {
                   const text = `${millions(Number(value))} tr`;
                   const band = Number(width) / (1 - 2 * GAP);
                   if (!Number(value) || text.length * CHAR_PX > band - 4) return null;
-                  // Cột âm: recharts cho y ở vạch 0, height âm ⇒ nhãn đặt dưới đáy cột
-                  const below = Number(value) < 0;
-                  const edge = below ? Math.max(Number(y), Number(y) + Number(height)) : Math.min(Number(y), Number(y) + Number(height));
                   return (
                     <text
                       x={Number(x) + Number(width) / 2}
-                      y={below ? edge + 14 : edge - 6}
+                      y={Number(y) - 6}
                       textAnchor="middle"
                       fontSize={11}
                       fontWeight={700}

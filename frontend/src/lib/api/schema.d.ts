@@ -1229,10 +1229,10 @@ export interface paths {
         };
         /**
          * List Transactions
-         * @description Lịch sử giao dịch = sổ tiền vào (T-057): mỗi dòng một lần nhận / hoàn tiền, lọc theo ngày
-         *     tiền về (giờ VN, mặc định 7 ngày), 8 dòng / trang. Chỉ xem.
+         * @description Lịch sử giao dịch (chỉ Admin): lọc theo ngày chơi (mặc định 7 ngày), 8 dòng / trang.
          *
-         *     Thẻ ``cards`` theo bộ lọc ngày + sân. Lỗi: E-016 (từ > đến), E-020 (> 92 ngày).
+         *     ``method`` chọn phương thức -> chỉ dòng Đã thanh toán; "transfer" gồm cả online.
+         *     Lỗi: E-016 (từ > đến), E-020 (> 92 ngày).
          */
         get: operations["list_transactions_api_v1_booking_transactions_get"];
         put?: never;
@@ -2584,31 +2584,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/front-desk/orders/{order_code}/collect-qr": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Order Collect Qr
-         * @description Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại mỗi 3 giây tới khi ``status = paid``.
-         *
-         *     Số tiền = tổng khối Chưa thanh toán (như ``POST /booking/orders/{code}/collect``); nội dung
-         *     chuyển khoản ``pay_ref`` = mã đơn bỏ gạch. Tiền về đúng số -> webhook thu cả đơn; lệch số ->
-         *     Tiền về cần xử lý (cần hoàn). 404 E-BOOK-3 · 409 E-BOOK-4 (không còn khối chưa thu) ·
-         *     409 E-PAY-9 (chưa cài nhận chuyển khoản).
-         */
-        get: operations["order_collect_qr_api_v1_front_desk_orders__order_code__collect_qr_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/front-desk/orders/{order_code}/cancel-preview": {
         parameters: {
             query?: never;
@@ -3787,34 +3762,6 @@ export interface components {
             method: "cash" | "transfer";
             /** Version */
             version: number;
-        };
-        /** CollectQrOut */
-        CollectQrOut: {
-            /** Order Code */
-            order_code: string;
-            /**
-             * Pay Ref
-             * @description Nội dung chuyển khoản = mã đơn bỏ gạch, vd BK20261106001
-             */
-            pay_ref: string;
-            /**
-             * Amount
-             * @description Tổng các khối Chưa thanh toán hiện tại; 0 khi đã thu hết
-             */
-            amount: number;
-            /**
-             * Status
-             * @description paid: không còn khối chưa thu
-             * @enum {string}
-             */
-            status: "unpaid" | "paid";
-            /**
-             * Blocks
-             * @description Số khối chưa thu
-             */
-            blocks: number;
-            /** @description Như trang thanh toán online: ngân hàng, số TK, chủ TK, QR */
-            bank: components["schemas"]["BankInfo"];
         };
         /** CounterBlockIn */
         CounterBlockIn: {
@@ -7972,112 +7919,76 @@ export interface components {
              */
             max: string | null;
         };
-        /**
-         * TransactionCards
-         * @description VND, theo bộ lọc ngày + sân (không theo phương thức / loại / tìm kiếm).
-         */
-        TransactionCards: {
-            /**
-             * Net
-             * @description cash + transfer − refund
-             */
-            net: number;
-            /** Cash */
-            cash: number;
-            /** Transfer */
-            transfer: number;
-            /** Refund */
-            refund: number;
-        };
-        /**
-         * TransactionEntry
-         * @description Một lần nhận tiền (``in``) hoặc hoàn tiền (``refund``) – sổ tiền vào (T-057, ADR-014).
-         *
-         *     Không có id số nội bộ (T-006 SEC4): FE dùng vị trí dòng trong trang làm key.
-         */
-        TransactionEntry: {
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "in" | "refund";
-            /**
-             * Method
-             * @description transfer gồm cả chuyển khoản online
-             * @enum {string}
-             */
-            method: "cash" | "transfer";
-            /**
-             * Source
-             * @enum {string}
-             */
-            source: "counter" | "counter_qr" | "online";
-            /**
-             * Amount
-             * @description Luôn dương; hoàn tiền FE hiện dấu −
-             */
+        /** TransactionCard */
+        TransactionCard: {
+            /** Amount */
             amount: number;
-            /**
-             * Occurred At
-             * Format: date-time
-             */
-            occurred_at: string;
-            /**
-             * Order Code
-             * @description Mã đơn; vé: mã sự kiện
-             */
-            order_code: string | null;
-            /** Customer Name */
-            customer_name: string;
-            /** Customer Phone Masked */
-            customer_phone_masked: string | null;
-            /** Member Code */
-            member_code?: string | null;
-            /**
-             * Actor Label
-             * @description Người thu / hủy; tiền về qua cổng: "Hệ thống"
-             */
-            actor_label: string;
-            /** Items */
-            items: components["schemas"]["TransactionEntryItem"][];
+            /** Count */
+            count: number;
         };
-        /** TransactionEntryItem */
-        TransactionEntryItem: {
-            /**
-             * Code
-             * @description Booking: mã con · vé: mã vé
-             */
-            code: string;
+        /** TransactionCards */
+        TransactionCards: {
+            paid: components["schemas"]["TransactionCard"];
+            unpaid: components["schemas"]["TransactionCard"];
+            uncollectible: components["schemas"]["TransactionCard"];
+            /** @description Cộng cả khoản đã thu và chưa thu đã hủy */
+            cancelled: components["schemas"]["TransactionCard"];
+        };
+        /** TransactionRow */
+        TransactionRow: {
             /**
              * Kind
              * @enum {string}
              */
             kind: "booking" | "ticket";
             /**
-             * Resource Name
-             * @description Tên sân; vé: các sân của sự kiện, cách bằng dấu phẩy
+             * Code
+             * @description Booking: mã con · vé: mã vé
              */
-            resource_name: string;
+            code: string;
+            /**
+             * Order Code
+             * @description Booking: mã đơn
+             */
+            order_code?: string | null;
             /**
              * Play Date
              * Format: date
              */
             play_date: string;
-            /**
-             * Start At
-             * Format: date-time
-             */
-            start_at: string;
-            /**
-             * End At
-             * Format: date-time
-             */
-            end_at: string;
-            /**
-             * Amount
-             * @description Phần tiền của mục trong dòng (dương)
-             */
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Codes */
+            resource_codes: string[];
+            /** Customer Name */
+            customer_name: string;
+            /** Phone */
+            phone: string | null;
+            /** Amount */
             amount: number;
+            /**
+             * Payment Status
+             * @enum {string}
+             */
+            payment_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
+            /** Payment Method */
+            payment_method: ("cash" | "transfer" | "online_transfer") | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "online";
+            /** Cancel Reason */
+            cancel_reason?: string | null;
+            /** Cancelled By */
+            cancelled_by?: string | null;
+            /**
+             * Refund Amount
+             * @default 0
+             */
+            refund_amount: number;
         };
         /** TransactionsOut */
         TransactionsOut: {
@@ -8091,18 +8002,15 @@ export interface components {
              * Format: date
              */
             date_to: string;
-            cards: components["schemas"]["TransactionCards"];
-            /**
-             * Items
-             * @description Mới nhất trước (theo occurred_at)
-             */
-            items: components["schemas"]["TransactionEntry"][];
-            /** Total */
-            total: number;
+            /** Rows */
+            rows: components["schemas"]["TransactionRow"][];
             /** Page */
             page: number;
-            /** Size */
-            size: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+            cards: components["schemas"]["TransactionCards"];
         };
         /** UncollectibleIn */
         UncollectibleIn: {
@@ -10501,12 +10409,9 @@ export interface operations {
             query?: {
                 from?: string | null;
                 to?: string | null;
-                /** @description Dòng có mục ở sân này */
                 resource?: string | null;
-                /** @description transfer gồm cả online */
+                status?: ("unpaid" | "paid" | "uncollectible" | "cancelled") | null;
                 method?: ("cash" | "transfer") | null;
-                /** @description Thu tiền / Hoàn tiền */
-                kind?: ("in" | "refund") | null;
                 q?: string | null;
                 page?: number;
             };
@@ -12971,37 +12876,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    order_collect_qr_api_v1_front_desk_orders__order_code__collect_qr_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                order_code: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CollectQrOut"];
                 };
             };
             /** @description Validation Error */

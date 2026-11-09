@@ -55,7 +55,6 @@ def test_actions_for_all_and_one_type():
         "payment.collect",
         "booking.online.paid",
         "ticket.online.paid",  # T-023: tiền về cho vé mua online
-        "booking.counter_qr.paid",  # T-058: QR "Thu cả đơn" của đơn quầy
     )
 
 

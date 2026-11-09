@@ -10,7 +10,7 @@ type Props = {
   /** Số cột / ngày và bề rộng tối thiểu mỗi cái (px, đổi ra rem để màn lớn phóng theo): không đủ chỗ ⇒ cuộn ngang, không bóp nhỏ cột. */
   count: number;
   minStep: number;
-  /** Mốc trục dọc (đồng), tăng dần: mốc đầu = đáy trục (0, hoặc âm khi có hoàn tiền), mốc cuối = đỉnh trục. */
+  /** Mốc trục dọc (đồng), mốc cuối = đỉnh trục. */
   ticks: number[];
   /** Lề trên và chiều cao trục ngang của biểu đồ bên trong (px) ⇒ mốc trục dọc khớp lưới. */
   plotTop: number;
@@ -29,9 +29,7 @@ type Props = {
  */
 export function ScrollChart({ count, minStep, ticks, plotTop, axisHeight, label, scrollLabel, children }: Props) {
   const { ref, edges, isScrollable, isDragging, scrollLeft, width } = useDragScroll<HTMLDivElement>();
-  const top = ticks[ticks.length - 1] ?? 1;
-  const bottom = Math.min(ticks[0] ?? 0, 0);
-  const span = top - bottom || 1;
+  const top = ticks[ticks.length - 1] || 1;
   const [hoverTip, setHoverTip] = useState<Tip | null>(null);
   const [pinTip, setPinTip] = useState<Tip | null>(null);
   const [setters] = useState(() => ({ hover: setHoverTip, pin: setPinTip }));
@@ -56,7 +54,7 @@ export function ScrollChart({ count, minStep, ticks, plotTop, axisHeight, label,
             <span
               key={v}
               className="absolute right-2 -translate-y-1/2 leading-none whitespace-nowrap"
-              style={{ top: `${((top - v) / span) * 100}%` }}
+              style={{ top: `${(1 - v / top) * 100}%` }}
             >
               {millionAxisLabel(v)}
             </span>
