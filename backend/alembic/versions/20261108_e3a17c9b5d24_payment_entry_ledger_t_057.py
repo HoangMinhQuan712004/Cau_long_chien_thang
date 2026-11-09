@@ -2,8 +2,11 @@
 
 Backfill từ booking / vé (SQL thuần):
 - ``in``: dòng từng thu (``paid_at`` có, trạng thái ``paid`` hoặc ``cancelled``, ``amount > 0``).
-  - Booking gộp theo (đơn, ``paid_at``, phương thức, người thu).
-  - Vé gộp theo (sự kiện, lượt thanh toán online, khách, ``paid_at``, phương thức, người thu).
+  - Có ``gateway_ref`` (tiền về SePay): gộp theo giao dịch (``gateway_ref`` bỏ đuôi ``:n``) –
+    một giao dịch = một dòng; phủ nhiều đơn (dữ liệu trước T-019) -> mã đơn nhỏ nhất (Sửa 09/11).
+  - Còn lại, booking gộp theo (đơn, ``paid_at``, phương thức, người thu).
+  - Còn lại, vé gộp theo (sự kiện, lượt thanh toán online, khách, ``paid_at``, phương thức,
+    người thu).
   - Nguồn ``online`` khi ``online_transfer``, còn lại ``counter``; SePay: người thu "Hệ thống",
     ``reference`` = ``gateway_ref`` bỏ đuôi ``:n``.
 - ``refund``: dòng có ``refund_amount > 0``, gộp như trên nhưng theo ``cancelled_at`` + người hủy.
@@ -27,7 +30,11 @@ down_revision: str | None = "bb86440fad96"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-# Một dòng nguồn = một mục sổ; ``grp`` = khóa gộp thành một dòng sổ
+# ``sepay:{id}:{n}`` -> ``sepay:{id}`` (mã giao dịch = ``reference`` của dòng sổ)
+_REF_TAIL = ":[0-9]+$"  # chèn thẳng vào SQL (CREATE TABLE AS không nhận tham số)
+
+# Một dòng nguồn = một mục sổ; ``grp`` = khóa gộp thành một dòng sổ. Có ``gateway_ref`` -> gộp
+# theo giao dịch (một giao dịch = một dòng, kể cả khi dữ liệu trước T-019 tách thành nhiều đơn)
 _SOURCE_ROWS = """
 CREATE TEMP TABLE _pe_src ON COMMIT DROP AS
 SELECT 'b'::text AS target, b.id AS item_id, b.tenant_id, 'in'::text AS kind,
@@ -35,16 +42,23 @@ SELECT 'b'::text AS target, b.id AS item_id, b.tenant_id, 'in'::text AS kind,
        o.code AS order_code, b.customer_name, b.customer_phone, b.member_code,
        b.collected_by_type AS actor_type, b.collected_by_id AS actor_id,
        b.collected_by_label AS actor_label, b.gateway_ref,
-       concat_ws('|', 'b', b.order_id, b.paid_at, b.payment_method,
-                 b.collected_by_type, b.collected_by_id, b.collected_by_label) AS grp
+       CASE WHEN b.gateway_ref IS NOT NULL
+            THEN concat_ws('|', 'g', b.tenant_id, regexp_replace(b.gateway_ref, '{tail}', ''))
+            ELSE concat_ws('|', 'b', b.order_id, b.paid_at, b.payment_method,
+                           b.collected_by_type, b.collected_by_id, b.collected_by_label)
+       END AS grp
 FROM booking.booking b JOIN booking.booking_order o ON o.id = b.order_id
 WHERE b.paid_at IS NOT NULL AND b.payment_status IN ('paid', 'cancelled') AND b.amount > 0
 UNION ALL
 SELECT 't', t.id, t.tenant_id, 'in', t.payment_method, t.amount, t.paid_at,
        s.code, t.customer_name, t.customer_phone, t.member_code,
        t.collected_by_type, t.collected_by_id, t.collected_by_label, t.gateway_ref,
-       concat_ws('|', 't', t.session_id, t.checkout_id, t.customer_ref, t.paid_at,
-                 t.payment_method, t.collected_by_type, t.collected_by_id, t.collected_by_label)
+       CASE WHEN t.gateway_ref IS NOT NULL
+            THEN concat_ws('|', 'g', t.tenant_id, regexp_replace(t.gateway_ref, '{tail}', ''))
+            ELSE concat_ws('|', 't', t.session_id, t.checkout_id, t.customer_ref, t.paid_at,
+                           t.payment_method, t.collected_by_type, t.collected_by_id,
+                           t.collected_by_label)
+       END
 FROM booking.ticket t JOIN booking.session s ON s.id = t.session_id
 WHERE t.paid_at IS NOT NULL AND t.payment_status IN ('paid', 'cancelled') AND t.amount > 0
 UNION ALL
@@ -70,11 +84,12 @@ CREATE TEMP TABLE _pe_grp ON COMMIT DROP AS
 SELECT nextval(pg_get_serial_sequence('booking.payment_entry', 'id')) AS entry_id, g.*
 FROM (
     SELECT grp, min(tenant_id) AS tenant_id, min(kind) AS kind, min(method) AS method,
-           sum(amount) AS amount, min(occurred_at) AS occurred_at, min(order_code) AS order_code,
+           sum(amount) AS amount, min(occurred_at) AS occurred_at,
+           min(order_code COLLATE "C") AS order_code,
            min(customer_name) AS customer_name, min(customer_phone) AS customer_phone,
            min(member_code) AS member_code, min(actor_type) AS actor_type,
            min(actor_id) AS actor_id, min(actor_label) AS actor_label,
-           min(regexp_replace(gateway_ref, ':[0-9]+$', '')) AS reference
+           min(regexp_replace(gateway_ref, '{tail}', '')) AS reference
     FROM _pe_src GROUP BY grp ORDER BY min(occurred_at), grp
 ) g
 """
@@ -214,7 +229,7 @@ def upgrade() -> None:
         )
 
     for sql in (_SOURCE_ROWS, _GROUPS, _INSERT_ENTRIES, _INSERT_ITEMS):
-        op.execute(sql)
+        op.execute(sql.replace("{tail}", _REF_TAIL))
     op.execute("DROP TABLE _pe_src, _pe_grp")
 
 
