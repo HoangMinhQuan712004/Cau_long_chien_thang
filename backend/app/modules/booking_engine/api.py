@@ -20,6 +20,7 @@ from app.modules.booking_engine import (
     demo,
     holds,
     member_history,
+    move_service,
     online_service,
     orders,
     outbox,
@@ -53,6 +54,8 @@ from app.modules.booking_engine.dto import (
     LookupResult,
     MemberCalendar,
     MemberOrder,
+    MoveIn,
+    MoveTarget,
     OnlinePaymentIn,
     OnlinePaymentResult,
     OrderCancelIn,
@@ -373,6 +376,20 @@ async def register_ticket(
 def normalize_code(raw: str) -> str:
     """Mã booking / vé / đơn theo dạng lưu (bỏ khoảng trắng, viết hoa)."""
     return booking_service.normalize_code(raw)
+
+
+async def move_targets(
+    session: AsyncSession, code: str, *, tenant_id: int | None = None
+) -> list[MoveTarget]:
+    """Sân đích còn trống cùng khung của một booking (chỉ đọc)."""
+    return await move_service.targets(session, _tid(tenant_id), code)
+
+
+async def move_booking(
+    session: AsyncSession, actor: Actor, code: str, data: MoveIn, *, tenant_id: int | None = None
+) -> ItemOut:
+    """Đổi sân, giữ mã + giá + tiền. 409 E-BOOK-6 / 8 · 422 E-BOOK-7 · E-012. Không commit."""
+    return await move_service.move(session, _tid(tenant_id), actor, code, data)
 
 
 async def cancel_item(

@@ -79,6 +79,18 @@ async def backfill(session: AsyncSession, now: datetime) -> int:
     return await ensure_rooms(session, [s for s in sources if s.code not in have])
 
 
+async def follow_court(
+    session: AsyncSession, booking_code: str, code: str, name: str, type_name: str
+) -> bool:
+    """Phòng của booking vừa đổi sân lấy tên sân mới (chưa báo hội viên – người dùng chốt)."""
+    result = await session.execute(
+        update(PlayRoom)
+        .where(PlayRoom.booking_code == booking_code)
+        .values(resource_code=code, resource_name=name, resource_type_name=type_name)
+    )
+    return bool(result.rowcount)
+
+
 async def close_expired(session: AsyncSession, now: datetime) -> int:
     """Đóng phòng quá giờ kết thúc + 10 phút. Không commit.
 

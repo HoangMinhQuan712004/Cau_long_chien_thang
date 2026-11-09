@@ -6,6 +6,7 @@ import type {
   CustomerPayload,
   Item,
   MemberHit,
+  MoveTarget,
   PaymentMethod,
   Quote,
   RecurringBody,
@@ -109,6 +110,13 @@ export const sendUncollectible = (key: string, code: string, reason: string, ver
 /** Hủy một booking / vé (T-052: cả buổi đang chơi / đã qua nếu đã thu). Đã thu thì phải gửi `refund_confirmed: true`. Lỗi E-PAY-5/6/7, 409 khi `version` lệch. */
 export const sendCancelItem = (key: string, code: string, v: { reason: string; version: number; refund_confirmed: boolean }) =>
   looseApi.POST(`${P}/front-desk/items/{code}/cancel`, { params: { path: { code } }, body: v, headers: idem(key) });
+
+/** Sân trống cùng khung để đổi sân (BE đã lọc). */
+export const getMoveTargets = (code: string) =>
+  read<MoveTarget[]>(() => looseApi.GET(`${P}/booking/items/{code}/move-targets`, { params: { path: { code } } }));
+
+export const sendMove = (key: string, code: string, v: { resource_code: string; version: number }) =>
+  looseApi.POST(`${P}/booking/items/{code}/move`, { params: { path: { code } }, body: v, headers: idem(key) });
 
 /** Xem trước hủy cả đơn: buổi sẽ hủy / bị bỏ qua + tổng tiền. */
 export const getOrderCancelPreview = (orderCode: string) =>

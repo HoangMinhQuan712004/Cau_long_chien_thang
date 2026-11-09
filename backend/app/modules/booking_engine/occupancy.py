@@ -49,18 +49,22 @@ async def occupied_from(
     )
     result: list[OccupiedSlot] = []
     for row in rows:
-        day, start_min, end_min = _local_minutes(row.time_range.lower, row.time_range.upper, tz)
+        _, start_min, end_min = _local_minutes(row.time_range.lower, row.time_range.upper, tz)
         if outside is not None and outside[0] <= start_min and end_min <= outside[1]:
             continue
-        result.append(
-            OccupiedSlot(
-                code=row.owner_code,
-                date=day,
-                start_time=to_hhmm(start_min),
-                end_time=to_hhmm(end_min),
-            )
-        )
+        result.append(slot_of(row, tz))
     return result
+
+
+def slot_of(row: Allocation, tz: ZoneInfo) -> OccupiedSlot:
+    day, start_min, end_min = _local_minutes(row.time_range.lower, row.time_range.upper, tz)
+    return OccupiedSlot(
+        code=row.owner_code,
+        date=day,
+        start_time=to_hhmm(start_min),
+        end_time=to_hhmm(end_min),
+        kind=row.kind,
+    )
 
 
 def listing(slots: list[OccupiedSlot]) -> dict:

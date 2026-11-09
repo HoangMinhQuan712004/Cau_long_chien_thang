@@ -416,6 +416,15 @@ def cancel_phase(item: Booking | Ticket, start_at, end_at, ctx: Ctx) -> str | No
     return "playing" if ctx.now < end_at else "past"
 
 
+def movable_reason(b: Booking, ctx: Ctx) -> str | None:
+    """Đổi sân được khi còn hiệu lực và chưa kết thúc (đang diễn ra vẫn đổi được)."""
+    if b.payment_status not in ("unpaid", "paid"):
+        return "inactive"
+    if ctx.now >= b.end_at:
+        return "ended"
+    return None
+
+
 def payment_actions(item: Booking | Ticket, start_at, end_at, ctx: Ctx) -> list[str]:
     """Thao tác được phép lúc này (BR-013, BR-015, T-051, T-052)."""
     actions: list[str] = []
@@ -478,7 +487,8 @@ async def booking_item(session: AsyncSession, ctx: Ctx, b: Booking) -> ItemOut:
         note=b.note,
         created_by=b.created_by_label,
         created_at=b.created_at,
-        actions=payment_actions(b, b.start_at, b.end_at, ctx),
+        actions=payment_actions(b, b.start_at, b.end_at, ctx)
+        + ([] if movable_reason(b, ctx) else ["move"]),
         cancel_phase=cancel_phase(b, b.start_at, b.end_at, ctx),
     )
 

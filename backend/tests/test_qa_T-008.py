@@ -1142,7 +1142,8 @@ async def test_ac31_online_booking_visible_to_counter_and_history(anon, admin, s
     item = (await staff.get(f"{BK}/items/{co['items'][0]['code']}")).json()
     assert item["customer"]["name"] == "QA Online Quầy"
     assert item["customer"]["phone"] == ph, "quầy thấy SĐT đầy đủ (bỏ che số ở màn quản trị)"
-    assert item["actions"] == [], "paid online booking has no collect/uncollectible actions"
+    # Đã trả online: không thu / Không thu được; vẫn Đổi sân được (người dùng chốt 2026-11-09)
+    assert item["actions"] == ["move"], "paid online booking has no collect/uncollectible actions"
     tx = (
         await admin.get(
             f"{BK}/transactions",

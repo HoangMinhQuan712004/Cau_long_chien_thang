@@ -26,7 +26,8 @@ export function Alert({ variant = "error", children, className = "" }: AlertProp
       )}
     >
       <Icon className="shrink-0" />
-      <p className="min-w-0 flex-1">{children}</p>
+      {/* div (không p): nội dung có thể là danh sách / nút */}
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }

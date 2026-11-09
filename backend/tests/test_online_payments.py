@@ -94,7 +94,7 @@ async def test_paid_creates_bookings_with_same_codes(anon, admin, staff):
     assert item["payment"]["payment_method"] == "online_transfer"
     assert item["payment"]["collected_by"] == "Khách đặt online"
     assert item["payment"]["amount"] == co["items"][0]["amount"]
-    assert item["actions"] == []
+    assert item["actions"] == ["move"]  # đã trả online: chỉ còn Đổi sân
     cal = await calendar(staff, tomorrow())
     block = next(b for b in cal["blocks"] if b["code"] == co["items"][0]["code"])
     assert (block["type"], block["source"], block["payment_status"]) == (

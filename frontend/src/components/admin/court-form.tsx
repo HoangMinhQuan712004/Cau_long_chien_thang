@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, fieldErrorId } from "@/components/ui/field";
@@ -12,8 +13,10 @@ import type { Dictionary } from "@/i18n/dictionaries";
 import { formatDayMonth, formatDayMonthYear } from "@/lib/format";
 import { Dropdown } from "@/components/ui/dropdown";
 import { cn } from "@/lib/cn";
-import { closeHours, firstFreePeak, fitPeaks, hhmm, openHours, peakFromHours, peakToHours, sortBands, t5, toMin, withPeakFrom, type Band, type Form, type ResourceType } from "./court-form-logic";
+import { type Conflict, closeHours, firstFreePeak, fitPeaks, hhmm, openHours, peakFromHours, peakToHours, sortBands, t5, toMin, withPeakFrom, type Band, type Form, type ResourceType } from "./court-form-logic";
 import type { CourtFormState } from "./use-court-form";
+import { ItemFlow } from "@/components/booking-engine/item-flow";
+import { SessionFlow } from "@/components/booking-engine/session-flow";
 
 const SECTION = "flex flex-col gap-3 border-t pt-4 first:border-t-0 first:pt-0";
 const SECTION_TITLE = "text-sm font-semibold";
@@ -52,16 +55,7 @@ export function CourtForm({ state, types, onReload, t: courts }: { state: CourtF
         <Alert variant="error">
           <span className="flex flex-col gap-1.5">
             <span>{banner.text}</span>
-            {banner.items?.length ? (
-              <ul className="list-disc pl-5">
-                {banner.items.slice(0, 6).map((it) => (
-                  <li key={`${it.code}-${it.date}-${it.start_time}`}>
-                    {it.code} · {formatDayMonth(it.date)} {t5(it.start_time)}–{t5(it.end_time)}
-                  </li>
-                ))}
-                {banner.more ? <li>{t.moreConflicts.replace("{n}", String(banner.more))}</li> : null}
-              </ul>
-            ) : null}
+            {banner.items?.length ? <ConflictList items={banner.items} more={banner.more} t={t} /> : null}
             {banner.reload ? (
               <Button type="button" variant="secondary" onClick={onReload} className="w-fit">
                 {t.reload}
@@ -171,4 +165,48 @@ function TimeSelect({ id, value, hours, onChange, label, invalid }: { id?: strin
   const values = hours.map(hhmm);
   const all = values.includes(value) ? values : [...values, value].sort();
   return <Dropdown id={id} aria-label={label} value={value} onChange={onChange} options={all.map((v) => ({ value: v, label: v }))} className={cn(TIME_SELECT, "min-w-0", invalid && "[&>button]:border-danger")} />;
+}
+
+/** Danh sách lịch vướng (E-CFG-3 / 4 / 11): mã booking / sự kiện bấm mở popup để đổi sân hoặc hủy ngay; giữ chỗ để chữ thường. */
+export function ConflictList({ items, more, t }: { items: Conflict[]; more?: number; t: Pick<Dictionary["courts"]["form"], "moreConflicts" | "openConflict"> }) {
+  const [opened, setOpened] = useState<{ kind: "booking" | "session"; code: string } | null>(null);
+  return (
+    <>
+      <ul className="list-disc pl-5">
+        {items.slice(0, 6).map((it) => {
+          const when = `${formatDayMonth(it.date)} ${t5(it.start_time)}–${t5(it.end_time)}`;
+          const kind = it.kind === "booking" || it.kind === "session" ? it.kind : null;
+          return (
+            <li key={`${it.code}-${it.date}-${it.start_time}`}>
+              {it.code && kind ? (
+                <button
+                  type="button"
+                  onClick={() => setOpened({ kind, code: it.code! })}
+                  aria-label={t.openConflict.replace("{code}", it.code)}
+                  className="relative font-mono font-semibold underline underline-offset-2 focus-ring before:absolute before:-inset-y-3 before:inset-x-0"
+                >
+                  {it.code}
+                </button>
+              ) : (
+                <span className="font-mono">{it.code ?? "—"}</span>
+              )}{" "}
+              · {when}
+            </li>
+          );
+        })}
+        {more ? <li>{t.moreConflicts.replace("{n}", String(more))}</li> : null}
+      </ul>
+      {/* Popup đặt ngoài hộp lỗi (portal) để không lồng vào vùng role="alert" */}
+      {opened
+        ? createPortal(
+            opened.kind === "booking" ? (
+              <ItemFlow code={opened.code} onClose={() => setOpened(null)} onChanged={() => {}} />
+            ) : (
+              <SessionFlow code={opened.code} onClose={() => setOpened(null)} onChanged={() => {}} onOpenTicket={(code) => setOpened({ kind: "booking", code })} />
+            ),
+            document.body,
+          )
+        : null}
+    </>
+  );
 }
