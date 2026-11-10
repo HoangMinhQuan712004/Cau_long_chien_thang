@@ -47,13 +47,11 @@ type Props = {
   submitted: boolean;
   /** Lỗi từ server gắn vào ô tương ứng. */
   serverErrors?: CustomerErrors;
-  /** Admin: thêm tab "Đặt sự kiện" (chỉ ở popup Đặt sân). */
-  onPickSession?: () => void;
   /** Chỉ cho chọn hội viên (không có Hồ sơ tạm), vd Thêm số đo kỷ lục. */
   memberOnly?: boolean;
 };
 
-export function CustomerPicker({ state, onChange, submitted, serverErrors, onPickSession, memberOnly }: Props) {
+export function CustomerPicker({ state, onChange, submitted, serverErrors, memberOnly }: Props) {
   const ids = { q: useId(), name: useId(), phone: useId(), note: useId() };
   const [hits, setHits] = useState<MemberHit[]>([]);
   const [searched, setSearched] = useState(false);
@@ -108,11 +106,6 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, onPic
         <button type="button" role="tab" aria-selected={state.mode === "temp"} onClick={() => set({ mode: "temp" })} className={tab(state.mode === "temp")}>
           Hồ sơ tạm
         </button>
-        {onPickSession ? (
-          <button type="button" role="tab" aria-selected={false} onClick={onPickSession} className={tab(false)}>
-            Đặt sự kiện
-          </button>
-        ) : null}
       </div>
       )}
 

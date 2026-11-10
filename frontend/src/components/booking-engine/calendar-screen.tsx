@@ -223,9 +223,7 @@ export function CalendarScreen({ initial, canRecurring }: { initial: Calendar; c
           initialBlocks={dialog.blocks}
           calendar={calendar}
           onRefresh={refresh}
-          canSession={canSession}
           onClose={() => setDialog(null)}
-          onSwitchToSession={() => setDialog({ kind: "sessionForm", selection: rect ?? dialog.selection })}
           onBooked={(order) => {
             setDialog(null);
             clear();
