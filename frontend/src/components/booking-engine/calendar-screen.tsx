@@ -6,7 +6,7 @@ import { errorText } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
 import { toast } from "@/lib/feedback";
 import { vnDate } from "@/lib/format";
-import { AdminGrid, EVENT_RECT_HINT, isSellable, selectionBlocks, selectionRect } from "./admin-grid";
+import { AdminGrid, EVENT_GAP_HINT, EVENT_RECT_HINT, gapIsInactive, isSellable, selectionBlocks, selectionRect } from "./admin-grid";
 import { MAX_BLOCKS, type Block } from "./block";
 import { BookingDialog } from "./booking-dialogs";
 import { CalendarToolbar } from "./calendar-toolbar";
@@ -139,7 +139,11 @@ export function CalendarScreen({ initial, canRecurring }: { initial: Calendar; c
     : blocks.length > MAX_BLOCKS
       ? `Một đơn tối đa ${MAX_BLOCKS} khối. Bỏ bớt ô hoặc nối các giờ liền nhau.`
       : "";
-  const eventReason = !calendar.can.create_session ? "Không tạo được sự kiện ở ngày này." : !rect ? EVENT_RECT_HINT : "";
+  const eventReason = !calendar.can.create_session
+    ? "Không tạo được sự kiện ở ngày này."
+    : !rect
+      ? gapIsInactive(calendar, selected) ? EVENT_GAP_HINT : EVENT_RECT_HINT
+      : "";
 
   function openBooking() {
     if (!blocks.length || bookReason) return;
