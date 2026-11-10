@@ -65,6 +65,8 @@ from app.modules.booking_engine.dto import (
     OrderCollectIn,
     OrderCollectOut,
     OrderList,
+    OrderUncollectibleIn,
+    OrderUncollectibleOut,
     PaidItem,
     PriceTable,
     PriceTableUpdate,
@@ -319,6 +321,19 @@ async def collect_order(
 ) -> OrderCollectOut:
     """Thu cả đơn: mọi khối chưa thanh toán -> tiền mặt. 404 E-BOOK-3 · 409 E-BOOK-4."""
     return await orders.collect_order(session, _tid(tenant_id), actor, order_code, data)
+
+
+async def uncollectible_order(
+    session: AsyncSession,
+    actor: Actor,
+    order_code: str,
+    data: OrderUncollectibleIn,
+    *,
+    tenant_id: int | None = None,
+) -> OrderUncollectibleOut:
+    """Không thu được cả đơn (T-064): khối chưa thu đã tới giờ. 404 E-BOOK-3 · 409 E-BOOK-4 ·
+    422 E-PAY-1 (đơn online / chưa buổi nào tới giờ)."""
+    return await orders.uncollectible_order(session, _tid(tenant_id), actor, order_code, data)
 
 
 async def collect_qr_info(
