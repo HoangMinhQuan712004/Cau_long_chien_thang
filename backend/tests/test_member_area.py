@@ -492,6 +492,41 @@ async def test_member_chooses_own_tier_with_audit(admin):
         assert r.status_code == 200 and r.json()["tier"] == "Bán chuyên"
 
 
+async def test_member_sets_own_gender(admin):
+    """Giới tính giống tier: đặt Nam / Nữ, null = bỏ chọn, không gửi = giữ, giá trị lạ -> 422."""
+    async with linked_member(admin) as (c, customer_id, code, _):
+        me = (await c.get(ME)).json()
+        assert me["gender"] is None
+        r = await c.put(ME, json=body_of(me, gender="Nam"))
+        assert r.status_code == 422
+        assert r.json()["detail"]["fields"] == [
+            {"field": "gender", "code": "E-HV-1", "message": "Giới tính không hợp lệ."}
+        ]
+        r = await c.put(ME, json=body_of(me, gender="male"))
+        assert r.status_code == 200 and r.json()["gender"] == "male"
+        r = await c.put(ME, json=body_of(r.json(), gender="female"))
+        assert r.status_code == 200 and r.json()["gender"] == "female"
+        r = await c.put(ME, json=body_of(r.json(), nickname="Không gửi giới tính"))
+        assert r.status_code == 200 and r.json()["gender"] == "female"  # không gửi -> giữ
+        r = await c.put(ME, json=body_of(r.json(), gender=None))
+        assert r.status_code == 200 and r.json()["gender"] is None  # bỏ chọn
+        async with SessionLocal() as s:
+            assert await s.scalar(select(Customer.gender).where(Customer.id == customer_id)) is None
+            rows = list(
+                await s.scalars(
+                    select(AuditLog)
+                    .where(AuditLog.entity_code == code, AuditLog.action == "member.self_update")
+                    .order_by(AuditLog.id)
+                )
+            )
+        changes = [x for row in rows for x in row.detail["changes"] if x["field"] == "Giới tính"]
+        assert [(x["before"], x["after"]) for x in changes] == [
+            ("Chưa chọn", "Nam"),
+            ("Nam", "Nữ"),
+            ("Nữ", "Chưa chọn"),
+        ]
+
+
 async def test_racket_name_error_is_reported_with_fields(admin):
     async with linked_member(admin) as (c, *_):
         me = (await c.get(ME)).json()
