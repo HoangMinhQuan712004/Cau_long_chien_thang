@@ -218,7 +218,8 @@ export type CollectQr = {
   pay_ref: string;
   /** Tổng các khối chưa thu lúc hỏi; 0 khi đã thu hết. */
   amount: number;
-  status: "unpaid" | "paid";
+  /** "paid" = tiền chuyển khoản đã về; "closed" = đơn / buổi đã xong theo cách khác (tiền mặt, hủy, Không thu được ở máy khác). */
+  status: "unpaid" | "paid" | "closed";
   blocks: number;
   bank: import("@/components/web-booking/types").Bank;
 };

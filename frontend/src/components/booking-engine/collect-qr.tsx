@@ -85,6 +85,13 @@ export function CollectQrDialog({ orderCode, item, cashBody, onConfirmCash, busy
       if (done.current) return;
       if (res.ok) {
         if (res.data.status === "paid") return finish(res.data);
+        if (res.data.status === "closed") {
+          // Máy khác đã thu tiền mặt / hủy / đánh dấu Không thu được: không báo nhận tiền
+          done.current = true;
+          toast("Đơn đã được xử lý ở máy khác", itemCode ?? orderCode, "info");
+          onPaidRef.current();
+          return;
+        }
         setQr((q) => ({ state: "ready", data: res.data, timedOut: q.state === "ready" ? q.timedOut : false }));
         return;
       }
