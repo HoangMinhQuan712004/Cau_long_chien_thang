@@ -1161,7 +1161,8 @@ async def test_ac31_online_booking_visible_to_counter_and_history(anon, admin, s
     entry = tx["items"][0]
     assert (entry["kind"], entry["method"], entry["source"]) == ("in", "transfer", "online")
     assert entry["actor_label"] == "Hệ thống" and entry["amount"] == co["items"][0]["amount"]
-    assert ph not in str(entry), "SĐT được che"
+    assert entry["customer_phone"] == ph, "T-061: SĐT đầy đủ (màn Admin)"
+    assert "customer_phone_masked" not in entry
     assert (await ledger(method="transfer"))["total"] == 1, "'Chuyển khoản' gồm cả tiền về online"
     assert (await ledger(method="cash"))["total"] == 0
 

@@ -948,7 +948,10 @@ async def test_ac22_filters(admin):
     entry = by_code["items"][0]
     assert (entry["kind"], entry["method"], entry["source"]) == ("in", "cash", "counter")
     assert entry["amount"] == bk["amount"] and entry["customer_name"] == "QA Lọc Tên"
-    assert "0966123456" not in str(entry), "SĐT được che"
+    assert entry["customer_phone"] == "0966123456", (
+        "T-061: Lịch sử giao dịch (chỉ Admin) hiện SĐT đầy đủ"
+    )
+    assert "customer_phone_masked" not in entry
     assert bk["code"] in (await get(q="0966 123.456"))["items"][0]["items"][0]["code"]
     assert bk["code"] in [c for e in (await get(q="lọc tên"))["items"] for c in codes_in(e)]
     assert (await get(q=bk["code"], method="cash"))["total"] == 1
