@@ -593,10 +593,15 @@ async def test_move_rejects_cancelled_ended_and_non_booking(admin, anon):
     a, b = await new_court(admin), await new_court(admin)
     ended = (await book(admin, a["code"], hour, customer=temp())).json()
     async with SessionLocal() as s:
+        # Lùi cả giờ bắt đầu: chạy trong phút đầu của giờ thì ``now - 1'`` sớm hơn ``HH:00`` của
+        # khung -> vi phạm ``start_at < end_at`` (CI đỏ lúc 14:00, PR #65)
         await s.execute(
             update(Booking)
             .where(Booking.code == ended["code"])
-            .values(end_at=func.now() - timedelta(minutes=1))
+            .values(
+                start_at=func.now() - timedelta(minutes=61),
+                end_at=func.now() - timedelta(minutes=1),
+            )
         )
         await s.commit()
     item = (await admin.get(f"{BK}/items/{ended['code']}")).json()
