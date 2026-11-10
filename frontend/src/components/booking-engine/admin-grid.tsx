@@ -110,7 +110,10 @@ export function AdminGrid({ calendar, selected, selectable, unpaidOnly = false, 
 
   const rows = useMemo<GridRow[]>(() => {
     const isPast = (h: number) => isPastDay || (date === today && (h + 1) * 60 <= nowMin);
-    return resources.map((res) => {
+    // T-062: sân ngừng hoạt động ẩn khỏi lưới, trừ khi ngày đang xem còn booking / sự kiện / giữ chỗ trên sân đó
+    // (vẫn bấm khối để thu / hủy được; ô trống của sân ngừng là "off" nên không chọn được)
+    const shown = resources.filter((res) => res.is_active || blocks.some((b) => b.resource_codes.includes(res.code)));
+    return shown.map((res) => {
       const cells: Record<number, GridCell | undefined> = {};
       for (const h of columns) cells[h] = !res.is_active || res.off_hours.includes(h) ? { kind: "off" } : isPast(h) ? { kind: "past" } : { kind: "free", price: res.hour_prices?.[String(h)] ?? null };
       blocks.forEach((b, i) => {
