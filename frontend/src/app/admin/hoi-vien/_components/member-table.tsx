@@ -55,6 +55,15 @@ export function MemberTable({ rows, sortDir, onSort, onAction, empty, t }: Props
     },
     { key: "phone", header: c.phone, className: "whitespace-nowrap tabular-nums", card: "subtitle", cell: (r) => formatPhone(r.phone) },
     {
+      key: "gender",
+      header: t.drawer.gender,
+      className: "whitespace-nowrap",
+      hideBelow: "xl",
+      cell: (r) => (r.gender ? t.form.genders[r.gender] : "—"),
+      // Thẻ điện thoại bỏ giới tính cho gọn (xem trong Chi tiết)
+      cardCell: () => null,
+    },
+    {
       key: "kind",
       header: c.kind,
       card: "badge",
