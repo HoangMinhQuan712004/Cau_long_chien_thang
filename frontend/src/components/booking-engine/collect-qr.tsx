@@ -3,17 +3,21 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Modal } from "@/components/ui/modal";
 import { BankBox } from "@/components/web-booking/pay-parts";
-import { errorText } from "@/lib/api/write";
+import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
 import { formatCountdown, formatVnd } from "@/lib/format";
 import { authFailure } from "./booking-dialogs";
-import { getCollectQr } from "./requests";
-import type { CollectQr } from "./types";
-import { btnCls, btnPrimaryCls, ErrorBanner } from "./ui";
+import { getCollectQr, getOrderItems, sendOrderUncollectible } from "./requests";
+import type { CollectQr, OrderUncollectible } from "./types";
+import { btnCls, btnDangerCls, btnDangerOutlineCls, btnPrimaryCls, ErrorBanner, textareaCls } from "./ui";
 
 // "Thu cả đơn" (T-058): mặc định hiện QR chuyển khoản của đơn (nội dung = mã đơn bỏ gạch), hỏi lại server mỗi 3 giây tới khi
 // tiền về, giới hạn 5 phút có đếm ngược như giữ chỗ online (người dùng 10/11), hết giờ thì QR mờ + "Tạo lại mã QR"; nút "Khách trả tiền mặt" chuyển sang bước xác nhận tiền mặt như trước.
 // Chưa cài nhận tiền chuyển khoản (E-PAY-9) ⇒ chỉ còn tiền mặt, kèm thông điệp.
+// T-064: nút "Không thu được" ở cả bước QR và tiền mặt: đánh dấu các buổi ĐÃ TỚI GIỜ của đơn (buổi sau giữ Chưa thanh toán),
+// hỏi xác nhận kèm lý do (không bắt buộc); xong thì dừng hỏi QR và đóng popup.
+const NOT_STARTED = "Chưa có buổi nào tới giờ chơi, chưa thể đánh dấu Không thu được.";
+const REASON_MAX = 500;
 
 const POLL_MS = 3_000;
 const LIMIT_SEC = 5 * 60;
@@ -30,7 +34,7 @@ type Props = {
   onClose: () => void;
   /** Có ⇒ nút "Quay lại" (vd về danh sách khối của đơn) thay cho "Đóng". */
   onBack?: () => void;
-  /** Tiền về / đơn đã thu xong ⇒ nơi gọi tải lại và đóng. */
+  /** Đơn xong việc (tiền về / đã thu ở máy khác / vừa đánh dấu Không thu được) ⇒ nơi gọi tải lại và đóng. */
   onPaid: () => void;
 };
 
@@ -41,7 +45,13 @@ type Qr =
   | { state: "error"; message: string };
 
 export function CollectQrDialog({ orderCode, cashBody, onConfirmCash, busy, banner, onClose, onBack, onPaid }: Props) {
-  const [mode, setMode] = useState<"qr" | "cash">("qr");
+  const [mode, setMode] = useState<"qr" | "cash" | "bad">("qr");
+  // Buổi đánh dấu được (chưa thu, đã tới giờ ⇒ BE cho thao tác "uncollectible") và buổi chưa tới giờ; null = đang tải / lỗi
+  const [bad, setBad] = useState<{ count: number; amount: number; later: number } | null>(null);
+  const [reason, setReason] = useState("");
+  const [badBusy, setBadBusy] = useState(false);
+  const [badError, setBadError] = useState("");
+  const [back, setBack] = useState<"qr" | "cash">("qr");
   const [qr, setQr] = useState<Qr>({ state: "loading" });
   const startedAt = useRef(0);
   const done = useRef(false);
@@ -90,6 +100,67 @@ export function CollectQrDialog({ orderCode, cashBody, onConfirmCash, busy, bann
     void check(false);
   }, [check]);
 
+  // Các buổi của đơn: đếm buổi đánh dấu Không thu được được (T-064)
+  useEffect(() => {
+    let live = true;
+    void getOrderItems(orderCode).then((res) => {
+      if (!live || !res.ok) return;
+      const unpaid = res.data.filter((i) => i.payment.payment_status === "unpaid");
+      const ready = unpaid.filter((i) => i.actions.includes("uncollectible"));
+      setBad({ count: ready.length, amount: ready.reduce((n, i) => n + i.payment.amount, 0), later: unpaid.length - ready.length });
+    });
+    return () => {
+      live = false;
+    };
+  }, [orderCode]);
+
+  async function markUncollectible() {
+    if (badBusy) return;
+    setBadBusy(true);
+    setBadError("");
+    try {
+      const res = await write((key) => sendOrderUncollectible(key, orderCode, reason.trim()));
+      if (!res.ok) {
+        const e = res.error;
+        if (authFailure(e)) return onClose();
+        // Đơn đã hết khối chưa thu (máy khác vừa thu / đánh dấu) ⇒ báo và tải lại
+        if (e.code === "E-BOOK-4") {
+          done.current = true;
+          toast(errorText(e), orderCode, "info");
+          onPaidRef.current();
+          return;
+        }
+        setBadError(errorText(e));
+        return;
+      }
+      const out = res.data as OrderUncollectible;
+      done.current = true; // dừng hỏi QR
+      toast(
+        out.remaining_unpaid.length
+          ? `Đã đánh dấu ${out.marked.length} buổi; còn ${out.remaining_unpaid.length} buổi chưa tới giờ`
+          : `Đã đánh dấu Không thu được ${out.marked.length} buổi`,
+        out.order_code,
+      );
+      onPaidRef.current();
+    } finally {
+      setBadBusy(false);
+    }
+  }
+
+  const openBad = (from: "qr" | "cash") => {
+    setBack(from);
+    setBadError("");
+    setMode("bad");
+  };
+  const badDisabled = busy || !bad || bad.count === 0;
+  // Nút "Không thu được" (trái chân hộp) + dòng lý do khi chưa buổi nào tới giờ
+  const badBtn = (from: "qr" | "cash") => (
+    <button type="button" onClick={() => openBad(from)} disabled={badDisabled} title={bad?.count === 0 ? NOT_STARTED : undefined} className={btnDangerOutlineCls}>
+      Không thu được
+    </button>
+  );
+  const badHint = bad?.count === 0 ? <p className="text-xs text-muted">{NOT_STARTED}</p> : null;
+
   // Đếm ngược 5 phút (mỗi giây) và hỏi lại mỗi 3 giây khi đang xem QR; hết giờ thì dừng, chờ "Tạo lại mã QR"
   const [left, setLeft] = useState(LIMIT_SEC);
   const polling = mode === "qr" && qr.state === "ready" && !qr.timedOut;
@@ -129,6 +200,39 @@ export function CollectQrDialog({ orderCode, cashBody, onConfirmCash, busy, bann
     </button>
   );
 
+  // Xác nhận Không thu được (T-064)
+  if (mode === "bad" && bad) {
+    return (
+      <Modal
+        open
+        onClose={onClose}
+        title="Không thu được"
+        footer={
+          <>
+            <button type="button" onClick={() => setMode(back)} disabled={badBusy} className={btnCls}>
+              Quay lại
+            </button>
+            <button type="button" onClick={() => void markUncollectible()} disabled={badBusy} className={btnDangerCls}>
+              {badBusy ? "Đang lưu…" : "Xác nhận Không thu được"}
+            </button>
+          </>
+        }
+      >
+        {badError ? <ErrorBanner>{badError}</ErrorBanner> : null}
+        <p className="text-sm">
+          Đánh dấu <b>{bad.count} buổi</b> đã tới giờ của đơn <b className="font-mono">{orderCode}</b>, tổng <b>{formatVnd(bad.amount)}</b>, là Không thu được.
+        </p>
+        {bad.later ? <p className="text-sm text-muted">Còn {bad.later} buổi chưa tới giờ giữ Chưa thanh toán.</p> : null}
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">
+            Lý do <span className="font-normal text-muted">(không bắt buộc)</span>
+          </span>
+          <textarea value={reason} maxLength={REASON_MAX} rows={3} onChange={(e) => setReason(e.target.value)} className={textareaCls} />
+        </label>
+      </Modal>
+    );
+  }
+
   // Bước tiền mặt (chọn "Khách trả tiền mặt", hoặc chưa cài nhận chuyển khoản)
   if (mode === "cash" || qr.state === "unavailable") {
     const qrOff = qr.state === "unavailable";
@@ -139,6 +243,7 @@ export function CollectQrDialog({ orderCode, cashBody, onConfirmCash, busy, bann
         title="Thu cả đơn · Tiền mặt"
         footer={
           <>
+            {badBtn("cash")}
             {qrOff ? (
               closeBtn
             ) : (
@@ -159,6 +264,7 @@ export function CollectQrDialog({ orderCode, cashBody, onConfirmCash, busy, bann
         ) : null}
         {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
         {cashBody}
+        {badHint}
       </Modal>
     );
   }
@@ -171,6 +277,7 @@ export function CollectQrDialog({ orderCode, cashBody, onConfirmCash, busy, bann
       size="wide"
       footer={
         <>
+          {badBtn("qr")}
           {closeBtn}
           <button type="button" onClick={() => setMode("cash")} disabled={busy} className={btnCls}>
             Khách trả tiền mặt
@@ -209,6 +316,7 @@ export function CollectQrDialog({ orderCode, cashBody, onConfirmCash, busy, bann
           )}
         </div>
       ) : null}
+      {badHint}
     </Modal>
   );
 }

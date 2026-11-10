@@ -86,6 +86,25 @@ export const getCollectQr = (orderCode: string) =>
     looseApi.GET(`${P}/front-desk/orders/{code}/collect-qr`, { params: { path: { code: orderCode } }, cache: "no-store" }),
   );
 
+/** Mọi khối của một đơn (theo mã đơn), như hộp Đơn: tìm mã rồi lấy từng khối. */
+export async function getOrderItems(orderCode: string): Promise<Read<Item[]>> {
+  const found = await searchCode(orderCode);
+  if (!found.ok) return found;
+  const codes = found.data.codes?.length ? found.data.codes : [found.data.code];
+  const all = await Promise.all(codes.map((c) => getItem(c)));
+  const failed = all.find((r) => !r.ok);
+  if (failed && !failed.ok) return failed;
+  return { ok: true, data: all.flatMap((r) => (r.ok ? [r.data] : [])) };
+}
+
+/** Không thu được cả đơn (T-064): chỉ các khối đã tới giờ; khối sau giữ Chưa thanh toán. 422 E-PAY-1, 409 E-BOOK-4, 404 E-BOOK-3. */
+export const sendOrderUncollectible = (key: string, orderCode: string, reason: string) =>
+  looseApi.POST(`${P}/booking/orders/{order_code}/uncollectible`, {
+    params: { path: { order_code: orderCode } },
+    body: { reason },
+    headers: idem(key),
+  });
+
 export const sendCollectOrder = (key: string, orderCode: string) =>
   looseApi.POST(`${P}/booking/orders/{order_code}/collect`, { params: { path: { order_code: orderCode } }, body: { method: "cash" }, headers: idem(key) });
 

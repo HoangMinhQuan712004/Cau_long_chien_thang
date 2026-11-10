@@ -223,6 +223,9 @@ export type CollectQr = {
   bank: import("@/components/web-booking/types").Bank;
 };
 
+/** Kết quả Không thu được cả đơn (T-064): hợp đồng theo spec, SchemaContract kiểm khi BE handoff. */
+export type OrderUncollectible = { order_code: string; marked: string[]; remaining_unpaid: string[]; bookings: Item[] };
+
 /** Khách gửi lên: đúng một trong hai (server tự dựng snapshot – ADR-004 S8). */
 export type CustomerPayload = { member_code: string } | { temp: { full_name: string; phone: string; note?: string } };
 
