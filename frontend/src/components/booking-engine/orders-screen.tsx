@@ -99,7 +99,7 @@ export function OrdersScreen({ today, initialQ = "" }: { today: string; /** Mở
         if (!authFailure(res.error)) setBanner(errorText(res.error));
         return;
       }
-      toast(`Đã thu ${formatVnd(row.total)}`, row.order_code);
+      toast(`Đã thu ${formatVnd(row.unpaid_amount)}`, row.order_code);
       setDialog(null);
       await load();
     } finally {
@@ -257,7 +257,15 @@ export function OrdersScreen({ today, initialQ = "" }: { today: string; /** Mở
                   )}
                 </button>
                 <div className="text-right">
-                  <p className="text-lg font-bold tabular-nums">{formatVnd(o.total)}</p>
+                  {/* T-066: đơn đã thu một phần ⇒ số to là phần còn phải thu, tổng đơn ghi nhỏ bên dưới */}
+                  {o.status === "unpaid" && o.unpaid_amount > 0 && o.unpaid_amount < o.total ? (
+                    <>
+                      <p className="text-lg font-bold tabular-nums">Còn thu {formatVnd(o.unpaid_amount)}</p>
+                      <p className="text-xs text-muted tabular-nums">Tổng đơn {formatVnd(o.total)}</p>
+                    </>
+                  ) : (
+                    <p className="text-lg font-bold tabular-nums">{formatVnd(o.total)}</p>
+                  )}
                   {o.kind === "recurring" && o.discount_pct > 0 ? <p className="text-xs text-muted">Giảm {o.discount_pct}% (gốc {formatVnd(o.original_amount)})</p> : null}
                   <p className="mt-1 text-xs text-muted">
                     {formatDate(o.created_at)}
@@ -311,7 +319,8 @@ export function OrdersScreen({ today, initialQ = "" }: { today: string; /** Mở
           }}
           cashBody={
             <p className="text-sm">
-              Thu <b>{formatVnd(dialog.row.total)}</b> tiền mặt cho đơn <b className="font-mono">{dialog.row.order_code}</b> ({dialog.row.sessions} {dialog.row.kind === "recurring" ? "buổi" : "khối"}). Mọi khối thành Đã thanh toán, chỉ thu một lần.
+              Thu <b>{formatVnd(dialog.row.unpaid_amount)}</b> tiền mặt cho đơn <b className="font-mono">{dialog.row.order_code}</b> ({dialog.row.unpaid_blocks}{" "}
+              {dialog.row.kind === "recurring" ? "buổi" : "khối"} chưa thu). Các khối chưa thu thành Đã thanh toán, chỉ thu một lần.
             </p>
           }
         />
