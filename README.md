@@ -450,8 +450,9 @@ API, mã lỗi `E-MEM-*`, `E-HV-*`, `E-AUTH-25…32`: [docs/booking-engine-api.m
 
 | Việc | Lệnh |
 |---|---|
+| Cài gói dev (làm trước khi chạy test, T-059) | `cd backend && pip install -e ".[dev]"`. **Bắt buộc cả với `pytest` thường:** `pyproject.toml` có `addopts = "--dist=loadfile"` của `pytest-xdist`, venv cũ chưa có gói này sẽ báo lỗi tham số ngay |
 | Test backend | `cd backend && pytest` (tự dùng DB `<tên db>_test`, cần tạo trước) |
-| Test backend nhanh (T-059) | `cd backend && pytest -q -n auto` (cần `pip install -e ".[dev]"` để có `pytest-xdist`). Mỗi worker `gwN` dùng DB riêng `<tên db>_gwN_test`, tự tạo nếu chưa có, nên user Postgres cần quyền `CREATEDB`. Mỗi file test chạy trọn trên một worker (`--dist=loadfile`). Máy ít RAM thì dùng `-n 2` |
+| Test backend nhanh (T-059) | `cd backend && pytest -q -n auto` (đã `pip install -e ".[dev]"` ở dòng trên). Mỗi worker `gwN` dùng DB riêng `<tên db>_gwN_test`, tự tạo nếu chưa có, nên user Postgres cần quyền `CREATEDB`. Mỗi file test chạy trọn trên một worker (`--dist=loadfile`). Máy ít RAM thì dùng `-n 2` |
 | Lint backend | `ruff check . && ruff format .` |
 | Tạo migration | `alembic revision --autogenerate -m "mô tả"` → **đọc lại file sinh ra** |
 | Sinh type API cho FE | `cd frontend && npm run gen:api` (backend phải đang chạy) |
