@@ -142,6 +142,8 @@ class MemberDetail(MemberRow):
     """Chi tiết hồ sơ (form Sửa), mỗi lần xem ghi nhật ký ``member.view``."""
 
     note: str | None
+    nickname: str | None = Field(description="Biệt danh hội viên tự nhập ở khu hội viên (chỉ xem)")
+    email: str | None = Field(description="Email hội viên tự nhập ở khu hội viên (chỉ xem)")
     total_minutes: int
     recent_bookings: list[MemberBooking] = Field(description="5 lượt đặt gần nhất")
     can: MemberCan

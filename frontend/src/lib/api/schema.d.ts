@@ -4723,6 +4723,16 @@ export interface components {
             avatar_url: string | null;
             /** Note */
             note: string | null;
+            /**
+             * Nickname
+             * @description Biệt danh hội viên tự nhập ở khu hội viên (chỉ xem)
+             */
+            nickname: string | null;
+            /**
+             * Email
+             * @description Email hội viên tự nhập ở khu hội viên (chỉ xem)
+             */
+            email: string | null;
             /** Total Minutes */
             total_minutes: number;
             /**
