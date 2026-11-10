@@ -26,6 +26,8 @@ from app.modules.booking_engine.dto import (
     MoveTarget,
     OrderCollectIn,
     OrderCollectOut,
+    OrderUncollectibleIn,
+    OrderUncollectibleOut,
     PriceTable,
     PriceTableUpdate,
     PublicPrices,
@@ -364,6 +366,26 @@ async def collect_order(
 
     async def run() -> OrderCollectOut:
         out = await api.collect_order(session, _actor(principal), order_code, data)
+        out.bookings = [for_viewer(b, principal) for b in out.bookings]
+        return out
+
+    return await idem.run(session, principal.key, run)
+
+
+@router.post("/orders/{order_code}/uncollectible", response_model=OrderUncollectibleOut)
+async def uncollectible_order(
+    order_code: Annotated[str, Path(max_length=40)],
+    data: OrderUncollectibleIn,
+    principal: UncollectibleMarker,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Không thu được cả đơn (T-064): mọi khối **Chưa thanh toán đã tới giờ** -> Không thu được
+    (lý do không bắt buộc, ≤ 200); khối chưa tới giờ giữ nguyên (``remaining_unpaid``). 404
+    ``E-BOOK-3`` · 409 ``E-BOOK-4`` · 422 ``E-PAY-1`` (đơn online / chưa buổi nào tới giờ)."""
+
+    async def run() -> OrderUncollectibleOut:
+        out = await api.uncollectible_order(session, _actor(principal), order_code, data)
         out.bookings = [for_viewer(b, principal) for b in out.bookings]
         return out
 

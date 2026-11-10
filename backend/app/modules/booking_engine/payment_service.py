@@ -156,6 +156,20 @@ async def mark_uncollectible(
         )
     if ctx.now < start_at:
         raise AppError("E-PAY-1", "Chưa tới giờ chơi, chưa thể đánh dấu Không thu được.", 422)
+    apply_uncollectible(session, ctx, tenant_id, actor, item, reason)
+    return await view_of(session, ctx, item)
+
+
+def apply_uncollectible(
+    session: AsyncSession,
+    ctx: Ctx,
+    tenant_id: int,
+    actor: Actor,
+    item: Booking | Ticket,
+    reason: str,
+) -> None:
+    """Chưa thanh toán -> Không thu được cho một khối / vé đã khóa dòng (người gọi đã kiểm điều
+    kiện). Lý do rỗng (Không thu được cả đơn, T-064) -> không ghi ô "Lý do" vào nhật ký."""
     item.payment_status = "uncollectible"
     item.uncollectible_reason = reason
     item.marked_by_type, item.marked_by_id, item.marked_by_label = (
@@ -176,7 +190,7 @@ async def mark_uncollectible(
             item.customer_name,
             [
                 audit_change("Thanh toán", "Chưa thanh toán", "Không thu được"),
-                audit_change("Lý do", None, reason),
+                *([audit_change("Lý do", None, reason)] if reason else []),
             ],
             amount=item.amount,
         ),
@@ -187,4 +201,3 @@ async def mark_uncollectible(
         "payment.uncollectible",
         {"code": item.code, "kind": entity_of(item), "amount": item.amount},
     )
-    return await view_of(session, ctx, item)

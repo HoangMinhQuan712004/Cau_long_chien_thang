@@ -390,30 +390,54 @@ class CollectQrOut(CollectQrInfo):
     bank: BankInfo = Field(description="Như trang thanh toán online: ngân hàng, số TK, chủ TK, QR")
 
 
+def _no_bank() -> AppError:
+    return AppError(
+        "E-PAY-9",
+        "Chưa cài đặt nhận tiền chuyển khoản. Vào Cài đặt thanh toán hoặc thu tiền mặt.",
+        409,
+    )
+
+
 @router.get("/orders/{order_code}/collect-qr", response_model=CollectQrOut)
 async def order_collect_qr(
     order_code: Annotated[str, Path(max_length=40)],
-    _: OrdersViewer,
-    __: Collector,
+    _: Collector,
     session: SessionDep,
     response: Response,
 ):
-    """Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại mỗi 3 giây tới khi ``status = paid``.
+    """Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại tới khi ``status`` khác ``unpaid``.
 
     Số tiền = tổng khối Chưa thanh toán (như ``POST /booking/orders/{code}/collect``); nội dung
     chuyển khoản ``pay_ref`` = mã đơn bỏ gạch. Tiền về đúng số -> webhook thu cả đơn; lệch số ->
-    Tiền về cần xử lý (cần hoàn). 404 E-BOOK-3 · 409 E-BOOK-4 (không còn khối chưa thu) ·
-    409 E-PAY-9 (chưa cài nhận chuyển khoản).
+    Tiền về cần xử lý (cần hoàn). ``status``: ``unpaid`` / ``paid`` (tiền đã về hết) / ``closed``
+    (hết khối chưa thu do Không thu được / hủy – xử lý ở máy khác). 404 E-BOOK-3 · 409 E-PAY-9
+    (chưa cài nhận chuyển khoản).
     """
     response.headers["Cache-Control"] = "no-store"
     info = await engine.collect_qr_info(session, order_code)
     bank = await payments.bank_info(session, info.amount, info.pay_ref)
     if bank is None:
-        raise AppError(
-            "E-PAY-9",
-            "Chưa cài đặt nhận tiền chuyển khoản. Vào Cài đặt thanh toán hoặc thu tiền mặt.",
-            409,
-        )
+        raise _no_bank()
+    return CollectQrOut(**info.model_dump(), bank=bank)
+
+
+@router.get("/items/{code}/collect-qr", response_model=CollectQrOut)
+async def item_collect_qr(
+    code: Annotated[str, Path(max_length=40)],
+    _: Collector,
+    session: SessionDep,
+    response: Response,
+):
+    """Thu một buổi bằng QR (T-065): ``order_code`` = mã của khối, ``pay_ref`` = mã con bỏ gạch
+    (bắt đầu bằng mã đơn chung), số tiền = tiền của khối, ``blocks = 1``. Đã thu -> ``status =
+    paid``, ``amount = 0``. Tiền về đúng số -> chỉ khối đó Đã thanh toán; lệch -> cần hoàn.
+    404 E-BOOK-3 · 422 E-PAY-1 (vé / online) · 409 E-PAY-9. ``status``: unpaid / paid / closed.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    info = await engine.item_collect_qr_info(session, code)
+    bank = await payments.bank_info(session, info.amount, info.pay_ref)
+    if bank is None:
+        raise _no_bank()
     return CollectQrOut(**info.model_dump(), bank=bank)
 
 

@@ -866,13 +866,33 @@ class OrderCollectOut(BaseModel):
     bookings: list[ItemOut] = Field(description="Mọi khối của đơn sau khi thu")
 
 
+class OrderUncollectibleIn(StrictIn):
+    reason: str = Field(default="", max_length=500, description="Không bắt buộc (T-064)")
+
+
+class OrderUncollectibleOut(BaseModel):
+    order_code: str
+    marked: list[str] = Field(description="Mã con vừa đánh dấu Không thu được")
+    remaining_unpaid: list[str] = Field(description="Mã con chưa tới giờ, còn Chưa thanh toán")
+    bookings: list[ItemOut] = Field(description="Mọi khối của đơn sau khi đánh dấu")
+
+
 class CollectQrInfo(BaseModel):
     """Thu cả đơn bằng QR (T-058): số tiền + nội dung chuyển khoản; lớp gọi ghép thông tin NH."""
 
-    order_code: str
-    pay_ref: str = Field(description="Nội dung chuyển khoản = mã đơn bỏ gạch, vd BK20261106001")
-    amount: int = Field(description="Tổng các khối Chưa thanh toán hiện tại; 0 khi đã thu hết")
-    status: Literal["unpaid", "paid"] = Field(description="paid: không còn khối chưa thu")
+    order_code: str = Field(description="Mã đơn; QR từng buổi (T-065): mã của khối")
+    pay_ref: str = Field(
+        description="Nội dung chuyển khoản = mã đơn / mã con bỏ gạch, vd BK20261106001 / "
+        "BK2026110600102"
+    )
+    amount: int = Field(
+        description="Tổng các khối Chưa thanh toán hiện tại; 0 khi hết khối chưa thu"
+    )
+    status: Literal["unpaid", "paid", "closed"] = Field(
+        description="unpaid: còn khối chưa thu · paid: hết khối chưa thu, khối còn hiệu lực (trừ "
+        "đã hủy) đều Đã thanh toán · closed: hết khối chưa thu nhưng có khối Không thu được, hoặc "
+        "không có khối nào Đã thanh toán (đã hủy hết) – xử lý ở máy khác, không phải tiền về"
+    )
     blocks: int = Field(description="Số khối chưa thu")
 
 
