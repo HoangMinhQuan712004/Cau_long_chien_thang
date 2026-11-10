@@ -5,18 +5,18 @@ import { Modal } from "@/components/ui/modal";
 import { BankBox } from "@/components/web-booking/pay-parts";
 import { errorText } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
-import { formatVnd } from "@/lib/format";
+import { formatCountdown, formatVnd } from "@/lib/format";
 import { authFailure } from "./booking-dialogs";
 import { getCollectQr } from "./requests";
 import type { CollectQr } from "./types";
 import { btnCls, btnPrimaryCls, ErrorBanner } from "./ui";
 
 // "Thu cả đơn" (T-058): mặc định hiện QR chuyển khoản của đơn (nội dung = mã đơn bỏ gạch), hỏi lại server mỗi 3 giây tới khi
-// tiền về (tối đa 15 phút, rồi "Kiểm tra lại"); nút "Khách trả tiền mặt" chuyển sang bước xác nhận tiền mặt như trước.
+// tiền về, giới hạn 5 phút có đếm ngược như giữ chỗ online (người dùng 10/11), hết giờ thì QR mờ + "Tạo lại mã QR"; nút "Khách trả tiền mặt" chuyển sang bước xác nhận tiền mặt như trước.
 // Chưa cài nhận tiền chuyển khoản (E-PAY-9) ⇒ chỉ còn tiền mặt, kèm thông điệp.
 
 const POLL_MS = 3_000;
-const POLL_LIMIT_MS = 15 * 60_000;
+const LIMIT_SEC = 5 * 60;
 
 type Props = {
   orderCode: string;
@@ -90,22 +90,31 @@ export function CollectQrDialog({ orderCode, cashBody, onConfirmCash, busy, bann
     void check(false);
   }, [check]);
 
-  // Hỏi lại mỗi 3 giây khi đang xem QR; quá 15 phút thì dừng, chờ "Kiểm tra lại"
+  // Đếm ngược 5 phút (mỗi giây) và hỏi lại mỗi 3 giây khi đang xem QR; hết giờ thì dừng, chờ "Tạo lại mã QR"
+  const [left, setLeft] = useState(LIMIT_SEC);
   const polling = mode === "qr" && qr.state === "ready" && !qr.timedOut;
   useEffect(() => {
     if (!polling) return;
+    let lastPoll = Date.now();
     const t = setInterval(() => {
-      if (Date.now() - startedAt.current > POLL_LIMIT_MS) {
+      const remain = LIMIT_SEC - Math.floor((Date.now() - startedAt.current) / 1000);
+      setLeft(Math.max(0, remain));
+      if (remain <= 0) {
         setQr((q) => (q.state === "ready" ? { ...q, timedOut: true } : q));
+        void check(true); // lần hỏi cuối: tiền về sát giờ vẫn được báo
         return;
       }
-      void check(true);
-    }, POLL_MS);
+      if (Date.now() - lastPoll >= POLL_MS) {
+        lastPoll = Date.now();
+        void check(true);
+      }
+    }, 1_000);
     return () => clearInterval(t);
   }, [polling, check]);
 
   const recheck = () => {
     startedAt.current = Date.now();
+    setLeft(LIMIT_SEC);
     setQr((q) => (q.state === "ready" ? { ...q, timedOut: false } : { state: "loading" }));
     void check(false);
   };
@@ -187,18 +196,17 @@ export function CollectQrDialog({ orderCode, cashBody, onConfirmCash, busy, bann
           <BankBox bank={qr.data.bank} amount={qr.data.amount} payRef={qr.data.pay_ref} dim={qr.timedOut} />
           {qr.timedOut ? (
             <div className="flex flex-wrap items-center gap-3 rounded-md bg-background p-3 text-sm">
-              <span className="text-muted">Đã chờ 15 phút chưa thấy tiền về.</span>
+              <span className="text-muted">Hết 5 phút chưa thấy tiền về.</span>
               <button type="button" onClick={recheck} className={btnPrimaryCls}>
-                Kiểm tra lại
+                Tạo lại mã QR
               </button>
             </div>
           ) : (
             <p role="status" className="flex items-center gap-2 text-sm text-muted">
               <span aria-hidden className="size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
-              Đang chờ tiền về… Màn này tự cập nhật.
+              Đang chờ tiền về… Còn <b className="text-foreground tabular-nums">{formatCountdown(left)}</b>
             </p>
           )}
-          <p className="text-xs text-muted">Chuyển thiếu hoặc thừa: đơn giữ Chưa thanh toán, khoản tiền nằm ở &quot;Tiền về cần xử lý&quot; để hoàn.</p>
         </div>
       ) : null}
     </Modal>
