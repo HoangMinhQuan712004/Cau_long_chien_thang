@@ -15,6 +15,8 @@ from sqlalchemy import func, select
 from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.core.permissions import Perm
+from app.modules.auth.models import RolePermission
 from app.modules.booking_engine import common
 from app.modules.booking_engine.models import Booking, BookingOrder, PaymentEntry
 from app.modules.payments.models import BankTransaction
@@ -105,13 +107,31 @@ async def test_ac1_contract_shape_and_headers(admin):
 async def test_ac8_permissions(admin, staff, customer, anon):
     order = await recurring(admin, days_ahead=71)
     code = order["order_code"]
-    assert (await qr(staff, code)).status_code == 403
+    # T-065: QR dùng quyền `booking.collect` (như thu tiền mặt) – Nhân viên có quyền thu thì mở được
+    assert (await qr(staff, code)).status_code == 200
     assert (await qr(customer, code)).status_code == 403
     assert (await qr(anon, code)).status_code == 401
-    # Không rò rỉ: người không có quyền cũng không phân biệt được mã có / không có
     ghost = "BK-20000101-999"
-    assert (await qr(staff, ghost)).status_code == 403
+    assert (await qr(staff, ghost)).status_code == 404
     assert (await qr(anon, ghost)).status_code == 401
+    # Mất quyền thu tiền → 403, không phân biệt được mã có / không có
+    perm = Perm.BOOKING_COLLECT.value
+    async with SessionLocal() as s:
+        row = await s.scalar(
+            select(RolePermission).where(
+                RolePermission.role == "staff", RolePermission.perm == perm
+            )
+        )
+        assert row is not None, "mặc định Nhân viên có booking.collect"
+        await s.delete(row)
+        await s.commit()
+    try:
+        assert (await qr(staff, code)).status_code == 403
+        assert (await qr(staff, ghost)).status_code == 403
+    finally:
+        async with SessionLocal() as s:
+            s.add(RolePermission(role="staff", perm=perm))
+            await s.commit()
 
 
 # ---------------------------------------------------------------- số tiền QR = số tiền "Thu cả đơn" thu
@@ -185,7 +205,7 @@ async def test_all_collected_or_all_cancelled_or_unknown_order_states(admin):
     done = await qr(admin, code)
     assert done.status_code == 200
     assert (done.json()["status"], done.json()["amount"], done.json()["blocks"]) == ("paid", 0, 0)
-    # Hủy hết (đã thu -> hoàn) -> không còn khối chưa thu và cũng không có khối đã thu
+    # Hủy hết (đã thu -> hoàn) -> không còn khối chưa thu và cũng không có khối đã thu: T-065 → 200 `closed`
     preview = (await admin.get(f"{FD}/orders/{code}/cancel-preview")).json()
     r = await admin.post(
         f"{FD}/orders/{code}/cancel",
@@ -198,7 +218,8 @@ async def test_all_collected_or_all_cancelled_or_unknown_order_states(admin):
     )
     assert r.status_code == 200, r.text
     gone = await qr(admin, code)
-    assert gone.status_code == 409 and gone.json()["detail"]["code"] == "E-BOOK-4", gone.text
+    assert gone.status_code == 200, gone.text
+    assert (gone.json()["status"], gone.json()["amount"], gone.json()["blocks"]) == ("closed", 0, 0)
     missing = await qr(admin, "BK-20000101-999")
     assert missing.status_code == 404 and missing.json()["detail"]["code"] == "E-BOOK-3"
     for bad in ("khong-phai-ma", "BK-1", "BK-20261106-001-01"):
