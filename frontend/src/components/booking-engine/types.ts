@@ -197,7 +197,8 @@ export type TransactionEntry = {
   /** Mã đơn booking; vé là mã sự kiện. */
   order_code: string | null;
   customer_name: string;
-  customer_phone_masked: string | null;
+  /** SĐT đầy đủ (T-061: màn chỉ Admin, như Đơn đặt sân). */
+  customer_phone: string | null;
   member_code?: string | null;
   /** "Hệ thống" cho tiền SePay. */
   actor_label: string;
