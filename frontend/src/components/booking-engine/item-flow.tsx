@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { formatDateTime, formatDayMonth, formatDayMonthYear, formatLongDate, formatVnd, hhmm } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import { authFailure } from "./booking-dialogs";
+import { CollectQrDialog } from "./collect-qr";
 import { MoveDialog } from "./move-dialog";
 import { getItem, sendCancelItem, sendCollect, sendUncollectible } from "./requests";
 import type { Item } from "./types";
@@ -81,6 +82,10 @@ export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder 
     );
   }
   if (step === "collect") {
+    // T-065: booking (quầy) thu bằng QR riêng của buổi, có nút tiền mặt + Không thu được; vé giữ hộp tiền mặt cũ
+    if (item.kind === "booking" && item.order_code) {
+      return <CollectItemQr item={item} onBack={() => setStep("info")} onBad={() => setStep("bad")} onClose={onClose} onDone={onChanged} onStale={onStale} />;
+    }
     return <CollectDialog item={item} onBack={() => setStep("info")} onClose={onClose} onDone={onChanged} onStale={onStale} />;
   }
   if (step === "bad") {
@@ -373,6 +378,55 @@ type StepProps = {
   onDone: () => void;
   onStale: (message: string) => Promise<void>;
 };
+
+/** Thu tiền một buổi (T-065): popup QR dùng chung với Thu cả đơn; bước tiền mặt gọi thu từng buổi như CollectDialog. */
+function CollectItemQr({ item, onBack, onBad, onClose, onDone, onStale }: StepProps & { onBad: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [banner, setBanner] = useState("");
+
+  async function cash() {
+    if (busy) return;
+    setBusy(true);
+    setBanner("");
+    try {
+      const res = await write((key) => sendCollect(key, item.code, "cash", item.version));
+      if (!res.ok) {
+        const e = res.error;
+        if (authFailure(e)) return;
+        if (e.code === "E-012") return void (await onStale(errorText(e)));
+        setBanner(errorText(e));
+        return;
+      }
+      toast(`Đã thu ${formatVnd(item.payment.amount)} · ${item.code}`, "Tiền mặt · trạng thái chuyển sang Đã thanh toán");
+      onDone();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <CollectQrDialog
+      orderCode={item.order_code ?? item.code}
+      item={{ code: item.code, bad: { enabled: item.actions.includes("uncollectible"), onClick: onBad } }}
+      busy={busy}
+      banner={banner}
+      onClose={onClose}
+      onBack={onBack}
+      onConfirmCash={() => void cash()}
+      onPaid={() => {
+        onDone();
+        onClose();
+      }}
+      cashBody={
+        <>
+          <StatusAmount item={item} />
+          <CustomerBlock item={item} />
+        </>
+      }
+    />
+  );
+}
 
 function CollectDialog({ item, onBack, onClose, onDone, onStale }: StepProps) {
   const [busy, setBusy] = useState(false);
