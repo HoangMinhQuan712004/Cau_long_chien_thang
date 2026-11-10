@@ -220,10 +220,14 @@ export type CollectQr = {
   pay_ref: string;
   /** Tổng các khối chưa thu lúc hỏi; 0 khi đã thu hết. */
   amount: number;
-  status: "unpaid" | "paid";
+  /** "paid" = tiền chuyển khoản đã về; "closed" = đơn / buổi đã xong theo cách khác (tiền mặt, hủy, Không thu được ở máy khác). */
+  status: "unpaid" | "paid" | "closed";
   blocks: number;
   bank: import("@/components/web-booking/types").Bank;
 };
+
+/** Kết quả Không thu được cả đơn (T-064); SchemaContract bên dưới kiểm khớp OrderUncollectibleOut. */
+export type OrderUncollectible = { order_code: string; marked: string[]; remaining_unpaid: string[]; bookings: Item[] };
 
 /** Khách gửi lên: đúng một trong hai (server tự dựng snapshot – ADR-004 S8). */
 export type CustomerPayload = { member_code: string } | { temp: { full_name: string; phone: string; note?: string } };
@@ -245,6 +249,7 @@ export type SchemaContract = [
   Accepts<Api["schemas"]["SearchResult"], SearchResult>,
   Accepts<Api["schemas"]["TransactionsOut"], Transactions>,
   Accepts<Api["schemas"]["CollectQrOut"], CollectQr>,
+  Accepts<Api["schemas"]["OrderUncollectibleOut"], OrderUncollectible>,
 ];
 
 // ---- Hủy (T-051, Admin): hợp đồng theo spec, thay bằng kiểu sinh khi BE handoff ----
