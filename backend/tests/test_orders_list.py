@@ -124,3 +124,59 @@ async def test_orders_kinds_statuses_dates_search_and_privacy(anon, admin, staff
     old = (await admin.get(f"{API}/front-desk/recurring", params={"q": tag})).json()
     assert [i["order_code"] for i in old["items"]] == [recurring_order]
     assert old["counts"]["all"] == 1
+
+
+async def test_unpaid_amount_matches_what_collect_order_takes(admin):
+    """T-066: ``unpaid_amount`` / ``unpaid_blocks`` = khối Chưa thanh toán (đã giảm %), bỏ khối
+    đã thu, đã hủy, Không thu được; trùng số tiền QR cả đơn và số "Thu cả đơn" thu được."""
+    from sqlalchemy import update
+
+    from app.core.db import SessionLocal
+    from app.modules.booking_engine.models import Booking
+    from tests.test_counter_qr import FD, qr, recurring
+
+    order = await recurring(admin, days_ahead=120, pct=10)  # 4 buổi, giảm 10%
+    code = order["order_code"]
+    items = sorted(order["bookings"], key=lambda b: b["code"])
+    amounts = [b["payment"]["amount"] for b in items]
+
+    async def row() -> dict:
+        d = await orders(admin, q=code)
+        [found] = [r for r in d["items"] if r["order_code"] == code]
+        return found
+
+    fresh = await row()
+    assert (fresh["unpaid_amount"], fresh["unpaid_blocks"]) == (order["total"], 4)
+    assert fresh["total"] == order["total"] < order["original_amount"]
+
+    # Buổi 1 thu tiền mặt, buổi 2 hủy, buổi 3 Không thu được -> còn buổi 4
+    r = await admin.post(
+        f"{BK}/items/{items[0]['code']}/collect",
+        json={"method": "cash", "version": items[0]["version"]},
+        headers=idem(),
+    )
+    assert r.status_code == 200, r.text
+    r = await admin.post(
+        f"{FD}/orders/{code}/cancel",
+        json={"reason": "Đổi lịch", "codes": [items[1]["code"]]},
+        headers=idem(),
+    )
+    assert r.status_code == 200, r.text
+    async with SessionLocal() as s:  # buổi tương lai: API đòi đã tới giờ, đặt thẳng trạng thái
+        await s.execute(
+            update(Booking)
+            .where(Booking.code == items[2]["code"])
+            .values(payment_status="uncollectible", uncollectible_reason="Khách không đến")
+        )
+        await s.commit()
+
+    partial = await row()
+    assert (partial["unpaid_amount"], partial["unpaid_blocks"]) == (amounts[3], 1)
+    assert partial["total"] == amounts[0] + amounts[2] + amounts[3]  # tổng đơn bỏ khối đã hủy
+    assert (await qr(admin, code)).json()["amount"] == partial["unpaid_amount"]
+
+    r = await admin.post(f"{BK}/orders/{code}/collect", json={"method": "cash"}, headers=idem())
+    assert r.status_code == 200, r.text
+    assert r.json()["amount"] == partial["unpaid_amount"]
+    done = await row()
+    assert (done["unpaid_amount"], done["unpaid_blocks"]) == (0, 0)

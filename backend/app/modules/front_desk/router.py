@@ -303,6 +303,11 @@ class OrderOut(_OrderBase):
     resource_names: list[str] = Field(description="Đơn ngày có thể nhiều sân")
     play_date: dt.date = Field(description="Ngày chơi (định kỳ: ngày buổi đầu)")
     blocks: int = Field(description="Số khối (đơn ngày) / số buổi (định kỳ)")
+    unpaid_amount: int = Field(
+        description="Còn phải thu (T-066) = tổng khối Chưa thanh toán – đúng số Thu cả đơn tiền "
+        "mặt / QR cả đơn thu; ``total`` vẫn là tổng đơn sau giảm"
+    )
+    unpaid_blocks: int = Field(description="Số khối Chưa thanh toán")
 
 
 class OrderCountsOut(BaseModel):

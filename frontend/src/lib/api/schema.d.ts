@@ -5496,6 +5496,16 @@ export interface components {
              * @description Số khối (đơn ngày) / số buổi (định kỳ)
              */
             blocks: number;
+            /**
+             * Unpaid Amount
+             * @description Còn phải thu (T-066) = tổng khối Chưa thanh toán – đúng số Thu cả đơn tiền mặt / QR cả đơn thu; ``total`` vẫn là tổng đơn sau giảm
+             */
+            unpaid_amount: number;
+            /**
+             * Unpaid Blocks
+             * @description Số khối Chưa thanh toán
+             */
+            unpaid_blocks: number;
         };
         /** OrderUncollectibleIn */
         OrderUncollectibleIn: {
