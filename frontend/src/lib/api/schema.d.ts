@@ -1200,6 +1200,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking/orders/{order_code}/uncollectible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Uncollectible Order
+         * @description Không thu được cả đơn (T-064): mọi khối **Chưa thanh toán đã tới giờ** -> Không thu được
+         *     (lý do không bắt buộc, ≤ 200); khối chưa tới giờ giữ nguyên (``remaining_unpaid``). 404
+         *     ``E-BOOK-3`` · 409 ``E-BOOK-4`` · 422 ``E-PAY-1`` (đơn online / chưa buổi nào tới giờ).
+         */
+        post: operations["uncollectible_order_api_v1_booking_orders__order_code__uncollectible_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/booking/items/{code}/uncollectible": {
         parameters: {
             query?: never;
@@ -5423,6 +5445,35 @@ export interface components {
              * @description Số khối (đơn ngày) / số buổi (định kỳ)
              */
             blocks: number;
+        };
+        /** OrderUncollectibleIn */
+        OrderUncollectibleIn: {
+            /**
+             * Reason
+             * @description Không bắt buộc (T-064)
+             * @default
+             */
+            reason: string;
+        };
+        /** OrderUncollectibleOut */
+        OrderUncollectibleOut: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Marked
+             * @description Mã con vừa đánh dấu Không thu được
+             */
+            marked: string[];
+            /**
+             * Remaining Unpaid
+             * @description Mã con chưa tới giờ, còn Chưa thanh toán
+             */
+            remaining_unpaid: string[];
+            /**
+             * Bookings
+             * @description Mọi khối của đơn sau khi đánh dấu
+             */
+            bookings: components["schemas"]["ItemOut"][];
         };
         /** OtpSentOut */
         OtpSentOut: {
@@ -10563,6 +10614,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderCollectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uncollectible_order_api_v1_booking_orders__order_code__uncollectible_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderUncollectibleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderUncollectibleOut"];
                 };
             };
             /** @description Validation Error */

@@ -864,6 +864,17 @@ class OrderCollectOut(BaseModel):
     bookings: list[ItemOut] = Field(description="Mọi khối của đơn sau khi thu")
 
 
+class OrderUncollectibleIn(StrictIn):
+    reason: str = Field(default="", max_length=500, description="Không bắt buộc (T-064)")
+
+
+class OrderUncollectibleOut(BaseModel):
+    order_code: str
+    marked: list[str] = Field(description="Mã con vừa đánh dấu Không thu được")
+    remaining_unpaid: list[str] = Field(description="Mã con chưa tới giờ, còn Chưa thanh toán")
+    bookings: list[ItemOut] = Field(description="Mọi khối của đơn sau khi đánh dấu")
+
+
 class CollectQrInfo(BaseModel):
     """Thu cả đơn bằng QR (T-058): số tiền + nội dung chuyển khoản; lớp gọi ghép thông tin NH."""
 
