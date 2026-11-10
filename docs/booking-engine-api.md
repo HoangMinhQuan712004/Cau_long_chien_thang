@@ -197,7 +197,7 @@ Quyền theo bảng mục 3. "Hôm nay" tính theo `Asia/Ho_Chi_Minh`.
 | POST | `/api/v1/booking/items/{code}/collect` | Thu tiền. Body `{method: "cash", version}` → `ItemOut`; `"transfer"` → 422 `E-PAY-0` |
 | POST | `/api/v1/booking/orders/{order_code}/collect` **(T-019)** | Thu cả đơn bằng tiền mặt (xem 5.1) |
 | POST | `/api/v1/booking/items/{code}/uncollectible` | Không thu được. Body `{reason, version}` (lý do 1–200 ký tự) → `ItemOut` |
-| GET | `/api/v1/booking/transactions?from&to&resource&method&kind&q&page` | Lịch sử giao dịch = sổ tiền vào (Admin). **Đổi phá vỡ ở T-057 (đã vào `dev`)**: mục 5.3 |
+| GET | `/api/v1/booking/transactions?from&to&resource&method&kind&q&page` | Lịch sử giao dịch = sổ tiền vào (quyền `booking.transactions.view`). **Đổi phá vỡ ở T-057 (đã vào `dev`)**: mục 5.3 |
 
 ### Khách đặt (`customer`)
 
@@ -274,7 +274,7 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 
 **Dữ liệu cũ (migration `5b98d354dd77`, nối sau `a3d81f5c2b6e`):** mỗi booking cũ thành một đơn, mã đơn = mã cũ, booking nhận `-01`; hold và allocation mang mã đó đổi theo; `checkout.order_code` = mã đã dùng làm `pay_ref`; checkout còn `pending` bị cho hết hạn và nhả khung. Downgrade trả mã cũ, **dừng kèm thông báo nếu đã có đơn từ 2 khối trở lên**. T-016 (`dad220bfc992`) cũng nối sau `a3d81f5c2b6e`: gộp cả hai thì Alembic có **2 head**, phải sửa `down_revision` hoặc thêm migration merge trước khi deploy.
 
-### Lịch sử giao dịch (`/booking/transactions`, chỉ Admin)
+### Lịch sử giao dịch (`/booking/transactions`, quyền `booking.transactions.view`)
 
 > **Đã thay bởi sổ tiền vào ở T-057 (đã vào `dev`): xem mục 5.3.** Đoạn dưới là hợp đồng cũ, **không còn đúng** trên `dev`; giữ lại để so sánh.
 
@@ -385,7 +385,7 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 
 - `source`: `counter` (tiền mặt quầy) · `counter_qr` (QR thu cả đơn tại quầy) · `online`.
 
-#### `GET /api/v1/booking/transactions` – **đổi phá vỡ** (quyền `booking.transactions.view`, chỉ Admin)
+#### `GET /api/v1/booking/transactions` – **đổi phá vỡ** (quyền `booking.transactions.view`: **Admin và Nhân viên mặc định có**, Admin tắt được ở tab Phân quyền; Tài khoản tại máy và người không có quyền nhận 403)
 
 | Tham số | Ý nghĩa |
 |---|---|
