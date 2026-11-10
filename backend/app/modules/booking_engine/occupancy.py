@@ -6,11 +6,12 @@ Bảng ``allocation`` được T-006 hoàn thiện (cột chủ sở hữu); ở
 from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.booking_engine.dto import OccupiedSlot
-from app.modules.booking_engine.models import Allocation
+from app.modules.booking_engine.holds import hold_visible
+from app.modules.booking_engine.models import Allocation, Hold
 from app.modules.booking_engine.schedules import to_hhmm
 
 MAX_LISTED = 6
@@ -54,6 +55,26 @@ async def occupied_from(
             continue
         result.append(slot_of(row, tz))
     return result
+
+
+async def unfinished(
+    session: AsyncSession, tenant_id: int, resource_id: int, now: datetime, tz: ZoneInfo
+) -> list[OccupiedSlot]:
+    """Booking / sự kiện (kể cả vé) / giữ chỗ còn hiệu lực CHƯA KẾT THÚC (đang diễn ra cũng tính) –
+    chặn ngừng / xóa sân. Lịch đã kết thúc trong ngày không chặn."""
+    rows = await session.scalars(
+        select(Allocation)
+        .outerjoin(Hold, (Hold.id == Allocation.hold_id) & hold_visible(now))
+        .where(
+            Allocation.tenant_id == tenant_id,
+            Allocation.resource_id == resource_id,
+            Allocation.active.is_(True),
+            func.upper(Allocation.time_range) > now,
+            or_(Allocation.kind != "hold", Hold.id.is_not(None)),
+        )
+        .order_by(func.lower(Allocation.time_range))
+    )
+    return [slot_of(row, tz) for row in rows]
 
 
 def slot_of(row: Allocation, tz: ZoneInfo) -> OccupiedSlot:

@@ -41,7 +41,8 @@ async function ReportLoader() {
   if (res?.response.status === 403) redirect(FORBIDDEN);
   const initial: ReportOverview | null = res?.data ?? null;
 
-  return <ReportScreen initial={initial} today={week.to} t={t.report} />;
+  // key theo dữ liệu server: Next 16 giữ trang đã rời trong <Activity> nên state cũ (useState(initial)) không tự lấy props mới khi quay lại bằng menu
+  return <ReportScreen key={initial?.computed_at ?? "none"} initial={initial} today={week.to} t={t.report} />;
 }
 
 // Khung chờ đúng hình màn: đầu trang, bộ lọc, 3 thẻ, 2 biểu đồ, heatmap (không nhảy bố cục)

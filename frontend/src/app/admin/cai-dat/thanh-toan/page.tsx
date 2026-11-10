@@ -29,5 +29,6 @@ async function Loader() {
     return <p className="text-muted">{noPermission}</p>;
   }
   if (!settings.ok || !banks.ok) throw new Error("Không tải được cài đặt thanh toán");
-  return <PaymentSettingsScreen initial={settings.data} banks={banks.data} />;
+  // key theo dữ liệu server: Next 16 giữ trang đã rời trong <Activity> nên state cũ (useState(initial)) không tự lấy props mới khi quay lại bằng menu
+  return <PaymentSettingsScreen key={settings.data.updated_at ?? "new"} initial={settings.data} banks={banks.data} />;
 }

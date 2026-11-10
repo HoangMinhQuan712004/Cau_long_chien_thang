@@ -131,6 +131,8 @@ export type Item = {
   created_by: string;
   created_at: string;
   actions: ItemAction[];
+  /** Các lần đổi sân, cũ trước mới sau; rỗng khi chưa đổi. */
+  moves?: Api["schemas"]["ItemMove"][];
   /** T-052: giai đoạn của buổi khi hủy (server tính): trước giờ / đang chơi / đã qua; null = không hủy được. */
   cancel_phase?: Api["schemas"]["ItemOut"]["cancel_phase"];
 };
