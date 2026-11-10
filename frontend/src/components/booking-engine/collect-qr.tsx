@@ -17,7 +17,7 @@ import { btnCls, btnDangerCls, btnDangerOutlineCls, btnPrimaryCls, ErrorBanner, 
 // T-064: nút "Không thu được" ở cả bước QR và tiền mặt: đánh dấu các buổi ĐÃ TỚI GIỜ của đơn (buổi sau giữ Chưa thanh toán),
 // hỏi xác nhận kèm lý do (không bắt buộc); xong thì dừng hỏi QR và đóng popup.
 const NOT_STARTED = "Chưa có buổi nào tới giờ chơi, chưa thể đánh dấu Không thu được.";
-const REASON_MAX = 500;
+const REASON_MAX = 200; // cột DB (BE: 201+ ký tự ⇒ 422)
 
 const POLL_MS = 3_000;
 const LIMIT_SEC = 5 * 60;
@@ -123,8 +123,8 @@ export function CollectQrDialog({ orderCode, cashBody, onConfirmCash, busy, bann
       if (!res.ok) {
         const e = res.error;
         if (authFailure(e)) return onClose();
-        // Đơn đã hết khối chưa thu (máy khác vừa thu / đánh dấu) ⇒ báo và tải lại
-        if (e.code === "E-BOOK-4") {
+        // Máy khác vừa thu / đánh dấu: hết khối chưa thu (E-BOOK-4) hoặc chỉ còn buổi chưa tới giờ (E-PAY-1) ⇒ báo và tải lại
+        if (e.code === "E-BOOK-4" || e.code === "E-PAY-1") {
           done.current = true;
           toast(errorText(e), orderCode, "info");
           onPaidRef.current();

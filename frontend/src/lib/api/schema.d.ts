@@ -1200,6 +1200,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking/orders/{order_code}/uncollectible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Uncollectible Order
+         * @description Không thu được cả đơn (T-064): mọi khối **Chưa thanh toán đã tới giờ** -> Không thu được
+         *     (lý do không bắt buộc, ≤ 200); khối chưa tới giờ giữ nguyên (``remaining_unpaid``). 404
+         *     ``E-BOOK-3`` · 409 ``E-BOOK-4`` · 422 ``E-PAY-1`` (đơn online / chưa buổi nào tới giờ).
+         */
+        post: operations["uncollectible_order_api_v1_booking_orders__order_code__uncollectible_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/booking/items/{code}/uncollectible": {
         parameters: {
             query?: never;
@@ -4145,6 +4167,45 @@ export interface components {
             tier: string | null;
         };
         /**
+         * ItemMove
+         * @description Một lần đổi: lịch cũ (gạch) -> lịch mới; giờ theo giờ VN.
+         */
+        ItemMove: {
+            /** From Code */
+            from_code: string;
+            /** From Name */
+            from_name: string;
+            /** To Code */
+            to_code: string;
+            /** To Name */
+            to_name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** From Start Time */
+            from_start_time: string;
+            /** From End Time */
+            from_end_time: string;
+            /**
+             * Start Time
+             * @description Giờ của lịch mới
+             */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /**
+             * Moved At
+             * Format: date-time
+             */
+            moved_at: string;
+            /** Moved By */
+            moved_by: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
          * ItemOut
          * @description Thông tin booking / vé (SRS IV.5) – không SĐT đầy đủ, không id nội bộ.
          */
@@ -4187,6 +4248,11 @@ export interface components {
             created_at: string;
             /** Actions */
             actions: ("collect" | "uncollectible" | "cancel" | "move")[];
+            /**
+             * Moves
+             * @description Lịch sử đổi sân, cũ trước mới sau; rỗng khi chưa đổi
+             */
+            moves?: components["schemas"]["ItemMove"][];
             /**
              * Cancel Phase
              * @description Lúc này so với giờ chơi, để popup chọn câu cảnh báo (T-052); null: không hủy được
@@ -4999,6 +5065,12 @@ export interface components {
             resource_code: string;
             /** Version */
             version: number;
+            /**
+             * Reason
+             * @description Bắt buộc, đúng một trong MOVE_REASONS; sai / thiếu -> 422 E-001
+             * @enum {unknown}
+             */
+            reason?: "Sân hỏng / bảo trì" | "Ngừng sân";
         };
         /** MoveTarget */
         MoveTarget: {
@@ -5373,6 +5445,35 @@ export interface components {
              * @description Số khối (đơn ngày) / số buổi (định kỳ)
              */
             blocks: number;
+        };
+        /** OrderUncollectibleIn */
+        OrderUncollectibleIn: {
+            /**
+             * Reason
+             * @description Không bắt buộc (T-064)
+             * @default
+             */
+            reason: string;
+        };
+        /** OrderUncollectibleOut */
+        OrderUncollectibleOut: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Marked
+             * @description Mã con vừa đánh dấu Không thu được
+             */
+            marked: string[];
+            /**
+             * Remaining Unpaid
+             * @description Mã con chưa tới giờ, còn Chưa thanh toán
+             */
+            remaining_unpaid: string[];
+            /**
+             * Bookings
+             * @description Mọi khối của đơn sau khi đánh dấu
+             */
+            bookings: components["schemas"]["ItemOut"][];
         };
         /** OtpSentOut */
         OtpSentOut: {
@@ -10513,6 +10614,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderCollectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uncollectible_order_api_v1_booking_orders__order_code__uncollectible_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderUncollectibleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderUncollectibleOut"];
                 };
             };
             /** @description Validation Error */
