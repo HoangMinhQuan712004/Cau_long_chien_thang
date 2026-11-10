@@ -123,7 +123,7 @@ export const sendCancelItem = (key: string, code: string, v: { reason: string; v
 export const getMoveTargets = (code: string) =>
   read<MoveTarget[]>(() => looseApi.GET(`${P}/booking/items/{code}/move-targets`, { params: { path: { code } } }));
 
-export const sendMove = (key: string, code: string, v: { resource_code: string; version: number }) =>
+export const sendMove = (key: string, code: string, v: { resource_code: string; version: number; reason: string }) =>
   looseApi.POST(`${P}/booking/items/{code}/move`, { params: { path: { code } }, body: v, headers: idem(key) });
 
 /** Xem trước hủy cả đơn: buổi sẽ hủy / bị bỏ qua + tổng tiền. */

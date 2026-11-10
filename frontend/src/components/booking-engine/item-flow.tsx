@@ -10,12 +10,12 @@ import { formatDateTime, formatDayMonth, formatDayMonthYear, formatLongDate, for
 import { formatPhone } from "@/lib/phone";
 import { authFailure } from "./booking-dialogs";
 import { MoveDialog } from "./move-dialog";
+import { MoveHistory } from "./move-history";
 import { getItem, sendCancelItem, sendCollect, sendUncollectible } from "./requests";
 import type { Item } from "./types";
 import {
   btnCls,
   btnDangerCls,
-  btnDangerOutlineCls,
   btnPrimaryCls,
   btnRowCls,
   ErrorBanner,
@@ -90,7 +90,12 @@ export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder 
     return <CancelDialog item={item} onBack={() => setStep("info")} onClose={onClose} onDone={onChanged} onStale={onStale} />;
   }
   if (step === "move") {
-    return <MoveDialog item={item} court={courtTitle(item)} when={whenLine(item)} onBack={() => setStep("info")} onClose={onClose} onDone={onChanged} onStale={onStale} />;
+    const onMoved = (next: Item) => {
+      setItem(next);
+      setStep("info");
+      onChanged();
+    };
+    return <MoveDialog item={item} court={courtTitle(item)} when={whenLine(item)} onBack={() => setStep("info")} onClose={onClose} onMoved={onMoved} onStale={onStale} />;
   }
   return <InfoDialog item={item} onClose={onClose} onCollect={() => setStep("collect")} onBad={() => setStep("bad")} onCancel={() => setStep("cancel")} onMove={() => setStep("move")} onOpenSession={onOpenSession} onOpenOrder={onOpenOrder} />;
 }
@@ -302,9 +307,10 @@ function InfoDialog({
         canCollect || canBad || canCancel || canMove ? (
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
             {canCancel || canMove ? (
-              <div className={cn(btnRowCls, canCancel && canMove ? "grid-cols-2 md:w-80" : "grid-cols-1 sm:w-1/2 md:w-40", "sm:mr-auto")}>
+              // Nhóm trái: Hủy + Đổi sân sát nhau (gap 8px), rộng theo chữ; điện thoại chia đôi hàng
+              <div className={cn(btnRowCls, canCancel && canMove ? "grid-cols-2" : "grid-cols-1", "sm:mr-auto sm:flex sm:w-auto")}>
                 {canCancel ? (
-                  <button type="button" onClick={onCancel} className={btnDangerOutlineCls}>
+                  <button type="button" onClick={onCancel} className={cn(btnCls, "border-danger text-danger enabled:hover:bg-danger/10")}>
                     {isTicket ? "Hủy vé" : "Hủy booking"}
                   </button>
                 ) : null}
@@ -362,6 +368,8 @@ function InfoDialog({
           <KvList rows={payment} />
         </Group>
       </div>
+      {/* Khu riêng rộng hết popup, dưới 3 cột; chưa đổi sân lần nào thì không có */}
+      <MoveHistory item={item} />
     </Modal>
   );
 }
@@ -632,17 +640,7 @@ function CancelDialog({ item, onBack, onClose, onDone, onStale }: StepProps) {
             </span>
           </label>
         </div>
-      ) : (
-        <p className="rounded-md bg-primary-softer p-2.5 text-sm">{item.payment.payment_status === "unpaid" ? `Khoản ${formatVnd(amount)} chưa thu nên không ảnh hưởng doanh thu.` : "Khoản này chưa thu."}</p>
-      )}
-      <ErrorBanner>
-        {phase === "past"
-          ? "Buổi sẽ biến khỏi lịch và công suất ngày đó cũng giảm."
-          : isTicket
-            ? "Chỗ của vé được trả lại và có thể bán lại."
-            : "Khung giờ trống lại trên lịch ngay, đặt lại được bằng đơn mới."}{" "}
-        Đã hủy thì không khôi phục được, mã {item.code} không dùng lại. Thao tác được ghi vào Lịch sử thao tác.
-      </ErrorBanner>
+      ) : null}
       <p className="text-xs text-muted">
         {item.customer.kind === "member"
           ? "Hội viên có tài khoản sẽ nhận thông báo (không kèm lý do). Nếu khách chưa có tài khoản, hãy tự báo khách."

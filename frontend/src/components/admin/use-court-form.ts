@@ -73,7 +73,7 @@ export function useCourtForm(initial: Form, resources: Resource[], onSaved: (cod
     }
   }
 
-  return { f, setF, touched, setTouched, submitted, banner, busy, err, tomorrow, dirty, submit };
+  return { f, setF, touched, setTouched, submitted, banner, setBanner, busy, err, tomorrow, dirty, submit };
 }
 
 export type CourtFormState = ReturnType<typeof useCourtForm>;

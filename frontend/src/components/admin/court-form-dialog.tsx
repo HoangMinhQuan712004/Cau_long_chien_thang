@@ -8,7 +8,7 @@ import type { Dictionary } from "@/i18n/dictionaries";
 import { api } from "@/lib/api/client";
 import { write } from "@/lib/api/write";
 import { ConflictList, CourtForm } from "./court-form";
-import { bannerFrom, type Banner, type Form, type Resource, type ResourceType } from "./court-form-logic";
+import { bannerFrom, withoutConflict, type Banner, type Form, type Resource, type ResourceType } from "./court-form-logic";
 import { useCourtForm } from "./use-court-form";
 
 const FOOTER = "grid w-full grid-cols-2 gap-2";
@@ -91,10 +91,18 @@ export function DeleteCourtDialog({ court, onClose, onDeleted, t }: { court: Res
       }
     >
       {error ? (
-        <Alert variant="error">
+        <Alert variant={error.done ? "info" : "error"}>
           <span className="flex flex-col gap-1.5">
             <span>{error.text}</span>
-            {error.items?.length ? <ConflictList items={error.items} more={error.more} t={t.form} /> : null}
+            {error.items?.length ? (
+              <ConflictList
+                items={error.items}
+                more={error.more}
+                court={court.code}
+                onResolved={(code) => setError((b) => b && withoutConflict(b, code, t.form.conflictsDone.delete))}
+                t={t.form}
+              />
+            ) : null}
           </span>
         </Alert>
       ) : null}

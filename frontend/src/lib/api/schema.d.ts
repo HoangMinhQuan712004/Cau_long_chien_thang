@@ -4145,6 +4145,45 @@ export interface components {
             tier: string | null;
         };
         /**
+         * ItemMove
+         * @description Một lần đổi: lịch cũ (gạch) -> lịch mới; giờ theo giờ VN.
+         */
+        ItemMove: {
+            /** From Code */
+            from_code: string;
+            /** From Name */
+            from_name: string;
+            /** To Code */
+            to_code: string;
+            /** To Name */
+            to_name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** From Start Time */
+            from_start_time: string;
+            /** From End Time */
+            from_end_time: string;
+            /**
+             * Start Time
+             * @description Giờ của lịch mới
+             */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /**
+             * Moved At
+             * Format: date-time
+             */
+            moved_at: string;
+            /** Moved By */
+            moved_by: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
          * ItemOut
          * @description Thông tin booking / vé (SRS IV.5) – không SĐT đầy đủ, không id nội bộ.
          */
@@ -4187,6 +4226,11 @@ export interface components {
             created_at: string;
             /** Actions */
             actions: ("collect" | "uncollectible" | "cancel" | "move")[];
+            /**
+             * Moves
+             * @description Lịch sử đổi sân, cũ trước mới sau; rỗng khi chưa đổi
+             */
+            moves?: components["schemas"]["ItemMove"][];
             /**
              * Cancel Phase
              * @description Lúc này so với giờ chơi, để popup chọn câu cảnh báo (T-052); null: không hủy được
@@ -4999,6 +5043,12 @@ export interface components {
             resource_code: string;
             /** Version */
             version: number;
+            /**
+             * Reason
+             * @description Bắt buộc, đúng một trong MOVE_REASONS; sai / thiếu -> 422 E-001
+             * @enum {unknown}
+             */
+            reason?: "Sân hỏng / bảo trì" | "Ngừng sân";
         };
         /** MoveTarget */
         MoveTarget: {

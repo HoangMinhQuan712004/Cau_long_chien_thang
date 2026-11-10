@@ -42,6 +42,7 @@ from app.modules.booking_engine.dto import (
     CounterOrderOut,
     CustomerSnapshot,
     ItemCustomer,
+    ItemMove,
     ItemOut,
     ItemPayment,
     ItemSchedule,
@@ -54,6 +55,7 @@ from app.modules.booking_engine.models import (
     RESOURCE_LIVE,
     Allocation,
     Booking,
+    BookingMove,
     EventSession,
     Hold,
     Resource,
@@ -465,6 +467,38 @@ def _customer(item: Booking | Ticket) -> ItemCustomer:
     )
 
 
+async def item_moves(session: AsyncSession, ctx: Ctx, b: Booking) -> list[ItemMove]:
+    """Lịch sử đổi sân, cũ trước mới sau; tên sân lấy cả sân đã xóa."""
+    rows = list(
+        await session.scalars(
+            select(BookingMove)
+            .where(BookingMove.booking_id == b.id)
+            .order_by(BookingMove.moved_at, BookingMove.id)
+        )
+    )
+    if not rows:
+        return []
+    ids = {m.from_resource_id for m in rows} | {m.to_resource_id for m in rows}
+    courts = {r.id: r for r in await session.scalars(select(Resource).where(Resource.id.in_(ids)))}
+    return [
+        ItemMove(
+            from_code=courts[m.from_resource_id].code,
+            from_name=courts[m.from_resource_id].name,
+            to_code=courts[m.to_resource_id].code,
+            to_name=courts[m.to_resource_id].name,
+            date=b.play_date,
+            from_start_time=ctx.hhmm(b.play_date, m.from_start_at),
+            from_end_time=ctx.hhmm(b.play_date, m.from_end_at),
+            start_time=ctx.hhmm(b.play_date, m.to_start_at),
+            end_time=ctx.hhmm(b.play_date, m.to_end_at),
+            moved_at=m.moved_at,
+            moved_by=m.moved_by_label,
+            reason=m.reason,
+        )
+        for m in rows
+    ]
+
+
 async def booking_item(session: AsyncSession, ctx: Ctx, b: Booking) -> ItemOut:
     r = await session.get(Resource, b.resource_id)
     orders = await order_codes(session, {b.order_id})
@@ -490,6 +524,7 @@ async def booking_item(session: AsyncSession, ctx: Ctx, b: Booking) -> ItemOut:
         actions=payment_actions(b, b.start_at, b.end_at, ctx)
         + ([] if movable_reason(b, ctx) else ["move"]),
         cancel_phase=cancel_phase(b, b.start_at, b.end_at, ctx),
+        moves=await item_moves(session, ctx, b),
     )
 
 

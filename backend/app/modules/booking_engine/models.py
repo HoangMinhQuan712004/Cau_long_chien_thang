@@ -647,6 +647,38 @@ class PaymentEntryItem(Base):
     amount: Mapped[int] = mapped_column(Integer)
 
 
+class BookingMove(Base):
+    """Một lần đổi lịch của booking (đợt này chỉ đổi sân): lịch cũ -> lịch mới, ai làm, lúc nào.
+
+    Lưu cả giờ để sau này đổi giờ dùng chung. Hủy booking không xóa lịch sử (RESTRICT).
+    """
+
+    __tablename__ = "booking_move"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(SmallInteger, _tenant_fk())
+    booking_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA}.booking.id", ondelete="RESTRICT"), index=True
+    )
+    from_resource_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA}.resource.id", ondelete="RESTRICT")
+    )
+    to_resource_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA}.resource.id", ondelete="RESTRICT")
+    )
+    from_start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    from_end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    to_start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    to_end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    moved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    moved_by_type: Mapped[str] = mapped_column(String(20))
+    moved_by_id: Mapped[int | None] = mapped_column(BigInteger)
+    moved_by_label: Mapped[str] = mapped_column(String(100))
+    # Một trong ``dto.MOVE_REASONS``; null chỉ ở dòng ghi trước khi lý do thành bắt buộc
+    reason: Mapped[str | None] = mapped_column(String(200))
+
+
 class OutboxEvent(Base):
     """Sự kiện ghi cùng transaction nghiệp vụ; worker phát qua ``core.events`` sau commit."""
 

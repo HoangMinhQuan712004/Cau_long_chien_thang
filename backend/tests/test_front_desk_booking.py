@@ -20,6 +20,7 @@ from app.modules.play_rooms.models import PlayRoom
 from tests.conftest import API, idem, is_staff_label
 from tests.helpers_booking import (
     BK,
+    FD,
     at,
     book,
     calendar,
@@ -456,10 +457,33 @@ async def test_customer_cannot_use_front_desk(customer):
 # ------------------------------------------------------------------ đổi sân (2026-11-09)
 
 
-async def move(client, code: str, resource_code: str, version: int, **headers):
+async def cancel_paid(admin, item: dict) -> dict:
+    """Khung đang diễn ra chỉ hủy được khi đã thu: thu tiền rồi hủy (xác nhận hoàn tiền)."""
+    paid = await admin.post(
+        f"{BK}/items/{item['code']}/collect",
+        json={"method": "cash", "version": item["version"]},
+        headers=idem(),
+    )
+    assert paid.status_code == 200, paid.text
+    r = await admin.post(
+        f"{FD}/items/{item['code']}/cancel",
+        json={"reason": "Thử đổi sân", "version": paid.json()["version"], "refund_confirmed": True},
+        headers=idem(),
+    )
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+MOVE_REASON = "Sân hỏng / bảo trì"
+
+
+async def move(client, code: str, resource_code: str, version: int, reason=MOVE_REASON, **headers):
+    body = {"resource_code": resource_code, "version": version}
+    if reason is not None:  # None: không gửi trường reason
+        body["reason"] = reason
     return await client.post(
         f"{BK}/items/{code}/move",
-        json={"resource_code": resource_code, "version": version},
+        json=body,
         headers={**idem(), **headers},
     )
 
@@ -516,7 +540,10 @@ async def test_move_keeps_code_price_payment_and_follows_room(admin, staff):
     log = await admin.get(f"{API}/admin/audit-log", params={"action": "booking.move"})
     row = next(i for i in log.json()["items"] if i["target"]["code"] == booked["code"])
     assert row["action_label"] == "Đổi sân"
-    assert row["changes"] == [{"field": "Sân", "before": a["name"], "after": b["name"]}]
+    assert row["changes"] == [
+        {"field": "Sân", "before": a["name"], "after": b["name"]},
+        {"field": "Lý do", "before": None, "after": MOVE_REASON},
+    ]
 
 
 async def test_move_conflict_and_bad_target(admin):
@@ -579,15 +606,11 @@ async def test_move_rejects_cancelled_ended_and_non_booking(admin, anon):
     assert "kết thúc" in r.json()["detail"]["message"]
 
     other = await new_court(admin)
-    cancelled = (await book(admin, other["code"], hour, customer=temp())).json()
-    r = await admin.post(
-        f"{BK}/items/{cancelled['code']}/cancel",
-        json={"reason": "Thử đổi sân", "version": cancelled["version"]},
-        headers=idem(),
+    cancelled = await cancel_paid(
+        admin, (await book(admin, other["code"], hour, customer=temp())).json()
     )
-    if r.status_code == 200:
-        r = await move(admin, cancelled["code"], b["code"], r.json()["version"])
-        assert r.status_code == 409 and r.json()["detail"]["code"] == "E-BOOK-6"
+    r = await move(admin, cancelled["code"], b["code"], cancelled["version"])
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "E-BOOK-6"
 
     day = today() + timedelta(days=3)
     ev = await admin.post(
@@ -632,3 +655,55 @@ async def test_move_needs_counter_booking_permission(admin, staff):
             await s.commit()
     r = await move(staff, booked["code"], b["code"], booked["version"])
     assert r.status_code == 200, r.text
+
+
+async def test_move_history_in_item_oldest_first_and_kept_after_cancel(admin, staff):
+    hour = await safe_hour()
+    a, b, c = await new_court(admin), await new_court(admin), await new_court(admin)
+    booked = (await book(admin, a["code"], hour, customer=temp())).json()
+    assert booked["moves"] == [], "chưa đổi: rỗng"
+    # Người dùng chốt 2026-11-09: lý do bắt buộc, đúng 1 trong 2 giá trị
+    for bad in (None, "", "Khách yêu cầu", "ngừng sân", "x" * 101):
+        r = await move(admin, booked["code"], b["code"], booked["version"], reason=bad)
+        assert r.status_code == 422, (bad, r.text)
+        if bad != "x" * 101:
+            assert r.json()["detail"] == {"code": "E-001", "message": "Chọn lý do đổi sân."}
+    first = await move(admin, booked["code"], b["code"], booked["version"])
+    assert first.status_code == 200, first.text
+    second = await move(
+        staff, booked["code"], c["code"], first.json()["version"], reason="Ngừng sân"
+    )
+    assert second.status_code == 200, second.text
+
+    moves = (await admin.get(f"{BK}/items/{booked['code']}")).json()["moves"]
+    assert [(m["from_code"], m["to_code"]) for m in moves] == [
+        (a["code"], b["code"]),
+        (b["code"], c["code"]),
+    ]
+    assert [(m["from_name"], m["to_name"]) for m in moves][0] == (a["name"], b["name"])
+    start, end = f"{hour:02d}:00", f"{hour + 1:02d}:00"
+    for m in moves:
+        assert (m["start_time"], m["end_time"]) == (start, end)
+        assert (m["from_start_time"], m["from_end_time"]) == (start, end)
+        assert m["date"] == today().isoformat() and m["moved_at"]
+    assert [m["reason"] for m in moves] == ["Sân hỏng / bảo trì", "Ngừng sân"]
+    assert moves[0]["moved_by"] != moves[1]["moved_by"], "ghi đúng người đổi (Admin rồi NV)"
+    assert is_staff_label(moves[1]["moved_by"])
+    assert second.json()["moves"] == moves, "response đổi sân cũng có lịch sử"
+
+    # Hủy không xóa lịch sử; sân đã xóa vẫn hiện tên
+    await cancel_paid(admin, second.json())
+    assert (await admin.delete(f"{BK}/resources/{a['code']}", headers=idem())).status_code == 204
+    kept = (await admin.get(f"{BK}/items/{booked['code']}")).json()["moves"]
+    assert kept == moves and kept[0]["from_name"] == a["name"]
+
+
+async def test_move_reason_in_audit(admin):
+    hour = await safe_hour()
+    a, b = await new_court(admin), await new_court(admin)
+    booked = (await book(admin, a["code"], hour, customer=temp())).json()
+    r = await move(admin, booked["code"], b["code"], booked["version"], reason="Ngừng sân")
+    assert r.status_code == 200, r.text
+    log = await admin.get(f"{API}/admin/audit-log", params={"action": "booking.move"})
+    row = next(i for i in log.json()["items"] if i["target"]["code"] == booked["code"])
+    assert {"field": "Lý do", "before": None, "after": "Ngừng sân"} in row["changes"]

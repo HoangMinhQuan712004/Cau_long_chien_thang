@@ -26,12 +26,13 @@ from app.modules.booking_engine.common import (
     sqlstate,
 )
 from app.modules.booking_engine.config_service import _resource_by_code, lock_live_resources
-from app.modules.booking_engine.dto import Actor, ItemOut, MoveIn, MoveTarget
+from app.modules.booking_engine.dto import MOVE_REASONS, Actor, ItemOut, MoveIn, MoveTarget
 from app.modules.booking_engine.holds import hold_visible
 from app.modules.booking_engine.models import (
     RESOURCE_LIVE,
     Allocation,
     Booking,
+    BookingMove,
     EventSession,
     Hold,
     Resource,
@@ -118,6 +119,8 @@ async def move(
     session: AsyncSession, tenant_id: int, actor: Actor, code: str, data: MoveIn
 ) -> ItemOut:
     """Khóa booking + sân đích; đổi sân của chỗ chiếm và booking trong một transaction."""
+    if data.reason not in MOVE_REASONS:
+        raise AppError("E-001", "Chọn lý do đổi sân.", 422)
     ctx = await context(session, tenant_id)
     b = await _booking(session, tenant_id, code, lock=True)
     _check_movable(b, ctx)
@@ -144,10 +147,29 @@ async def move(
                 "E-BOOK-8", f"{target.name} đã có lịch trong khung này. Chọn sân khác.", 409
             ) from None
         raise
+    session.add(
+        BookingMove(
+            tenant_id=tenant_id,
+            booking_id=b.id,
+            from_resource_id=source.id,
+            to_resource_id=target.id,
+            from_start_at=b.start_at,
+            from_end_at=b.end_at,
+            to_start_at=b.start_at,
+            to_end_at=b.end_at,
+            moved_by_type=actor.type,
+            moved_by_id=actor.id,
+            moved_by_label=actor.label,
+            reason=data.reason,
+        )
+    )
     b.resource_id = target.id
     b.version += 1
-    change = audit_change("Sân", source.name, target.name)
-    detail = audit_detail(b.code, b.customer_name, [change], moved_at=datetime.now(UTC).isoformat())
+    changes = [
+        audit_change("Sân", source.name, target.name),
+        audit_change("Lý do", None, data.reason),
+    ]
+    detail = audit_detail(b.code, b.customer_name, changes, moved_at=datetime.now(UTC).isoformat())
     audit(session, audit_actor(actor), "booking.move", "booking", b.code, detail)
     type_name = await session.scalar(
         select(ResourceType.name).where(ResourceType.id == target.resource_type_id)
