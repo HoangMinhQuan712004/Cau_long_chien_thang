@@ -149,7 +149,7 @@ export function AdminGrid({ calendar, selected, selectable, unpaidOnly = false, 
         }
         for (let h = b.start_hour; h < b.end_hour; h++) if (h in cells) cells[h] = cell;
       });
-      return { code: res.code, name: res.name, sub: `${res.code}${res.is_active ? "" : " · Ngừng"}`, muted: !res.is_active, cells };
+      return { code: res.code, name: res.name, sub: res.is_active ? res.code : `${res.code} · Ngừng hoạt động`, muted: !res.is_active, cells };
     });
   }, [resources, columns, blocks, date, today, nowMin, isPastDay, unpaidOnly, highlightCode, nowMs, onBlockClick]);
 

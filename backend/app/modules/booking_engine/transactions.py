@@ -11,7 +11,6 @@ from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
-from app.core.privacy import mask_phone
 from app.modules.booking_engine.booking_service import session_resources
 from app.modules.booking_engine.common import context
 from app.modules.booking_engine.dto import (
@@ -232,7 +231,7 @@ async def list_transactions(
                 occurred_at=e.occurred_at,
                 order_code=e.order_code,
                 customer_name=e.customer_name,
-                customer_phone_masked=mask_phone(e.customer_phone),
+                customer_phone=e.customer_phone or None,
                 member_code=e.member_code,
                 actor_label=e.actor_label,
                 items=items.get(e.id, []),

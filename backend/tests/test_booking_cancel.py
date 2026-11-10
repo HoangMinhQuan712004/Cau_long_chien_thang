@@ -160,7 +160,7 @@ async def test_only_admin_can_cancel(admin, staff):
     b = await new_booking(admin, staff)
     code, order = b["code"], b["order_code"]
     # Nhân viên không thấy nút, kể cả trong phản hồi lúc đặt
-    assert b["actions"] == ["collect"]
+    assert b["actions"] == ["collect", "move"]  # NV đặt quầy được -> Đổi sân được
     assert "cancel" not in (await staff.get(f"{BK}/items/{code}")).json()["actions"]
     assert (await cancel(staff, code)).status_code == 403
     assert (await staff.get(f"{FD}/orders/{order}/cancel-preview")).status_code == 403

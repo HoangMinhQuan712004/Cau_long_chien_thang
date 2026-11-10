@@ -880,7 +880,8 @@
       "reload": "Tải lại",
       "moreConflicts": "… và {n} khung khác",
       "halfHourWarning": "Sân này còn giờ rưỡi từ dữ liệu cũ, vẫn giữ nguyên khi lưu. Giờ mới chỉ chọn được giờ chẵn.",
-      "peaksAdjusted": "Đã chỉnh khung cao điểm theo giờ mở cửa mới. Lưu mới có hiệu lực."
+      "peaksAdjusted": "Đã chỉnh khung cao điểm theo giờ mở cửa mới. Lưu mới có hiệu lực.",
+      "openConflict": "Mở lịch {code}"
     },
     "drawer": {
       "close": "Đóng",

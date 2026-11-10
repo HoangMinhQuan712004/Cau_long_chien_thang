@@ -9,7 +9,6 @@ from sqlalchemy import func, select
 from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.core.privacy import mask_phone
 from app.modules.booking_engine.models import Booking, BookingOrder, Resource
 from tests.conftest import API, idem, is_staff_label
 from tests.helpers_booking import (
@@ -68,7 +67,9 @@ async def test_collect_cash(admin, staff):
     r = await collect(staff, b["code"])
     assert r.status_code == 200, r.text
     item = r.json()
-    assert item["version"] == 2 and item["actions"] == []
+    assert item["version"] == 2 and item["actions"] == [
+        "move"
+    ]  # # Đổi sân (người dùng chốt 2026-11-09)
     pay = item["payment"]
     assert (pay["payment_status"], pay["payment_method"]) == ("paid", "cash")
     assert is_staff_label(pay["collected_by"]) and pay["paid_at"]
@@ -134,7 +135,8 @@ async def test_uncollectible_keeps_slot(admin, staff):
     hour = await safe_hour()
     court = await new_court(admin)
     b = (await book(staff, court["code"], hour)).json()
-    assert b["actions"] == ["collect", "uncollectible"]  # khung đang diễn ra: đã tới giờ
+    # Khung đang diễn ra: đã tới giờ; chưa kết thúc nên vẫn Đổi sân được
+    assert b["actions"] == ["collect", "uncollectible", "move"]
     for reason in ("   ", "x" * 201):
         r = await uncollectible(staff, b["code"], reason=reason)
         assert r.status_code == 422 and r.json()["detail"]["code"] == "E-001"
@@ -157,7 +159,7 @@ async def test_uncollectible_before_start_or_online(admin, staff):
     hour = await safe_hour()
     if hour <= 22:
         b = await new_booking(admin, staff, hour=hour + 1)
-        assert b["actions"] == ["collect"]
+        assert b["actions"] == ["collect", "move"]
         r = await uncollectible(staff, b["code"])
         assert r.status_code == 422 and r.json()["detail"]["code"] == "E-PAY-1"
 
@@ -248,7 +250,7 @@ async def test_ticket_collect_and_uncollectible(admin, staff):
 # ------------------------------------------------------------------ Lịch sử giao dịch (BR-020)
 
 
-async def test_transactions_filters_cards_and_paging(admin, staff):
+async def test_transactions_filters_cards_and_paging(admin, staff, customer, caplog):
     """Sổ tiền vào (T-057): một dòng mỗi lần thu, SĐT che; lọc phương thức, loại, mã, SĐT, sân."""
     tag = f"TX{uuid.uuid4().hex[:6]}"
     hour = await safe_hour()
@@ -282,7 +284,7 @@ async def test_transactions_filters_cards_and_paging(admin, staff):
     e = entries[0]
     assert set(e) == {
         "kind", "method", "source", "amount", "occurred_at", "order_code", "customer_name",
-        "customer_phone_masked", "member_code", "actor_label", "items",
+        "customer_phone", "member_code", "actor_label", "items",
     }  # fmt: skip
     assert (e["kind"], e["method"], e["source"], e["amount"]) == ("in", "cash", "counter", amount)
     assert is_staff_label(e["actor_label"])
@@ -295,9 +297,12 @@ async def test_transactions_filters_cards_and_paging(admin, staff):
         "end_at",
         "amount",
     }
-    assert {x["customer_phone_masked"] for x in entries} == {mask_phone(p) for p in phones[:9]}
-    raw = (await admin.get(f"{BK}/transactions", params={"q": tag})).text
-    assert not any(p in raw for p in phones)  # SĐT đầy đủ không ra API
+    # T-061 (Sửa 10/11): ai có quyền xem (Admin, NV được cấp) thấy SĐT đầy đủ; không quyền 403
+    assert {x["customer_phone"] for x in entries} == set(phones[:9])
+    by_staff = (await staff.get(f"{BK}/transactions", params={"q": tag})).json()["items"]
+    assert {x["customer_phone"] for x in by_staff} <= set(phones) and by_staff
+    assert (await customer.get(f"{BK}/transactions")).status_code == 403
+    assert not any(p in caplog.text for p in phones)  # log vẫn không có SĐT đầy đủ
 
     assert (await tx(method="cash"))["total"] == 9
     assert (await tx(method="transfer"))["total"] == 0

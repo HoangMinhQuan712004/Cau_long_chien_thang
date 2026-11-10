@@ -235,7 +235,7 @@ async def test_collect_whole_order(staff, admin):
     assert out["collected"] == [f"{order}-02", f"{order}-03"]
     assert out["amount"] == sum(b["payment"]["amount"] for b in body["bookings"][1:])
     assert {b["payment"]["payment_status"] for b in out["bookings"]} == {"paid"}
-    assert all(b["actions"] == [] for b in out["bookings"])
+    assert all(b["actions"] == ["move"] for b in out["bookings"])  # chỉ còn Đổi sân
     # Bấm lại cùng Idempotency-Key -> kết quả cũ; key mới -> không còn khối chưa thu
     again = await staff.post(path, json={"method": "cash"}, headers=headers)
     assert again.status_code == 200 and again.json() == out

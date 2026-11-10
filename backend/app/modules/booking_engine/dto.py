@@ -91,12 +91,26 @@ class ResourceUpdate(StrictIn):
 
 
 class OccupiedSlot(BaseModel):
-    """Một chỗ chiếm (booking / sự kiện / giữ chỗ) – dùng trong lỗi E-CFG-3 / E-CFG-4."""
+    """Một chỗ chiếm (booking / sự kiện / giữ chỗ) – dùng trong lỗi E-CFG-3 / 4 / 11."""
 
     code: str | None
     date: dt.date
     start_time: str
     end_time: str
+    kind: Literal["booking", "session", "hold"] | None = None
+
+
+class MoveIn(StrictIn):
+    """Đổi sân: cùng ngày, cùng giờ; giá + tiền + mã giữ nguyên."""
+
+    resource_code: str = Field(max_length=10)
+    version: int
+
+
+class MoveTarget(BaseModel):
+    code: str
+    name: str
+    type_name: str = Field(description="Loại sân – đổi khác loại vẫn giữ giá đã chốt")
 
 
 # ---------- Bảng giá ----------
@@ -401,7 +415,7 @@ class ItemOut(BaseModel):
     note: str | None = None
     created_by: str
     created_at: dt.datetime
-    actions: list[Literal["collect", "uncollectible", "cancel"]]
+    actions: list[Literal["collect", "uncollectible", "cancel", "move"]]
     cancel_phase: Literal["before", "playing", "past"] | None = Field(
         default=None,
         description="Lúc này so với giờ chơi, để popup chọn câu cảnh báo (T-052); null: không hủy "
@@ -566,7 +580,9 @@ class TransactionEntry(BaseModel):
     occurred_at: dt.datetime
     order_code: str | None = Field(description="Mã đơn; vé: mã sự kiện")
     customer_name: str
-    customer_phone_masked: str | None
+    customer_phone: str | None = Field(
+        description="SĐT đầy đủ (T-061): ai có quyền xem lịch sử giao dịch đều thấy"
+    )
     member_code: str | None = None
     actor_label: str = Field(description='Người thu / hủy; tiền về qua cổng: "Hệ thống"')
     items: list[TransactionEntryItem]

@@ -24,6 +24,25 @@ async def create_room(payload: dict) -> None:
         logger.info("Play room created for booking %s", code)
 
 
+@events.subscribe(events.BOOKING_MOVED)
+async def follow_moved_booking(payload: dict) -> None:
+    """Booking đổi sân -> phòng (nếu có) đổi theo tên sân; thành viên, trận giữ nguyên."""
+    code = payload.get("code")
+    if not code:
+        return
+    async with SessionLocal() as session:
+        moved = await lifecycle.follow_court(
+            session,
+            code,
+            payload["resource_code"],
+            payload["resource_name"],
+            payload["resource_type_name"],
+        )
+        await session.commit()
+    if moved:
+        logger.info("Play room of booking %s moved to %s", code, payload["resource_code"])
+
+
 @events.subscribe(events.BOOKING_CANCELLED)
 async def close_cancelled_room(payload: dict) -> None:
     """Booking bị hủy -> đóng phòng, báo người liên quan (T-051). Vé không có phòng. Buổi đã qua:
