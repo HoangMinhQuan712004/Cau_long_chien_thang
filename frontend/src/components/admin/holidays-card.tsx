@@ -11,7 +11,7 @@ import { ChevronLeftIcon, ChevronRightIcon, PencilIcon, PlusIcon, TrashIcon } fr
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import type { Dictionary } from "@/i18n/dictionaries";
-import { api, looseApi } from "@/lib/api/client";
+import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
@@ -169,8 +169,7 @@ function HolidayForm({ year, edit, t, onClose, onSaved }: { year: number; edit: 
       const body = { date_from: from, date_to: to || null, name: name.trim() };
       const res = await write((key) =>
         edit
-          ? // PATCH (T-063) viết bằng looseApi tới khi BE handoff ⇒ sinh lại schema.d.ts rồi đổi sang `api`
-            looseApi.PATCH("/api/v1/booking/special-days/{special_day_id}", {
+          ? api.PATCH("/api/v1/booking/special-days/{special_day_id}", {
               params: { path: { special_day_id: edit.id } },
               body,
               headers: { "Idempotency-Key": key },
@@ -182,8 +181,7 @@ function HolidayForm({ year, edit, t, onClose, onSaved }: { year: number; edit: 
         else setBanner(errorText(res.error));
         return;
       }
-      const saved = res.data as SpecialDay;
-      toast((edit ? t.saved : t.added).replace("{name}", saved.name));
+      toast((edit ? t.saved : t.added).replace("{name}", res.data.name));
       onSaved();
     } finally {
       setBusy(false);
