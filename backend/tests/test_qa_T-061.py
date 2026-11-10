@@ -21,7 +21,7 @@ from app.modules.booking_engine import common
 from tests.conftest import idem
 from tests.helpers_booking import BK, book, new_court, random_phone, temp
 
-FAR = (datetime.now(settings.tz) + timedelta(days=410)).date()
+FAR = (datetime.now(settings.tz) + timedelta(days=640)).date()
 PERM = Perm.BOOKING_TRANSACTIONS_VIEW.value
 
 
@@ -124,8 +124,10 @@ async def test_ac3_logs_never_contain_the_full_phone(admin, staff, clock, caplog
         r = await ledger(admin, day, **({"q": q} if q else {}))
         assert r.status_code == 200
     assert (await ledger(staff, day, q=phone)).status_code == 200
-    assert phone not in caplog.text, "log không chứa SĐT đầy đủ"
-    assert phone[1:] not in caplog.text
+    # Bỏ dòng log của chính httpx (client thử ghi URL yêu cầu của test); chỉ xét log của máy chủ
+    server = chr(10).join(r.getMessage() for r in caplog.records if not r.name.startswith("httpx"))
+    assert phone not in server, "log không chứa SĐT đầy đủ"
+    assert phone[1:] not in server
 
 
 async def test_phone_in_other_responses_stays_masked_for_the_customer_facing_api(
