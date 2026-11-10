@@ -24,6 +24,8 @@ from app.modules.booking_engine.dto import (
     CustomerSnapshot,
     OrderCollectIn,
     OrderCollectOut,
+    OrderUncollectibleIn,
+    OrderUncollectibleOut,
 )
 from app.modules.booking_engine.models import (
     Allocation,
@@ -201,6 +203,58 @@ async def collect_order(
         order_code=order.code,
         collected=[b.code for b in unpaid],
         amount=sum(b.amount for b in unpaid),
+        bookings=items,
+    )
+
+
+async def uncollectible_order(
+    session: AsyncSession,
+    tenant_id: int,
+    actor: Actor,
+    raw_code: str,
+    data: OrderUncollectibleIn,
+) -> OrderUncollectibleOut:
+    """Không thu được cả đơn (T-064): mọi khối **Chưa thanh toán đã tới giờ** -> Không thu được,
+    theo quy tắc từng khối (BR-015: chỉ đơn quầy, khung không trống lại). Khối chưa tới giờ giữ
+    nguyên. Khóa dòng, một transaction; mỗi khối một dòng nhật ký ``payment.uncollectible``.
+    """
+    from app.modules.booking_engine.booking_service import booking_item, normalize_code
+    from app.modules.booking_engine.payment_service import REASON_MAX, apply_uncollectible
+
+    reason = data.reason.strip()
+    if len(reason) > REASON_MAX:
+        raise AppError("E-001", f"Lý do tối đa {REASON_MAX} ký tự.", 422)
+    code = normalize_code(raw_code)
+    order = await session.scalar(
+        select(BookingOrder).where(BookingOrder.tenant_id == tenant_id, BookingOrder.code == code)
+    )
+    if order is None:
+        raise order_not_found()
+    ctx: Ctx = await context(session, tenant_id)
+    blocks = await order_blocks(session, order.id, lock=True)
+    if order.channel != "counter" or any(b.source != "counter" for b in blocks):
+        raise AppError(
+            "E-PAY-1", "Booking đặt online đã trả trước, không đánh dấu Không thu được.", 422
+        )
+    unpaid = [b for b in blocks if b.payment_status == "unpaid"]
+    if not unpaid:
+        raise AppError("E-BOOK-4", "Đơn không còn khối nào chưa thanh toán.", 409)
+    started = [b for b in unpaid if b.start_at <= ctx.now]
+    if not started:
+        raise AppError(
+            "E-PAY-1", "Chưa có buổi nào tới giờ chơi, chưa thể đánh dấu Không thu được.", 422
+        )
+    for b in started:
+        apply_uncollectible(session, ctx, tenant_id, actor, b, reason)
+    await session.flush()
+    items = []
+    for b in blocks:
+        await session.refresh(b)
+        items.append(await booking_item(session, ctx, b))
+    return OrderUncollectibleOut(
+        order_code=order.code,
+        marked=[b.code for b in started],
+        remaining_unpaid=[b.code for b in unpaid if b.start_at > ctx.now],
         bookings=items,
     )
 

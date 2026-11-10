@@ -110,7 +110,17 @@ export function OrdersScreen({ today, initialQ = "" }: { today: string; /** Mở
   // Số đếm theo trạng thái trong phạm vi Loại đang lọc (counts[kind][status])
   const counts = data?.counts[kind];
   const pages = data ? Math.max(1, Math.ceil(data.total / data.size)) : 1;
-  const chip = (active: boolean) => `rounded-full border px-3 py-1.5 text-sm ${active ? "border-primary bg-primary text-white" : "border-border bg-surface hover:bg-primary-softer"}`;
+  const chip = (active: boolean, danger = false) =>
+    `rounded-full border px-3 py-1.5 text-sm ${
+      danger
+        ? // T-064: "Không thu được" chữ đỏ (token màu lỗi); đang chọn thì nền đỏ chữ trắng
+          active
+          ? "border-danger bg-danger text-white"
+          : "border-danger/40 bg-surface text-danger hover:bg-danger-soft"
+        : active
+          ? "border-primary bg-primary text-white"
+          : "border-border bg-surface hover:bg-primary-softer"
+    }`;
   const reset = () => setPage(1);
 
   return (
@@ -147,7 +157,7 @@ export function OrdersScreen({ today, initialQ = "" }: { today: string; /** Mở
                   setStatus(f.key);
                   reset();
                 }}
-                className={chip(status === f.key)}
+                className={chip(status === f.key, f.key === "uncollectible")}
               >
                 {f.label}
                 {counts ? ` (${counts[f.key]})` : ""}

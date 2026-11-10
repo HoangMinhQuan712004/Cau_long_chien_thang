@@ -41,10 +41,7 @@ type BookingProps = {
   initialBlocks?: Block[];
   /** Lịch đang xem: tên sân. */
   calendar: Calendar;
-  /** Admin: có tab "Đặt sự kiện" trong popup. */
-  canSession: boolean;
   onClose: () => void;
-  onSwitchToSession: () => void;
   /** Đã ghi thành công (cha tải lại lịch, tô sáng đơn mới). */
   onBooked: (order: CounterOrder) => void;
   /** Dữ liệu đổi ở máy khác (E-010…): cha đóng popup và tải lại lịch. */
@@ -53,7 +50,7 @@ type BookingProps = {
   onRefresh: () => void;
 };
 
-export function BookingDialog({ selection, initialBlocks, calendar, canSession, onClose, onSwitchToSession, onBooked, onStale, onRefresh }: BookingProps) {
+export function BookingDialog({ selection, initialBlocks, calendar, onClose, onBooked, onStale, onRefresh }: BookingProps) {
   const [blocks, setBlocks] = useState<Block[]>(() => initialBlocks?.length ? initialBlocks : [{ resource_code: selection.resourceCodes[0], start_hour: selection.startHour, end_hour: selection.endHour }]);
   const [quotes, setQuotes] = useState<Record<string, Quote | string>>({});
   const [conflicts, setConflicts] = useState<string[]>([]);
@@ -198,7 +195,6 @@ export function BookingDialog({ selection, initialBlocks, calendar, canSession, 
         onChange={setCustomer}
         submitted={submitted}
         serverErrors={serverErrors}
-        onPickSession={canSession ? onSwitchToSession : undefined}
       />
       <Hint>Khách thanh toán tại quầy sau khi chơi — booking được tạo ở trạng thái Chưa thanh toán.</Hint>
     </Modal>

@@ -45,6 +45,15 @@ export function selectionBlocks(calendar: Calendar, selected: ReadonlySet<string
 }
 
 export const EVENT_RECT_HINT = "Sự kiện cần các sân liền nhau, cùng khung giờ liền nhau";
+export const EVENT_GAP_HINT = "Giữa các sân đã chọn có sân ngừng hoạt động (đang ẩn), không tạo sự kiện qua sân đó được";
+
+/** T-062: các sân đã chọn chỉ cách nhau bởi sân ngừng hoạt động (đang ẩn trên lưới) ⇒ trông liền nhau mà không tạo sự kiện được. */
+export function gapIsInactive(calendar: Calendar, selected: ReadonlySet<string>): boolean {
+  const rowIdx = calendar.resources.map((r, i) => (calendar.columns.some((h) => selected.has(cellKey(r.code, h))) ? i : -1)).filter((i) => i >= 0);
+  if (rowIdx.length < 2) return false;
+  const between = calendar.resources.slice(rowIdx[0], rowIdx[rowIdx.length - 1] + 1).filter((_, k) => !rowIdx.includes(rowIdx[0] + k));
+  return between.length > 0 && between.every((r) => !r.is_active);
+}
 
 /** Vùng chọn là hình chữ nhật (sân liền nhau × một dải giờ liền nhau) ⇒ dùng được cho "Tạo sự kiện" (AC7). */
 export function selectionRect(calendar: Calendar, selected: ReadonlySet<string>, date: string): Selection | null {
@@ -110,7 +119,10 @@ export function AdminGrid({ calendar, selected, selectable, unpaidOnly = false, 
 
   const rows = useMemo<GridRow[]>(() => {
     const isPast = (h: number) => isPastDay || (date === today && (h + 1) * 60 <= nowMin);
-    return resources.map((res) => {
+    // T-062: sân ngừng hoạt động ẩn khỏi lưới, trừ khi ngày đang xem còn booking / sự kiện / giữ chỗ trên sân đó
+    // (vẫn bấm khối để thu / hủy được; ô trống của sân ngừng là "off" nên không chọn được)
+    const shown = resources.filter((res) => res.is_active || blocks.some((b) => b.resource_codes.includes(res.code)));
+    return shown.map((res) => {
       const cells: Record<number, GridCell | undefined> = {};
       for (const h of columns) cells[h] = !res.is_active || res.off_hours.includes(h) ? { kind: "off" } : isPast(h) ? { kind: "past" } : { kind: "free", price: res.hour_prices?.[String(h)] ?? null };
       blocks.forEach((b, i) => {

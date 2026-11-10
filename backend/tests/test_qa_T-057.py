@@ -35,7 +35,7 @@ ENTRY_KEYS = {
     "occurred_at",
     "order_code",
     "customer_name",
-    "customer_phone_masked",
+    "customer_phone",
     "member_code",
     "actor_label",
     "items",
@@ -305,7 +305,7 @@ async def test_search_by_order_child_name_phone_and_wildcards_are_literal(admin,
     spaced = f"{phone[:4]} {phone[4:7]}.{phone[7:]}"
     assert await total(spaced) == 1 and await total(phone) == 1
     entry = (await ledger(admin, d, q=phone))["items"][0]
-    assert phone not in str(entry) and entry["customer_phone_masked"], "SĐT được che"
+    assert entry["customer_phone"] == phone, "T-061: SĐT đầy đủ, tìm theo SĐT vẫn đúng"
     assert await total("KHONG-CO-MA-NAY") == 0
     # Ký tự đại diện của SQL LIKE phải được hiểu là chữ, không khớp tất cả
     for wild in ("%", "_", "%%", "___"):
@@ -429,7 +429,7 @@ async def test_tickets_are_one_entry_per_payment_and_refund_per_ticket(anon, adm
 # ---------------------------------------------------------------- bảo mật, Idempotency-Key, đồng thời
 
 
-async def test_ac11_shape_masking_permissions_and_no_internal_ids(
+async def test_ac11_shape_phone_permissions_and_no_internal_ids(
     admin, staff, customer, anon, clock
 ):
     d = FAR + timedelta(days=50)
@@ -445,12 +445,9 @@ async def test_ac11_shape_masking_permissions_and_no_internal_ids(
     [entry] = out["items"]
     assert set(entry) == ENTRY_KEYS and all(set(i) == ITEM_KEYS for i in entry["items"])
     text = str(out)
-    assert phone not in text and phone[1:] not in text
+    assert "customer_phone_masked" not in text
     assert "customer_id" not in text and "public_id" not in text and "'id'" not in text
-    masked = entry["customer_phone_masked"]
-    assert masked and masked != phone and len(masked) >= 4
-    assert masked[-3:] == phone[-3:] or masked[-4:] == phone[-4:], "giữ vài số cuối để nhận diện"
-    assert sum(c.isdigit() for c in masked) < len(phone), "đã che bớt chữ số"
+    assert entry["customer_phone"] == phone, "T-061: SĐT đầy đủ như đã lưu"
     assert (
         await staff.get(f"{BK}/transactions", params={"from": d.isoformat(), "to": d.isoformat()})
     ).status_code == 200

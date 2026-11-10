@@ -226,7 +226,8 @@ async def test_ac13_member_ticket_flows_into_history_admin_screens_and_reports(a
     assert entry["amount"] == 90_000 and entry["actor_label"] == "Hệ thống"
     assert [(i["kind"], i["amount"]) for i in entry["items"]] == [("ticket", 45_000)] * 2
     assert sorted(i["code"] for i in entry["items"]) == [f"{ev['code']}-V01", f"{ev['code']}-V02"]
-    assert me.phone not in str(entry), "SĐT được che"
+    assert entry["customer_phone"] == me.phone, "T-061: SĐT đầy đủ (màn Admin)"
+    assert "customer_phone_masked" not in entry
     # Báo cáo doanh thu: cộng đúng một lần
     after = (await admin.get(f"{API}/admin/reports/overview")).json()["revenue"]
     assert after["current"] - base["current"] == 90_000, (base, after)

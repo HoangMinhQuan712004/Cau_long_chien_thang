@@ -1027,7 +1027,11 @@ export interface paths {
         delete: operations["delete_special_day_api_v1_booking_special_days__special_day_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Special Day
+         * @description Sửa ngày Lễ/Tết (T-063): kiểm chồng bỏ qua chính nó; giá booking / vé đã có không đổi.
+         */
+        patch: operations["update_special_day_api_v1_booking_special_days__special_day_id__patch"];
         trace?: never;
     };
     "/api/v1/booking/quote": {
@@ -1194,6 +1198,28 @@ export interface paths {
          *     (không còn khối chưa thu) · 422 ``E-PAY-0`` (``transfer``).
          */
         post: operations["collect_order_api_v1_booking_orders__order_code__collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/orders/{order_code}/uncollectible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Uncollectible Order
+         * @description Không thu được cả đơn (T-064): mọi khối **Chưa thanh toán đã tới giờ** -> Không thu được
+         *     (lý do không bắt buộc, ≤ 200); khối chưa tới giờ giữ nguyên (``remaining_unpaid``). 404
+         *     ``E-BOOK-3`` · 409 ``E-BOOK-4`` · 422 ``E-PAY-1`` (đơn online / chưa buổi nào tới giờ).
+         */
+        post: operations["uncollectible_order_api_v1_booking_orders__order_code__uncollectible_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2638,14 +2664,38 @@ export interface paths {
         };
         /**
          * Order Collect Qr
-         * @description Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại mỗi 3 giây tới khi ``status = paid``.
+         * @description Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại tới khi ``status`` khác ``unpaid``.
          *
          *     Số tiền = tổng khối Chưa thanh toán (như ``POST /booking/orders/{code}/collect``); nội dung
          *     chuyển khoản ``pay_ref`` = mã đơn bỏ gạch. Tiền về đúng số -> webhook thu cả đơn; lệch số ->
-         *     Tiền về cần xử lý (cần hoàn). 404 E-BOOK-3 · 409 E-BOOK-4 (không còn khối chưa thu) ·
-         *     409 E-PAY-9 (chưa cài nhận chuyển khoản).
+         *     Tiền về cần xử lý (cần hoàn). ``status``: ``unpaid`` / ``paid`` (tiền đã về hết) / ``closed``
+         *     (hết khối chưa thu do Không thu được / hủy – xử lý ở máy khác). 404 E-BOOK-3 · 409 E-PAY-9
+         *     (chưa cài nhận chuyển khoản).
          */
         get: operations["order_collect_qr_api_v1_front_desk_orders__order_code__collect_qr_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/items/{code}/collect-qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Item Collect Qr
+         * @description Thu một buổi bằng QR (T-065): ``order_code`` = mã của khối, ``pay_ref`` = mã con bỏ gạch
+         *     (bắt đầu bằng mã đơn chung), số tiền = tiền của khối, ``blocks = 1``. Đã thu -> ``status =
+         *     paid``, ``amount = 0``. Tiền về đúng số -> chỉ khối đó Đã thanh toán; lệch -> cần hoàn.
+         *     404 E-BOOK-3 · 422 E-PAY-1 (vé / online) · 409 E-PAY-9. ``status``: unpaid / paid / closed.
+         */
+        get: operations["item_collect_qr_api_v1_front_desk_items__code__collect_qr_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3835,24 +3885,27 @@ export interface components {
         };
         /** CollectQrOut */
         CollectQrOut: {
-            /** Order Code */
+            /**
+             * Order Code
+             * @description Mã đơn; QR từng buổi (T-065): mã của khối
+             */
             order_code: string;
             /**
              * Pay Ref
-             * @description Nội dung chuyển khoản = mã đơn bỏ gạch, vd BK20261106001
+             * @description Nội dung chuyển khoản = mã đơn / mã con bỏ gạch, vd BK20261106001 / BK2026110600102
              */
             pay_ref: string;
             /**
              * Amount
-             * @description Tổng các khối Chưa thanh toán hiện tại; 0 khi đã thu hết
+             * @description Tổng các khối Chưa thanh toán hiện tại; 0 khi hết khối chưa thu
              */
             amount: number;
             /**
              * Status
-             * @description paid: không còn khối chưa thu
+             * @description unpaid: còn khối chưa thu · paid: hết khối chưa thu, khối còn hiệu lực (trừ đã hủy) đều Đã thanh toán · closed: hết khối chưa thu nhưng có khối Không thu được, hoặc không có khối nào Đã thanh toán (đã hủy hết) – xử lý ở máy khác, không phải tiền về
              * @enum {string}
              */
-            status: "unpaid" | "paid";
+            status: "unpaid" | "paid" | "closed";
             /**
              * Blocks
              * @description Số khối chưa thu
@@ -5443,6 +5496,35 @@ export interface components {
              * @description Số khối (đơn ngày) / số buổi (định kỳ)
              */
             blocks: number;
+        };
+        /** OrderUncollectibleIn */
+        OrderUncollectibleIn: {
+            /**
+             * Reason
+             * @description Không bắt buộc (T-064)
+             * @default
+             */
+            reason: string;
+        };
+        /** OrderUncollectibleOut */
+        OrderUncollectibleOut: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Marked
+             * @description Mã con vừa đánh dấu Không thu được
+             */
+            marked: string[];
+            /**
+             * Remaining Unpaid
+             * @description Mã con chưa tới giờ, còn Chưa thanh toán
+             */
+            remaining_unpaid: string[];
+            /**
+             * Bookings
+             * @description Mọi khối của đơn sau khi đánh dấu
+             */
+            bookings: components["schemas"]["ItemOut"][];
         };
         /** OtpSentOut */
         OtpSentOut: {
@@ -8167,8 +8249,11 @@ export interface components {
             order_code: string | null;
             /** Customer Name */
             customer_name: string;
-            /** Customer Phone Masked */
-            customer_phone_masked: string | null;
+            /**
+             * Customer Phone
+             * @description SĐT đầy đủ (T-061): ai có quyền xem lịch sử giao dịch đều thấy
+             */
+            customer_phone: string | null;
             /** Member Code */
             member_code?: string | null;
             /**
@@ -10289,6 +10374,44 @@ export interface operations {
             };
         };
     };
+    update_special_day_api_v1_booking_special_days__special_day_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                special_day_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecialDayIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialDayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     quote_api_v1_booking_quote_post: {
         parameters: {
             query?: never;
@@ -10583,6 +10706,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderCollectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uncollectible_order_api_v1_booking_orders__order_code__uncollectible_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderUncollectibleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderUncollectibleOut"];
                 };
             };
             /** @description Validation Error */
@@ -13197,6 +13358,37 @@ export interface operations {
             header?: never;
             path: {
                 order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectQrOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    item_collect_qr_api_v1_front_desk_items__code__collect_qr_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
             };
             cookie?: never;
         };
