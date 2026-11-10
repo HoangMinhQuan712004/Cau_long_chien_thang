@@ -2638,14 +2638,38 @@ export interface paths {
         };
         /**
          * Order Collect Qr
-         * @description Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại mỗi 3 giây tới khi ``status = paid``.
+         * @description Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại tới khi ``status`` khác ``unpaid``.
          *
          *     Số tiền = tổng khối Chưa thanh toán (như ``POST /booking/orders/{code}/collect``); nội dung
          *     chuyển khoản ``pay_ref`` = mã đơn bỏ gạch. Tiền về đúng số -> webhook thu cả đơn; lệch số ->
-         *     Tiền về cần xử lý (cần hoàn). 404 E-BOOK-3 · 409 E-BOOK-4 (không còn khối chưa thu) ·
-         *     409 E-PAY-9 (chưa cài nhận chuyển khoản).
+         *     Tiền về cần xử lý (cần hoàn). ``status``: ``unpaid`` / ``paid`` (tiền đã về hết) / ``closed``
+         *     (hết khối chưa thu do Không thu được / hủy – xử lý ở máy khác). 404 E-BOOK-3 · 409 E-PAY-9
+         *     (chưa cài nhận chuyển khoản).
          */
         get: operations["order_collect_qr_api_v1_front_desk_orders__order_code__collect_qr_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/items/{code}/collect-qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Item Collect Qr
+         * @description Thu một buổi bằng QR (T-065): ``order_code`` = mã của khối, ``pay_ref`` = mã con bỏ gạch
+         *     (bắt đầu bằng mã đơn chung), số tiền = tiền của khối, ``blocks = 1``. Đã thu -> ``status =
+         *     paid``, ``amount = 0``. Tiền về đúng số -> chỉ khối đó Đã thanh toán; lệch -> cần hoàn.
+         *     404 E-BOOK-3 · 422 E-PAY-1 (vé / online) · 409 E-PAY-9. ``status``: unpaid / paid / closed.
+         */
+        get: operations["item_collect_qr_api_v1_front_desk_items__code__collect_qr_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3835,24 +3859,27 @@ export interface components {
         };
         /** CollectQrOut */
         CollectQrOut: {
-            /** Order Code */
+            /**
+             * Order Code
+             * @description Mã đơn; QR từng buổi (T-065): mã của khối
+             */
             order_code: string;
             /**
              * Pay Ref
-             * @description Nội dung chuyển khoản = mã đơn bỏ gạch, vd BK20261106001
+             * @description Nội dung chuyển khoản = mã đơn / mã con bỏ gạch, vd BK20261106001 / BK2026110600102
              */
             pay_ref: string;
             /**
              * Amount
-             * @description Tổng các khối Chưa thanh toán hiện tại; 0 khi đã thu hết
+             * @description Tổng các khối Chưa thanh toán hiện tại; 0 khi hết khối chưa thu
              */
             amount: number;
             /**
              * Status
-             * @description paid: không còn khối chưa thu
+             * @description unpaid: còn khối chưa thu · paid: hết khối chưa thu, khối còn hiệu lực (trừ đã hủy) đều Đã thanh toán · closed: hết khối chưa thu nhưng có khối Không thu được, hoặc không có khối nào Đã thanh toán (đã hủy hết) – xử lý ở máy khác, không phải tiền về
              * @enum {string}
              */
-            status: "unpaid" | "paid";
+            status: "unpaid" | "paid" | "closed";
             /**
              * Blocks
              * @description Số khối chưa thu
@@ -13177,6 +13204,37 @@ export interface operations {
             header?: never;
             path: {
                 order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectQrOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    item_collect_qr_api_v1_front_desk_items__code__collect_qr_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
             };
             cookie?: never;
         };

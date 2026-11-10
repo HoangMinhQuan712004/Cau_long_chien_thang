@@ -867,10 +867,19 @@ class OrderCollectOut(BaseModel):
 class CollectQrInfo(BaseModel):
     """Thu cả đơn bằng QR (T-058): số tiền + nội dung chuyển khoản; lớp gọi ghép thông tin NH."""
 
-    order_code: str
-    pay_ref: str = Field(description="Nội dung chuyển khoản = mã đơn bỏ gạch, vd BK20261106001")
-    amount: int = Field(description="Tổng các khối Chưa thanh toán hiện tại; 0 khi đã thu hết")
-    status: Literal["unpaid", "paid"] = Field(description="paid: không còn khối chưa thu")
+    order_code: str = Field(description="Mã đơn; QR từng buổi (T-065): mã của khối")
+    pay_ref: str = Field(
+        description="Nội dung chuyển khoản = mã đơn / mã con bỏ gạch, vd BK20261106001 / "
+        "BK2026110600102"
+    )
+    amount: int = Field(
+        description="Tổng các khối Chưa thanh toán hiện tại; 0 khi hết khối chưa thu"
+    )
+    status: Literal["unpaid", "paid", "closed"] = Field(
+        description="unpaid: còn khối chưa thu · paid: hết khối chưa thu, khối còn hiệu lực (trừ "
+        "đã hủy) đều Đã thanh toán · closed: hết khối chưa thu nhưng có khối Không thu được, hoặc "
+        "không có khối nào Đã thanh toán (đã hủy hết) – xử lý ở máy khác, không phải tiền về"
+    )
     blocks: int = Field(description="Số khối chưa thu")
 
 

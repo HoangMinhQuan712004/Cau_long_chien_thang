@@ -143,11 +143,12 @@ async def test_money_and_cash_at_once_collect_once(admin):
 
 
 async def test_errors_permissions_and_missing_bank_settings(admin, staff, customer, monkeypatch):
-    """AC7, AC8, mã lỗi: chưa cài nhận tiền -> E-PAY-9; không có đơn -> E-BOOK-3; NV -> 403."""
+    """AC7, AC8, mã lỗi: chưa cài nhận tiền -> E-PAY-9; không có đơn -> E-BOOK-3. Quyền: ai thu
+    tiền được thì thu QR được (T-065) – NV có ``booking.collect`` mở được, khách 403."""
     order = await recurring(admin, days_ahead=60)
     code = order["order_code"]
-    for client in (staff, customer):
-        assert (await qr(client, code)).status_code == 403
+    assert (await qr(staff, code)).status_code == 200
+    assert (await qr(customer, code)).status_code == 403
     r = await qr(admin, "BK-20000101-999")
     assert r.status_code == 404 and r.json()["detail"]["code"] == "E-BOOK-3"
 
@@ -162,7 +163,7 @@ async def test_errors_permissions_and_missing_bank_settings(admin, staff, custom
 
     # Mã đơn không tồn tại trong nội dung chuyển khoản -> không khớp như cũ
     assert await simulate(admin, "BK20000101999", 1000) == "unmatched"
-    # Đơn đã hủy hết -> không còn gì để thu
+    # Đơn đã hủy hết -> ``closed`` (T-065 "Thêm 10/11"; trước đây 409 E-BOOK-4)
     preview = (await admin.get(f"{FD}/orders/{code}/cancel-preview")).json()
     r = await admin.post(
         f"{FD}/orders/{code}/cancel",
@@ -171,4 +172,4 @@ async def test_errors_permissions_and_missing_bank_settings(admin, staff, custom
     )
     assert r.status_code == 200, r.text
     r = await qr(admin, code)
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "E-BOOK-4"
+    assert r.status_code == 200 and (r.json()["status"], r.json()["amount"]) == ("closed", 0)

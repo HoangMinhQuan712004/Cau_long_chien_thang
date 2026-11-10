@@ -326,8 +326,17 @@ async def collect_qr_info(
 ) -> CollectQrInfo:
     """Thu cả đơn bằng QR (T-058): số tiền chưa thu + nội dung chuyển khoản. Chỉ đọc.
 
-    404 E-BOOK-3 · 409 E-BOOK-4 (không còn khối chưa thu, cũng không có khối đã thu)."""
+    404 E-BOOK-3. ``status`` unpaid / paid / closed (T-065)."""
     return await counter_qr.collect_qr_info(session, _tid(tenant_id), order_code)
+
+
+async def item_collect_qr_info(
+    session: AsyncSession, code: str, *, tenant_id: int | None = None
+) -> CollectQrInfo:
+    """QR một buổi (T-065): tiền của khối + nội dung = mã con bỏ gạch. Chỉ đọc.
+
+    404 E-BOOK-3 · 422 E-PAY-1 (vé / booking online). ``status`` unpaid / paid / closed."""
+    return await counter_qr.item_collect_qr_info(session, _tid(tenant_id), code)
 
 
 # ---- Sự kiện / vé

@@ -27,7 +27,11 @@ from app.modules.payments.schemas import BankInfo, BankTransactionOut
 logger = logging.getLogger(__name__)
 
 PROVIDER = "sepay"
-CODE_RE = re.compile(r"BK\d{11}", re.IGNORECASE)
+# Mã đơn ``BK`` + 11 số; mã con (QR từng buổi, T-065) ``BK`` + 13 số. Không có số theo sau: mã con
+# không bị đọc thành mã đơn (``BK2026111000601`` chứa ``BK20261110006``). Không chặn ký tự đứng
+# trước – ngân hàng có thể dính mã giao dịch của họ ngay trước "BK"
+CODE_RE = re.compile(r"BK\d{11}(?!\d)", re.IGNORECASE)
+ITEM_CODE_RE = re.compile(r"BK\d{13}(?!\d)", re.IGNORECASE)
 
 
 class WebhookError(Exception):
@@ -98,12 +102,22 @@ def _parse_time(value: Any) -> datetime:
 
 
 def extract_code(payload: dict) -> str | None:
-    """Trường ``code`` (SePay tách theo mẫu BK + 11 số); null -> tìm ``BK\\d{11}`` trong nội dung,
-    chỉ dùng khi đúng 1 mã khác nhau (T-008 AC20)."""
+    """Mã thanh toán của giao dịch.
+
+    1. Mã con ``BK\\d{13}`` trong nội dung (T-065) – **trước** trường ``code``: SePay tách ``code``
+       theo mẫu BK + 11 số nên cắt mã con thành mã đơn; tiền một buổi không được áp vào cả đơn.
+       Nhiều mã con khác nhau -> không khớp (không đoán).
+    2. Trường ``code`` dạng mã đơn.
+    3. ``BK\\d{11}`` trong nội dung, chỉ khi đúng 1 mã khác nhau (T-008 AC20).
+    """
+    content = str(payload.get("content") or "")
+    items = {m.upper() for m in ITEM_CODE_RE.findall(content)}
+    if items:
+        return items.pop() if len(items) == 1 else None
     code = payload.get("code")
     if isinstance(code, str) and CODE_RE.fullmatch(code.strip()):
         return code.strip().upper()
-    found = {m.upper() for m in CODE_RE.findall(str(payload.get("content") or ""))}
+    found = {m.upper() for m in CODE_RE.findall(content)}
     return found.pop() if len(found) == 1 else None
 
 
