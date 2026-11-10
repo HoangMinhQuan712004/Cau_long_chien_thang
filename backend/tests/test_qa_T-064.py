@@ -163,16 +163,18 @@ async def test_paid_blocks_are_untouched_and_order_status_follows_t039(admin, cl
     assert (
         listing["counts"]["all"]["uncollectible"] == 1 and listing["counts"]["all"]["unpaid"] == 0
     )
-    # Hết khối chưa thu → E-BOOK-4 cho cả đánh dấu lẫn thu cả đơn; QR cũng báo hết
+    # Hết khối chưa thu → E-BOOK-4 cho cả đánh dấu lẫn thu cả đơn; QR báo `closed`
     for call in (
         mark(admin, oc),
         admin.post(f"{BK}/orders/{oc}/collect", json={"method": "cash"}, headers=idem()),
     ):
         r = await call
         assert r.status_code == 409 and r.json()["detail"]["code"] == "E-BOOK-4", r.text
-    # QR: đơn còn khối Đã thanh toán (buổi 1) → status=paid, số tiền 0 (T-058 AC1); hỏi lại không lỗi
+    # QR: hết khối chưa thu nhưng có khối Không thu được → `closed` (T-065), không phải "Đã nhận tiền"
     r = await admin.get(f"{FD}/orders/{oc}/collect-qr")
-    assert r.status_code == 200 and r.json()["amount"] == 0 and r.json()["status"] == "paid", r.text
+    assert r.status_code == 200 and r.json()["amount"] == 0 and r.json()["status"] == "closed", (
+        r.text
+    )
     # Tiền: không có dòng sổ nào cho đơn này ngoài lần thu tiền mặt buổi 1
     assert await entries(oc) == 1
 
@@ -366,5 +368,7 @@ async def test_order_with_nothing_paid_and_all_marked_has_no_qr(admin, clock):
     assert r.status_code == 200 and r.json()["marked"] == codes, r.text
     assert (await order_row(admin, oc))["status"] == "uncollectible"
     r = await admin.get(f"{FD}/orders/{oc}/collect-qr")
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "E-BOOK-4", r.text
+    assert r.status_code == 200 and (r.json()["status"], r.json()["amount"]) == ("closed", 0), (
+        r.text
+    )
     assert await entries(oc) == 0
