@@ -122,6 +122,8 @@ async def get_detail(
             c, sum(s.bookings for s in stats.values()), await etag_of_customer(session, c.id)
         ).model_dump(),
         note=c.note,
+        nickname=c.nickname,
+        email=c.email,
         total_minutes=sum(s.minutes for s in stats.values()),
         recent_bookings=[
             MemberBooking(

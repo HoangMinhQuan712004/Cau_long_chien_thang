@@ -1465,7 +1465,7 @@ export interface paths {
         /**
          * Update Me
          * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier /
-         *     racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
+         *     gender / racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
          *     Hạng hội viên tự chọn (T-042); đổi hạng ghi audit ``member.tier_self_change``.
          */
         put: operations["update_me_api_v1_member_area_me_put"];
@@ -4723,6 +4723,16 @@ export interface components {
             avatar_url: string | null;
             /** Note */
             note: string | null;
+            /**
+             * Nickname
+             * @description Biệt danh hội viên tự nhập ở khu hội viên (chỉ xem)
+             */
+            nickname: string | null;
+            /**
+             * Email
+             * @description Email hội viên tự nhập ở khu hội viên (chỉ xem)
+             */
+            email: string | null;
             /** Total Minutes */
             total_minutes: number;
             /**
@@ -4762,6 +4772,11 @@ export interface components {
              * @description Hạng tự chọn (T-042): một trong 8 bậc hoặc null (Chưa xếp hạng); giá trị lạ -> 422 (fields: tier, E-HV-1). Không gửi = giữ hạng hiện tại
              */
             tier?: string | null;
+            /**
+             * Gender
+             * @description Giới tính tự chọn: male / female hoặc null (Chưa chọn); giá trị lạ -> 422 (fields: gender, E-HV-1). Không gửi = giữ nguyên
+             */
+            gender?: ("male" | "female") | null;
             /**
              * Racket
              * @description Tên vợt tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự, rỗng = null; không dùng danh mục
@@ -4806,6 +4821,11 @@ export interface components {
              * @description Trình độ = Hạng (8 bậc); null = chưa xếp hạng
              */
             tier: string | null;
+            /**
+             * Gender
+             * @description null = Chưa chọn
+             */
+            gender: ("male" | "female") | null;
             /**
              * Racket
              * @description Tên vợt đang dùng (tự nhập)

@@ -308,6 +308,25 @@ async def test_sort_by_bookings_and_detail(admin, staff, phones):
     assert viewed == 1
     assert (await admin.get(f"{M}/HV9997")).status_code == 404
     assert (await admin.get(f"{M}/{uuid.uuid4()}")).status_code == 404
+
+
+async def test_detail_shows_nickname_and_email(admin, staff, phones):
+    """Biệt danh + email hội viên tự nhập: chi tiết hiện (null khi chưa nhập), danh sách không."""
+    a, b = await add_member(admin, phones), await add_member(admin, phones)
+    email = f"hv-{uuid.uuid4().hex[:8]}@example.com"
+    async with SessionLocal() as s:
+        await s.execute(
+            update(Customer)
+            .where(Customer.member_code == a["member_code"])
+            .values(nickname="Tèo", email=email)
+        )
+        await s.commit()
+    detail = (await staff.get(f"{M}/{a['member_code']}")).json()
+    assert detail["nickname"] == "Tèo" and detail["email"] == email
+    empty = (await staff.get(f"{M}/{b['member_code']}")).json()
+    assert empty["nickname"] is None and empty["email"] is None
+    row = (await admin.get(M, params={"q": a["member_code"]})).json()["items"][0]
+    assert "nickname" not in row and "email" not in row
     assert (await admin.get(f"{M}/123")).status_code == 404
 
 

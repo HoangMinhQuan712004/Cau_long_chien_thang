@@ -17,6 +17,7 @@ from app.core.audit import AuditActor, audit, audit_change, audit_changes, audit
 from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
 from app.modules.members import rackets
+from app.modules.members.audit_fields import GENDERS
 from app.modules.members.models import TIERS, Customer, CustomerAvatar
 from app.modules.members.profiles import booking_refs
 
@@ -35,6 +36,7 @@ class SelfProfile:
     phone: str
     joined_at: datetime
     tier: str | None
+    gender: str | None
     racket: str | None
     show_on_records: bool
     avatar_etag: str | None
@@ -52,6 +54,9 @@ class SelfUpdate:
     version: int
     # Client có gửi ``tier`` không: không gửi -> giữ hạng hiện tại (T-042: gửi thì tự đổi được)
     tier_sent: bool = True
+    # Giới tính giống tier: không gửi -> giữ nguyên, gửi null -> bỏ chọn (Chưa chọn)
+    gender: str | None = None
+    gender_sent: bool = False
 
 
 @dataclass
@@ -114,6 +119,7 @@ async def _to_profile(session: AsyncSession, c: Customer) -> SelfProfile:
         phone=c.phone,
         joined_at=c.created_at,
         tier=c.tier,
+        gender=c.gender,
         racket=c.racket,
         show_on_records=c.show_on_records,
         avatar_etag=etag,
@@ -139,6 +145,8 @@ async def _validate(
         errors.add("full_name", "E-HV-1", f"Họ tên tối đa {NAME_MAX} ký tự.")
     if data.tier_sent and data.tier is not None and data.tier not in TIERS:
         errors.add("tier", "E-HV-1", "Trình độ không hợp lệ.")
+    if data.gender_sent and data.gender is not None and data.gender not in GENDERS:
+        errors.add("gender", "E-HV-1", "Giới tính không hợp lệ.")
     nickname = (data.nickname or "").strip() or None
     if nickname is not None and len(nickname) > NICKNAME_MAX:
         errors.add("nickname", "E-HV-1", f"Biệt danh tối đa {NICKNAME_MAX} ký tự.")
@@ -172,6 +180,7 @@ SELF_LABELS = {
     "nickname": "Biệt danh",
     "email": "Email",
     "tier": "Trình độ",
+    "gender": "Giới tính",
     "racket": "Vợt đang dùng",
     "show_on_records": "Hiện trên Video & kỷ lục",
 }
@@ -182,10 +191,11 @@ def _tier_text(tier: str | None) -> str:
 
 
 def _shown(values: dict) -> dict:
-    """Giá trị hiển thị: email che, công tắc Bật / Tắt."""
+    """Giá trị hiển thị: email che, giới tính Nam / Nữ / Chưa chọn, công tắc Bật / Tắt."""
     return {
         **values,
         "email": mask_email(values["email"]),
+        "gender": GENDERS.get(values["gender"] or "", "Chưa chọn"),
         "show_on_records": "Bật" if values["show_on_records"] else "Tắt",
     }
 
@@ -211,6 +221,7 @@ async def update_profile(
         "nickname": nickname,
         "email": email,
         "tier": data.tier if data.tier_sent else c.tier,  # T-042: hội viên tự chọn
+        "gender": data.gender if data.gender_sent else c.gender,
         "racket": racket,
         "show_on_records": data.show_on_records,
     }

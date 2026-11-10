@@ -636,10 +636,12 @@ async def test_sec5_email_only_visible_to_the_owner(admin, made):
     c, m = await member_login(admin, made, tier="Khá")
     mail = f"{tag().lower()}@example.com"
     assert (await save(c, await me(c), email=mail)).status_code == 200
-    for who in (admin,):
-        listing = (await who.get(M, params={"q": m["member_code"]})).text
-        detail = (await who.get(f"{M}/{m['member_code']}")).text
-        assert mail not in listing and mail not in detail, "quản trị không trả email của hội viên"
+    # Người dùng chốt 2026-11-10: bỏ SEC5 cho màn chi tiết quản trị – chi tiết trả email đầy đủ,
+    # danh sách (và các nơi khác) vẫn không có email
+    listing = (await admin.get(M, params={"q": m["member_code"]})).text
+    detail = (await admin.get(f"{M}/{m['member_code']}")).json()
+    assert mail not in listing, "danh sách quản trị không trả email của hội viên"
+    assert detail["email"] == mail
     async with _client() as anon_c:
         assert mail not in (await anon_c.get(f"{MA}/avatars/1")).text
 
