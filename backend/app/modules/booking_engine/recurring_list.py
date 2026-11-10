@@ -76,6 +76,11 @@ async def list_all(
             Booking.order_id.label("order_id"),
             live_blocks.label("blocks"),
             func.coalesce(func.sum(Booking.amount).filter(live), 0).label("total"),
+            # Còn phải thu (T-066): đúng tập khối mà "Thu cả đơn" / QR cả đơn thu
+            func.coalesce(
+                func.sum(Booking.amount).filter(Booking.payment_status == "unpaid"), 0
+            ).label("unpaid_amount"),
+            unpaid.label("unpaid_blocks"),
             func.coalesce(
                 func.sum(func.coalesce(Booking.list_amount, Booking.amount)).filter(live), 0
             ).label("original"),
@@ -195,6 +200,8 @@ async def list_all(
                 # Từ các khối chưa hủy; cột lưu trên booking_order không đổi khi hủy
                 discount_amount=int(a["original"]) - int(a["total"]),
                 total=int(a["total"]),
+                unpaid_amount=int(a["unpaid_amount"]),
+                unpaid_blocks=int(a["unpaid_blocks"]),
                 status=a["status"],
                 created_at=order.created_at,
                 created_by=order.created_by_label,

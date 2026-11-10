@@ -1124,6 +1124,10 @@ class OrderRow(RecurringOrderRow):
     resource_names: list[str]
     play_date: dt.date = Field(description="Ngày chơi của đơn (định kỳ: ngày buổi đầu)")
     blocks: int = Field(description="Số khối (đơn ngày) / số buổi (định kỳ)")
+    unpaid_amount: int = Field(
+        description="Còn phải thu = tổng khối Chưa thanh toán (đúng số Thu cả đơn / QR cả đơn thu)"
+    )
+    unpaid_blocks: int = Field(description="Số khối Chưa thanh toán")
 
 
 class OrderCounts(BaseModel):

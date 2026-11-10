@@ -918,22 +918,26 @@ async def test_sec2_no_password_or_token_in_logs_audit_or_responses(anon, admin,
     )
 
 
-async def test_sec1_unknown_and_wrong_password_take_comparable_time(anon, customer):
-    import time
+async def test_sec1_unknown_and_wrong_password_take_comparable_time(anon, customer, monkeypatch):
+    """Tài khoản lạ và sai mật khẩu đều chạy ĐÚNG MỘT lần so mật khẩu (lạ: so với hash giả).
+
+    Trước đây đo thời gian, nhưng từ T-059 test băm rất rẻ (vài ms) nên tỷ lệ chập chờn theo
+    tải máy. Cách đo mới cùng ý nghĩa bảo mật và xác định: không có đường trả lời mà không băm."""
+    from app.modules.auth import login as login_module
 
     phone = (await customer.get(f"{API}/auth/me")).json()["phone"]
+    calls: list[str] = []
+    real = login_module.verify_password
 
-    async def timed(login):
-        t = time.perf_counter()
-        await sign_in(anon, login, "Wrong-Pass1")
-        return time.perf_counter() - t
+    def spy(password: str, hashed: str) -> bool:
+        calls.append(hashed)
+        return real(password, hashed)
 
-    known, unknown = [], []
-    for _ in range(4):  # tối đa 4 + 4 < 20 lần sai/IP và < 5 lần sai/tài khoản
-        known.append(await timed(phone))
-        unknown.append(await timed(unique_phone()))
-    # min (not median): a busy CI box inflates single samples, a hash-less path stays ~ms
-    km, um = min(known), min(unknown)
-    assert um > km * 0.4, (
-        f"unknown account answers far faster ({um:.3f}s vs {km:.3f}s): hash-less path"
-    )
+    monkeypatch.setattr(login_module, "verify_password", spy)
+    await sign_in(anon, phone, "Wrong-Pass1")
+    assert len(calls) == 1, "tài khoản có thật: một lần so mật khẩu"
+    known_hash = calls[0]
+    calls.clear()
+    await sign_in(anon, unique_phone(), "Wrong-Pass1")
+    assert len(calls) == 1, "tài khoản lạ: vẫn phải băm một lần, không trả lời sớm"
+    assert calls[0] != known_hash and calls[0].startswith("$argon2"), "so với hash giả cùng loại"
