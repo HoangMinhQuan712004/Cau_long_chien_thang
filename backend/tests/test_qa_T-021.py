@@ -6,7 +6,6 @@
 import asyncio
 import datetime as dt
 import re
-import time
 import uuid
 
 import pytest
@@ -307,22 +306,43 @@ async def test_sec2_wrong_code_answers_are_identical_for_known_and_unknown_phone
     assert res[0] == res[1]
 
 
-async def test_sec2_request_timing_is_comparable_for_known_and_unknown(anon):
+async def test_sec2_request_timing_is_comparable_for_known_and_unknown(anon, monkeypatch):
+    """Yêu cầu mã cho SĐT đã có và SĐT lạ làm CÙNG số phép băm mật khẩu (không lộ SĐT nào đã đăng ký).
+
+    Trước đây so thời gian (ms); từ T-059 băm rẻ nên tỷ lệ chập chờn theo tải máy (T-067 AC3). Đếm số phép
+    băm / so khớp mang cùng ý nghĩa bảo mật và xác định."""
+    from app.core import security
+
     async with _client() as owner:
         known = (await register(owner, unique_phone(), "Đã Có Giờ")).json()["account"]["phone"]
 
-    async def timed(phone):
+    calls: list[str] = []
+    real_hash, real_verify = security.password_hash.hash, security.password_hash.verify
+
+    def spy_hash(*a, **kw):
+        calls.append("hash")
+        return real_hash(*a, **kw)
+
+    def spy_verify(*a, **kw):
+        calls.append("verify")
+        return real_verify(*a, **kw)
+
+    monkeypatch.setattr(security.password_hash, "hash", spy_hash)
+    monkeypatch.setattr(security.password_hash, "verify", spy_verify)
+
+    async def hashing(phone):
+        calls.clear()
         async with _client() as c:
-            t0 = time.perf_counter()
             r = await request(c, phone)
             assert r.status_code == 202
-            return time.perf_counter() - t0
+        return sorted(calls)
 
-    k = min([await timed(known) for _ in range(4)])
-    u = min([await timed(unique_phone()) for _ in range(4)])
-    assert u > k * 0.3 and k > u * 0.3, (
-        f"known {k:.3f}s vs unknown {u:.3f}s: cả hai đều băm mật khẩu + phát mã"
+    k = [await hashing(known) for _ in range(2)]
+    u = [await hashing(unique_phone()) for _ in range(2)]
+    assert k[0] == k[1] == u[0] == u[1], (
+        f"known {k} vs unknown {u}: cả hai đều băm mật khẩu như nhau"
     )
+    assert "hash" in k[0] or "verify" in k[0], "cả hai đường đều có phép băm"
 
 
 # ============================================================ AC3 tài khoản chưa xác minh đời cũ nhường SĐT

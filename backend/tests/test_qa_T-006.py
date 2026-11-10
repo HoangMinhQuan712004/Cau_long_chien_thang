@@ -25,7 +25,6 @@ and tests never collide on slots (the DB is shared across the whole test session
 import asyncio
 import json
 import re
-import time
 import uuid
 from datetime import date, datetime, timedelta
 
@@ -36,6 +35,7 @@ from sqlalchemy.exc import DBAPIError
 from app.core.config import settings
 from app.core.db import SessionLocal
 from tests.conftest import API, ORIGIN
+from tests.qa_queries import count_statements
 
 B = f"{API}/booking"
 FD = f"{API}/front-desk"
@@ -247,11 +247,12 @@ def walk(data):
 
 
 async def test_ac1_calendar_shape_and_speed(staff):
-    t0 = time.perf_counter()
-    r = await staff.get(f"{B}/calendar", params={"date": today().isoformat()})
-    elapsed = time.perf_counter() - t0
+    with count_statements() as n:
+        r = await staff.get(f"{B}/calendar", params={"date": today().isoformat()})
     assert r.status_code == 200, r.text
-    assert elapsed < 1.0, f"calendar took {elapsed:.2f}s (NFR-001 server < 1 s)"
+    print("T006 calendar statements", n[0])
+    # NFR-001 (nhanh): số câu SQL cố định, không theo số booking (không đo ms – T-067 AC3)
+    assert n[0] <= 40, f"calendar chạy {n[0]} câu SQL"
     data = r.json()
     for k in ("date", "now", "columns", "resources", "blocks", "unpaid_count", "can"):
         assert k in data, k
