@@ -255,6 +255,31 @@ async def test_ac2_exact_money_collects_everything_with_one_entry_audit_and_syst
     )
 
 
+async def test_sua_10_11_money_after_the_five_minute_popup_is_still_accepted(admin, anon):
+    """Sửa 10/11: 5 phút chỉ là thời gian popup chờ; máy chủ không hết hạn mã. Tiền đúng số về sau
+    10 phút / 3 giờ / 1 ngày (giờ giao dịch trong quá khứ) vẫn thu khi đơn còn chưa thu."""
+    order = await recurring(admin, days_ahead=75)
+    code, total = order["order_code"], order["total"]
+    first = (await qr(admin, code)).json()
+    assert "expires_at" not in first and "expire" not in str(first).lower(), "không có hạn dùng mã"
+
+    def vn_time(minutes_ago: int) -> str:
+        return (datetime.now(settings.tz) - timedelta(minutes=minutes_ago)).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+    # Tạo lại mã sau 5 phút cho cùng số tiền; lệch số vẫn bị từ chối dù giao dịch cũ
+    for minutes_ago in (10, 180, 24 * 60):
+        again = (await qr(admin, code)).json()
+        assert again["status"] != "paid" and again["amount"] == total
+        outcome, _ = await pay(anon, code, total - 1, transactionDate=vn_time(minutes_ago))
+        assert outcome == "refund_needed"
+    outcome, _ = await pay(anon, code, total, transactionDate=vn_time(10))
+    assert outcome == "applied", "tiền đúng số về sau 5 phút vẫn nhận"
+    assert {b.payment_status for b in await blocks(code)} == {"paid"}
+    assert (await qr(admin, code)).json()["status"] == "paid"
+
+
 async def test_ac4_off_by_one_short_or_over_never_collects_and_exact_still_works_afterwards(
     admin, anon
 ):

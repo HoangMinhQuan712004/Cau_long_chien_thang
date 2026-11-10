@@ -8167,8 +8167,11 @@ export interface components {
             order_code: string | null;
             /** Customer Name */
             customer_name: string;
-            /** Customer Phone Masked */
-            customer_phone_masked: string | null;
+            /**
+             * Customer Phone
+             * @description SĐT đầy đủ (T-061): ai có quyền xem lịch sử giao dịch đều thấy
+             */
+            customer_phone: string | null;
             /** Member Code */
             member_code?: string | null;
             /**
