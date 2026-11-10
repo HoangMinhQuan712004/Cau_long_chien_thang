@@ -580,7 +580,9 @@ class TransactionEntry(BaseModel):
     occurred_at: dt.datetime
     order_code: str | None = Field(description="Mã đơn; vé: mã sự kiện")
     customer_name: str
-    customer_phone_masked: str | None
+    customer_phone: str | None = Field(
+        description="SĐT đầy đủ (T-061): ai có quyền xem lịch sử giao dịch đều thấy"
+    )
     member_code: str | None = None
     actor_label: str = Field(description='Người thu / hủy; tiền về qua cổng: "Hệ thống"')
     items: list[TransactionEntryItem]
