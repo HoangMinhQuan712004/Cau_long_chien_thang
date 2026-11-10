@@ -197,6 +197,22 @@ async def create_special_day(
     )
 
 
+@router.patch("/special-days/{special_day_id}", response_model=SpecialDayOut)
+async def update_special_day(
+    special_day_id: int,
+    data: SpecialDayIn,
+    principal: ConfigManager,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Sửa ngày Lễ/Tết (T-063): kiểm chồng bỏ qua chính nó; giá booking / vé đã có không đổi."""
+    return await idem.run(
+        session,
+        principal.key,
+        lambda: api.update_special_day(session, _actor(principal), special_day_id, data),
+    )
+
+
 @router.delete(
     "/special-days/{special_day_id}",
     status_code=status.HTTP_204_NO_CONTENT,
