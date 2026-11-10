@@ -72,6 +72,9 @@ GROUPS: tuple[ActionGroup, ...] = (
             _t("config.resource.update", "Sửa sân"),
             _t("config.resource.delete", "Xóa sân"),
             _t("config.price.update", "Lưu bảng giá"),
+            _t("config.special_day.create", "Thêm ngày Lễ/Tết"),
+            _t("config.special_day.update", "Sửa ngày Lễ/Tết"),
+            _t("config.special_day.delete", "Xóa ngày Lễ/Tết"),
         ),
     ),
     ActionGroup(

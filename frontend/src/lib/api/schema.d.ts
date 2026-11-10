@@ -1027,7 +1027,11 @@ export interface paths {
         delete: operations["delete_special_day_api_v1_booking_special_days__special_day_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Special Day
+         * @description Sửa ngày Lễ/Tết (T-063): kiểm chồng bỏ qua chính nó; giá booking / vé đã có không đổi.
+         */
+        patch: operations["update_special_day_api_v1_booking_special_days__special_day_id__patch"];
         trace?: never;
     };
     "/api/v1/booking/quote": {
@@ -10257,6 +10261,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_special_day_api_v1_booking_special_days__special_day_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                special_day_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecialDayIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialDayOut"];
+                };
             };
             /** @description Validation Error */
             422: {

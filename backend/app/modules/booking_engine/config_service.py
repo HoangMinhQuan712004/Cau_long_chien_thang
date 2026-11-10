@@ -16,6 +16,7 @@ from app.core.errors import AppError
 from app.modules.booking_engine import occupancy, outbox
 from app.modules.booking_engine.audit_fields import (
     RESOURCE_LABELS,
+    SPECIAL_DAY_LABELS,
     active_label,
     hours_values,
     price_cell_label,
@@ -666,28 +667,31 @@ async def list_special_days(
     return [_special_out(r) for r in rows]
 
 
-async def create_special_day(
-    session: AsyncSession, tenant_id: int, actor: Actor, data: SpecialDayIn
-) -> SpecialDayOut:
-    date_from = data.date_from
-    date_to = data.date_to or data.date_from
-    clash = await session.scalar(
-        select(SpecialDay)
-        .where(
-            SpecialDay.tenant_id == tenant_id,
-            SpecialDay.date_from <= date_to,
-            SpecialDay.date_to >= date_from,
-        )
-        .order_by(SpecialDay.date_from)
-        .limit(1)
+async def _check_special_clash(
+    session: AsyncSession,
+    tenant_id: int,
+    date_from: date,
+    date_to: date,
+    exclude_id: int | None = None,
+) -> None:
+    """E-CFG-8 khi khoảng chồng một ngày Lễ/Tết khác (sửa: bỏ qua chính mục đang sửa)."""
+    stmt = select(SpecialDay).where(
+        SpecialDay.tenant_id == tenant_id,
+        SpecialDay.date_from <= date_to,
+        SpecialDay.date_to >= date_from,
     )
+    if exclude_id is not None:
+        stmt = stmt.where(SpecialDay.id != exclude_id)
+    clash = await session.scalar(stmt.order_by(SpecialDay.date_from).limit(1))
     if clash is not None:
         day = max(date_from, clash.date_from)
         raise AppError("E-CFG-8", f"Ngày {day:%d/%m} đã nằm trong {clash.name}.", 409)
-    row = SpecialDay(tenant_id=tenant_id, date_from=date_from, date_to=date_to, name=data.name)
+
+
+async def _flush_special(session: AsyncSession) -> None:
+    """Ghi xuống DB; hai lần thêm / sửa cùng lúc chồng nhau -> exclusion constraint -> E-CFG-8."""
     try:
         async with session.begin_nested():
-            session.add(row)
             await session.flush()
     except IntegrityError as e:
         if _sqlstate(e) == EXCLUSION_VIOLATION:
@@ -695,6 +699,25 @@ async def create_special_day(
                 "E-CFG-8", "Khoảng ngày vừa được thêm vào một ngày Lễ/Tết khác.", 409
             ) from None
         raise
+
+
+def _special_values(row: SpecialDay) -> dict[str, str]:
+    return {
+        "date_from": row.date_from.isoformat(),
+        "date_to": row.date_to.isoformat(),
+        "name": row.name,
+    }
+
+
+async def create_special_day(
+    session: AsyncSession, tenant_id: int, actor: Actor, data: SpecialDayIn
+) -> SpecialDayOut:
+    date_from = data.date_from
+    date_to = data.date_to or data.date_from
+    await _check_special_clash(session, tenant_id, date_from, date_to)
+    row = SpecialDay(tenant_id=tenant_id, date_from=date_from, date_to=date_to, name=data.name)
+    session.add(row)
+    await _flush_special(session)
     audit(
         session,
         _audit_actor(actor),
@@ -710,6 +733,43 @@ async def create_special_day(
         {"id": row.id, "date_from": date_from.isoformat(), "date_to": date_to.isoformat()},
     )
     await session.flush()
+    return _special_out(row)
+
+
+async def update_special_day(
+    session: AsyncSession, tenant_id: int, actor: Actor, special_day_id: int, data: SpecialDayIn
+) -> SpecialDayOut:
+    """Sửa ngày / tên (T-063). Không đổi giá booking, vé đã có (chốt giá lúc đặt)."""
+    row = await session.scalar(
+        select(SpecialDay)
+        .where(SpecialDay.tenant_id == tenant_id, SpecialDay.id == special_day_id)
+        .with_for_update()
+    )
+    if row is None:
+        raise _not_found("ngày Lễ/Tết")
+    date_from = data.date_from
+    date_to = data.date_to or data.date_from
+    await _check_special_clash(session, tenant_id, date_from, date_to, exclude_id=row.id)
+    before = _special_values(row)
+    row.date_from, row.date_to, row.name = date_from, date_to, data.name
+    await _flush_special(session)
+    after = _special_values(row)
+    if after != before:
+        audit(
+            session,
+            _audit_actor(actor),
+            "config.special_day.update",
+            "special_day",
+            str(row.id),
+            audit_detail(str(row.id), row.name, audit_changes(SPECIAL_DAY_LABELS, before, after)),
+        )
+        outbox.add_event(
+            session,
+            tenant_id,
+            "config.special_day.updated",
+            {"id": row.id, "before": before, "after": after},
+        )
+        await session.flush()
     return _special_out(row)
 
 

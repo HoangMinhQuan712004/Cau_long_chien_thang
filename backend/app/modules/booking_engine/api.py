@@ -176,6 +176,19 @@ async def create_special_day(
     return await config_service.create_special_day(session, _tid(tenant_id), actor, data)
 
 
+async def update_special_day(
+    session: AsyncSession,
+    actor: Actor,
+    special_day_id: int,
+    data: SpecialDayIn,
+    *,
+    tenant_id: int | None = None,
+) -> SpecialDayOut:
+    return await config_service.update_special_day(
+        session, _tid(tenant_id), actor, special_day_id, data
+    )
+
+
 async def delete_special_day(
     session: AsyncSession, actor: Actor, special_day_id: int, *, tenant_id: int | None = None
 ) -> None:
