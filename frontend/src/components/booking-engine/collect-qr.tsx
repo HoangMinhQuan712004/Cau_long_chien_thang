@@ -50,9 +50,6 @@ type Qr =
   | { state: "unavailable"; message: string }
   | { state: "error"; message: string };
 
-// Khối không còn Chưa thanh toán khi hỏi QR từng buổi (đã thu / hủy / Không thu được ở máy khác) ⇒ coi như xong, tải lại
-const ITEM_DONE = new Set(["E-BOOK-4", "E-PAY-6", "E-012"]);
-
 export function CollectQrDialog({ orderCode, item, cashBody, onConfirmCash, busy, banner, onClose, onBack, onPaid }: Props) {
   const itemCode = item?.code;
   const label = itemCode ? "Thu tiền" : "Thu cả đơn";
@@ -98,14 +95,7 @@ export function CollectQrDialog({ orderCode, item, cashBody, onConfirmCash, busy
       const e = res.error;
       if (authFailure(e)) return onClose();
       if (e.code === "E-PAY-9") return setQr({ state: "unavailable", message: errorText(e) });
-      // E-BOOK-4: đơn không còn khối chưa thu (đã thu ở máy khác / đã hủy) ⇒ báo và tải lại danh sách.
-      // 404 E-BOOK-3 (không có đơn) và lỗi khác: nhánh lỗi chung bên dưới
-      if (itemCode ? ITEM_DONE.has(e.code ?? "") : e.code === "E-BOOK-4") {
-        done.current = true;
-        toast(errorText(e), itemCode ?? orderCode, "info");
-        onPaidRef.current();
-        return;
-      }
+      // Đã xong ở máy khác trả 200 status "closed" (trên); 404 E-BOOK-3 và lỗi khác: nhánh lỗi chung
       if (!silent) setQr({ state: "error", message: errorText(e) });
     },
     [orderCode, itemCode, finish, onClose],
