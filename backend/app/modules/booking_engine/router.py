@@ -22,6 +22,8 @@ from app.modules.booking_engine.dto import (
     CalendarOut,
     CollectIn,
     ItemOut,
+    MoveIn,
+    MoveTarget,
     OrderCollectIn,
     OrderCollectOut,
     PriceTable,
@@ -55,6 +57,7 @@ CodeSearcher = Annotated[Principal, Depends(require(Perm.BOOKING_SEARCH))]
 ItemViewer = Annotated[Principal, Depends(require(Perm.BOOKING_ITEM_VIEW))]
 SessionViewer = Annotated[Principal, Depends(require(Perm.BOOKING_SESSION_VIEW))]
 Collector = Annotated[Principal, Depends(require(Perm.BOOKING_COLLECT))]
+Mover = Annotated[Principal, Depends(require(Perm.BOOKING_COUNTER_CREATE))]
 UncollectibleMarker = Annotated[Principal, Depends(require(Perm.BOOKING_UNCOLLECTIBLE))]
 TransactionsViewer = Annotated[Principal, Depends(require(Perm.BOOKING_TRANSACTIONS_VIEW))]
 SessionManager = Annotated[Principal, Depends(require(Perm.BOOKING_SESSION_MANAGE))]
@@ -63,6 +66,7 @@ ACTION_PERMS = {
     "collect": Perm.BOOKING_COLLECT,
     "uncollectible": Perm.BOOKING_UNCOLLECTIBLE,
     "cancel": Perm.BOOKING_CANCEL,
+    "move": Perm.BOOKING_COUNTER_CREATE,  # người dùng chốt 2026-11-09: đặt quầy là đổi sân được
 }
 
 
@@ -363,6 +367,33 @@ async def mark_uncollectible(
     async def run() -> ItemOut:
         item = await api.mark_uncollectible(session, _actor(principal), code, data)
         return for_viewer(item, principal)
+
+    return await idem.run(session, principal.key, run)
+
+
+# ---------------------------------------------------------------- đổi sân
+
+
+@router.get("/items/{code}/move-targets", response_model=list[MoveTarget])
+async def move_targets(code: str, _: Mover, session: SessionDep):
+    """Sân đổi sang được cho booking (cùng ngày, cùng giờ): đang hoạt động, mở cửa đủ khung, còn
+    trống – theo thứ tự danh mục, mọi loại sân. 409 E-BOOK-6 · 404."""
+    return await api.move_targets(session, code)
+
+
+@router.post("/items/{code}/move", response_model=ItemOut, dependencies=[Depends(require_origin)])
+async def move_booking(
+    code: str, data: MoveIn, principal: Mover, idem: IdempotencyDep, session: SessionDep
+):
+    """Đổi sân một booking: giữ mã, giá đã chốt, tiền đã thu (kể cả đổi khác loại sân).
+
+    409 ``E-BOOK-6`` (vé / sự kiện / giữ chỗ, đã hủy, Không thu được, đã kết thúc, cùng sân) ·
+    409 ``E-BOOK-8`` (sân đích đã có lịch) · 422 ``E-BOOK-7`` (sân đích ngừng / đóng cửa khung
+    đó) · 404 (mã / sân không có) · 409 ``E-012`` (``version`` cũ).
+    """
+
+    async def run() -> ItemOut:
+        return for_viewer(await api.move_booking(session, _actor(principal), code, data), principal)
 
     return await idem.run(session, principal.key, run)
 

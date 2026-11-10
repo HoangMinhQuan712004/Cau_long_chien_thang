@@ -880,7 +880,13 @@
       "reload": "Tải lại",
       "moreConflicts": "… và {n} khung khác",
       "halfHourWarning": "Sân này còn giờ rưỡi từ dữ liệu cũ, vẫn giữ nguyên khi lưu. Giờ mới chỉ chọn được giờ chẵn.",
-      "peaksAdjusted": "Đã chỉnh khung cao điểm theo giờ mở cửa mới. Lưu mới có hiệu lực."
+      "peaksAdjusted": "Đã chỉnh khung cao điểm theo giờ mở cửa mới. Lưu mới có hiệu lực.",
+      "openConflict": "Mở lịch {code}",
+      "conflictsDone": {
+        "stop": "Đã xử lý hết, bấm Lưu để ngừng sân.",
+        "hours": "Đã xử lý hết, bấm Lưu để đổi giờ.",
+        "delete": "Đã xử lý hết, bấm Xóa sân để xóa sân."
+      }
     },
     "drawer": {
       "close": "Đóng",

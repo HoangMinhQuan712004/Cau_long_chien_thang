@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { api } from "@/lib/api/client";
-import { errorText, write } from "@/lib/api/write";
-import { CourtForm } from "./court-form";
-import type { Form, Resource, ResourceType } from "./court-form-logic";
+import { write } from "@/lib/api/write";
+import { ConflictList, CourtForm } from "./court-form";
+import { bannerFrom, withoutConflict, type Banner, type Form, type Resource, type ResourceType } from "./court-form-logic";
 import { useCourtForm } from "./use-court-form";
 
 const FOOTER = "grid w-full grid-cols-2 gap-2";
@@ -55,22 +55,22 @@ export function CourtFormDialog({
   );
 }
 
-/** Xác nhận xóa sân: Hủy | Xóa (đỏ), rộng bằng nhau; 409 (còn lịch sắp tới) hiện câu của backend trong hộp. */
+/** Xác nhận xóa sân: Hủy | Xóa (đỏ), rộng bằng nhau; 409 (còn lịch sắp tới) hiện câu của backend + các mã bấm mở được. */
 export function DeleteCourtDialog({ court, onClose, onDeleted, t }: { court: Resource; onClose: () => void; onDeleted: () => void; t: Dictionary["courts"] }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<Banner | null>(null);
 
   async function confirm() {
     if (busy) return;
     setBusy(true);
-    setError("");
+    setError(null);
     const res = await write((key) =>
       api.DELETE("/api/v1/booking/resources/{code}", { params: { path: { code: court.code } }, headers: { "Idempotency-Key": key } }),
     );
     setBusy(false);
     // 404: đã bị xóa ở nơi khác ⇒ coi như xong
     if (res.ok || res.error.status === 404) onDeleted();
-    else setError(errorText(res.error));
+    else setError(bannerFrom(res.error));
   }
 
   return (
@@ -90,7 +90,22 @@ export function DeleteCourtDialog({ court, onClose, onDeleted, t }: { court: Res
         </div>
       }
     >
-      {error ? <Alert variant="error">{error}</Alert> : null}
+      {error ? (
+        <Alert variant={error.done ? "info" : "error"}>
+          <span className="flex flex-col gap-1.5">
+            <span>{error.text}</span>
+            {error.items?.length ? (
+              <ConflictList
+                items={error.items}
+                more={error.more}
+                court={court.code}
+                onResolved={(code) => setError((b) => b && withoutConflict(b, code, t.form.conflictsDone.delete))}
+                t={t.form}
+              />
+            ) : null}
+          </span>
+        </Alert>
+      ) : null}
       <p className="text-sm text-muted">{t.deleteBody}</p>
     </Modal>
   );

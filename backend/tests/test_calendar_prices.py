@@ -1,6 +1,7 @@
 """T-025 AC9: lịch admin có giá từng ô (cùng cách tính với lịch khách)."""
 
-from tests.helpers_booking import calendar, new_court, set_legacy_schedule
+from tests.conftest import idem
+from tests.helpers_booking import BK, calendar, new_court, set_legacy_schedule
 from tests.helpers_web import tomorrow, web_calendar
 
 
@@ -25,3 +26,35 @@ async def test_admin_calendar_hour_prices_match_public(anon, admin, staff):
     assert set(prices) & set(row["off_hours"]) == set()
     assert prices[16] < prices[17] < prices[18]  # 17h = nửa cao điểm (partial)
     assert prices[18] == prices[20]
+
+
+async def test_inactive_court_shows_grey_on_admin_calendar_only(anon, admin, staff):
+    """Người dùng chốt 2026-11-09: sân ngừng vẫn có hàng (xám) ở lịch quản trị, khách không thấy."""
+    court = await new_court(admin)
+    deleted = await new_court(admin)
+    r = await admin.patch(
+        f"{BK}/resources/{court['code']}",
+        json={"version": court["version"], "is_active": False},
+        headers=idem(),
+    )
+    assert r.status_code == 200, r.text
+    assert (
+        await admin.delete(f"{BK}/resources/{deleted['code']}", headers=idem())
+    ).status_code == 204
+    day = tomorrow()
+
+    cal = await calendar(staff, day)
+    codes = [r["code"] for r in cal["resources"]]
+    row = next(r for r in cal["resources"] if r["code"] == court["code"])
+    assert row["is_active"] is False and row["hour_prices"] == {}
+    assert set(row["off_hours"]) == set(cal["columns"]), "mọi giờ không bán"
+    assert deleted["code"] not in codes, "sân đã xóa không hiện"
+    # Sân hoạt động trước, sân ngừng xuống cuối; trong mỗi nhóm giữ thứ tự danh mục
+    listing = (await admin.get(f"{BK}/resources")).json()["items"]
+    active = [i["code"] for i in listing if i["is_active"]]
+    inactive = [i["code"] for i in listing if not i["is_active"]]
+    assert codes == active + inactive
+
+    public = (await web_calendar(anon, day)).json()
+    shown = [r["code"] for r in public["resources"]]
+    assert court["code"] not in shown and deleted["code"] not in shown

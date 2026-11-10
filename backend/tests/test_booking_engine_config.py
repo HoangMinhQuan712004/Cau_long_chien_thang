@@ -379,6 +379,7 @@ async def test_hours_change_blocked_by_bookings_outside_new_hours(admin):
             "date": day.isoformat(),
             "start_time": "20:00",
             "end_time": "22:00",
+            "kind": "booking",  # thêm loại chỗ chiếm (Đổi sân, 2026-11-09)
         }
         assert detail["more"] == 0
         assert (await get_resource(admin, code))["pending_schedule"] is None
@@ -418,10 +419,52 @@ async def test_hours_conflict_list_truncated_to_six(admin):
 # ------------------------------------------------------------------ ngừng sân (D5)
 
 
+async def _alloc_at(code: str, start: datetime, owner: str) -> int:
+    async with SessionLocal() as s:
+        alloc_id = await make_allocation(
+            s, code, start, start + timedelta(hours=1), owner_code=owner
+        )
+        await s.commit()
+    return alloc_id
+
+
+@pytest.mark.parametrize("action", ["deactivate", "delete"])
+async def test_ended_slots_today_do_not_block_but_ongoing_does(admin, action):
+    """Lịch đã kết thúc trong ngày không chặn ngừng / xóa sân; đang diễn ra thì chặn."""
+    res = await create_resource(admin, open_time="00:00", close_time="24:00", peak_bands=[])
+    code = res["code"]
+    hour_start = datetime.now(settings.tz).replace(minute=0, second=0, microsecond=0)
+    ended = await _alloc_at(code, hour_start - timedelta(hours=2), "BK-TEST-ENDED")
+    ongoing = await _alloc_at(code, hour_start, "BK-TEST-NOW")
+
+    async def stop():
+        if action == "delete":
+            return await admin.delete(f"{BK}/resources/{code}", headers=idem())
+        current = await get_resource(admin, code)
+        return await admin.patch(
+            f"{BK}/resources/{code}",
+            json={"version": current["version"], "is_active": False},
+            headers=idem(),
+        )
+
+    try:
+        r = await stop()
+        assert r.status_code == 409, r.text
+        detail = r.json()["detail"]
+        assert detail["code"] == ("E-CFG-11" if action == "delete" else "E-CFG-4")
+        assert [i["code"] for i in detail["items"]] == ["BK-TEST-NOW"], "chỉ lịch chưa kết thúc"
+        assert "còn 1 lịch" in detail["message"]
+    finally:
+        await release(ongoing)
+    r = await stop()
+    assert r.status_code in (200, 204), r.text
+    await release(ended)
+
+
 async def test_deactivate_blocked_while_bookings_remain(admin):
     res = await create_resource(admin)
     code = res["code"]
-    alloc = await allocate(code, today(), 21, 22, "BK-TEST-101")
+    alloc = await allocate(code, today() + timedelta(days=1), 21, 22, "BK-TEST-101")
     try:
         r = await admin.patch(
             f"{BK}/resources/{code}", json={"version": 1, "is_active": False}, headers=idem()
@@ -739,7 +782,11 @@ async def test_delete_resource_blocked_while_schedule_unfinished(admin, anon):
     assert r.status_code == 409, r.text
     detail = r.json()["detail"]
     assert detail["code"] == "E-CFG-11" and detail["count"] == 1
-    assert detail["message"] == "Sân còn 1 lịch sắp tới, hãy xử lý trước khi xóa."
+    assert detail["message"] == (
+        "Sân còn 1 lịch sắp tới, hãy đổi sân hoặc hủy các lịch này trước khi xóa."
+    )
+    assert [(i["code"], i["kind"]) for i in detail["items"]] == [("BK-TEST-DEL-1", "booking")]
+    assert detail["more"] == 0
     await release(booked)
     await release(past)
 

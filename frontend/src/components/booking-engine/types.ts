@@ -84,7 +84,7 @@ export type CounterOrder = { order_code: string; bookings: Item[] };
 /** Kết quả thu cả đơn. */
 export type OrderCollect = { order_code: string; collected: string[]; amount: number; bookings: Item[] };
 
-export type ItemAction = "collect" | "uncollectible" | "cancel";
+export type ItemAction = "collect" | "uncollectible" | "cancel" | "move";
 
 export type Item = {
   kind: "booking" | "ticket";
@@ -131,6 +131,8 @@ export type Item = {
   created_by: string;
   created_at: string;
   actions: ItemAction[];
+  /** Các lần đổi sân, cũ trước mới sau; rỗng khi chưa đổi. */
+  moves?: Api["schemas"]["ItemMove"][];
   /** T-052: giai đoạn của buổi khi hủy (server tính): trước giờ / đang chơi / đã qua; null = không hủy được. */
   cancel_phase?: Api["schemas"]["ItemOut"]["cancel_phase"];
 };
@@ -275,6 +277,7 @@ export type RecurringOrderList = Api["schemas"]["RecurringOrderListOut"];
 
 // ---- Đơn đặt sân (T-041): kiểu sinh từ schema.d.ts ----
 export type BookingOrderRow = Api["schemas"]["OrderOut"];
+export type MoveTarget = Api["schemas"]["MoveTarget"];
 export type BookingOrderList = Api["schemas"]["OrderListOut"];
 export type BookingOrderKind = BookingOrderRow["kind"];
 export type BookingOrderStatus = BookingOrderRow["status"];

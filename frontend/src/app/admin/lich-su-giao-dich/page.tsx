@@ -36,7 +36,10 @@ async function TransactionsLoader() {
   if (!tx.ok || !resources.data) throw new Error("Không tải được lịch sử giao dịch");
 
   return (
+    // key theo dữ liệu server (API không có mốc thời gian ⇒ cả nội dung): Next 16 giữ trang đã rời trong <Activity>,
+    // state cũ (useState(initial)) không tự lấy props mới khi quay lại bằng menu
     <TransactionsScreen
+      key={JSON.stringify(tx.data)}
       initial={tx.data}
       from={from}
       to={today}

@@ -39,7 +39,8 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      onClose={onClose}
+      // Chỉ khi chính dialog này đóng: popup con mở qua portal vẫn nằm trong cây React, sự kiện close của nó đi ngược lên đây
+      onClose={(e) => e.target === e.currentTarget && onClose()}
       onClick={(e) => {
         if (e.target === ref.current) ref.current?.close(); // bấm vùng tối bên ngoài
       }}

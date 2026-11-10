@@ -144,13 +144,27 @@ export function fitPeaks(peaks: Band[], open: string, close: string): { peaks: B
 
 export const hasErrors = (e: Errors) => Boolean(e.name || e.close || e.overlap || Object.keys(e.peaks).length);
 
-type Conflict = { code: string; date: string; start_time: string; end_time: string };
+/** Một chỗ chiếm trong lỗi E-CFG-3 / 4 / 11; `kind` để biết mở popup nào. */
+export type Conflict = { code: string | null; date: string; start_time: string; end_time: string; kind?: "booking" | "session" | "hold" | null };
 
 /** Lỗi từ server hiện ở đầu form (E-CFG-3/4 kèm danh sách khung vướng; E-CFG-7 = dữ liệu đã đổi, cần tải lại). */
-export type Banner = { text: string; items?: Conflict[]; more?: number; reload?: boolean };
+/** `code`: mã lỗi để chọn câu "đã xử lý hết"; `done`: đã xử lý hết các lịch vướng (hiện dạng thông tin, không phải lỗi). */
+export type Banner = { text: string; code?: string; items?: Conflict[]; more?: number; reload?: boolean; done?: boolean };
 
 export function bannerFrom(error: ApiError): Banner {
   const items = Array.isArray(error.extra.items) ? (error.extra.items as Conflict[]) : undefined;
   const more = typeof error.extra.more === "number" ? error.extra.more : 0;
-  return { text: errorText(error), items, more, reload: error.code === "E-CFG-7" };
+  return { text: errorText(error), code: error.code, items, more, reload: error.code === "E-CFG-7" };
+}
+
+/**
+ * Bỏ một lịch vừa xử lý (đổi sân / hủy) khỏi banner chặn, trừ số đếm trong câu (số đầu tiên = tổng lịch vướng);
+ * còn khung ẩn ("và n khung khác") thì vẫn tính vào tổng. Hết ⇒ câu "đã xử lý hết".
+ */
+export function withoutConflict(b: Banner, code: string, doneText: string): Banner {
+  const items = (b.items ?? []).filter((it) => it.code !== code);
+  if (items.length === (b.items ?? []).length) return b;
+  const left = items.length + (b.more ?? 0);
+  if (!left) return { text: doneText, done: true };
+  return { ...b, items, text: b.text.replace(/\d+/, String(left)) };
 }

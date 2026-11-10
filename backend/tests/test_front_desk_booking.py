@@ -5,17 +5,22 @@ import re
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 
 from app.core.audit import AuditLog
 from app.core.db import SessionLocal
+from app.modules.auth.models import RolePermission
 from app.modules.booking_engine.api import expire_holds
-from app.modules.booking_engine.models import Booking
+from app.modules.booking_engine.models import Allocation, Booking, OutboxEvent
 from app.modules.booking_engine.testing import make_hold
 from app.modules.members.models import Customer
+from app.modules.play_rooms import handlers as room_handlers
+from app.modules.play_rooms import lifecycle as rooms
+from app.modules.play_rooms.models import PlayRoom
 from tests.conftest import API, idem, is_staff_label
 from tests.helpers_booking import (
     BK,
+    FD,
     at,
     book,
     calendar,
@@ -34,7 +39,12 @@ async def test_calendar_seed_layout(staff):
     cal = await calendar(staff)
     codes = [r["code"] for r in cal["resources"]]
     assert codes[:5] == ["S01", "S02", "S03", "S04", "S05"]
-    assert "S06" not in codes  # sân ngừng, không có chỗ chiếm
+    # Sân ngừng vẫn hiện xám, xuống cuối danh sách (người dùng chốt 2026-11-09)
+    flags = [r["is_active"] for r in cal["resources"]]
+    assert flags == sorted(flags, reverse=True), "sân hoạt động trước, sân ngừng sau cùng"
+    assert (
+        "S06" in codes and not next(r for r in cal["resources"] if r["code"] == "S06")["is_active"]
+    )
     s05 = next(r for r in cal["resources"] if r["code"] == "S05")
     assert 5 in s05["off_hours"]  # S05 mở 06:00 -> ô 05:00 Xám
     s01 = next(r for r in cal["resources"] if r["code"] == "S01")
@@ -442,3 +452,258 @@ async def test_customer_cannot_use_front_desk(customer):
     assert (
         await customer.get(f"{BK}/calendar", params={"date": today().isoformat()})
     ).status_code == 403
+
+
+# ------------------------------------------------------------------ đổi sân (2026-11-09)
+
+
+async def cancel_paid(admin, item: dict) -> dict:
+    """Khung đang diễn ra chỉ hủy được khi đã thu: thu tiền rồi hủy (xác nhận hoàn tiền)."""
+    paid = await admin.post(
+        f"{BK}/items/{item['code']}/collect",
+        json={"method": "cash", "version": item["version"]},
+        headers=idem(),
+    )
+    assert paid.status_code == 200, paid.text
+    r = await admin.post(
+        f"{FD}/items/{item['code']}/cancel",
+        json={"reason": "Thử đổi sân", "version": paid.json()["version"], "refund_confirmed": True},
+        headers=idem(),
+    )
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+MOVE_REASON = "Sân hỏng / bảo trì"
+
+
+async def move(client, code: str, resource_code: str, version: int, reason=MOVE_REASON, **headers):
+    body = {"resource_code": resource_code, "version": version}
+    if reason is not None:  # None: không gửi trường reason
+        body["reason"] = reason
+    return await client.post(
+        f"{BK}/items/{code}/move",
+        json=body,
+        headers={**idem(), **headers},
+    )
+
+
+async def test_move_keeps_code_price_payment_and_follows_room(admin, staff):
+    hour = await safe_hour()
+    a = await new_court(admin)
+    b = await new_court(admin, resource_type_code="vip")  # khác loại: giá giữ nguyên
+    booked = (await book(staff, a["code"], hour, customer=member())).json()
+    paid = await staff.post(
+        f"{BK}/items/{booked['code']}/collect",
+        json={"method": "cash", "version": booked["version"]},
+        headers=idem(),
+    )
+    assert paid.status_code == 200, paid.text
+    before = paid.json()
+    async with SessionLocal() as s:
+        row = await s.scalar(select(Booking).where(Booking.code == booked["code"]))
+        booking_id, amount = row.id, row.amount
+        await rooms.ensure_for_codes(s, [booked["code"]])
+        await s.commit()
+
+    targets = (await staff.get(f"{BK}/items/{booked['code']}/move-targets")).json()
+    assert b["code"] in [t["code"] for t in targets] and a["code"] not in [
+        t["code"] for t in targets
+    ]
+
+    r = await move(staff, booked["code"], b["code"], before["version"])
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["code"] == booked["code"] and out["version"] == before["version"] + 1
+    assert out["schedule"]["resource_codes"] == [b["code"]]
+    assert out["payment"] == before["payment"], "tiền đã thu giữ nguyên"
+    assert out["price_breakdown"] == before["price_breakdown"], "giá đã chốt giữ nguyên"
+    async with SessionLocal() as s:
+        row = await s.scalar(select(Booking).where(Booking.code == booked["code"]))
+        assert (row.id, row.amount) == (booking_id, amount)
+        alloc = await s.scalar(select(Allocation).where(Allocation.booking_id == booking_id))
+        assert alloc.active and alloc.resource_id == row.resource_id
+        event = await s.scalar(
+            select(OutboxEvent)
+            .where(OutboxEvent.event_type == "booking.moved")
+            .order_by(OutboxEvent.id.desc())
+        )
+        assert event.payload["code"] == booked["code"]
+        assert event.payload["resource_code"] == b["code"]
+    # Worker phát sự kiện -> phòng chơi (nếu có) đổi theo tên sân
+    await room_handlers.follow_moved_booking(event.payload)
+    async with SessionLocal() as s:
+        room = await s.scalar(select(PlayRoom).where(PlayRoom.booking_code == booked["code"]))
+    assert room is not None, "booking của hội viên có phòng chơi"
+    assert (room.resource_code, room.resource_name) == (b["code"], b["name"])
+
+    log = await admin.get(f"{API}/admin/audit-log", params={"action": "booking.move"})
+    row = next(i for i in log.json()["items"] if i["target"]["code"] == booked["code"])
+    assert row["action_label"] == "Đổi sân"
+    assert row["changes"] == [
+        {"field": "Sân", "before": a["name"], "after": b["name"]},
+        {"field": "Lý do", "before": None, "after": MOVE_REASON},
+    ]
+
+
+async def test_move_conflict_and_bad_target(admin):
+    hour = await safe_hour()
+    a, b = await new_court(admin), await new_court(admin)
+    stopped = await new_court(admin)
+    first = (await book(admin, a["code"], hour, customer=temp())).json()
+    blocker = (await book(admin, b["code"], hour, customer=temp())).json()
+    assert first["code"] and blocker["code"]
+    # Trùng giờ: exclusion constraint chặn
+    r = await move(admin, first["code"], b["code"], first["version"])
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "E-BOOK-8", r.text
+    targets = [
+        t["code"] for t in (await admin.get(f"{BK}/items/{first['code']}/move-targets")).json()
+    ]
+    assert b["code"] not in targets and stopped["code"] in targets
+    # Sân đích ngừng
+    r = await admin.patch(
+        f"{BK}/resources/{stopped['code']}",
+        json={"version": stopped["version"], "is_active": False},
+        headers=idem(),
+    )
+    assert r.status_code == 200, r.text
+    r = await move(admin, first["code"], stopped["code"], first["version"])
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-BOOK-7", r.text
+    targets = [
+        t["code"] for t in (await admin.get(f"{BK}/items/{first['code']}/move-targets")).json()
+    ]
+    assert stopped["code"] not in targets
+    # Sân đích không bán khung (đóng cửa sớm)
+    early = await new_court(admin, open_time="00:00", close_time="01:00", peak_bands=[])
+    if hour >= 1:
+        r = await move(admin, first["code"], early["code"], first["version"])
+        assert r.status_code == 422 and r.json()["detail"]["code"] == "E-BOOK-7"
+    # Cùng sân, mã sân lạ, version cũ, khác origin
+    r = await move(admin, first["code"], a["code"], first["version"])
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "E-BOOK-6"
+    assert (await move(admin, first["code"], "S999", first["version"])).status_code == 404
+    r = await move(admin, first["code"], early["code"], first["version"] + 5)
+    assert r.status_code in (409, 422)
+    evil = await move(admin, first["code"], early["code"], 1, Origin="https://evil.example")
+    assert evil.status_code == 403
+
+
+async def test_move_rejects_cancelled_ended_and_non_booking(admin, anon):
+    hour = await safe_hour()
+    a, b = await new_court(admin), await new_court(admin)
+    ended = (await book(admin, a["code"], hour, customer=temp())).json()
+    async with SessionLocal() as s:
+        await s.execute(
+            update(Booking)
+            .where(Booking.code == ended["code"])
+            .values(end_at=func.now() - timedelta(minutes=1))
+        )
+        await s.commit()
+    item = (await admin.get(f"{BK}/items/{ended['code']}")).json()
+    assert "move" not in item["actions"]
+    r = await move(admin, ended["code"], b["code"], item["version"])
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "E-BOOK-6"
+    assert "kết thúc" in r.json()["detail"]["message"]
+
+    other = await new_court(admin)
+    cancelled = await cancel_paid(
+        admin, (await book(admin, other["code"], hour, customer=temp())).json()
+    )
+    r = await move(admin, cancelled["code"], b["code"], cancelled["version"])
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "E-BOOK-6"
+
+    day = today() + timedelta(days=3)
+    ev = await admin.post(
+        f"{BK}/sessions",
+        json={
+            "resource_codes": [b["code"]],
+            "date": day.isoformat(),
+            "start_hour": 10,
+            "end_hour": 12,
+            "name": "Sự kiện không đổi sân",
+            "capacity": 8,
+            "ticket_price": 50_000,
+        },
+        headers=idem(),
+    )
+    assert ev.status_code == 201, ev.text
+    r = await move(admin, ev.json()["code"], a["code"], 1)
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "E-BOOK-6"
+    assert (await move(admin, "BK-20000101-999-01", a["code"], 1)).status_code == 404
+
+
+async def test_move_needs_counter_booking_permission(admin, staff):
+    hour = await safe_hour()
+    a, b = await new_court(admin), await new_court(admin)
+    booked = (await book(admin, a["code"], hour, customer=temp())).json()
+    async with SessionLocal() as s:
+        await s.execute(
+            delete(RolePermission).where(
+                RolePermission.role == "staff", RolePermission.perm == "booking.counter.create"
+            )
+        )
+        await s.commit()
+    try:
+        r = await move(staff, booked["code"], b["code"], booked["version"])
+        assert r.status_code == 403 and r.json()["detail"]["code"] == "E-AUTH-2"
+        assert (await staff.get(f"{BK}/items/{booked['code']}/move-targets")).status_code == 403
+        item = (await staff.get(f"{BK}/items/{booked['code']}")).json()
+        assert "move" not in item["actions"]
+    finally:
+        async with SessionLocal() as s:
+            s.add(RolePermission(role="staff", perm="booking.counter.create"))
+            await s.commit()
+    r = await move(staff, booked["code"], b["code"], booked["version"])
+    assert r.status_code == 200, r.text
+
+
+async def test_move_history_in_item_oldest_first_and_kept_after_cancel(admin, staff):
+    hour = await safe_hour()
+    a, b, c = await new_court(admin), await new_court(admin), await new_court(admin)
+    booked = (await book(admin, a["code"], hour, customer=temp())).json()
+    assert booked["moves"] == [], "chưa đổi: rỗng"
+    # Người dùng chốt 2026-11-09: lý do bắt buộc, đúng 1 trong 2 giá trị
+    for bad in (None, "", "Khách yêu cầu", "ngừng sân", "x" * 101):
+        r = await move(admin, booked["code"], b["code"], booked["version"], reason=bad)
+        assert r.status_code == 422, (bad, r.text)
+        if bad != "x" * 101:
+            assert r.json()["detail"] == {"code": "E-001", "message": "Chọn lý do đổi sân."}
+    first = await move(admin, booked["code"], b["code"], booked["version"])
+    assert first.status_code == 200, first.text
+    second = await move(
+        staff, booked["code"], c["code"], first.json()["version"], reason="Ngừng sân"
+    )
+    assert second.status_code == 200, second.text
+
+    moves = (await admin.get(f"{BK}/items/{booked['code']}")).json()["moves"]
+    assert [(m["from_code"], m["to_code"]) for m in moves] == [
+        (a["code"], b["code"]),
+        (b["code"], c["code"]),
+    ]
+    assert [(m["from_name"], m["to_name"]) for m in moves][0] == (a["name"], b["name"])
+    start, end = f"{hour:02d}:00", f"{hour + 1:02d}:00"
+    for m in moves:
+        assert (m["start_time"], m["end_time"]) == (start, end)
+        assert (m["from_start_time"], m["from_end_time"]) == (start, end)
+        assert m["date"] == today().isoformat() and m["moved_at"]
+    assert [m["reason"] for m in moves] == ["Sân hỏng / bảo trì", "Ngừng sân"]
+    assert moves[0]["moved_by"] != moves[1]["moved_by"], "ghi đúng người đổi (Admin rồi NV)"
+    assert is_staff_label(moves[1]["moved_by"])
+    assert second.json()["moves"] == moves, "response đổi sân cũng có lịch sử"
+
+    # Hủy không xóa lịch sử; sân đã xóa vẫn hiện tên
+    await cancel_paid(admin, second.json())
+    assert (await admin.delete(f"{BK}/resources/{a['code']}", headers=idem())).status_code == 204
+    kept = (await admin.get(f"{BK}/items/{booked['code']}")).json()["moves"]
+    assert kept == moves and kept[0]["from_name"] == a["name"]
+
+
+async def test_move_reason_in_audit(admin):
+    hour = await safe_hour()
+    a, b = await new_court(admin), await new_court(admin)
+    booked = (await book(admin, a["code"], hour, customer=temp())).json()
+    r = await move(admin, booked["code"], b["code"], booked["version"], reason="Ngừng sân")
+    assert r.status_code == 200, r.text
+    log = await admin.get(f"{API}/admin/audit-log", params={"action": "booking.move"})
+    row = next(i for i in log.json()["items"] if i["target"]["code"] == booked["code"])
+    assert {"field": "Lý do", "before": None, "after": "Ngừng sân"} in row["changes"]

@@ -91,12 +91,36 @@ class ResourceUpdate(StrictIn):
 
 
 class OccupiedSlot(BaseModel):
-    """Một chỗ chiếm (booking / sự kiện / giữ chỗ) – dùng trong lỗi E-CFG-3 / E-CFG-4."""
+    """Một chỗ chiếm (booking / sự kiện / giữ chỗ) – dùng trong lỗi E-CFG-3 / 4 / 11."""
 
     code: str | None
     date: dt.date
     start_time: str
     end_time: str
+    kind: Literal["booking", "session", "hold"] | None = None
+
+
+MOVE_REASONS = ("Sân hỏng / bảo trì", "Ngừng sân")  # người dùng chốt 2026-11-09
+
+
+class MoveIn(StrictIn):
+    """Đổi sân: cùng ngày, cùng giờ; giá + tiền + mã giữ nguyên."""
+
+    resource_code: str = Field(max_length=10)
+    version: int
+    # Kiểu chuỗi + enum trong OpenAPI (FE có union type); kiểm ở service để lỗi có câu tiếng Việt
+    reason: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Bắt buộc, đúng một trong MOVE_REASONS; sai / thiếu -> 422 E-001",
+        json_schema_extra={"enum": list(MOVE_REASONS)},
+    )
+
+
+class MoveTarget(BaseModel):
+    code: str
+    name: str
+    type_name: str = Field(description="Loại sân – đổi khác loại vẫn giữ giá đã chốt")
 
 
 # ---------- Bảng giá ----------
@@ -386,6 +410,23 @@ class ItemPayment(BaseModel):
     refund_amount: int = Field(default=0, description="Số Admin xác nhận hoàn tay (T-051)")
 
 
+class ItemMove(BaseModel):
+    """Một lần đổi: lịch cũ (gạch) -> lịch mới; giờ theo giờ VN."""
+
+    from_code: str
+    from_name: str
+    to_code: str
+    to_name: str
+    date: dt.date
+    from_start_time: str
+    from_end_time: str
+    start_time: str = Field(description="Giờ của lịch mới")
+    end_time: str
+    moved_at: dt.datetime
+    moved_by: str
+    reason: str | None = None
+
+
 class ItemOut(BaseModel):
     """Thông tin booking / vé (SRS IV.5) – không SĐT đầy đủ, không id nội bộ."""
 
@@ -401,7 +442,10 @@ class ItemOut(BaseModel):
     note: str | None = None
     created_by: str
     created_at: dt.datetime
-    actions: list[Literal["collect", "uncollectible", "cancel"]]
+    actions: list[Literal["collect", "uncollectible", "cancel", "move"]]
+    moves: list[ItemMove] = Field(
+        default_factory=list, description="Lịch sử đổi sân, cũ trước mới sau; rỗng khi chưa đổi"
+    )
     cancel_phase: Literal["before", "playing", "past"] | None = Field(
         default=None,
         description="Lúc này so với giờ chơi, để popup chọn câu cảnh báo (T-052); null: không hủy "

@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, fieldErrorId } from "@/components/ui/field";
@@ -12,8 +13,11 @@ import type { Dictionary } from "@/i18n/dictionaries";
 import { formatDayMonth, formatDayMonthYear } from "@/lib/format";
 import { Dropdown } from "@/components/ui/dropdown";
 import { cn } from "@/lib/cn";
-import { closeHours, firstFreePeak, fitPeaks, hhmm, openHours, peakFromHours, peakToHours, sortBands, t5, toMin, withPeakFrom, type Band, type Form, type ResourceType } from "./court-form-logic";
+import { type Conflict, withoutConflict, closeHours, firstFreePeak, fitPeaks, hhmm, openHours, peakFromHours, peakToHours, sortBands, t5, toMin, withPeakFrom, type Band, type Form, type ResourceType } from "./court-form-logic";
 import type { CourtFormState } from "./use-court-form";
+import { ItemFlow } from "@/components/booking-engine/item-flow";
+import { getItem, getSession } from "@/components/booking-engine/requests";
+import { SessionFlow } from "@/components/booking-engine/session-flow";
 
 const SECTION = "flex flex-col gap-3 border-t pt-4 first:border-t-0 first:pt-0";
 const SECTION_TITLE = "text-sm font-semibold";
@@ -21,7 +25,7 @@ const SECTION_TITLE = "text-sm font-semibold";
 /** Các ô của form sân (dùng trong popup "Thêm sân" và ngăn chi tiết): lỗi server, tên, loại, giờ mở cửa, cao điểm, trạng thái. */
 export function CourtForm({ state, types, onReload, t: courts }: { state: CourtFormState; types: ResourceType[]; onReload: () => void; t: Dictionary["courts"] }) {
   const t = courts.form;
-  const { f, setF, touched, setTouched, submitted, banner, err, tomorrow } = state;
+  const { f, setF, touched, setTouched, submitted, banner, setBanner, err, tomorrow } = state;
   const ids = { name: useId(), open: useId(), close: useId() };
   const [adjusted, setAdjusted] = useState(false);
   const edit = f.mode === "edit";
@@ -49,18 +53,17 @@ export function CourtForm({ state, types, onReload, t: courts }: { state: CourtF
   return (
     <div className="flex flex-col gap-4">
       {banner ? (
-        <Alert variant="error">
+        <Alert variant={banner.done ? "info" : "error"}>
           <span className="flex flex-col gap-1.5">
             <span>{banner.text}</span>
             {banner.items?.length ? (
-              <ul className="list-disc pl-5">
-                {banner.items.slice(0, 6).map((it) => (
-                  <li key={`${it.code}-${it.date}-${it.start_time}`}>
-                    {it.code} · {formatDayMonth(it.date)} {t5(it.start_time)}–{t5(it.end_time)}
-                  </li>
-                ))}
-                {banner.more ? <li>{t.moreConflicts.replace("{n}", String(banner.more))}</li> : null}
-              </ul>
+              <ConflictList
+                items={banner.items}
+                more={banner.more}
+                court={f.code}
+                onResolved={(code) => setBanner((b) => b && withoutConflict(b, code, b.code === "E-CFG-3" ? t.conflictsDone.hours : t.conflictsDone.stop))}
+                t={t}
+              />
             ) : null}
             {banner.reload ? (
               <Button type="button" variant="secondary" onClick={onReload} className="w-fit">
@@ -171,4 +174,81 @@ function TimeSelect({ id, value, hours, onChange, label, invalid }: { id?: strin
   const values = hours.map(hhmm);
   const all = values.includes(value) ? values : [...values, value].sort();
   return <Dropdown id={id} aria-label={label} value={value} onChange={onChange} options={all.map((v) => ({ value: v, label: v }))} className={cn(TIME_SELECT, "min-w-0", invalid && "[&>button]:border-danger")} />;
+}
+
+/**
+ * Danh sách lịch vướng (E-CFG-3 / 4 / 11): mã booking / sự kiện bấm mở popup để đổi sân hoặc hủy ngay; giữ chỗ để chữ thường.
+ * Đóng popup sau khi có thay đổi ⇒ đọc lại lịch đó: đã hủy / đã rời sân này / sự kiện đã xóa ⇒ báo `onResolved` để bỏ khỏi danh sách.
+ */
+export function ConflictList({
+  items,
+  more,
+  court,
+  onResolved,
+  t,
+}: {
+  items: Conflict[];
+  more?: number;
+  /** Mã sân đang sửa / xóa. */
+  court?: string;
+  onResolved: (code: string) => void;
+  t: Pick<Dictionary["courts"]["form"], "moreConflicts" | "openConflict">;
+}) {
+  const [opened, setOpened] = useState<{ kind: "booking" | "session"; code: string } | null>(null);
+  // ref (không state): Hủy xong gọi onChanged rồi onClose ngay trong cùng một lượt
+  const changed = useRef(false);
+
+  async function close() {
+    const cur = opened;
+    setOpened(null);
+    if (!cur || !changed.current) return;
+    changed.current = false;
+    if (cur.kind === "booking") {
+      const res = await getItem(cur.code);
+      if (res.ok && (res.data.payment.payment_status === "cancelled" || !res.data.schedule.resource_codes.includes(court ?? ""))) onResolved(cur.code);
+    } else {
+      const res = await getSession(cur.code);
+      if (!res.ok && res.error.status === 404) onResolved(cur.code);
+    }
+  }
+
+  return (
+    <>
+      <ul className="list-disc pl-5">
+        {items.slice(0, 6).map((it) => {
+          const when = `${formatDayMonth(it.date)} ${t5(it.start_time)}–${t5(it.end_time)}`;
+          const kind = it.kind === "booking" || it.kind === "session" ? it.kind : null;
+          return (
+            <li key={`${it.code}-${it.date}-${it.start_time}`}>
+              {it.code && kind ? (
+                <button
+                  type="button"
+                  onClick={() => setOpened({ kind, code: it.code! })}
+                  aria-label={t.openConflict.replace("{code}", it.code)}
+                  className="relative font-mono font-semibold underline underline-offset-2 focus-ring before:absolute before:-inset-y-3 before:inset-x-0"
+                >
+                  {it.code}
+                </button>
+              ) : (
+                <span className="font-mono">{it.code ?? "—"}</span>
+              )}{" "}
+              · {when}
+            </li>
+          );
+        })}
+        {more ? <li>{t.moreConflicts.replace("{n}", String(more))}</li> : null}
+      </ul>
+      {/* Popup đặt ngoài hộp lỗi (portal) để không lồng vào vùng role="alert" */}
+      {opened
+        ? createPortal(
+            opened.kind === "booking" ? (
+              <ItemFlow code={opened.code} onClose={() => void close()} onChanged={() => (changed.current = true)} />
+            ) : (
+              <SessionFlow code={opened.code} onClose={() => void close()} onChanged={() => (changed.current = true)} onOpenTicket={(code) => setOpened({ kind: "booking", code })} />
+            ),
+            document.body,
+          )
+        : null}
+    </>
+  );
 }

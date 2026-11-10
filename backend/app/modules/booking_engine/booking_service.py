@@ -42,6 +42,7 @@ from app.modules.booking_engine.dto import (
     CounterOrderOut,
     CustomerSnapshot,
     ItemCustomer,
+    ItemMove,
     ItemOut,
     ItemPayment,
     ItemSchedule,
@@ -54,6 +55,7 @@ from app.modules.booking_engine.models import (
     RESOURCE_LIVE,
     Allocation,
     Booking,
+    BookingMove,
     EventSession,
     Hold,
     Resource,
@@ -293,8 +295,9 @@ async def calendar(
             )
         )
 
-    # Hàng: sân hoạt động + sân ngừng còn chỗ chiếm trong ngày
-    shown = [r for r in resources if r.is_active or r.id in busy_resources]
+    # Hàng: mọi sân chưa xóa; sân hoạt động trước, sân ngừng (xám, mọi giờ không bán) xuống cuối,
+    # trong mỗi nhóm giữ thứ tự danh mục. Lịch khách chỉ lấy sân hoạt động (``public_calendar``)
+    shown = sorted(resources, key=lambda r: not r.is_active)
     hours_of: dict[int, Hours | None] = {}
     for r in shown:
         sched = effective_on(schedules.get(r.id, []), day)
@@ -415,6 +418,15 @@ def cancel_phase(item: Booking | Ticket, start_at, end_at, ctx: Ctx) -> str | No
     return "playing" if ctx.now < end_at else "past"
 
 
+def movable_reason(b: Booking, ctx: Ctx) -> str | None:
+    """Đổi sân được khi còn hiệu lực và chưa kết thúc (đang diễn ra vẫn đổi được)."""
+    if b.payment_status not in ("unpaid", "paid"):
+        return "inactive"
+    if ctx.now >= b.end_at:
+        return "ended"
+    return None
+
+
 def payment_actions(item: Booking | Ticket, start_at, end_at, ctx: Ctx) -> list[str]:
     """Thao tác được phép lúc này (BR-013, BR-015, T-051, T-052)."""
     actions: list[str] = []
@@ -455,6 +467,38 @@ def _customer(item: Booking | Ticket) -> ItemCustomer:
     )
 
 
+async def item_moves(session: AsyncSession, ctx: Ctx, b: Booking) -> list[ItemMove]:
+    """Lịch sử đổi sân, cũ trước mới sau; tên sân lấy cả sân đã xóa."""
+    rows = list(
+        await session.scalars(
+            select(BookingMove)
+            .where(BookingMove.booking_id == b.id)
+            .order_by(BookingMove.moved_at, BookingMove.id)
+        )
+    )
+    if not rows:
+        return []
+    ids = {m.from_resource_id for m in rows} | {m.to_resource_id for m in rows}
+    courts = {r.id: r for r in await session.scalars(select(Resource).where(Resource.id.in_(ids)))}
+    return [
+        ItemMove(
+            from_code=courts[m.from_resource_id].code,
+            from_name=courts[m.from_resource_id].name,
+            to_code=courts[m.to_resource_id].code,
+            to_name=courts[m.to_resource_id].name,
+            date=b.play_date,
+            from_start_time=ctx.hhmm(b.play_date, m.from_start_at),
+            from_end_time=ctx.hhmm(b.play_date, m.from_end_at),
+            start_time=ctx.hhmm(b.play_date, m.to_start_at),
+            end_time=ctx.hhmm(b.play_date, m.to_end_at),
+            moved_at=m.moved_at,
+            moved_by=m.moved_by_label,
+            reason=m.reason,
+        )
+        for m in rows
+    ]
+
+
 async def booking_item(session: AsyncSession, ctx: Ctx, b: Booking) -> ItemOut:
     r = await session.get(Resource, b.resource_id)
     orders = await order_codes(session, {b.order_id})
@@ -477,8 +521,10 @@ async def booking_item(session: AsyncSession, ctx: Ctx, b: Booking) -> ItemOut:
         note=b.note,
         created_by=b.created_by_label,
         created_at=b.created_at,
-        actions=payment_actions(b, b.start_at, b.end_at, ctx),
+        actions=payment_actions(b, b.start_at, b.end_at, ctx)
+        + ([] if movable_reason(b, ctx) else ["move"]),
         cancel_phase=cancel_phase(b, b.start_at, b.end_at, ctx),
+        moves=await item_moves(session, ctx, b),
     )
 
 

@@ -29,5 +29,6 @@ async function CalendarLoader({ searchParams }: Pick<PageProps<"/admin/dat-san">
     if (calendar.status === 403) return <p className="text-muted">{adminNav.noPermission}</p>;
     throw new Error("Không tải được lịch đặt sân");
   }
-  return <CalendarScreen initial={calendar.data} canRecurring={can(perms, "booking.recurring")} />;
+  // key theo dữ liệu server: Next 16 giữ trang đã rời trong <Activity> nên state cũ (useState(initial)) không tự lấy props mới khi quay lại bằng menu
+  return <CalendarScreen key={calendar.data.now} initial={calendar.data} canRecurring={can(perms, "booking.recurring")} />;
 }

@@ -6,11 +6,12 @@ Bảng ``allocation`` được T-006 hoàn thiện (cột chủ sở hữu); ở
 from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.booking_engine.dto import OccupiedSlot
-from app.modules.booking_engine.models import Allocation
+from app.modules.booking_engine.holds import hold_visible
+from app.modules.booking_engine.models import Allocation, Hold
 from app.modules.booking_engine.schedules import to_hhmm
 
 MAX_LISTED = 6
@@ -49,18 +50,42 @@ async def occupied_from(
     )
     result: list[OccupiedSlot] = []
     for row in rows:
-        day, start_min, end_min = _local_minutes(row.time_range.lower, row.time_range.upper, tz)
+        _, start_min, end_min = _local_minutes(row.time_range.lower, row.time_range.upper, tz)
         if outside is not None and outside[0] <= start_min and end_min <= outside[1]:
             continue
-        result.append(
-            OccupiedSlot(
-                code=row.owner_code,
-                date=day,
-                start_time=to_hhmm(start_min),
-                end_time=to_hhmm(end_min),
-            )
-        )
+        result.append(slot_of(row, tz))
     return result
+
+
+async def unfinished(
+    session: AsyncSession, tenant_id: int, resource_id: int, now: datetime, tz: ZoneInfo
+) -> list[OccupiedSlot]:
+    """Booking / sự kiện (kể cả vé) / giữ chỗ còn hiệu lực CHƯA KẾT THÚC (đang diễn ra cũng tính) –
+    chặn ngừng / xóa sân. Lịch đã kết thúc trong ngày không chặn."""
+    rows = await session.scalars(
+        select(Allocation)
+        .outerjoin(Hold, (Hold.id == Allocation.hold_id) & hold_visible(now))
+        .where(
+            Allocation.tenant_id == tenant_id,
+            Allocation.resource_id == resource_id,
+            Allocation.active.is_(True),
+            func.upper(Allocation.time_range) > now,
+            or_(Allocation.kind != "hold", Hold.id.is_not(None)),
+        )
+        .order_by(func.lower(Allocation.time_range))
+    )
+    return [slot_of(row, tz) for row in rows]
+
+
+def slot_of(row: Allocation, tz: ZoneInfo) -> OccupiedSlot:
+    day, start_min, end_min = _local_minutes(row.time_range.lower, row.time_range.upper, tz)
+    return OccupiedSlot(
+        code=row.owner_code,
+        date=day,
+        start_time=to_hhmm(start_min),
+        end_time=to_hhmm(end_min),
+        kind=row.kind,
+    )
 
 
 def listing(slots: list[OccupiedSlot]) -> dict:

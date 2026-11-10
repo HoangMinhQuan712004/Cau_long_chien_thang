@@ -3,7 +3,7 @@
 Hàm ở đây **không commit** – lớp gọi (router qua idempotency, script seed, BFF) sở hữu transaction.
 """
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from itertools import chain
 
 from sqlalchemy import delete, func, select
@@ -351,12 +351,12 @@ async def update_resource(
 
     if data.is_active is not None and data.is_active != r.is_active:
         if not data.is_active:
-            busy = await occupancy.occupied_from(session, tenant_id, r.id, today, tz)
+            busy = await occupancy.unfinished(session, tenant_id, r.id, datetime.now(UTC), tz)
             if busy:
                 raise AppError(
                     "E-CFG-4",
-                    f"{label.capitalize()} còn {len(busy)} lịch đặt từ hôm nay. "
-                    f"Chuyển các lịch này sang {label} khác trước khi ngừng {label}.",
+                    f"{label.capitalize()} còn {len(busy)} lịch chưa diễn ra xong. "
+                    f"Đổi sân hoặc hủy các lịch này trước khi ngừng {label}.",
                     409,
                     **occupancy.listing(busy),
                 )

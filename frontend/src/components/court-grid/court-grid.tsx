@@ -163,6 +163,11 @@ export function CourtGrid({
   const rowH = roomy ? "h-14 sm:h-16" : "h-11";
   // Lưới khách trên điện thoại: chữ và cột tên sân nhỏ hơn để thấy nhiều giờ hơn (người dùng 03/11)
   const cellText = roomy ? "text-2xs" : "text-[10px] sm:text-[11px]";
+  // Đơn cũ trên sân ngừng: giữ màu gốc, phủ một lớp xám nhạt bán trong suốt; rê / focus bỏ lớp phủ để biết bấm được
+  const MUTED_BLOCK = cn(
+    "relative after:pointer-events-none after:absolute after:inset-0 after:bg-cell-off/45 after:transition-opacity",
+    "hover:after:opacity-0 focus-visible:after:opacity-0 motion-reduce:after:transition-none",
+  );
   const cellBase = `m-0.5 flex ${rowH} shrink-0 flex-col items-center justify-center rounded-md border ${cellText} leading-tight`;
   // Cột giờ giãn lấp đủ bề ngang khung (100cqw của khung cuộn), không nhỏ hơn --col-min ⇒ chỉ cuộn khi thiếu chỗ
   const vars = roomy
@@ -218,7 +223,7 @@ export function CourtGrid({
             const slot = `${row.name}, ${pad2(h)}:00 đến ${pad2(h + 1)}:00`;
 
             if (!cell || cell.kind === "off") {
-              out.push(<div key={h} role="img" aria-label={`${slot}, không bán`} className={`${cellBase} w-[calc(var(--col)-0.25rem)] border-transparent bg-cell-off`} />);
+              out.push(<div key={h} role="img" aria-label={`${slot}, không bán`} className={cn(cellBase, "w-[calc(var(--col)-0.25rem)] border-transparent", !row.muted && "bg-cell-off")} />);
               i++;
               continue;
             }
@@ -237,7 +242,7 @@ export function CourtGrid({
                 }
               }
               const style: CSSProperties = { width: `calc(var(--col) * ${span} - 0.25rem)` };
-              const cls = `${cellBase} ${TONE[cell.tone]} ${cell.ring ? "ring-2 ring-blk-session-fg ring-inset" : ""} ${cell.dim ? "opacity-35" : ""} ${
+              const cls = `${cellBase} ${TONE[cell.tone]} ${cell.ring ? "ring-2 ring-blk-session-fg ring-inset" : ""} ${cell.dim ? "opacity-35" : row.muted ? MUTED_BLOCK : ""} ${
                 cell.highlight ? "outline-2 outline-offset-1 outline-primary" : ""
               } ${roomy ? "items-start gap-0.5 px-1.5 text-left sm:px-2" : "font-medium"} min-w-0 overflow-hidden`;
               const aria = `${row.name}, ${pad2(h)}:00 đến ${pad2(h + span)}:00, ${cell.aria}`;
@@ -297,11 +302,12 @@ export function CourtGrid({
             i++;
           }
           return (
-            <div key={row.code} className={`flex border-t border-border/60 ${row.muted ? "opacity-70" : ""}`}>
+            // Sân ngừng: nền xám liền một dải (cả cột tên, cả khe giữa ô); khối đơn cũ vẫn nổi trên nền
+            <div key={row.code} className={cn("flex border-t border-border/60", row.muted && "bg-cell-off")}>
               {/* -mt-px + viền riêng trên nền đặc: phủ viền trên của hàng để đường giờ hiện tại không lộ qua khe giữa các hàng */}
-              <div className={`sticky left-0 z-20 -mt-px flex w-(--c0) border-t border-border/60 shrink-0 ${roomy ? "flex-col justify-center gap-0.5 border-r border-border px-2 text-sm sm:px-3" : "items-center overflow-hidden pr-2 pl-2 text-xs shadow-[3px_0_5px_-3px_rgb(20_40_30/0.18)] sm:text-sm"} bg-surface font-medium`}>
+              <div className={`sticky left-0 z-20 -mt-px flex w-(--c0) border-t border-border/60 shrink-0 ${roomy ? "flex-col justify-center gap-0.5 border-r border-border px-2 text-sm sm:px-3" : "items-center overflow-hidden pr-2 pl-2 text-xs shadow-[3px_0_5px_-3px_rgb(20_40_30/0.18)] sm:text-sm"} ${row.muted ? "bg-cell-off text-muted" : "bg-surface"} font-medium`}>
                 <span className={roomy ? "line-clamp-2 leading-tight font-semibold break-words" : "truncate"}>{row.name}</span>
-                {roomy && row.sub ? <span className="truncate text-xs font-normal text-muted">{row.sub}</span> : null}
+                {roomy && row.sub ? <span className="line-clamp-2 text-xs font-normal break-words text-muted">{row.sub}</span> : null}
               </div>
               {out}
             </div>
