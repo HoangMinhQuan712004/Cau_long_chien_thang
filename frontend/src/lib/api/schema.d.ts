@@ -3268,13 +3268,6 @@ export interface components {
             /** Reject Reason */
             reject_reason: string | null;
             /**
-             * Wins
-             * @description Số trận thắng trong buổi; null = không ghi
-             */
-            wins: number | null;
-            /** Losses */
-            losses: number | null;
-            /**
              * Editable
              * @description false với số đo máy đo (không sửa / xóa được, E-REC-2)
              */
@@ -6100,20 +6093,12 @@ export interface components {
         };
         /**
          * PlayStats
-         * @description Thắng / thua trong buổi phá kỷ lục: số hội viên tự nhập khi gửi (ưu tiên), không có thì tự
-         *     tính từ phòng chơi cùng sân, khung giờ chứa lúc đo.
+         * @description Tổng thắng / thua mọi thời gian trong Lịch sử chơi của người phá kỷ lục.
          */
         PlayStats: {
             /**
-             * Start At
-             * @description Khung giờ buổi chơi; null khi là số tự nhập
-             */
-            start_at: string | null;
-            /** End At */
-            end_at: string | null;
-            /**
              * Matches
-             * @description Số trận đã lưu kết quả mà người này ở đội A/B (≥ 1)
+             * @description Mọi trận đã lưu kết quả mà người này ở đội A/B (≥ 1)
              */
             matches: number;
             /**
@@ -6611,7 +6596,7 @@ export interface components {
             is_me: boolean;
             /** @description null: “Chưa có video” */
             video: components["schemas"]["VideoOut"] | null;
-            /** @description Thắng / thua trong buổi phá kỷ lục; null: ẩn danh, không có sân, không thuộc phòng chơi nào hoặc buổi đó chưa lưu trận nào của người này */
+            /** @description Tổng thắng / thua mọi thời gian trong Lịch sử chơi; null: ẩn danh hoặc chưa có trận nào đã lưu */
             play_stats: components["schemas"]["PlayStats"] | null;
         };
         /** RecordBreakList */
@@ -8050,21 +8035,10 @@ export interface components {
              * @description YouTube / .mp4 / .webm (https), E-REC-1
              */
             video_url?: string | null;
-            /**
-             * Wins
-             * @description Số trận thắng trong buổi (bắt buộc)
-             */
-            wins: number;
-            /**
-             * Losses
-             * @description Số trận thua (bắt buộc); tổng thắng + thua = 0 -> 422 E-REC-9
-             */
-            losses: number;
         };
         /**
          * SpeedRecordPatchIn
-         * @description Chỉ gửi ô muốn đổi; ``resource_code`` / ``video_url`` = null -> bỏ sân / gỡ video;
-         *     ``wins`` / ``losses`` đổi thì gửi đủ cả hai (không xóa được).
+         * @description Chỉ gửi ô muốn đổi; ``resource_code`` / ``video_url`` = null -> bỏ sân / gỡ video.
          */
         SpeedRecordPatchIn: {
             /** Version */
@@ -8083,16 +8057,6 @@ export interface components {
              * @description YouTube / .mp4 / .webm (https), E-REC-1
              */
             video_url?: string | null;
-            /**
-             * Wins
-             * @description Số trận thắng trong buổi; gửi cùng ``losses``
-             */
-            wins?: number | null;
-            /**
-             * Losses
-             * @description Số trận thua; đổi thì gửi đủ cả hai (thiếu / null / tổng 0 -> 422 E-REC-9)
-             */
-            losses?: number | null;
         };
         /**
          * SpeedSubmitIn
@@ -8120,16 +8084,6 @@ export interface components {
              * @description YouTube / .mp4 / .webm (https), E-REC-1
              */
             video_url?: string | null;
-            /**
-             * Wins
-             * @description Số trận thắng trong buổi đập cú này (bắt buộc)
-             */
-            wins: number;
-            /**
-             * Losses
-             * @description Số trận thua (bắt buộc); tổng thắng + thua = 0 -> 422 E-REC-9
-             */
-            losses: number;
         };
         /**
          * StaffCreateIn

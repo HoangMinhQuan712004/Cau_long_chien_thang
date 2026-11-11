@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { formatDayMonth, formatTime, vnDate, weekdayIndex } from "@/lib/format";
 
 // Thẻ kỷ lục bên cạnh trình phát (T-048 AC2, AC4): phần đầu vàng (số km/h có vệt sáng lướt + sao nháy), người phá kỷ lục
-// + thắng / thua trong buổi, Vợt / Sân / Thời điểm. Quyền riêng tư do server quyết định (T-030): trường null thì ẩn cả mục.
+// + tổng thắng / thua trong Lịch sử chơi, Vợt / Sân / Thời điểm. Quyền riêng tư do server quyết định (T-030): trường null thì ẩn cả mục.
 
 const WEEKDAY = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const when = (iso: string) => `${WEEKDAY[weekdayIndex(vnDate(iso))]} ${formatDayMonth(vnDate(iso))} · ${formatTime(iso)}`;
@@ -78,12 +78,12 @@ function useCountUp(target: number, ms = 900): number {
   return value;
 }
 
-/** Vòng tỷ lệ thắng trong buổi phá kỷ lục (cùng cách đếm Lịch sử chơi): cung xanh = phần thắng, % ở giữa. */
+/** Vòng tỷ lệ thắng mọi thời gian trong Lịch sử chơi: cung xanh = phần thắng, % ở giữa. */
 function WinRing({ rate }: { rate: number }) {
   const r = 22;
   const c = 2 * Math.PI * r;
   return (
-    <div role="meter" aria-label="Tỷ lệ thắng trong buổi phá kỷ lục" aria-valuemin={0} aria-valuemax={100} aria-valuenow={rate} className="relative grid size-9 shrink-0 place-items-center">
+    <div role="meter" aria-label="Tỷ lệ thắng trong Lịch sử chơi" aria-valuemin={0} aria-valuemax={100} aria-valuenow={rate} className="relative grid size-9 shrink-0 place-items-center">
       <svg viewBox="0 0 56 56" className="absolute inset-0 size-full -rotate-90" aria-hidden>
         <circle cx="28" cy="28" r={r} fill="none" strokeWidth="5" className="stroke-border" />
         <circle cx="28" cy="28" r={r} fill="none" strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - rate / 100)} className="stroke-primary transition-[stroke-dashoffset] duration-500 motion-reduce:transition-none" />
@@ -173,9 +173,9 @@ export function RecordCard({ item }: { item: RecordBreakItem }) {
             ) : null}
             <p className="text-sm text-muted">{item.tier ? `Hội viên · Trình độ ${item.tier}` : "Hội viên"}</p>
           </div>
-          {/* Thắng / thua trong buổi phá kỷ lục (của người chơi – nên đặt cạnh tên); không thuộc buổi nào / ẩn danh ⇒ ẩn */}
+          {/* Tổng thắng / thua mọi thời gian của người chơi (đặt cạnh tên); chưa có trận / ẩn danh ⇒ ẩn */}
           {stats ? (
-            <div className="flex shrink-0 flex-col items-center gap-0.5" title={`${stats.matches} trận trong buổi phá kỷ lục`}>
+            <div className="flex shrink-0 flex-col items-center gap-0.5" title={`${stats.matches} trận trong Lịch sử chơi`}>
               <WinRing rate={Math.round((stats.wins / stats.matches) * 100)} />
               {/* 2 dòng ngắn ⇒ cột chỉ rộng bằng vòng, nhường chỗ cho tên */}
               <p className="text-center text-[0.6875rem] leading-tight whitespace-nowrap tabular-nums">
