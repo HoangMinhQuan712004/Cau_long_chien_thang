@@ -162,15 +162,12 @@ async def month_stats(
     return (await history.play_history(session, customer_id, month)).summary
 
 
-SessionKey = history.SessionKey
-SessionStats = history.SessionStats
+CareerStats = history.CareerStats
 
 
-async def session_stats(
-    session: AsyncSession, keys: list[SessionKey]
-) -> dict[SessionKey, SessionStats]:
-    """Thắng / thua trong buổi (phòng) chứa thời điểm trên sân – cho thẻ kỷ lục (records)."""
-    return await history.session_stats(session, keys)
+async def career_stats(session: AsyncSession, customer_ids: set[int]) -> dict[int, CareerStats]:
+    """Tổng thắng / thua mọi thời gian trong Lịch sử chơi – cho thẻ kỷ lục (records)."""
+    return await history.career_stats(session, customer_ids)
 
 
 # ------------------------------------------------------------------ dữ liệu mẫu dev (T-034)

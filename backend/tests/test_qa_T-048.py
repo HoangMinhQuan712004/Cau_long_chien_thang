@@ -73,8 +73,6 @@ async def get_breaks(client, period: str | None = None) -> dict:
 def body(hv, kmh: int, at: datetime, **kw) -> dict:
     return {
         "member_code": hv.code,
-        "wins": 1,
-        "losses": 0,
         "speed_kmh": kmh,
         "measured_at": at.astimezone(UTC).isoformat(),
         **kw,
@@ -252,13 +250,7 @@ async def test_ac10_member_submission_with_video_keeps_paste_date_after_approval
     at = datetime.now(UTC) - timedelta(days=2)
     r = await hv.client.post(
         SUBMIT,
-        json={
-            "wins": 1,
-            "losses": 0,
-            "speed_kmh": 260,
-            "measured_at": at.isoformat(),
-            "video_url": YT,
-        },
+        json={"speed_kmh": 260, "measured_at": at.isoformat(), "video_url": YT},
         headers=idem(),
     )
     assert r.status_code == 201, r.text
@@ -285,23 +277,13 @@ async def test_ac11_pending_and_rejected_never_enter_chain_and_decisions_recompu
     first = await put(a.customer_id, 200, now - timedelta(days=5))
     pend = await b.client.post(
         SUBMIT,
-        json={
-            "wins": 1,
-            "losses": 0,
-            "speed_kmh": 300,
-            "measured_at": (now - timedelta(days=1)).isoformat(),
-        },
+        json={"speed_kmh": 300, "measured_at": (now - timedelta(days=1)).isoformat()},
         headers=idem(),
     )
     assert pend.status_code == 201
     rej = await b.client.post(
         SUBMIT,
-        json={
-            "wins": 1,
-            "losses": 0,
-            "speed_kmh": 310,
-            "measured_at": (now - timedelta(days=1)).isoformat(),
-        },
+        json={"speed_kmh": 310, "measured_at": (now - timedelta(days=1)).isoformat()},
         headers=idem(),
     )
     assert (

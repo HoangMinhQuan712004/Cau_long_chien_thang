@@ -75,8 +75,6 @@ class AdminSpeedRecordRow(BaseModel):
     source: Source = Field(description="device: Máy đo · admin: Admin nhập · member: Hội viên gửi")
     status: Status = Field(description="approved: tính hạng · pending: chờ duyệt · rejected")
     reject_reason: str | None
-    wins: int | None = Field(description="Số trận thắng trong buổi; null = không ghi")
-    losses: int | None
     editable: bool = Field(description="false với số đo máy đo (không sửa / xóa được, E-REC-2)")
     submitted_at: dt.datetime = Field(description="Lúc nhập / gửi")
     version: int = Field(description="Gửi kèm khi sửa (PATCH); lệch -> 409 E-REC-3")
@@ -110,30 +108,16 @@ class SpeedRecordCreateIn(BaseModel):
     measured_at: MeasuredAt
     resource_code: ResourceCode = None
     video_url: VideoUrl = None
-    wins: int = Field(ge=0, le=99, description="Số trận thắng trong buổi (bắt buộc)")
-    losses: int = Field(
-        ge=0, le=99, description="Số trận thua (bắt buộc); tổng thắng + thua = 0 -> 422 E-REC-9"
-    )
 
 
 class SpeedRecordPatchIn(BaseModel):
-    """Chỉ gửi ô muốn đổi; ``resource_code`` / ``video_url`` = null -> bỏ sân / gỡ video;
-    ``wins`` / ``losses`` đổi thì gửi đủ cả hai (không xóa được)."""
+    """Chỉ gửi ô muốn đổi; ``resource_code`` / ``video_url`` = null -> bỏ sân / gỡ video."""
 
     version: int = Field(ge=1)
     speed_kmh: Kmh | None = None
     measured_at: MeasuredAt | None = None
     resource_code: ResourceCode = None
     video_url: VideoUrl = None
-    wins: int | None = Field(
-        default=None, ge=0, le=99, description="Số trận thắng trong buổi; gửi cùng ``losses``"
-    )
-    losses: int | None = Field(
-        default=None,
-        ge=0,
-        le=99,
-        description="Số trận thua; đổi thì gửi đủ cả hai (thiếu / null / tổng 0 -> 422 E-REC-9)",
-    )
 
 
 class RejectIn(BaseModel):
@@ -147,10 +131,6 @@ class SpeedSubmitIn(BaseModel):
     measured_at: MeasuredAt
     resource_code: ResourceCode = None
     video_url: VideoUrl = None
-    wins: int = Field(ge=0, le=99, description="Số trận thắng trong buổi đập cú này (bắt buộc)")
-    losses: int = Field(
-        ge=0, le=99, description="Số trận thua (bắt buộc); tổng thắng + thua = 0 -> 422 E-REC-9"
-    )
 
 
 class MySpeedRecord(BaseModel):
@@ -203,12 +183,9 @@ class RecordVideoList(BaseModel):
 
 
 class PlayStats(BaseModel):
-    """Thắng / thua trong buổi phá kỷ lục: số hội viên tự nhập khi gửi (ưu tiên), không có thì tự
-    tính từ phòng chơi cùng sân, khung giờ chứa lúc đo."""
+    """Tổng thắng / thua mọi thời gian trong Lịch sử chơi của người phá kỷ lục."""
 
-    start_at: dt.datetime | None = Field(description="Khung giờ buổi chơi; null khi là số tự nhập")
-    end_at: dt.datetime | None
-    matches: int = Field(description="Số trận đã lưu kết quả mà người này ở đội A/B (≥ 1)")
+    matches: int = Field(description="Mọi trận đã lưu kết quả mà người này ở đội A/B (≥ 1)")
     wins: int = Field(description="2 vs 2: cả 2 người đội thắng đều được tính")
     losses: int
 
@@ -243,8 +220,8 @@ class RecordBreakItem(BaseModel):
     is_me: bool
     video: VideoOut | None = Field(description="null: “Chưa có video”")
     play_stats: PlayStats | None = Field(
-        description="Thắng / thua trong buổi phá kỷ lục; null: ẩn danh, không có sân, không thuộc "
-        "phòng chơi nào hoặc buổi đó chưa lưu trận nào của người này"
+        description="Tổng thắng / thua mọi thời gian trong Lịch sử chơi; null: ẩn danh hoặc chưa "
+        "có trận nào đã lưu"
     )
 
 
