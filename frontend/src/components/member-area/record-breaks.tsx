@@ -1,84 +1,12 @@
-import { Avatar } from "@/components/member-area/avatar";
 import type { RecordBreakItem } from "@/components/records/requests";
 import { cn } from "@/lib/cn";
-import { formatDayMonth, formatTime, vnDate, weekdayIndex } from "@/lib/format";
+import { formatDayMonth, formatTime, vnDate } from "@/lib/format";
 import { videoYoutubeId, youtubeThumb } from "@/lib/video";
 
-// Thẻ kỷ lục + dòng thời gian "Các lần phá kỷ lục" (T-048 AC2, AC4, AC5, AC7). Dữ liệu và quyền riêng tư do server quyết định (T-030):
-// trường null thì ẩn cả mục, không để ô trống.
+// Dòng thời gian "Các lần phá kỷ lục" (T-048 AC5, AC7); thẻ kỷ lục ở record-card.tsx. Dữ liệu và quyền riêng tư do server quyết định
+// (T-030): trường null thì ẩn cả mục, không để ô trống.
 
-const WEEKDAY = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-const when = (iso: string) => `${WEEKDAY[weekdayIndex(vnDate(iso))]} ${formatDayMonth(vnDate(iso))} · ${formatTime(iso)}`;
 const heldText = (days: number) => (days < 1 ? "Dưới 1 ngày" : `${days} ngày`);
-
-const PinIcon = () => (
-  <svg viewBox="0 0 24 24" className="size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-    <path d="M12 21s7-6.2 7-11.5a7 7 0 0 0-14 0C5 14.8 12 21 12 21z" />
-    <circle cx="12" cy="9.5" r="2.5" />
-  </svg>
-);
-const ClockIcon = () => (
-  <svg viewBox="0 0 24 24" className="size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-    <circle cx="12" cy="12" r="9" />
-    <path d="M12 7v5l3 2" />
-  </svg>
-);
-
-/** Thẻ "Kỷ lục hiện tại" / "Kỷ lục ngày dd/mm" bên cạnh trình phát. */
-export function RecordCard({ item }: { item: RecordBreakItem }) {
-  const label = item.is_current ? "Kỷ lục hiện tại" : `Kỷ lục ngày ${formatDayMonth(item.label_date)}`;
-  const delta = item.is_baseline || item.delta_kmh === null ? "Mốc đầu" : `+${item.delta_kmh} km/h${item.previous_kmh !== null ? ` · phá kỷ lục ${item.previous_kmh} km/h` : ""}`;
-  return (
-    <section aria-label={label} className="flex h-full flex-col overflow-hidden rounded-2xl bg-surface text-foreground shadow-card ring-2 ring-cta/80">
-      <div className="bg-accent-soft px-5 pt-4 pb-5 text-center">
-        <p className="inline-flex items-center rounded-full bg-cta px-4 py-1 text-xs font-bold tracking-wide text-cta-fg uppercase">{label}</p>
-        <p className="mt-2 flex items-baseline justify-center gap-1.5 text-accent-fg">
-          <span className="text-6xl leading-none font-extrabold tabular-nums sm:text-7xl">{item.speed_kmh}</span>
-          <span className="text-lg font-semibold">km/h</span>
-        </p>
-        <p className="mx-auto mt-2 w-fit max-w-full rounded-full border border-cta bg-surface px-3 py-1 text-xs font-semibold text-accent-fg">{delta}</p>
-      </div>
-
-      <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
-        <div className="flex items-center gap-3">
-          <Avatar url={item.avatar_url} name={item.display_name} size={52} />
-          <div className="min-w-0">
-            <p className="flex flex-wrap items-center gap-x-2 text-lg leading-tight font-bold">
-              <span className="break-words">{item.display_name}</span>
-              {item.is_me ? <span className="rounded-full bg-primary-softer px-2 py-0.5 text-xs font-semibold text-primary">Bạn</span> : null}
-            </p>
-            {item.nickname ? <p className="text-sm font-semibold text-accent-fg">“{item.nickname}”</p> : null}
-            <p className="text-xs text-muted">{item.tier ? `Hội viên · Trình độ ${item.tier}` : "Hội viên"}</p>
-          </div>
-        </div>
-
-        {item.racket ? (
-          <div className="rounded-xl border border-cta bg-accent-soft/50 px-4 py-3">
-            <p className="text-xs font-bold tracking-wide text-accent-fg uppercase">Vợt phá kỷ lục</p>
-            <p className="mt-0.5 font-bold break-words">{item.racket}</p>
-          </div>
-        ) : null}
-
-        <div className="mt-auto grid grid-cols-2 gap-2 text-sm">
-          {item.resource_name ? (
-            <div className="min-w-0 rounded-xl bg-primary-softer px-3 py-2">
-              <p className="flex items-center gap-1.5 text-xs text-muted">
-                <PinIcon /> Sân
-              </p>
-              <p className="font-semibold break-words">{item.resource_name}</p>
-            </div>
-          ) : null}
-          <div className={cn("min-w-0 rounded-xl bg-primary-softer px-3 py-2", item.resource_name ? "" : "col-span-2")}>
-            <p className="flex items-center gap-1.5 text-xs text-muted">
-              <ClockIcon /> Thời điểm
-            </p>
-            <p className="font-semibold tabular-nums">{when(item.measured_at)}</p>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 /** Ảnh dòng: YouTube dùng ảnh server trả; mp4 / webm dùng khung mặc định (không tải video của từng dòng); không có video thì ghi rõ. */
 function RowThumb({ item }: { item: RecordBreakItem }) {

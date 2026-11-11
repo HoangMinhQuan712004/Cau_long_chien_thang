@@ -182,6 +182,16 @@ class RecordVideoList(BaseModel):
 # ------------------------------------------------------------------ dòng thời gian (T-048)
 
 
+class PlayStats(BaseModel):
+    """Thắng / thua trong buổi chơi lúc phá kỷ lục (phòng chơi cùng sân, khung giờ chứa lúc đo)."""
+
+    start_at: dt.datetime = Field(description="Khung giờ buổi chơi")
+    end_at: dt.datetime
+    matches: int = Field(description="Số trận đã lưu kết quả mà người này ở đội A/B (≥ 1)")
+    wins: int = Field(description="2 vs 2: cả 2 người đội thắng đều được tính")
+    losses: int
+
+
 class RecordBreakItem(BaseModel):
     """Một lần phá kỷ lục cụm. Ẩn danh như T-030: chỉ còn số đo, sân, thời điểm và video."""
 
@@ -211,6 +221,10 @@ class RecordBreakItem(BaseModel):
     resource_name: str | None
     is_me: bool
     video: VideoOut | None = Field(description="null: “Chưa có video”")
+    play_stats: PlayStats | None = Field(
+        description="Thắng / thua trong buổi phá kỷ lục; null: ẩn danh, không có sân, không thuộc "
+        "phòng chơi nào hoặc buổi đó chưa lưu trận nào của người này"
+    )
 
 
 class RecordBreakList(BaseModel):

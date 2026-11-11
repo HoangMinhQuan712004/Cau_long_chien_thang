@@ -6,6 +6,7 @@ from sqlalchemy import update
 
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.modules.play_rooms import api as rooms
 from app.modules.play_rooms.models import PlayMatch, PlayRoom
 from tests import test_play_rooms as base
 from tests.test_play_rooms import MA, room_for
@@ -118,10 +119,81 @@ async def test_month_boundary_vn_time_future_and_errors(anon, customer, staff, a
     # Tháng tương lai -> rỗng (không lỗi)
     future = (datetime.now(settings.tz) + timedelta(days=40)).strftime("%Y-%m")
     d = (await history(host.client, future)).json()
-    assert d == {"month": future, "summary": {"sessions": 0, "matches": 0, "wins": 0}, "items": []}
+    assert d["month"] == future and d["start"] == f"{future}-01" and d["items"] == []
+    assert d["summary"] == {"sessions": 0, "matches": 0, "wins": 0}
 
     for bad in ("2026-13", "2026-00", "2026-1", "abc"):
         assert (await history(host.client, bad)).status_code == 422, bad
     assert (await history(anon)).status_code == 401
     r = await history(customer)
     assert r.status_code == 403 and r.json()["detail"]["code"] == "E-HV-8"
+
+
+async def test_date_range_spans_months_vn_time_and_errors(staff, admin, people):
+    """Khoảng Từ–Đến chọn tự do (qua nhiều tháng), gồm cả 2 đầu theo giờ VN; sai -> 422 E-001."""
+    host = await people()
+    h = host.customer_id
+    early = (await room_for(staff, admin, host.code))["room"]
+    late = (await room_for(staff, admin, host.code))["room"]
+    for room in (early, late):
+        await add_match(room.id, 1, [h], [-1])
+    async with SessionLocal() as s:
+        for room, t in (
+            (early, datetime(2025, 2, 28, 17, 30, tzinfo=UTC)),  # 01/03/2025 00:30 VN
+            (late, datetime(2025, 4, 10, 16, 59, tzinfo=UTC)),  # 10/04/2025 23:59 VN
+        ):
+            await s.execute(
+                update(PlayRoom)
+                .where(PlayRoom.id == room.id)
+                .values(start_at=t, end_at=t + timedelta(hours=1))
+            )
+        await s.commit()
+
+    async def span(**params):
+        return await host.client.get(HISTORY, params=params)
+
+    d = (await span(**{"from": "2025-03-01", "to": "2025-04-10", "month": "2024-01"})).json()
+    assert [i["room_id"] for i in d["items"]] == [late.id, early.id]  # có range thì bỏ qua month
+    assert (d["start"], d["end"], d["month"]) == ("2025-03-01", "2025-04-10", "2025-03")
+    assert d["summary"] == {"sessions": 2, "matches": 2, "wins": 2}
+    d = (await span(**{"from": "2025-03-02", "to": "2025-04-09"})).json()
+    assert d["items"] == []  # hai đầu khoảng theo ngày giờ VN
+    d = (await span(**{"from": "2025-04-10", "to": "2025-04-10"})).json()
+    assert [i["room_id"] for i in d["items"]] == [late.id]
+
+    for params, message in (
+        ({"from": "2025-03-01"}, "Vui lòng chọn cả Từ ngày và Đến ngày."),
+        ({"from": "2025-04-02", "to": "2025-04-01"}, "Từ ngày phải trước hoặc bằng Đến ngày."),
+        ({"from": "2024-01-01", "to": "2025-01-01"}, "Khoảng ngày tối đa 1 năm."),
+    ):
+        r = await span(**params)
+        assert r.status_code == 422, params
+        assert r.json()["detail"] == {"code": "E-001", "message": message}
+    assert (await span(**{"from": "2025-02-30", "to": "2025-03-01"})).status_code == 422
+
+
+async def test_session_stats_for_record_card(staff, admin, people):
+    """Thẻ kỷ lục: thắng / thua trong buổi chứa lúc đo trên đúng sân, [start, end)."""
+    host, mate = await people("Phá Kỷ Lục"), await people("Đồng Đội")
+    h, x = host.customer_id, mate.customer_id
+    room = (await room_for(staff, admin, host.code))["room"]
+    await add_match(room.id, 1, [h, x], [-1, -2], win="a")
+    await add_match(room.id, 2, [-1, -2], [h, -3], win="a")
+    await add_match(room.id, 3, [h], [-1], status="abandoned")  # không tính
+    code, inside = room.resource_code, room.start_at + timedelta(minutes=10)
+    keys = [
+        (h, code, inside),
+        (x, code, inside),
+        (h, code, room.end_at),  # giờ kết thúc không thuộc buổi
+        (h, "KHAC", inside),  # sân khác
+        (-9, code, inside),  # không có trận trong buổi
+    ]
+    async with SessionLocal() as s:
+        got = await rooms.session_stats(s, keys)
+    assert set(got) == {keys[0], keys[1]}
+    mine = got[keys[0]]
+    assert (mine.matches, mine.wins) == (2, 1)
+    assert (mine.start_at, mine.end_at) == (room.start_at, room.end_at)
+    assert (got[keys[1]].matches, got[keys[1]].wins) == (1, 1)
+    async with SessionLocal() as s:
+        assert await rooms.session_stats(s, []) == {}

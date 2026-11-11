@@ -14,10 +14,12 @@ from app.core.config import settings
 from app.modules.auth import api as auth
 from app.modules.booking_engine import api as engine
 from app.modules.members import api as members
+from app.modules.play_rooms import api as rooms
 from app.modules.records import video
 from app.modules.records.models import SpeedRecord
 from app.modules.records.schemas import (
     Period,
+    PlayStats,
     RecordBreakItem,
     RecordBreakList,
     RecordVideoCard,
@@ -268,6 +270,18 @@ def _local_date(at: datetime) -> date:
     return at.astimezone(settings.tz).date()
 
 
+def _play_stats(s: rooms.SessionStats | None) -> PlayStats | None:
+    if s is None:
+        return None
+    return PlayStats(
+        start_at=s.start_at,
+        end_at=s.end_at,
+        matches=s.matches,
+        wins=s.wins,
+        losses=s.matches - s.wins,
+    )
+
+
 async def record_breaks(
     session: AsyncSession, viewer_id: int, period: VideoPeriod, today: date
 ) -> RecordBreakList:
@@ -286,6 +300,11 @@ async def record_breaks(
         shown.append((b, max(0, ((days[i - 1] if i else today) - day).days)))
     cards = await members.record_cards(session, {b.customer_id for b, _ in shown if b.shown})
     courts = await engine.resource_names(session) if any(b.court_code for b, _ in shown) else {}
+    # Ẩn danh: không lộ thành tích (cùng quy tắc tên / avatar)
+    keys = [
+        (b.customer_id, b.court_code, b.measured_at) for b, _ in shown if b.shown and b.court_code
+    ]
+    played = await rooms.session_stats(session, keys)
     items = []
     for b, held_days in shown:
         clip = video.parse(b.video_url)
@@ -312,6 +331,7 @@ async def record_breaks(
                 resource_name=courts.get(b.court_code) if b.court_code else None,
                 is_me=b.customer_id == viewer_id,
                 video=clip,
+                play_stats=_play_stats(played.get((b.customer_id, b.court_code, b.measured_at))),
             )
         )
     return RecordBreakList(period=period, start=first, end=last, items=items)

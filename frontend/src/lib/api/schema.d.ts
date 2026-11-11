@@ -2069,8 +2069,9 @@ export interface paths {
         };
         /**
          * Play History
-         * @description Lịch sử chơi của mình theo tháng ngày chơi, giờ VN (T-029): buổi = phòng có ≥ 1 trận đã lưu
-         *     mà mình ở đội A/B, kể cả phòng đã rời. Tháng sai -> 422; tháng tương lai -> rỗng.
+         * @description Lịch sử chơi của mình theo ngày chơi, giờ VN (T-029): buổi = phòng có ≥ 1 trận đã lưu mà
+         *     mình ở đội A/B, kể cả phòng đã rời. Khoảng ``from``–``to`` (tối đa 1 năm) hoặc tháng; sai ->
+         *     422 E-001; tương lai -> rỗng.
          */
         get: operations["play_history_api_v1_member_area_play_history_get"];
         put?: never;
@@ -6017,9 +6018,21 @@ export interface components {
         PlayHistory: {
             /**
              * Month
-             * @description YYYY-MM
+             * @description YYYY-MM (tháng của ngày đầu khoảng)
              */
             month: string;
+            /**
+             * Start
+             * Format: date
+             * @description Ngày đầu khoảng đang xem (giờ VN)
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             * @description Ngày cuối khoảng đang xem, gồm cả ngày này (giờ VN)
+             */
+            end: string;
             summary: components["schemas"]["PlayHistorySummary"];
             /**
              * Items
@@ -6075,6 +6088,35 @@ export interface components {
              * @description 2 vs 2: cả 2 người đội thắng đều được tính
              */
             wins: number;
+        };
+        /**
+         * PlayStats
+         * @description Thắng / thua trong buổi chơi lúc phá kỷ lục (phòng chơi cùng sân, khung giờ chứa lúc đo).
+         */
+        PlayStats: {
+            /**
+             * Start At
+             * Format: date-time
+             * @description Khung giờ buổi chơi
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Matches
+             * @description Số trận đã lưu kết quả mà người này ở đội A/B (≥ 1)
+             */
+            matches: number;
+            /**
+             * Wins
+             * @description 2 vs 2: cả 2 người đội thắng đều được tính
+             */
+            wins: number;
+            /** Losses */
+            losses: number;
         };
         /** PlayerOut */
         PlayerOut: {
@@ -6563,6 +6605,8 @@ export interface components {
             is_me: boolean;
             /** @description null: “Chưa có video” */
             video: components["schemas"]["VideoOut"] | null;
+            /** @description Thắng / thua trong buổi phá kỷ lục; null: ẩn danh, không có sân, không thuộc phòng chơi nào hoặc buổi đó chưa lưu trận nào của người này */
+            play_stats: components["schemas"]["PlayStats"] | null;
         };
         /** RecordBreakList */
         RecordBreakList: {
@@ -12325,6 +12369,10 @@ export interface operations {
             query?: {
                 /** @description YYYY-MM, mặc định tháng này */
                 month?: string | null;
+                /** @description Từ ngày (gửi kèm ``to``; có thì bỏ qua month) */
+                from?: string | null;
+                /** @description Đến ngày, gồm cả ngày này */
+                to?: string | null;
             };
             header?: {
                 /** @description ETag lần trước -> 304 nếu không đổi */
