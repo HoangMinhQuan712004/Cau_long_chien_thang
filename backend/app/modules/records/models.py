@@ -7,7 +7,16 @@ kỷ lục / video chỉ lấy ``status = 'approved'``.**
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, Index, Integer, String, func
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -34,6 +43,12 @@ class SpeedRecord(Base):
             "status <> 'rejected' OR reject_reason IS NOT NULL", name="speed_reject_reason"
         ),
         CheckConstraint("(video_url IS NULL) = (video_set_at IS NULL)", name="speed_video_set_at"),
+        # Thắng / thua trong buổi hội viên tự nhập khi gửi: cùng có hoặc cùng trống, 0–99, tổng ≥ 1
+        CheckConstraint(
+            "(wins IS NULL) = (losses IS NULL) AND (wins IS NULL OR (wins BETWEEN 0 AND 99 "
+            "AND losses BETWEEN 0 AND 99 AND wins + losses >= 1))",
+            name="speed_play_result",
+        ),
         Index("ix_speed_record_measured_at", "measured_at"),
         Index("ix_speed_record_status_measured_at", "status", "measured_at"),
     )
@@ -58,6 +73,10 @@ class SpeedRecord(Base):
     reviewed_by: Mapped[int | None] = mapped_column(Integer)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reject_reason: Mapped[str | None] = mapped_column(String(REJECT_REASON_MAX))
+    # Số trận thắng / thua trong buổi đập cú này – bắt buộc khi hội viên gửi / Admin nhập (ưu tiên
+    # hơn số tự tính từ Phòng chơi trên thẻ kỷ lục); NULL = máy đo / bản nhập trước đây
+    wins: Mapped[int | None] = mapped_column(SmallInteger)
+    losses: Mapped[int | None] = mapped_column(SmallInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # Đặt tay mỗi lần đổi (không dùng onupdate); ``version`` +1 mỗi lần đổi – PATCH gửi kèm để
     # chống ghi đè (lệch -> 409 E-REC-3)

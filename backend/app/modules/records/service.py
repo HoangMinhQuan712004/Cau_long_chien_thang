@@ -200,6 +200,8 @@ class RecordBreak:
     id: int = 0
     previous_kmh: int | None = None  # kỷ lục ngay trước; None = số đo đầu tiên của cụm
     video_set_at: datetime | None = None  # T-048: lần dán link mới nhất
+    wins: int | None = None  # thắng / thua hội viên tự nhập khi gửi (None = không nhập)
+    losses: int | None = None
 
 
 async def club_record_breaks(
@@ -226,6 +228,8 @@ async def club_record_breaks(
             SpeedRecord.video_url,
             SpeedRecord.video_set_at,
             SpeedRecord.id,
+            SpeedRecord.wins,
+            SpeedRecord.losses,
             previous.label("previous"),
         )
         .where(APPROVED, SpeedRecord.customer_id.in_(sorted(people)))
@@ -258,6 +262,8 @@ async def club_record_breaks(
                 id=r.id,
                 previous_kmh=r.previous,
                 video_set_at=r.video_set_at,
+                wins=r.wins,
+                losses=r.losses,
             )
         )
     return out
@@ -270,7 +276,18 @@ def _local_date(at: datetime) -> date:
     return at.astimezone(settings.tz).date()
 
 
-def _play_stats(s: rooms.SessionStats | None) -> PlayStats | None:
+def _play_stats(b: RecordBreak, s: rooms.SessionStats | None) -> PlayStats | None:
+    """Số hội viên tự nhập (ưu tiên) -> số tự tính từ phòng chơi -> None. Ẩn danh -> None."""
+    if not b.shown:
+        return None
+    if b.wins is not None and b.losses is not None:
+        return PlayStats(
+            start_at=None,
+            end_at=None,
+            matches=b.wins + b.losses,
+            wins=b.wins,
+            losses=b.losses,
+        )
     if s is None:
         return None
     return PlayStats(
@@ -300,9 +317,11 @@ async def record_breaks(
         shown.append((b, max(0, ((days[i - 1] if i else today) - day).days)))
     cards = await members.record_cards(session, {b.customer_id for b, _ in shown if b.shown})
     courts = await engine.resource_names(session) if any(b.court_code for b, _ in shown) else {}
-    # Ẩn danh: không lộ thành tích (cùng quy tắc tên / avatar)
+    # Ẩn danh: không lộ thành tích (cùng quy tắc tên / avatar); số tự nhập có rồi thì khỏi tính
     keys = [
-        (b.customer_id, b.court_code, b.measured_at) for b, _ in shown if b.shown and b.court_code
+        (b.customer_id, b.court_code, b.measured_at)
+        for b, _ in shown
+        if b.shown and b.court_code and b.wins is None
     ]
     played = await rooms.session_stats(session, keys)
     items = []
@@ -331,7 +350,7 @@ async def record_breaks(
                 resource_name=courts.get(b.court_code) if b.court_code else None,
                 is_me=b.customer_id == viewer_id,
                 video=clip,
-                play_stats=_play_stats(played.get((b.customer_id, b.court_code, b.measured_at))),
+                play_stats=_play_stats(b, played.get((b.customer_id, b.court_code, b.measured_at))),
             )
         )
     return RecordBreakList(period=period, start=first, end=last, items=items)
