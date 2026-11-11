@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BreakTimeline, RecordCard } from "@/components/member-area/record-breaks";
+import { BreakTimeline } from "@/components/member-area/record-breaks";
+import { RecordCard } from "@/components/member-area/record-card";
 import { RecordFormDialog } from "@/components/records/record-form-dialog";
 import { RecordPlayer } from "@/components/records/record-player";
 import { getMineRecords, getRecordBreaks, type MineRecord, type RecordBreakItem, sendMemberWithdrawRecord, type VideoPeriod } from "@/components/records/requests";
