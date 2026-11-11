@@ -11,9 +11,7 @@ import json
 import re
 from datetime import UTC, datetime, timedelta
 
-import pytest
 from sqlalchemy import delete, update
-from sqlalchemy.exc import DBAPIError
 
 from app.core.config import settings
 from app.core.db import SessionLocal
@@ -295,13 +293,11 @@ async def test_ac7_cancelled_booking_room_and_courts_in_order(staff, admin, peop
             assert court["rooms"] == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=DBAPIError,
-    reason="[OPEN] id phòng vượt int64 → lỗi DB (500) ở cả /member-area/rooms/{id} (T-017) lẫn /play-rooms/admin/rooms/{id}; nên 404/422",
-)
-async def test_huge_room_id_should_be_404_or_422_not_a_server_error(admin, people):
-    huge = "99999999999999999999"
+async def test_out_of_range_room_ids_are_404_not_a_server_error(admin, people):
     member = await people("QA Id Lớn")
-    for client, path in ((member.client, f"{ROOMS}/{huge}"), (admin, f"{MON}/rooms/{huge}")):
-        assert (await client.get(path)).status_code in (404, 422)
+    for bad in ("0", "-1", "9223372036854775808", "99999999999999999999"):
+        for client, path in ((member.client, f"{ROOMS}/{bad}"), (admin, f"{MON}/rooms/{bad}")):
+            assert (await client.get(path)).status_code == 404, (
+                bad,
+                path,
+            )  # T-070: ngoài khoảng → 404
