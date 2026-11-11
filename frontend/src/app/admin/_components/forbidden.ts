@@ -17,6 +17,7 @@ export type AdminPerm =
   | "booking.calendar.view"
   | "booking.orders.view"
   | "booking.recurring"
+  | "play_rooms.monitor"
   | "booking.transactions.view"
   | "booking.config.manage"
   | "booking.resources.delete"
@@ -40,6 +41,7 @@ export const ADMIN_NAV = [
   { href: "/admin/san", key: "san", perm: "booking.config.manage" },
   { href: "/admin/dat-san", key: "datSan", perm: "booking.calendar.view" },
   { href: "/admin/don-dat-san", key: "donDatSan", perm: "booking.orders.view" },
+  { href: "/admin/theo-doi-san", key: "theoDoiSan", perm: "play_rooms.monitor" },
   { href: "/admin/hoi-vien", key: "hoiVien", perm: "member.manage" },
   { href: "/admin/lich-su-giao-dich", key: "lichSu", perm: "booking.transactions.view" },
   { href: "/admin/ky-luc", key: "kyLuc", perm: "records.video.manage" },
