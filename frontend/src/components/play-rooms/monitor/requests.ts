@@ -1,5 +1,5 @@
 import "client-only";
-import { looseApi } from "@/lib/api/client";
+import { api } from "@/lib/api/client";
 import { toApiError } from "@/lib/api/write";
 import type { Read } from "@/components/member-area/requests";
 import type { MonitorDay, MonitorRoomDetail } from "./types";
@@ -16,7 +16,5 @@ async function read<T>(call: () => Promise<{ data?: unknown; error?: unknown; re
   }
 }
 
-const P = "/api/v1/play-rooms/admin";
-
-export const getMonitorDay = (date: string) => read<MonitorDay>(() => looseApi.GET(`${P}/day`, { params: { query: { date } } }));
-export const getMonitorRoom = (id: number) => read<MonitorRoomDetail>(() => looseApi.GET(`${P}/rooms/{room_id}`, { params: { path: { room_id: id } } }));
+export const getMonitorDay = (date: string) => read<MonitorDay>(() => api.GET("/api/v1/play-rooms/admin/day", { params: { query: { date } } }));
+export const getMonitorRoom = (id: number) => read<MonitorRoomDetail>(() => api.GET("/api/v1/play-rooms/admin/rooms/{room_id}", { params: { path: { room_id: id } } }));

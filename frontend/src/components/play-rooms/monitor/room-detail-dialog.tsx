@@ -95,7 +95,8 @@ export function RoomDetailDialog({ target, live, onClose }: { target: MonitorTar
                       <b className="block truncate text-sm">{personName(m)}</b>
                       <span className="block truncate text-xs text-muted">{personMeta(m) || "Chưa có mã HV"}</span>
                     </span>
-                    {QUEUE_LABEL[m.queue_state] ? <Badge variant={m.queue_state === "playing" ? "success" : "neutral"}>{QUEUE_LABEL[m.queue_state]}</Badge> : null}
+                    {m.role === "host" ? <Badge variant="warning">Host</Badge> : null}
+                    <Badge variant={m.queue_state === "playing" ? "success" : "neutral"}>{QUEUE_LABEL[m.queue_state]}</Badge>
                   </li>
                 ))}
               </ul>
@@ -164,11 +165,11 @@ export function RoomDetailDialog({ target, live, onClose }: { target: MonitorTar
                     </tr>
                   ) : (
                     detail.ranking.map((r) => (
-                      <tr key={r.person.customer_id} className="border-b border-border last:border-0">
+                      <tr key={r.customer_id} className="border-b border-border last:border-0">
                         <td className={cn("px-3 py-2 font-semibold tabular-nums", r.rank === 1 && "text-accent-fg")}>{r.rank}</td>
                         <td className="px-3 py-2">
-                          <b className="block font-medium">{personName(r.person)}</b>
-                          <span className="block text-xs text-muted">{personMeta(r.person)}</span>
+                          <b className="block font-medium">{personName(r)}</b>
+                          <span className="block text-xs text-muted">{personMeta(r)}</span>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{r.wins}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{r.losses}</td>
