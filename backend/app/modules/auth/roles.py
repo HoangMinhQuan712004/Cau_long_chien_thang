@@ -80,6 +80,17 @@ _GROUPS: tuple[tuple[str, str, tuple[tuple[Perm, str, str | None], ...]], ...] =
             (Perm.BOOKING_RESOURCES_DELETE, "Xóa sân", None),
         ),
     ),
+    (
+        "monitor",
+        "Theo dõi sân",
+        (
+            (
+                Perm.PLAY_ROOMS_MONITOR,
+                "Theo dõi phòng chơi, người chơi, tỉ số",
+                "Thấy tên thật, biệt danh, mã HV (không có SĐT); xem cả phòng đã kết thúc",
+            ),
+        ),
+    ),
     ("report", "Báo cáo", ((Perm.REPORTS_VIEW, "Xem báo cáo & phân tích", None),)),
     (
         "staff",
