@@ -33,7 +33,8 @@ dependencies = [
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
-    "pytest-xdist>=3.6",  # chạy song song: pytest -n auto (T-059), mỗi worker một DB
+    "pytest-xdist>=3.6",
+    "time-machine>=2.16",  # giờ giả cho cả bộ: TEST_FAKE_NOW=... pytest (T-067)  # chạy song song: pytest -n auto (T-059), mỗi worker một DB
     "ruff>=0.6",
 ]
 
