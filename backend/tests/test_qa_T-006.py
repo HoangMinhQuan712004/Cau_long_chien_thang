@@ -34,6 +34,7 @@ from sqlalchemy.exc import DBAPIError
 
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.modules.booking_engine import common
 from tests.conftest import API, ORIGIN
 from tests.qa_queries import count_statements
 
@@ -211,6 +212,12 @@ async def calendar(client, day: date | None = None) -> dict:
     return r.json()
 
 
+def day_of(code: str) -> date:
+    """Ngày chơi nằm trong mã (``BK-YYYYMMDD-…``): đọc lịch của đúng ngày đã đặt, không phụ thuộc
+    đồng hồ trôi qua nửa đêm giữa lúc đặt và lúc đọc lịch (T-067)."""
+    return date(int(code[3:7]), int(code[7:9]), int(code[9:11]))
+
+
 async def audit_rows(where: str = "TRUE", params: dict | None = None):
     async with SessionLocal() as s:
         res = await s.execute(
@@ -314,7 +321,9 @@ async def test_ac2_past_and_far_dates(staff):
 
 async def test_ac3_block_fields_booking_session_uncollectible(admin):
     res, bk = await new_booking(admin, customer=temp("QA Hiển Thị", "0987654321"))
-    blocks = {b["code"]: b for b in (await calendar(admin))["blocks"] if "code" in b}
+    blocks = {
+        b["code"]: b for b in (await calendar(admin, day_of(bk["code"])))["blocks"] if "code" in b
+    }
     b = blocks[bk["code"]]
     assert b["payment_status"] == "unpaid"
     assert b["phone"] == "0987654321"  # màn quản trị: SĐT đầy đủ
@@ -322,7 +331,9 @@ async def test_ac3_block_fields_booking_session_uncollectible(admin):
     r = await new_session(admin, [(await new_resource(admin))["code"]], capacity=2)
     assert r.status_code == 201, r.text
     s = r.json()
-    blocks = {b["code"]: b for b in (await calendar(admin))["blocks"] if "code" in b}
+    blocks = {
+        b["code"]: b for b in (await calendar(admin, day_of(s["code"])))["blocks"] if "code" in b
+    }
     assert s["code"] in blocks and blocks[s["code"]]["type"] == "session"
     # uncollectible block keeps its status
     mark = await w(
@@ -332,7 +343,9 @@ async def test_ac3_block_fields_booking_session_uncollectible(admin):
         {"reason": "QA", "version": bk["version"]},
     )
     assert mark.status_code == 200, mark.text
-    blocks = {b["code"]: b for b in (await calendar(admin))["blocks"] if "code" in b}
+    blocks = {
+        b["code"]: b for b in (await calendar(admin, day_of(bk["code"])))["blocks"] if "code" in b
+    }
     assert blocks[bk["code"]]["payment_status"] == "uncollectible"
 
 
@@ -385,7 +398,7 @@ async def test_ac8_member_booking_and_members_search(staff, admin):
     assert bk["payment_status"] == "unpaid" and bk["code"].startswith("BK-")
     assert re.fullmatch(r"BK-\d{8}-\d{3}-\d{2}", bk["code"]), "T-019: child code = order-NN"
     assert bk["code"] == f"{bk['order_code']}-01"
-    before = (await calendar(staff))["unpaid_count"]
+    before = (await calendar(staff, day_of(bk["code"])))["unpaid_count"]
     assert before >= 1
 
 
@@ -480,11 +493,19 @@ async def test_sec5_twenty_parallel_bookings_one_success(staff, admin):
     assert n == 1
 
 
-async def test_ac10_adjacent_frames_do_not_collide(staff, admin):
+async def test_ac10_adjacent_frames_do_not_collide(staff, admin, monkeypatch):
     res = await new_resource(admin)
-    h = usable_hour()
-    if h > 22:
-        pytest.skip("need two hours left today")
+    # T-067: đóng băng engine lúc 06:00 hôm nay: hai khung liền kề 8h–10h luôn ở tương lai
+    day = datetime.now(settings.tz).date()
+    frozen_now = datetime(day.year, day.month, day.day, 6, tzinfo=settings.tz)
+
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen_now.astimezone(tz)
+
+    monkeypatch.setattr(common, "datetime", Frozen)
+    h = 8
     a = await book(staff, res["code"], h)
     b = await book(staff, res["code"], h + 1)
     assert a.status_code == 201 and b.status_code == 201, (a.text, b.text)
@@ -558,7 +579,11 @@ async def test_ac13_admin_multi_resource_session_staff_forbidden(admin, staff):
     r = await new_session(admin, [a["code"], b["code"]], capacity=10, price=40000)
     assert r.status_code == 201, r.text
     assert re.fullmatch(r"BK-\d{8}-\d{3}", r.json()["code"])
-    blocks = [x for x in (await calendar(admin))["blocks"] if x.get("code") == r.json()["code"]]
+    blocks = [
+        x
+        for x in (await calendar(admin, day_of(r.json()["code"])))["blocks"]
+        if x.get("code") == r.json()["code"]
+    ]
     assert blocks, "session block must appear on the calendar"
     h = usable_hour()
     denied = await w(
@@ -697,7 +722,7 @@ async def test_ac16_delete_session_rules(admin, staff):
     assert denied.status_code == 409 and code_of(denied) == "E-012", denied.text
     ok = await w(admin, "DELETE", f"{B}/sessions/{empty['code']}", {"version": got["version"]})
     assert ok.status_code in (200, 204), ok.text
-    codes = {b.get("code") for b in (await calendar(admin))["blocks"]}
+    codes = {b.get("code") for b in (await calendar(admin, day_of(empty["code"])))["blocks"]}
     assert empty["code"] not in codes
     # the slot is free again, and the code is not reused
     again = (await new_session(admin, [res["code"]])).json()
