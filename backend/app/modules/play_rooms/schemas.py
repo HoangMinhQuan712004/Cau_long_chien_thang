@@ -240,3 +240,86 @@ class PlayHistory(BaseModel):
     end: dt.date = Field(description="Ngày cuối khoảng đang xem, gồm cả ngày này (giờ VN)")
     summary: PlayHistorySummary
     items: list[PlayHistoryItem] = Field(description="Mới nhất trước")
+
+
+# ------------------------------------------------------------------ Theo dõi sân (T-069, Admin)
+
+
+class MonitorPerson(BaseModel):
+    """Người chơi trên màn Theo dõi sân: **tên thật + biệt danh + mã HV** (ẩn danh T-030 không áp
+    cho người có quyền ``play_rooms.monitor``). Không có SĐT."""
+
+    customer_id: int
+    full_name: str
+    nickname: str | None
+    member_code: str | None
+    tier: str | None = Field(description="Hạng (trình độ); null = chưa xếp hạng")
+    avatar_url: str | None
+
+
+class MonitorMatch(BaseModel):
+    no: int
+    format: Format
+    status: Literal["drawn", "playing", "finished"] = Field(
+        description="drawn: vừa bốc · playing: đang đánh · finished: đã ghi kết quả"
+    )
+    team_a: list[MonitorPerson]
+    team_b: list[MonitorPerson]
+    score_a: int | None = Field(description="Kết quả trận do phòng ghi; null khi chưa xong")
+    score_b: int | None
+    winner: Literal["a", "b"] | None
+    started_at: dt.datetime | None
+    ended_at: dt.datetime | None
+
+
+class MonitorRoom(BaseModel):
+    room_id: int
+    booking_code: str
+    start_at: dt.datetime
+    end_at: dt.datetime
+    status: Literal["upcoming", "playing", "ended", "cancelled"] = Field(
+        description="upcoming: Sắp tới · playing: Đang chơi · ended: Đã kết thúc · cancelled: "
+        "Booking đã hủy"
+    )
+    host: MonitorPerson
+    member_count: int
+    format: Format
+    min_tier: str | None
+    max_tier: str | None
+    matches_finished: int
+    current_match: MonitorMatch | None = Field(description="Trận vừa bốc / đang đánh")
+    last_match: MonitorMatch | None = Field(description="Trận đã xong gần nhất, kèm tỉ số")
+
+
+class MonitorCourt(BaseModel):
+    resource_code: str
+    resource_name: str
+    is_active: bool
+    rooms: list[MonitorRoom] = Field(description="Theo giờ bắt đầu; rỗng = Không có phòng")
+
+
+class MonitorDay(BaseModel):
+    date: dt.date
+    courts: list[MonitorCourt] = Field(
+        description="Theo thứ tự sân; sân ngừng hoạt động chỉ có khi có phòng trong ngày"
+    )
+
+
+class MonitorMember(MonitorPerson):
+    role: Literal["host", "member"]
+    queue_state: Literal["waiting", "playing"] = Field(description="Hàng chờ / Đang chơi")
+
+
+class MonitorRankingRow(MonitorPerson):
+    rank: int = Field(description="Đồng hạng khi bằng cả số trận thắng và tỉ lệ thắng")
+    wins: int
+    losses: int
+    played: int
+    win_rate: float = Field(description="0–1, làm tròn 4 chữ số")
+
+
+class MonitorRoomDetail(BaseModel):
+    room: MonitorRoom
+    members: list[MonitorMember]
+    matches: list[MonitorMatch] = Field(description="Mọi trận, mới nhất trên cùng")
+    ranking: list[MonitorRankingRow]

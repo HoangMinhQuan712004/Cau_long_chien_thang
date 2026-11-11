@@ -326,42 +326,76 @@ async def match_list(session: AsyncSession, me: Me, room_id: int, fmt: str | Non
     )
 
 
-async def ranking(session: AsyncSession, me: Me, room_id: int, fmt: str | None) -> Ranking:
+@dataclass(frozen=True)
+class Standing:
+    customer_id: int
+    rank: int
+    wins: int
+    played: int
+    win_rate: float
+    latest_name: str  # tên của trận gần nhất (giữ cả người đã rời)
+
+
+def standings(finished: list[PlayMatch]) -> list[Standing]:
     """Xếp theo số trận thắng, bằng nhau thì tỉ lệ thắng; đồng hạng khi bằng cả hai (AC20).
 
-    Gom theo id hồ sơ – người đã rời / bị mời ra vẫn giữ kết quả, tên lấy từ trận gần nhất.
+    ``finished``: trận đã xong, mới nhất trước. Gom theo id hồ sơ – người đã rời / bị mời ra vẫn
+    giữ kết quả, tên lấy từ trận gần nhất.
     """
-    room = await readable_room(session, me.customer_id, room_id)
     wins: dict[int, int] = defaultdict(int)
     played: dict[int, int] = defaultdict(int)
     latest_name: dict[int, str] = {}
-    for m in await _finished(session, room.id, fmt):  # mới nhất trước
+    for m in finished:
         winners = m.team_a if m.winner == "a" else m.team_b
         for cid in (*m.team_a, *m.team_b):
             played[cid] += 1
             latest_name.setdefault(cid, str(m.names.get(str(cid), "Hội viên")))
         for cid in winners:
             wins[cid] += 1
-    people = await members.room_people(session, set(played))
 
     def rate(cid: int) -> float:
         return round(wins[cid] / played[cid], 4)
 
     ordered = sorted(played, key=lambda c: (-wins[c], -rate(c), latest_name[c].casefold(), c))
-    rows: list[RankingRow] = []
+    rows: list[Standing] = []
     for i, cid in enumerate(ordered):
         prev = rows[-1] if rows else None
         same = prev is not None and (prev.wins, prev.win_rate) == (wins[cid], rate(cid))
         rows.append(
-            RankingRow(
+            Standing(
+                customer_id=cid,
                 rank=prev.rank if same and prev else i + 1,
-                display_name=latest_name[cid],
-                avatar_url=avatar_url(people.get(cid)),
                 wins=wins[cid],
-                losses=played[cid] - wins[cid],
                 played=played[cid],
                 win_rate=rate(cid),
-                is_me=cid == me.customer_id,
+                latest_name=latest_name[cid],
             )
         )
-    return Ranking(items=rows)
+    return rows
+
+
+async def finished_matches(session: AsyncSession, room_id: int) -> list[PlayMatch]:
+    """Trận đã xong của phòng, mới nhất trước (mọi thể thức)."""
+    return await _finished(session, room_id, None)
+
+
+async def ranking(session: AsyncSession, me: Me, room_id: int, fmt: str | None) -> Ranking:
+    """Bảng xếp hạng phòng (AC20) – xem ``standings``."""
+    room = await readable_room(session, me.customer_id, room_id)
+    rows = standings(await _finished(session, room.id, fmt))
+    people = await members.room_people(session, {r.customer_id for r in rows})
+    return Ranking(
+        items=[
+            RankingRow(
+                rank=r.rank,
+                display_name=r.latest_name,
+                avatar_url=avatar_url(people.get(r.customer_id)),
+                wins=r.wins,
+                losses=r.played - r.wins,
+                played=r.played,
+                win_rate=r.win_rate,
+                is_me=r.customer_id == me.customer_id,
+            )
+            for r in rows
+        ]
+    )
