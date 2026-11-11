@@ -2102,6 +2102,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/play-rooms/admin/day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monitor Day
+         * @description Mỗi sân một hàng, các phòng của ngày theo giờ: trạng thái, Host, số người, trận đang đánh /
+         *     trận gần nhất kèm tỉ số. Tên thật + biệt danh + mã HV (không SĐT; ẩn danh không áp). 422 E-001
+         *     (ngày sai / ngoài ±1 năm) · 403.
+         */
+        get: operations["monitor_day_api_v1_play_rooms_admin_day_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/play-rooms/admin/rooms/{room_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monitor Room
+         * @description Chi tiết phòng chỉ đọc: thành viên, mọi trận, bảng xếp hạng. Xem được mọi phòng, kể cả đã
+         *     kết thúc / booking đã hủy (quy tắc T-054 không áp). 404 E-NOT-FOUND · 403.
+         */
+        get: operations["monitor_room_api_v1_play_rooms_admin_rooms__room_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/member-area/notifications": {
         parameters: {
             query?: never;
@@ -5130,12 +5173,12 @@ export interface components {
         /** MenuOrderIn */
         MenuOrderIn: {
             /** Order */
-            order: ("baoCao" | "san" | "datSan" | "donDatSan" | "hoiVien" | "lichSu" | "kyLuc" | "thanhToan" | "nhanVien")[];
+            order: ("baoCao" | "san" | "datSan" | "donDatSan" | "theoDoiSan" | "hoiVien" | "lichSu" | "kyLuc" | "thanhToan" | "nhanVien")[];
         };
         /** MenuOrderOut */
         MenuOrderOut: {
             /** Order */
-            order: ("baoCao" | "san" | "datSan" | "donDatSan" | "hoiVien" | "lichSu" | "kyLuc" | "thanhToan" | "nhanVien")[];
+            order: ("baoCao" | "san" | "datSan" | "donDatSan" | "theoDoiSan" | "hoiVien" | "lichSu" | "kyLuc" | "thanhToan" | "nhanVien")[];
         };
         /** MetricOut */
         MetricOut: {
@@ -5143,6 +5186,205 @@ export interface components {
             current: number;
             /** Previous */
             previous: number;
+        };
+        /** MonitorCourt */
+        MonitorCourt: {
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Rooms
+             * @description Theo giờ bắt đầu; rỗng = Không có phòng
+             */
+            rooms: components["schemas"]["MonitorRoom"][];
+        };
+        /** MonitorDay */
+        MonitorDay: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Courts
+             * @description Theo thứ tự sân; sân ngừng hoạt động chỉ có khi có phòng trong ngày
+             */
+            courts: components["schemas"]["MonitorCourt"][];
+        };
+        /** MonitorMatch */
+        MonitorMatch: {
+            /** No */
+            no: number;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "2v2" | "1v1";
+            /**
+             * Status
+             * @description drawn: vừa bốc · playing: đang đánh · finished: đã ghi kết quả
+             * @enum {string}
+             */
+            status: "drawn" | "playing" | "finished";
+            /** Team A */
+            team_a: components["schemas"]["MonitorPerson"][];
+            /** Team B */
+            team_b: components["schemas"]["MonitorPerson"][];
+            /**
+             * Score A
+             * @description Kết quả trận do phòng ghi; null khi chưa xong
+             */
+            score_a: number | null;
+            /** Score B */
+            score_b: number | null;
+            /** Winner */
+            winner: ("a" | "b") | null;
+            /** Started At */
+            started_at: string | null;
+            /** Ended At */
+            ended_at: string | null;
+        };
+        /** MonitorMember */
+        MonitorMember: {
+            /** Customer Id */
+            customer_id: number;
+            /** Full Name */
+            full_name: string;
+            /** Nickname */
+            nickname: string | null;
+            /** Member Code */
+            member_code: string | null;
+            /**
+             * Tier
+             * @description Hạng (trình độ); null = chưa xếp hạng
+             */
+            tier: string | null;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "host" | "member";
+            /**
+             * Queue State
+             * @description Hàng chờ / Đang chơi
+             * @enum {string}
+             */
+            queue_state: "waiting" | "playing";
+        };
+        /**
+         * MonitorPerson
+         * @description Người chơi trên màn Theo dõi sân: **tên thật + biệt danh + mã HV** (ẩn danh T-030 không áp
+         *     cho người có quyền ``play_rooms.monitor``). Không có SĐT.
+         */
+        MonitorPerson: {
+            /** Customer Id */
+            customer_id: number;
+            /** Full Name */
+            full_name: string;
+            /** Nickname */
+            nickname: string | null;
+            /** Member Code */
+            member_code: string | null;
+            /**
+             * Tier
+             * @description Hạng (trình độ); null = chưa xếp hạng
+             */
+            tier: string | null;
+            /** Avatar Url */
+            avatar_url: string | null;
+        };
+        /** MonitorRankingRow */
+        MonitorRankingRow: {
+            /** Customer Id */
+            customer_id: number;
+            /** Full Name */
+            full_name: string;
+            /** Nickname */
+            nickname: string | null;
+            /** Member Code */
+            member_code: string | null;
+            /**
+             * Tier
+             * @description Hạng (trình độ); null = chưa xếp hạng
+             */
+            tier: string | null;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Rank
+             * @description Đồng hạng khi bằng cả số trận thắng và tỉ lệ thắng
+             */
+            rank: number;
+            /** Wins */
+            wins: number;
+            /** Losses */
+            losses: number;
+            /** Played */
+            played: number;
+            /**
+             * Win Rate
+             * @description 0–1, làm tròn 4 chữ số
+             */
+            win_rate: number;
+        };
+        /** MonitorRoom */
+        MonitorRoom: {
+            /** Room Id */
+            room_id: number;
+            /** Booking Code */
+            booking_code: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Status
+             * @description upcoming: Sắp tới · playing: Đang chơi · ended: Đã kết thúc · cancelled: Booking đã hủy
+             * @enum {string}
+             */
+            status: "upcoming" | "playing" | "ended" | "cancelled";
+            host: components["schemas"]["MonitorPerson"];
+            /** Member Count */
+            member_count: number;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "2v2" | "1v1";
+            /** Min Tier */
+            min_tier: string | null;
+            /** Max Tier */
+            max_tier: string | null;
+            /** Matches Finished */
+            matches_finished: number;
+            /** @description Trận vừa bốc / đang đánh */
+            current_match: components["schemas"]["MonitorMatch"] | null;
+            /** @description Trận đã xong gần nhất, kèm tỉ số */
+            last_match: components["schemas"]["MonitorMatch"] | null;
+        };
+        /** MonitorRoomDetail */
+        MonitorRoomDetail: {
+            room: components["schemas"]["MonitorRoom"];
+            /** Members */
+            members: components["schemas"]["MonitorMember"][];
+            /**
+             * Matches
+             * @description Mọi trận, mới nhất trên cùng
+             */
+            matches: components["schemas"]["MonitorMatch"][];
+            /** Ranking */
+            ranking: components["schemas"]["MonitorRankingRow"][];
         };
         /**
          * MoveIn
@@ -12470,6 +12712,89 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Ranking"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    monitor_day_api_v1_play_rooms_admin_day_get: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM-DD, mặc định hôm nay (giờ VN); trong ±1 năm */
+                date?: string | null;
+            };
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorDay"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    monitor_room_api_v1_play_rooms_admin_rooms__room_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorRoomDetail"];
                 };
             };
             /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
