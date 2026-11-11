@@ -32,6 +32,9 @@ PROVIDER = "sepay"
 # trước – ngân hàng có thể dính mã giao dịch của họ ngay trước "BK"
 CODE_RE = re.compile(r"BK\d{11}(?!\d)", re.IGNORECASE)
 ITEM_CODE_RE = re.compile(r"BK\d{13}(?!\d)", re.IGNORECASE)
+# Mã vé (T-068) ``BK`` + 11 số + ``V`` + 2 số: đọc trước mã con / mã đơn – ``CODE_RE`` khớp
+# ngay phần đầu (mã sự kiện) vì sau 11 số là chữ ``V``
+TICKET_CODE_RE = re.compile(r"BK\d{11}V\d{2}(?!\d)", re.IGNORECASE)
 
 
 class WebhookError(Exception):
@@ -104,16 +107,18 @@ def _parse_time(value: Any) -> datetime:
 def extract_code(payload: dict) -> str | None:
     """Mã thanh toán của giao dịch.
 
-    1. Mã con ``BK\\d{13}`` trong nội dung (T-065) – **trước** trường ``code``: SePay tách ``code``
-       theo mẫu BK + 11 số nên cắt mã con thành mã đơn; tiền một buổi không được áp vào cả đơn.
-       Nhiều mã con khác nhau -> không khớp (không đoán).
+    1. Mã vé ``BK\\d{11}V\\d{2}`` trong nội dung (T-068), rồi mã con ``BK\\d{13}`` (T-065) –
+       **trước** trường ``code``: SePay tách ``code`` theo mẫu BK + 11 số nên cắt mã vé thành mã
+       sự kiện, mã con thành mã đơn; tiền một vé / một buổi không được áp vào cả sự kiện / cả đơn.
+       Nhiều mã khác nhau cùng loại -> không khớp (không đoán).
     2. Trường ``code`` dạng mã đơn.
     3. ``BK\\d{11}`` trong nội dung, chỉ khi đúng 1 mã khác nhau (T-008 AC20).
     """
     content = str(payload.get("content") or "")
-    items = {m.upper() for m in ITEM_CODE_RE.findall(content)}
-    if items:
-        return items.pop() if len(items) == 1 else None
+    for pattern in (TICKET_CODE_RE, ITEM_CODE_RE):
+        found = {m.upper() for m in pattern.findall(content)}
+        if found:
+            return found.pop() if len(found) == 1 else None
     code = payload.get("code")
     if isinstance(code, str) and CODE_RE.fullmatch(code.strip()):
         return code.strip().upper()

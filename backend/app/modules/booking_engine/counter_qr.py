@@ -30,6 +30,8 @@ from app.modules.booking_engine.orders import order_blocks, order_not_found
 _PAY_REF = re.compile(r"([A-Z]+)(\d{8})(\d{3})", re.ASCII)
 # Mã con (T-065): ``{tiền tố}{YYYYMMDD}{NNN}{NN}`` -> ``{tiền tố}-{YYYYMMDD}-{NNN}-{NN}``
 _ITEM_REF = re.compile(r"([A-Z]+)(\d{8})(\d{3})(\d{2})", re.ASCII)
+# Mã vé (T-068): ``{tiền tố}{YYYYMMDD}{NNN}V{NN}`` -> ``{tiền tố}-{YYYYMMDD}-{NNN}-V{NN}``
+_TICKET_REF = re.compile(r"([A-Z]+)(\d{8})(\d{3})V(\d{2})", re.ASCII)
 
 
 def pay_ref_of(order_code: str) -> str:
@@ -39,6 +41,14 @@ def pay_ref_of(order_code: str) -> str:
 def order_code_of(pay_ref: str) -> str | None:
     found = _PAY_REF.fullmatch(pay_ref.strip().upper())
     return "-".join(found.groups()) if found else None
+
+
+def ticket_code_of(pay_ref: str) -> str | None:
+    found = _TICKET_REF.fullmatch(pay_ref.strip().upper())
+    if not found:
+        return None
+    prefix, day, seq, seat = found.groups()
+    return f"{prefix}-{day}-{seq}-V{seat}"
 
 
 def item_code_of(pay_ref: str) -> str | None:
@@ -88,32 +98,35 @@ async def _counter_booking(session: AsyncSession, tenant_id: int, code: str, *, 
     return await session.scalar(stmt.with_for_update() if lock else stmt)
 
 
+async def _counter_ticket(session: AsyncSession, tenant_id: int, code: str, *, lock: bool):
+    stmt = select(Ticket).where(Ticket.tenant_id == tenant_id, Ticket.code == code)
+    return await session.scalar(stmt.with_for_update() if lock else stmt)
+
+
 async def item_collect_qr_info(
     session: AsyncSession, tenant_id: int, raw_code: str
 ) -> CollectQrInfo:
     """QR một buổi (T-065): số tiền = tiền của khối, nội dung = mã con bỏ gạch. Chỉ đọc.
 
     Đã thu (QR / tiền mặt) -> ``status = paid``; đã hủy / Không thu được -> ``closed``; cả hai
-    ``amount = 0`` (popup đang hỏi lại thấy ngay). Vé / booking online -> 422 ``E-PAY-1``. Không
-    có -> 404 ``E-BOOK-3``.
+    ``amount = 0`` (popup đang hỏi lại thấy ngay). Vé quầy (T-068) như khối. Booking / vé online
+    -> 422 ``E-PAY-1``. Không có -> 404 ``E-BOOK-3``.
     """
     code = normalize_code(raw_code)
-    b = await _counter_booking(session, tenant_id, code, lock=False)
-    if b is None:
-        is_ticket = await session.scalar(
-            select(Ticket.id).where(Ticket.tenant_id == tenant_id, Ticket.code == code)
-        )
-        if is_ticket is not None:
-            raise AppError("E-PAY-1", "Vé sự kiện chưa hỗ trợ thu bằng QR.", 422)
+    item: Booking | Ticket | None = await _counter_booking(session, tenant_id, code, lock=False)
+    if item is None:
+        item = await _counter_ticket(session, tenant_id, code, lock=False)
+    if item is None:
         raise order_not_found()
-    if b.source != "counter":
-        raise AppError("E-PAY-1", "Booking đặt online đã trả trước, không cần thu tiền.", 422)
-    unpaid = b.payment_status == "unpaid"
+    if item.source != "counter":
+        what = "Vé" if isinstance(item, Ticket) else "Booking"
+        raise AppError("E-PAY-1", f"{what} đặt online đã trả trước, không cần thu tiền.", 422)
+    unpaid = item.payment_status == "unpaid"
     return CollectQrInfo(
-        order_code=b.code,
-        pay_ref=pay_ref_of(b.code),
-        amount=b.amount if unpaid else 0,
-        status=qr_status([b.payment_status]),
+        order_code=item.code,
+        pay_ref=pay_ref_of(item.code),
+        amount=item.amount if unpaid else 0,
+        status=qr_status([item.payment_status]),
         blocks=1 if unpaid else 0,
     )
 
@@ -121,10 +134,26 @@ async def item_collect_qr_info(
 async def apply_counter_payment(
     session: AsyncSession, tenant_id: int, data: OnlinePaymentIn
 ) -> OnlinePaymentResult:
-    """Tiền về không khớp lượt online: mã con (QR từng buổi) trước, rồi mã đơn (QR cả đơn)."""
+    """Tiền về không khớp lượt online: mã vé (T-068), mã con (QR từng buổi), rồi mã đơn (QR cả
+    đơn). Mã sự kiện không khớp đơn nào -> ``unmatched`` như cũ (không tự áp cho vé nào)."""
+    if ticket_code_of(data.pay_ref):
+        return await apply_ticket_payment(session, tenant_id, data)
     if item_code_of(data.pay_ref):
         return await apply_item_payment(session, tenant_id, data)
     return await apply_order_payment(session, tenant_id, data)
+
+
+async def apply_ticket_payment(
+    session: AsyncSession, tenant_id: int, data: OnlinePaymentIn
+) -> OnlinePaymentResult:
+    """Tiền về cho mã vé quầy: đúng số + còn Chưa thanh toán -> chỉ vé đó Đã thanh toán."""
+    code = ticket_code_of(data.pay_ref)
+    t = await _counter_ticket(session, tenant_id, code, lock=True) if code else None
+    if t is None or t.source != "counter":
+        return OnlinePaymentResult(outcome="unmatched")
+    if t.payment_status != "unpaid" or data.amount != t.amount:
+        return OnlinePaymentResult(outcome="refund_needed", refund_amount=data.amount)
+    return await _paid_one(session, tenant_id, t, data)
 
 
 async def apply_item_payment(
@@ -137,11 +166,18 @@ async def apply_item_payment(
         return OnlinePaymentResult(outcome="unmatched")
     if b.payment_status != "unpaid" or data.amount != b.amount:
         return OnlinePaymentResult(outcome="refund_needed", refund_amount=data.amount)
-    _mark_paid_by_transfer(session, tenant_id, b, data)
+    return await _paid_one(session, tenant_id, b, data)
+
+
+async def _paid_one(
+    session: AsyncSession, tenant_id: int, item: Booking | Ticket, data: OnlinePaymentIn
+) -> OnlinePaymentResult:
+    """Một khối / vé đã khóa dòng -> Đã thanh toán qua QR: sổ ``counter_qr`` + nhật ký Hệ thống."""
+    _mark_paid_by_transfer(session, tenant_id, item, data)
     await ledger.record_in(
         session,
         tenant_id,
-        [b],
+        [item],
         method="transfer",
         source="counter_qr",
         occurred_at=data.transaction_at,
@@ -152,19 +188,19 @@ async def apply_item_payment(
         session,
         SYSTEM_ACTOR,
         "booking.counter_qr.paid",
-        "booking",
-        b.code,
+        "ticket" if isinstance(item, Ticket) else "booking",
+        item.code,
         audit_detail(
-            b.code,
-            b.customer_name,
+            item.code,
+            item.customer_name,
             paid_changes("QR"),
-            codes=[b.code],
-            amount=b.amount,
+            codes=[item.code],
+            amount=item.amount,
             reference=data.reference,
         ),
     )
     await session.flush()
-    return OnlinePaymentResult(outcome="applied", booking_codes=[b.code])
+    return OnlinePaymentResult(outcome="applied", booking_codes=[item.code])
 
 
 async def apply_order_payment(
@@ -216,7 +252,7 @@ async def apply_order_payment(
 
 
 def _mark_paid_by_transfer(
-    session: AsyncSession, tenant_id: int, b: Booking, data: OnlinePaymentIn
+    session: AsyncSession, tenant_id: int, b: Booking | Ticket, data: OnlinePaymentIn
 ) -> None:
     actor = ledger.GATEWAY_ACTOR
     b.payment_status = "paid"
@@ -228,5 +264,10 @@ def _mark_paid_by_transfer(
         session,
         tenant_id,
         "payment.collected",
-        {"code": b.code, "kind": "booking", "method": "transfer", "amount": b.amount},
+        {
+            "code": b.code,
+            "kind": "ticket" if isinstance(b, Ticket) else "booking",
+            "method": "transfer",
+            "amount": b.amount,
+        },
     )
