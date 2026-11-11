@@ -27,7 +27,7 @@ type Dialog =
   | { kind: "order"; orderCode: string }
   | { kind: "sessionForm"; selection: Selection }
   | { kind: "recurring" }
-  | { kind: "item"; code: string }
+  | { kind: "item"; code: string; collect?: boolean }
   | { kind: "session"; code: string };
 
 const REFRESH_MS = 30_000;
@@ -272,6 +272,7 @@ export function CalendarScreen({ initial, canRecurring }: { initial: Calendar; c
         <ItemFlow
           key={dialog.code}
           code={dialog.code}
+          startCollect={dialog.collect}
           onClose={() => setDialog(null)}
           onChanged={refresh}
           onOpenSession={(code) => setDialog({ kind: "session", code })}
@@ -293,7 +294,7 @@ export function CalendarScreen({ initial, canRecurring }: { initial: Calendar; c
           code={dialog.code}
           onClose={() => setDialog(null)}
           onChanged={refresh}
-          onOpenTicket={(code) => setDialog({ kind: "item", code })}
+          onOpenTicket={(code, collect) => setDialog({ kind: "item", code, collect })}
         />
       ) : null}
     </div>

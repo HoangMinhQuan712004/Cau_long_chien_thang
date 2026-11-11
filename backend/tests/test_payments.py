@@ -204,7 +204,8 @@ async def test_uncollectible_before_start_or_online(admin, staff):
         await s.commit()
     code = f"{code}-01"  # mã con của khối
     item = (await staff.get(f"{BK}/items/{code}")).json()
-    assert item["actions"] == ["collect"]
+    # Khung 00–01h hôm nay: còn "move" khi test chạy trong giờ đầu ngày (T-067) – chỉ xét thu tiền
+    assert "collect" in item["actions"] and "uncollectible" not in item["actions"]
     r = await uncollectible(staff, code)
     assert r.status_code == 422 and r.json()["detail"]["code"] == "E-PAY-1"
 

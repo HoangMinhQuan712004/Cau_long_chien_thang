@@ -2692,10 +2692,12 @@ export interface paths {
         };
         /**
          * Item Collect Qr
-         * @description Thu một buổi bằng QR (T-065): ``order_code`` = mã của khối, ``pay_ref`` = mã con bỏ gạch
-         *     (bắt đầu bằng mã đơn chung), số tiền = tiền của khối, ``blocks = 1``. Đã thu -> ``status =
-         *     paid``, ``amount = 0``. Tiền về đúng số -> chỉ khối đó Đã thanh toán; lệch -> cần hoàn.
-         *     404 E-BOOK-3 · 422 E-PAY-1 (vé / online) · 409 E-PAY-9. ``status``: unpaid / paid / closed.
+         * @description Thu một buổi (T-065) hoặc một vé quầy (T-068) bằng QR: ``order_code`` = mã khối / mã vé,
+         *     ``pay_ref`` = mã đó bỏ gạch (mã con ``BK2026111000601`` / mã vé ``BK20261110002V05``, bắt
+         *     đầu bằng mã đơn / mã sự kiện), số tiền = tiền của khối / vé, ``blocks = 1``. Đã thu ->
+         *     ``status = paid``, ``amount = 0``. Tiền về đúng số -> chỉ khối / vé đó Đã thanh toán; lệch ->
+         *     cần hoàn. 404 E-BOOK-3 · 422 E-PAY-1 (booking / vé online) · 409 E-PAY-9. ``status``:
+         *     unpaid / paid / closed.
          */
         get: operations["item_collect_qr_api_v1_front_desk_items__code__collect_qr_get"];
         put?: never;
