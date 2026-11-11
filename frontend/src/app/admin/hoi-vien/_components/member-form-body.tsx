@@ -54,6 +54,7 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
     full_name: values.fullName,
     phone: values.phone,
     gender: values.gender || null,
+    birth_date: values.birthDate || null,
     tier: (values.tier || null) as MemberTier | null,
     racket,
   };
@@ -76,10 +77,10 @@ export function FormBody({ id, isPending, setIsPending, mode, initial, profile, 
       const key = keyFor(memberBody);
       return callMemberApi(() => api.POST("/api/v1/members", { body: memberBody, headers: { "Idempotency-Key": key } }));
     }
-    const { fullName, gender, tier, isActive } = initial;
-    const before: Record<string, unknown> = { full_name: fullName, gender: gender || null, tier: tier || null, racket: profile?.racket ?? null, is_active: isActive };
+    const { fullName, gender, birthDate, tier, isActive } = initial;
+    const before: Record<string, unknown> = { full_name: fullName, gender: gender || null, birth_date: birthDate || null, tier: tier || null, racket: profile?.racket ?? null, is_active: isActive };
     // Hồ sơ tạm chỉ sửa tên + giới tính; Trạng thái chỉ Admin
-    const editable = isMemberForm ? ["full_name", "gender", "tier", "racket", "is_active"] : ["full_name", "gender"];
+    const editable = isMemberForm ? ["full_name", "gender", "birth_date", "tier", "racket", "is_active"] : ["full_name", "gender"];
     const isAllowed = (k: string) => editable.includes(k) && (canEditStatus || k !== "is_active");
     const changed = Object.fromEntries(
       Object.entries({ ...memberBody, is_active: values.isActive }).filter(([k, v]) => isAllowed(k) && before[k] !== v),

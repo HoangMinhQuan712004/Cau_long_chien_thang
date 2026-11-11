@@ -412,6 +412,7 @@
       "nameLabel": "Họ tên *",
       "namePlaceholder": "Nhập họ tên",
       "genderLabel": "Giới tính",
+      "birthLabel": "Ngày sinh",
       "genders": {
         "male": "Nam",
         "female": "Nữ"
@@ -472,6 +473,7 @@
       "title": "Chi tiết hội viên",
       "tierLine": "{code} · Hạng {tier}",
       "gender": "Giới tính",
+      "birthDate": "Ngày sinh",
       "nickname": "Biệt danh",
       "phone": "Số điện thoại",
       "email": "Email",
