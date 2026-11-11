@@ -25,7 +25,7 @@ const CalendarIcon = () => (
     <path d="M3.5 10h17M8 3v4M16 3v4" />
   </svg>
 );
-const CrownIcon = ({ className }: { className?: string }) => (
+export const CrownIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden>
     <path d="m3 8 4.5 4L12 5l4.5 7L21 8l-2 11H5z" />
   </svg>
@@ -39,7 +39,7 @@ const STAR_PATH = "M12 0C12.9 8.1 15.9 11.1 24 12C15.9 12.9 12.9 15.9 12 24C11.1
 
 /** Sao 4 cánh quanh số (như ảnh mẫu): `gold` = ruột vàng nhạt, viền vàng, quầng sáng; `dark` = nâu đậm nhỏ.
  * Luôn hiện, nháy sáng ↔ dịu; `delay` (s) cho các sao lệch nhịp. Giảm chuyển động ⇒ đứng yên. */
-function GlintStar({ className, tone, delay }: { className: string; tone: "gold" | "dark"; delay: number }) {
+export function GlintStar({ className, tone, delay }: { className: string; tone: "gold" | "dark"; delay: number }) {
   return (
     <svg
       viewBox="0 0 24 24"
