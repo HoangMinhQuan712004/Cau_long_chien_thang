@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { errorText } from "@/lib/api/write";
+import { formatPhone } from "@/lib/phone";
 import { addDaysIso, formatDateTime, formatDayMonthYear, formatTime, formatVnd } from "@/lib/format";
 import { getTransactions, type TransactionFilters } from "./requests";
 import type { TransactionEntry, Transactions } from "./types";
@@ -302,7 +303,7 @@ export function TransactionsScreen({
                           </td>
                           <td className="px-3 py-2.5">
                             {e.customer_name}
-                            <span className="block text-xs text-muted tabular-nums">{e.customer_phone_masked ?? "—"}</span>
+                            <span className="block text-xs text-muted tabular-nums">{e.customer_phone ? formatPhone(e.customer_phone) : "—"}</span>
                           </td>
                           <td className="px-3 py-2.5">
                             {contentText(e)}
@@ -343,7 +344,7 @@ export function TransactionsScreen({
                         </div>
                         <p className="truncate text-sm font-medium">
                           {e.customer_name}
-                          {e.customer_phone_masked ? <span className="font-normal text-muted tabular-nums"> · {e.customer_phone_masked}</span> : null}
+                          {e.customer_phone ? <span className="font-normal text-muted tabular-nums"> · {formatPhone(e.customer_phone)}</span> : null}
                         </p>
                         <p className="text-xs text-muted">{contentText(e)}</p>
                       </div>

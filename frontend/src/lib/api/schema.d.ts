@@ -1027,7 +1027,11 @@ export interface paths {
         delete: operations["delete_special_day_api_v1_booking_special_days__special_day_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Special Day
+         * @description Sửa ngày Lễ/Tết (T-063): kiểm chồng bỏ qua chính nó; giá booking / vé đã có không đổi.
+         */
+        patch: operations["update_special_day_api_v1_booking_special_days__special_day_id__patch"];
         trace?: never;
     };
     "/api/v1/booking/quote": {
@@ -1194,6 +1198,28 @@ export interface paths {
          *     (không còn khối chưa thu) · 422 ``E-PAY-0`` (``transfer``).
          */
         post: operations["collect_order_api_v1_booking_orders__order_code__collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/orders/{order_code}/uncollectible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Uncollectible Order
+         * @description Không thu được cả đơn (T-064): mọi khối **Chưa thanh toán đã tới giờ** -> Không thu được
+         *     (lý do không bắt buộc, ≤ 200); khối chưa tới giờ giữ nguyên (``remaining_unpaid``). 404
+         *     ``E-BOOK-3`` · 409 ``E-BOOK-4`` · 422 ``E-PAY-1`` (đơn online / chưa buổi nào tới giờ).
+         */
+        post: operations["uncollectible_order_api_v1_booking_orders__order_code__uncollectible_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1465,7 +1491,8 @@ export interface paths {
         /**
          * Update Me
          * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier /
-         *     racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
+         *     gender / birth_date / racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ
+         *     sơ, không ghi.
          *     Hạng hội viên tự chọn (T-042); đổi hạng ghi audit ``member.tier_self_change``.
          */
         put: operations["update_me_api_v1_member_area_me_put"];
@@ -2042,8 +2069,9 @@ export interface paths {
         };
         /**
          * Play History
-         * @description Lịch sử chơi của mình theo tháng ngày chơi, giờ VN (T-029): buổi = phòng có ≥ 1 trận đã lưu
-         *     mà mình ở đội A/B, kể cả phòng đã rời. Tháng sai -> 422; tháng tương lai -> rỗng.
+         * @description Lịch sử chơi của mình theo ngày chơi, giờ VN (T-029): buổi = phòng có ≥ 1 trận đã lưu mà
+         *     mình ở đội A/B, kể cả phòng đã rời. Khoảng ``from``–``to`` (tối đa 1 năm) hoặc tháng; sai ->
+         *     422 E-001; tương lai -> rỗng.
          */
         get: operations["play_history_api_v1_member_area_play_history_get"];
         put?: never;
@@ -2638,14 +2666,40 @@ export interface paths {
         };
         /**
          * Order Collect Qr
-         * @description Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại mỗi 3 giây tới khi ``status = paid``.
+         * @description Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại tới khi ``status`` khác ``unpaid``.
          *
          *     Số tiền = tổng khối Chưa thanh toán (như ``POST /booking/orders/{code}/collect``); nội dung
          *     chuyển khoản ``pay_ref`` = mã đơn bỏ gạch. Tiền về đúng số -> webhook thu cả đơn; lệch số ->
-         *     Tiền về cần xử lý (cần hoàn). 404 E-BOOK-3 · 409 E-BOOK-4 (không còn khối chưa thu) ·
-         *     409 E-PAY-9 (chưa cài nhận chuyển khoản).
+         *     Tiền về cần xử lý (cần hoàn). ``status``: ``unpaid`` / ``paid`` (tiền đã về hết) / ``closed``
+         *     (hết khối chưa thu do Không thu được / hủy – xử lý ở máy khác). 404 E-BOOK-3 · 409 E-PAY-9
+         *     (chưa cài nhận chuyển khoản).
          */
         get: operations["order_collect_qr_api_v1_front_desk_orders__order_code__collect_qr_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/items/{code}/collect-qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Item Collect Qr
+         * @description Thu một buổi (T-065) hoặc một vé quầy (T-068) bằng QR: ``order_code`` = mã khối / mã vé,
+         *     ``pay_ref`` = mã đó bỏ gạch (mã con ``BK2026111000601`` / mã vé ``BK20261110002V05``, bắt
+         *     đầu bằng mã đơn / mã sự kiện), số tiền = tiền của khối / vé, ``blocks = 1``. Đã thu ->
+         *     ``status = paid``, ``amount = 0``. Tiền về đúng số -> chỉ khối / vé đó Đã thanh toán; lệch ->
+         *     cần hoàn. 404 E-BOOK-3 · 422 E-PAY-1 (booking / vé online) · 409 E-PAY-9. ``status``:
+         *     unpaid / paid / closed.
+         */
+        get: operations["item_collect_qr_api_v1_front_desk_items__code__collect_qr_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3213,6 +3267,13 @@ export interface components {
             status: "approved" | "pending" | "rejected";
             /** Reject Reason */
             reject_reason: string | null;
+            /**
+             * Wins
+             * @description Số trận thắng trong buổi; null = không ghi
+             */
+            wins: number | null;
+            /** Losses */
+            losses: number | null;
             /**
              * Editable
              * @description false với số đo máy đo (không sửa / xóa được, E-REC-2)
@@ -3835,24 +3896,27 @@ export interface components {
         };
         /** CollectQrOut */
         CollectQrOut: {
-            /** Order Code */
+            /**
+             * Order Code
+             * @description Mã đơn; QR từng buổi (T-065): mã của khối
+             */
             order_code: string;
             /**
              * Pay Ref
-             * @description Nội dung chuyển khoản = mã đơn bỏ gạch, vd BK20261106001
+             * @description Nội dung chuyển khoản = mã đơn / mã con bỏ gạch, vd BK20261106001 / BK2026110600102
              */
             pay_ref: string;
             /**
              * Amount
-             * @description Tổng các khối Chưa thanh toán hiện tại; 0 khi đã thu hết
+             * @description Tổng các khối Chưa thanh toán hiện tại; 0 khi hết khối chưa thu
              */
             amount: number;
             /**
              * Status
-             * @description paid: không còn khối chưa thu
+             * @description unpaid: còn khối chưa thu · paid: hết khối chưa thu, khối còn hiệu lực (trừ đã hủy) đều Đã thanh toán · closed: hết khối chưa thu nhưng có khối Không thu được, hoặc không có khối nào Đã thanh toán (đã hủy hết) – xử lý ở máy khác, không phải tiền về
              * @enum {string}
              */
-            status: "unpaid" | "paid";
+            status: "unpaid" | "paid" | "closed";
             /**
              * Blocks
              * @description Số khối chưa thu
@@ -4607,6 +4671,11 @@ export interface components {
              */
             tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
             /**
+             * Birth Date
+             * @description Ngày sinh (1900 → hôm nay, sai -> E-001); null = bỏ trống
+             */
+            birth_date?: string | null;
+            /**
              * Racket
              * @description Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null
              */
@@ -4723,6 +4792,21 @@ export interface components {
             avatar_url: string | null;
             /** Note */
             note: string | null;
+            /**
+             * Nickname
+             * @description Biệt danh hội viên tự nhập ở khu hội viên (chỉ xem)
+             */
+            nickname: string | null;
+            /**
+             * Email
+             * @description Email hội viên tự nhập ở khu hội viên (chỉ xem)
+             */
+            email: string | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh; null = chưa nhập
+             */
+            birth_date: string | null;
             /** Total Minutes */
             total_minutes: number;
             /**
@@ -4762,6 +4846,16 @@ export interface components {
              * @description Hạng tự chọn (T-042): một trong 8 bậc hoặc null (Chưa xếp hạng); giá trị lạ -> 422 (fields: tier, E-HV-1). Không gửi = giữ hạng hiện tại
              */
             tier?: string | null;
+            /**
+             * Gender
+             * @description Giới tính tự chọn: male / female hoặc null (Chưa chọn); giá trị lạ -> 422 (fields: gender, E-HV-1). Không gửi = giữ nguyên
+             */
+            gender?: ("male" | "female") | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh (1900 → hôm nay, sai -> 422 fields: birth_date, E-HV-1); null = xóa. Không gửi = giữ nguyên
+             */
+            birth_date?: string | null;
             /**
              * Racket
              * @description Tên vợt tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự, rỗng = null; không dùng danh mục
@@ -4806,6 +4900,16 @@ export interface components {
              * @description Trình độ = Hạng (8 bậc); null = chưa xếp hạng
              */
             tier: string | null;
+            /**
+             * Gender
+             * @description null = Chưa chọn
+             */
+            gender: ("male" | "female") | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh; null = chưa nhập
+             */
+            birth_date: string | null;
             /**
              * Racket
              * @description Tên vợt đang dùng (tự nhập)
@@ -4993,7 +5097,8 @@ export interface components {
         };
         /**
          * MemberUpdateIn
-         * @description Chỉ gửi trường muốn đổi; không đổi SĐT. Hồ sơ tạm: chỉ ``full_name``, ``gender``.
+         * @description Chỉ gửi trường muốn đổi; không đổi SĐT. Hồ sơ tạm: chỉ ``full_name``, ``gender``
+         *     (không có ngày sinh).
          *
          *     ``tier: null`` = bỏ xếp hạng; trạng thái: chỉ Admin.
          */
@@ -5002,6 +5107,11 @@ export interface components {
             full_name?: string | null;
             /** Gender */
             gender?: ("male" | "female") | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh (1900 → hôm nay, sai -> E-001); null = bỏ trống
+             */
+            birth_date?: string | null;
             /** Tier */
             tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
             /**
@@ -5423,6 +5533,45 @@ export interface components {
              * @description Số khối (đơn ngày) / số buổi (định kỳ)
              */
             blocks: number;
+            /**
+             * Unpaid Amount
+             * @description Còn phải thu (T-066) = tổng khối Chưa thanh toán – đúng số Thu cả đơn tiền mặt / QR cả đơn thu; ``total`` vẫn là tổng đơn sau giảm
+             */
+            unpaid_amount: number;
+            /**
+             * Unpaid Blocks
+             * @description Số khối Chưa thanh toán
+             */
+            unpaid_blocks: number;
+        };
+        /** OrderUncollectibleIn */
+        OrderUncollectibleIn: {
+            /**
+             * Reason
+             * @description Không bắt buộc (T-064)
+             * @default
+             */
+            reason: string;
+        };
+        /** OrderUncollectibleOut */
+        OrderUncollectibleOut: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Marked
+             * @description Mã con vừa đánh dấu Không thu được
+             */
+            marked: string[];
+            /**
+             * Remaining Unpaid
+             * @description Mã con chưa tới giờ, còn Chưa thanh toán
+             */
+            remaining_unpaid: string[];
+            /**
+             * Bookings
+             * @description Mọi khối của đơn sau khi đánh dấu
+             */
+            bookings: components["schemas"]["ItemOut"][];
         };
         /** OtpSentOut */
         OtpSentOut: {
@@ -5878,9 +6027,21 @@ export interface components {
         PlayHistory: {
             /**
              * Month
-             * @description YYYY-MM
+             * @description YYYY-MM (tháng của ngày đầu khoảng)
              */
             month: string;
+            /**
+             * Start
+             * Format: date
+             * @description Ngày đầu khoảng đang xem (giờ VN)
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             * @description Ngày cuối khoảng đang xem, gồm cả ngày này (giờ VN)
+             */
+            end: string;
             summary: components["schemas"]["PlayHistorySummary"];
             /**
              * Items
@@ -5936,6 +6097,32 @@ export interface components {
              * @description 2 vs 2: cả 2 người đội thắng đều được tính
              */
             wins: number;
+        };
+        /**
+         * PlayStats
+         * @description Thắng / thua trong buổi phá kỷ lục: số hội viên tự nhập khi gửi (ưu tiên), không có thì tự
+         *     tính từ phòng chơi cùng sân, khung giờ chứa lúc đo.
+         */
+        PlayStats: {
+            /**
+             * Start At
+             * @description Khung giờ buổi chơi; null khi là số tự nhập
+             */
+            start_at: string | null;
+            /** End At */
+            end_at: string | null;
+            /**
+             * Matches
+             * @description Số trận đã lưu kết quả mà người này ở đội A/B (≥ 1)
+             */
+            matches: number;
+            /**
+             * Wins
+             * @description 2 vs 2: cả 2 người đội thắng đều được tính
+             */
+            wins: number;
+            /** Losses */
+            losses: number;
         };
         /** PlayerOut */
         PlayerOut: {
@@ -6424,6 +6611,8 @@ export interface components {
             is_me: boolean;
             /** @description null: “Chưa có video” */
             video: components["schemas"]["VideoOut"] | null;
+            /** @description Thắng / thua trong buổi phá kỷ lục; null: ẩn danh, không có sân, không thuộc phòng chơi nào hoặc buổi đó chưa lưu trận nào của người này */
+            play_stats: components["schemas"]["PlayStats"] | null;
         };
         /** RecordBreakList */
         RecordBreakList: {
@@ -7861,10 +8050,21 @@ export interface components {
              * @description YouTube / .mp4 / .webm (https), E-REC-1
              */
             video_url?: string | null;
+            /**
+             * Wins
+             * @description Số trận thắng trong buổi (bắt buộc)
+             */
+            wins: number;
+            /**
+             * Losses
+             * @description Số trận thua (bắt buộc); tổng thắng + thua = 0 -> 422 E-REC-9
+             */
+            losses: number;
         };
         /**
          * SpeedRecordPatchIn
-         * @description Chỉ gửi ô muốn đổi; ``resource_code`` / ``video_url`` = null -> bỏ sân / gỡ video.
+         * @description Chỉ gửi ô muốn đổi; ``resource_code`` / ``video_url`` = null -> bỏ sân / gỡ video;
+         *     ``wins`` / ``losses`` đổi thì gửi đủ cả hai (không xóa được).
          */
         SpeedRecordPatchIn: {
             /** Version */
@@ -7883,6 +8083,16 @@ export interface components {
              * @description YouTube / .mp4 / .webm (https), E-REC-1
              */
             video_url?: string | null;
+            /**
+             * Wins
+             * @description Số trận thắng trong buổi; gửi cùng ``losses``
+             */
+            wins?: number | null;
+            /**
+             * Losses
+             * @description Số trận thua; đổi thì gửi đủ cả hai (thiếu / null / tổng 0 -> 422 E-REC-9)
+             */
+            losses?: number | null;
         };
         /**
          * SpeedSubmitIn
@@ -7910,6 +8120,16 @@ export interface components {
              * @description YouTube / .mp4 / .webm (https), E-REC-1
              */
             video_url?: string | null;
+            /**
+             * Wins
+             * @description Số trận thắng trong buổi đập cú này (bắt buộc)
+             */
+            wins: number;
+            /**
+             * Losses
+             * @description Số trận thua (bắt buộc); tổng thắng + thua = 0 -> 422 E-REC-9
+             */
+            losses: number;
         };
         /**
          * StaffCreateIn
@@ -8147,8 +8367,11 @@ export interface components {
             order_code: string | null;
             /** Customer Name */
             customer_name: string;
-            /** Customer Phone Masked */
-            customer_phone_masked: string | null;
+            /**
+             * Customer Phone
+             * @description SĐT đầy đủ (T-061): ai có quyền xem lịch sử giao dịch đều thấy
+             */
+            customer_phone: string | null;
             /** Member Code */
             member_code?: string | null;
             /**
@@ -10269,6 +10492,44 @@ export interface operations {
             };
         };
     };
+    update_special_day_api_v1_booking_special_days__special_day_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                special_day_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecialDayIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialDayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     quote_api_v1_booking_quote_post: {
         parameters: {
             query?: never;
@@ -10563,6 +10824,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderCollectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uncollectible_order_api_v1_booking_orders__order_code__uncollectible_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderUncollectibleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderUncollectibleOut"];
                 };
             };
             /** @description Validation Error */
@@ -12107,6 +12406,10 @@ export interface operations {
             query?: {
                 /** @description YYYY-MM, mặc định tháng này */
                 month?: string | null;
+                /** @description Từ ngày (gửi kèm ``to``; có thì bỏ qua month) */
+                from?: string | null;
+                /** @description Đến ngày, gồm cả ngày này */
+                to?: string | null;
             };
             header?: {
                 /** @description ETag lần trước -> 304 nếu không đổi */
@@ -13177,6 +13480,37 @@ export interface operations {
             header?: never;
             path: {
                 order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectQrOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    item_collect_qr_api_v1_front_desk_items__code__collect_qr_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
             };
             cookie?: never;
         };

@@ -7,6 +7,8 @@ import type { MemberTier } from "@/lib/api/server";
 export const PAGE_SIZES = [20, 50, 100] as const;
 /** Độ dài tối đa ô tìm (khớp `max_length` của BE). */
 export const SEARCH_MAX = 50;
+/** Ngày sinh sớm nhất (khớp ràng buộc DB); muộn nhất là hôm nay – form quản trị và Hồ sơ của tôi dùng chung. */
+export const BIRTH_MIN = "1900-01-01";
 // Hạng = trình độ chơi, theo thứ tự thấp ⇒ cao. Kiểu Record bắt buộc đủ đúng các hạng trong schema.d.ts:
 // BE thêm/bớt/đổi tên hạng ⇒ tsc báo lỗi ở đây (danh sách chỉ viết một nơi, form và bộ lọc dùng chung)
 const TIER_ORDER: Record<MemberTier, true> = {

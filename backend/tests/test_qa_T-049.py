@@ -134,7 +134,13 @@ async def test_ac6_admin_attach_edit_detach_flow_is_reflected_in_ranking(admin, 
     day = datetime.now(settings.tz).date().isoformat()
     created = await admin.post(
         ADMIN,
-        json={"member_code": a.code, "speed_kmh": 400, "measured_at": at.isoformat()},
+        json={
+            "member_code": a.code,
+            "wins": 1,
+            "losses": 0,
+            "speed_kmh": 400,
+            "measured_at": at.isoformat(),
+        },
         headers=idem(),
     )
     assert created.status_code == 201, created.text

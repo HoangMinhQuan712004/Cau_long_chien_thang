@@ -162,6 +162,17 @@ async def month_stats(
     return (await history.play_history(session, customer_id, month)).summary
 
 
+SessionKey = history.SessionKey
+SessionStats = history.SessionStats
+
+
+async def session_stats(
+    session: AsyncSession, keys: list[SessionKey]
+) -> dict[SessionKey, SessionStats]:
+    """Thắng / thua trong buổi (phòng) chứa thời điểm trên sân – cho thẻ kỷ lục (records)."""
+    return await history.session_stats(session, keys)
+
+
 # ------------------------------------------------------------------ dữ liệu mẫu dev (T-034)
 
 DemoMatch = demo.DemoMatch

@@ -12,6 +12,8 @@ from app.modules.booking_engine.schedules import Hours, to_hhmm
 
 DAY_LABELS = {"weekday": "Ngày thường", "weekend": "Cuối tuần", "holiday": "Lễ/Tết"}
 
+SPECIAL_DAY_LABELS = {"date_from": "Từ ngày", "date_to": "Đến ngày", "name": "Tên"}
+
 RESOURCE_LABELS = {
     "name": "Tên sân",
     "resource_type": "Loại sân",

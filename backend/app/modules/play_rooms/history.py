@@ -5,7 +5,8 @@ Tính cả phòng mình đã rời / bị mời ra (kết quả trận giữ the
 """
 
 from collections import defaultdict
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,13 +37,46 @@ def parse_month(value: str | None) -> datetime:
         raise AppError("E-001", "Tháng không hợp lệ (YYYY-MM).", 422) from None
 
 
-async def play_history(session: AsyncSession, customer_id: int, month: str | None) -> PlayHistory:
-    start = parse_month(month)
-    end = _next_month(start)
+MAX_RANGE_DAYS = 366
+
+
+def parse_range(date_from: date | None, date_to: date | None) -> tuple[datetime, datetime] | None:
+    """Khoảng ngày (gồm cả 2 đầu, giờ VN) -> [đầu ngày ``from``, đầu ngày sau ``to``); không gửi ->
+    None (dùng tháng). Thiếu một đầu / đảo ngược / quá 1 năm -> 422 E-001."""
+    if date_from is None and date_to is None:
+        return None
+    if date_from is None or date_to is None:
+        raise AppError("E-001", "Vui lòng chọn cả Từ ngày và Đến ngày.", 422)
+    if date_from > date_to:
+        raise AppError("E-001", "Từ ngày phải trước hoặc bằng Đến ngày.", 422)
+    if (date_to - date_from).days >= MAX_RANGE_DAYS:
+        raise AppError("E-001", "Khoảng ngày tối đa 1 năm.", 422)
+    start = datetime.combine(date_from, time(), settings.tz)
+    return start, datetime.combine(date_to + timedelta(days=1), time(), settings.tz)
+
+
+async def play_history(
+    session: AsyncSession,
+    customer_id: int,
+    month: str | None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> PlayHistory:
+    """Theo khoảng ``date_from``–``date_to`` nếu có, không thì theo tháng (mặc định tháng này)."""
+    span = parse_range(date_from, date_to)
+    if span is None:
+        start = parse_month(month)
+        span = (start, _next_month(start))
+    start, end = span
     label = f"{start.year:04d}-{start.month:02d}"
-    if start > datetime.now(UTC):  # tháng tương lai: trả rỗng
+    first, last = start.date(), (end - timedelta(days=1)).date()
+    if start > datetime.now(UTC):  # khoảng tương lai: trả rỗng
         return PlayHistory(
-            month=label, summary=PlayHistorySummary(sessions=0, matches=0, wins=0), items=[]
+            month=label,
+            start=first,
+            end=last,
+            summary=PlayHistorySummary(sessions=0, matches=0, wins=0),
+            items=[],
         )
     rows = await session.execute(
         select(PlayMatch, PlayRoom)
@@ -81,6 +115,8 @@ async def play_history(session: AsyncSession, customer_id: int, month: str | Non
     ]
     return PlayHistory(
         month=label,
+        start=first,
+        end=last,
         summary=PlayHistorySummary(
             sessions=len(items),
             matches=sum(i.matches for i in items),
@@ -88,3 +124,60 @@ async def play_history(session: AsyncSession, customer_id: int, month: str | Non
         ),
         items=items,
     )
+
+
+@dataclass(frozen=True)
+class SessionStats:
+    """Thắng / thua của một người trong một buổi (phòng) – cùng cách đếm Lịch sử chơi."""
+
+    start_at: datetime
+    end_at: datetime
+    matches: int
+    wins: int
+
+
+SessionKey = tuple[int, str, datetime]  # (id hồ sơ, mã sân, thời điểm)
+
+
+async def session_stats(
+    session: AsyncSession, keys: list[SessionKey]
+) -> dict[SessionKey, SessionStats]:
+    """Buổi chứa thời điểm ``at`` trên sân ``court`` (``start_at <= at < end_at``) và số trận đã lưu
+    của người đó trong buổi. Không có phòng / không có trận -> không có trong kết quả."""
+    if not keys:
+        return {}
+    rooms = list(
+        await session.scalars(
+            select(PlayRoom).where(
+                PlayRoom.resource_code.in_({court for _, court, _ in keys}),
+                PlayRoom.start_at <= max(at for *_, at in keys),
+                PlayRoom.end_at > min(at for *_, at in keys),
+            )
+        )
+    )
+    room_of = {}
+    for key in keys:
+        _, court, at = key
+        room = next(
+            (r for r in rooms if r.resource_code == court and r.start_at <= at < r.end_at), None
+        )
+        if room is not None:
+            room_of[key] = room
+    if not room_of:
+        return {}
+    rows = await session.execute(
+        select(PlayMatch).where(
+            PlayMatch.status == "finished",
+            PlayMatch.room_id.in_({r.id for r in room_of.values()}),
+        )
+    )
+    games = list(rows.scalars())
+    out = {}
+    for key, room in room_of.items():
+        cid = key[0]
+        mine = [m for m in games if m.room_id == room.id and cid in (*m.team_a, *m.team_b)]
+        if not mine:
+            continue
+        wins = sum(1 for m in mine if m.winner == ("a" if cid in m.team_a else "b"))
+        out[key] = SessionStats(room.start_at, room.end_at, len(mine), wins)
+    return out

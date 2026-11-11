@@ -579,8 +579,8 @@ async def apply_online_payment(
         .where(Checkout.tenant_id == tenant_id, Checkout.pay_ref == data.pay_ref.upper())
         .with_for_update()
     )
-    if checkout is None:  # T-058: mã đơn quầy (QR "Thu cả đơn"), hoặc không khớp gì
-        return await counter_qr.apply_order_payment(session, tenant_id, data)
+    if checkout is None:  # T-058 / T-065: mã đơn / mã con quầy (QR), hoặc không khớp gì
+        return await counter_qr.apply_counter_payment(session, tenant_id, data)
     in_time = data.transaction_at <= checkout.expires_at + grace()
     if checkout.status != "pending" or not in_time:
         # Đã thanh toán (tiền thừa) / hết hạn / quá ân hạn: không tạo booking, cần hoàn.

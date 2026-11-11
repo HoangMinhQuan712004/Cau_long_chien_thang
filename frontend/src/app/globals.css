@@ -142,6 +142,10 @@
   --animate-scale-in: scale-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
   /* Rung ngang báo chặn (vd ô đã đủ ký tự) */
   --animate-shake: shake 300ms ease-in-out;
+  /* Vệt sáng lướt trong nét chữ (số kỷ lục): lướt ~1,8 s rồi nghỉ, lặp mỗi 6 s */
+  --animate-shine-text: shine-text 6s ease-in-out infinite;
+  /* Sao quanh số kỷ lục: luôn hiện, nháy sáng ↔ dịu liên tục (không xoay); lệch nhịp bằng animation-delay ở nơi dùng */
+  --animate-star-glint: star-glint 2.2s ease-in-out infinite both;
 
   @keyframes fade-in {
     from {
@@ -158,6 +162,26 @@
     from {
       opacity: 0;
       transform: scale(0.96);
+    }
+  }
+  @keyframes star-glint {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(0.85);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+  }
+  @keyframes shine-text {
+    0% {
+      background-position: 150% 0;
+    }
+    30%,
+    100% {
+      background-position: -50% 0;
     }
   }
   @keyframes shake {
@@ -177,7 +201,9 @@
   .animate-fade-in,
   .animate-slide-up,
   .animate-scale-in,
-  .animate-shake {
+  .animate-shake,
+  .animate-shine-text,
+  .animate-star-glint {
     animation: none;
   }
 }

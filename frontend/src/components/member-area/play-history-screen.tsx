@@ -1,39 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageBanner } from "@/components/member-area/page-banner";
 import { RoomHistory } from "@/components/play-rooms/room-history";
 import { Button } from "@/components/ui/button";
+import type { DateRangeValue } from "@/components/ui/date-range";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { cn } from "@/lib/cn";
-import { formatNumber, formatTime, vnDate } from "@/lib/format";
+import { formatDayMonthYear, formatNumber, formatTime, todayVn } from "@/lib/format";
+import { MAX_RANGE_DAYS, PlayHistoryFilters, daysBetween, thisMonth } from "./play-history-filters";
 
-// /hoi-vien/lich-su-choi (T-029): các buổi đã chơi trong tháng (phòng có ≥ 1 trận đã lưu), 3 thẻ số, bấm dòng mở popup các trận của buổi đó (ở lại màn này, không sang phòng).
+// /hoi-vien/lich-su-choi (T-029): các buổi đã chơi trong khoảng ngày (mặc định tháng này; phòng có ≥ 1 trận đã lưu), 3 thẻ số theo khoảng,
+// bấm dòng mở popup các trận của buổi đó (ở lại màn này, không sang phòng).
 
 type History = components["schemas"]["PlayHistory"];
 type Item = components["schemas"]["PlayHistoryItem"];
 
 const WEEKDAY = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 const dayLabel = (d: string) => `${WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]} ${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
-const monthTitle = (m: string) => `Tháng ${m.slice(5, 7)}/${m.slice(0, 4)}`;
-/** "2026-10" ± n tháng. */
-const shiftMonth = (m: string, n: number) => {
-  const d = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + n, 1));
-  return d.toISOString().slice(0, 7);
-};
 const hours = (it: Item) => `${formatTime(it.start_at)}–${formatTime(it.end_at)}`;
+/** So khớp không phân biệt hoa thường, dấu ("san 1" khớp "Sân 1"). */
+const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/đ/gi, "d").toLowerCase();
+const spanText = (r: DateRangeValue) => (r.from === r.to ? formatDayMonthYear(r.from) : `${formatDayMonthYear(r.from)} – ${formatDayMonthYear(r.to)}`);
 
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-surface/20 bg-surface/10 p-4">
-      <p className="flex items-center gap-1.5 text-xs text-surface/80">
+    <div className="min-w-0 rounded-xl border border-surface/20 bg-surface/10 p-3 sm:p-4">
+      <p className="flex items-center gap-1 text-xs text-surface/80 sm:gap-1.5">
         {icon}
-        {label}
+        <span className="truncate">{label}</span>
       </p>
-      <p className="mt-1 text-3xl font-bold tabular-nums">{formatNumber(value)}</p>
+      <p className="mt-1 text-2xl font-bold tabular-nums sm:text-3xl">{formatNumber(value)}</p>
     </div>
   );
 }
@@ -57,76 +57,58 @@ const IconTrophy = () => (
 );
 
 export function PlayHistoryScreen() {
-  const [month, setMonth] = useState<string | undefined>(undefined);
+  const [today] = useState(todayVn);
+  const [range, setRange] = useState(() => thisMonth(today));
   const [data, setData] = useState<History | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [nowMs, setNowMs] = useState(0);
   const [detail, setDetail] = useState<Item | null>(null);
-  // Chỉ nhận kết quả của lần gọi mới nhất (đổi tháng liên tiếp)
+  // Chữ tìm lọc tại máy trên các buổi của khoảng đã tải (không gọi lại API)
+  const [q, setQ] = useState("");
+  // Chỉ nhận kết quả của lần gọi mới nhất (đổi khoảng liên tiếp)
   const seq = useRef(0);
+  const rangeError = daysBetween(range) >= MAX_RANGE_DAYS ? "Khoảng ngày tối đa 1 năm. Hãy chọn khoảng ngắn hơn." : "";
 
-  const load = useCallback(async (m: string | undefined) => {
+  const load = useCallback(async (r: DateRangeValue) => {
     const mine = ++seq.current;
     setFailed(false);
+    setIsLoading(true);
     try {
-      const { data: d, response } = await api.GET("/api/v1/member-area/play-history", { params: { query: m ? { month: m } : {} } });
+      const { data: d, response } = await api.GET("/api/v1/member-area/play-history", { params: { query: { from: r.from, to: r.to } } });
       if (mine !== seq.current) return;
       if (response.status === 401) {
         window.location.replace(`/dang-nhap?next=${encodeURIComponent("/hoi-vien/lich-su-choi")}&ly-do=het-han`);
         return;
       }
-      if (d) {
-        setData(d);
-        setNowMs(Date.now());
-      } else setFailed(true);
+      if (d) setData(d);
+      else setFailed(true);
     } catch {
       if (mine === seq.current) setFailed(true);
     }
+    if (mine === seq.current) setIsLoading(false);
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- tải khi đổi tháng
-    void load(month);
-  }, [load, month]);
+    if (rangeError) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- tải khi đổi khoảng ngày
+    void load(range);
+  }, [load, range, rangeError]);
 
-  const current = nowMs ? vnDate(new Date(nowMs).toISOString()).slice(0, 7) : "";
-  const shown = data?.month ?? month ?? "";
-  const canNext = Boolean(shown && current && shown < current);
+  const items = useMemo(() => data?.items ?? [], [data]);
+  const shownItems = useMemo(() => {
+    const needle = fold(q.trim());
+    return needle ? items.filter((it) => fold(`${it.resource_name} ${it.resource_type_name} ${dayLabel(it.date)}`).includes(needle)) : items;
+  }, [items, q]);
   const s = data?.summary;
 
   return (
     <>
       <PageBanner
         title="Lịch sử chơi"
-        subtitle={shown ? `Các buổi bạn đã chơi tại cụm sân · tháng ${shown.slice(5, 7)}/${shown.slice(0, 4)}` : "Các buổi bạn đã chơi tại cụm sân"}
-        aside={
-          shown ? (
-            <div className="flex items-center gap-1 rounded-full bg-surface/15 p-1" role="group" aria-label="Chọn tháng">
-              <button
-                type="button"
-                aria-label="Tháng trước"
-                onClick={() => setMonth(shiftMonth(shown, -1))}
-                className="grid size-9 place-items-center rounded-full hover:bg-surface/20 focus-ring"
-              >
-                <span aria-hidden>‹</span>
-              </button>
-              <span className="min-w-28 text-center text-sm font-semibold" aria-live="polite">
-                {monthTitle(shown)}
-              </span>
-              <button
-                type="button"
-                aria-label="Tháng sau"
-                disabled={!canNext}
-                onClick={() => setMonth(shiftMonth(shown, 1))}
-                className="grid size-9 place-items-center rounded-full hover:bg-surface/20 focus-ring disabled:opacity-40 disabled:hover:bg-transparent"
-              >
-                <span aria-hidden>›</span>
-              </button>
-            </div>
-          ) : null
-        }
+        subtitle={`Các buổi bạn đã chơi tại cụm sân · ${spanText(range)}`}
       >
-        <div className="relative mx-auto grid max-w-6xl gap-3 px-4 pb-14 sm:grid-cols-3 sm:pb-16">
+        {/* Điện thoại cũng 3 thẻ một hàng (thẻ gọn lại) ⇒ danh sách lên cao hơn */}
+        <div className="relative mx-auto grid max-w-6xl grid-cols-3 gap-2 px-4 pb-14 sm:gap-3 sm:pb-16">
           <Stat icon={<IconCalendar />} label="Buổi chơi" value={s?.sessions ?? 0} />
           <Stat icon={<IconPulse />} label="Số trận" value={s?.matches ?? 0} />
           <Stat icon={<IconTrophy />} label="Trận thắng" value={s?.wins ?? 0} />
@@ -137,7 +119,7 @@ export function PlayHistoryScreen() {
         {failed && !data ? (
           <div role="alert" className="rounded-card bg-surface p-8 text-center shadow-card">
             <p className="font-semibold">Không tải được lịch sử chơi. Vui lòng thử lại.</p>
-            <Button className="mt-4" onClick={() => void load(month)}>
+            <Button className="mt-4" onClick={() => void load(range)}>
               Thử lại
             </Button>
           </div>
@@ -146,21 +128,36 @@ export function PlayHistoryScreen() {
             Đang tải…
           </p>
         ) : (
-          <section className="rounded-card bg-surface p-4 shadow-card sm:p-5" aria-labelledby="ph-title">
+          <section className="rounded-card bg-surface p-4 shadow-card sm:p-5" aria-labelledby="ph-title" aria-busy={isLoading}>
             <div className="flex items-baseline justify-between gap-3">
               <h2 id="ph-title" className="text-base font-bold">
                 Các buổi chơi
               </h2>
-              {data.items.length > 0 ? <span className="text-xs text-muted">Mới nhất ở trên</span> : null}
+              {items.length > 0 ? (
+                <span className="text-xs text-muted tabular-nums" aria-live="polite">
+                  {q.trim() ? `${shownItems.length}/${items.length} buổi` : `${items.length} buổi · mới nhất ở trên`}
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-3">
+              <PlayHistoryFilters today={today} range={range} onRange={setRange} q={q} onSearch={setQ} error={rangeError} />
             </div>
 
-            {data.items.length === 0 ? (
+            {items.length === 0 ? (
               <div className="py-10 text-center">
-                <p className="font-semibold">Tháng này bạn chưa có trận nào</p>
-                <p className="mt-1 text-sm text-muted">Các trận đã lưu kết quả trong Phòng chơi sẽ hiện ở đây.</p>
+                <p className="font-semibold">Chưa có buổi chơi nào trong khoảng này</p>
+                <p className="mt-1 text-sm text-muted">Chọn khoảng ngày khác ở trên, hoặc đặt sân để chơi. Các trận đã lưu kết quả trong Phòng chơi sẽ hiện ở đây.</p>
                 <Link href="/hoi-vien/dat-san" className="mt-4 inline-flex h-11 items-center rounded-lg bg-cta px-6 text-sm font-bold tracking-wide text-cta-fg uppercase hover:bg-cta-hover focus-ring">
                   Đặt sân
                 </Link>
+              </div>
+            ) : shownItems.length === 0 ? (
+              <div className="py-10 text-center">
+                <p className="font-semibold">Không có buổi nào khớp “{q.trim()}”</p>
+                <p className="mt-1 text-sm text-muted">Thử tên sân khác, hoặc bỏ chữ tìm để xem mọi buổi trong khoảng.</p>
+                <Button variant="secondary" className="mt-4" onClick={() => setQ("")}>
+                  Bỏ chữ tìm
+                </Button>
               </div>
             ) : (
               <>
@@ -174,8 +171,9 @@ export function PlayHistoryScreen() {
                   <span className="text-center">Thua</span>
                   <span />
                 </div>
-                <ul className="mt-2 divide-y divide-border">
-                  {data.items.map((it) => (
+                {/* Đang tải khoảng mới: giữ danh sách cũ, làm mờ (không nhảy layout) */}
+                <ul className={cn("mt-2 divide-y divide-border transition-opacity motion-reduce:transition-none", isLoading && "opacity-50")}>
+                  {shownItems.map((it) => (
                     <li key={it.room_id}>
                       <button
                         type="button"

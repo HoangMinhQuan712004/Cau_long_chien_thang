@@ -3,7 +3,7 @@
 import io
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from PIL import Image
@@ -490,6 +490,75 @@ async def test_member_chooses_own_tier_with_audit(admin):
         # NV / Admin vẫn đổi ở quản trị (AC4)
         r = await patch_member(admin, code, {"tier": "Bán chuyên"})
         assert r.status_code == 200 and r.json()["tier"] == "Bán chuyên"
+
+
+async def test_member_sets_own_gender(admin):
+    """Giới tính giống tier: đặt Nam / Nữ, null = bỏ chọn, không gửi = giữ, giá trị lạ -> 422."""
+    async with linked_member(admin) as (c, customer_id, code, _):
+        me = (await c.get(ME)).json()
+        assert me["gender"] is None
+        r = await c.put(ME, json=body_of(me, gender="Nam"))
+        assert r.status_code == 422
+        assert r.json()["detail"]["fields"] == [
+            {"field": "gender", "code": "E-HV-1", "message": "Giới tính không hợp lệ."}
+        ]
+        r = await c.put(ME, json=body_of(me, gender="male"))
+        assert r.status_code == 200 and r.json()["gender"] == "male"
+        r = await c.put(ME, json=body_of(r.json(), gender="female"))
+        assert r.status_code == 200 and r.json()["gender"] == "female"
+        r = await c.put(ME, json=body_of(r.json(), nickname="Không gửi giới tính"))
+        assert r.status_code == 200 and r.json()["gender"] == "female"  # không gửi -> giữ
+        r = await c.put(ME, json=body_of(r.json(), gender=None))
+        assert r.status_code == 200 and r.json()["gender"] is None  # bỏ chọn
+        async with SessionLocal() as s:
+            assert await s.scalar(select(Customer.gender).where(Customer.id == customer_id)) is None
+            rows = list(
+                await s.scalars(
+                    select(AuditLog)
+                    .where(AuditLog.entity_code == code, AuditLog.action == "member.self_update")
+                    .order_by(AuditLog.id)
+                )
+            )
+        changes = [x for row in rows for x in row.detail["changes"] if x["field"] == "Giới tính"]
+        assert [(x["before"], x["after"]) for x in changes] == [
+            ("Chưa chọn", "Nam"),
+            ("Nam", "Nữ"),
+            ("Nữ", "Chưa chọn"),
+        ]
+
+
+async def test_member_sets_own_birth_date(admin):
+    """Ngày sinh tự nhập: không gửi = giữ, null = xóa, ngày tương lai -> 422 fields."""
+    async with linked_member(admin) as (c, customer_id, code, _):
+        me = (await c.get(ME)).json()
+        assert me["birth_date"] is None
+        tomorrow = (datetime.now(settings.tz).date() + timedelta(days=1)).isoformat()
+        r = await c.put(ME, json=body_of(me, birth_date=tomorrow))
+        assert r.status_code == 422
+        assert r.json()["detail"]["fields"] == [
+            {"field": "birth_date", "code": "E-HV-1", "message": "Ngày sinh không hợp lệ."}
+        ]
+        r = await c.put(ME, json=body_of(me, birth_date="1998-07-20"))
+        assert r.status_code == 200 and r.json()["birth_date"] == "1998-07-20"
+        r = await c.put(ME, json=body_of(r.json(), nickname="Không gửi ngày sinh"))
+        assert r.status_code == 200 and r.json()["birth_date"] == "1998-07-20"  # giữ
+        detail = (await admin.get(f"{API}/members/{code}")).json()
+        assert detail["birth_date"] == "1998-07-20"  # quản trị thấy cùng bản ghi
+        r = await c.put(ME, json=body_of(r.json(), birth_date=None))
+        assert r.status_code == 200 and r.json()["birth_date"] is None
+        async with SessionLocal() as s:
+            rows = list(
+                await s.scalars(
+                    select(AuditLog)
+                    .where(AuditLog.entity_code == code, AuditLog.action == "member.self_update")
+                    .order_by(AuditLog.id)
+                )
+            )
+        changes = [x for row in rows for x in row.detail["changes"] if x["field"] == "Ngày sinh"]
+        assert [(x["before"], x["after"]) for x in changes] == [
+            (None, "20/07/1998"),
+            ("20/07/1998", None),
+        ]
 
 
 async def test_racket_name_error_is_reported_with_fields(admin):

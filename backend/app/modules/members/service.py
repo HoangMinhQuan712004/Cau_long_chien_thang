@@ -4,12 +4,14 @@ Hàm ở đây **không commit** – lớp gọi sở hữu transaction (hồ s�
 """
 
 import re
+from datetime import date, datetime
 
 from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor, audit
+from app.core.config import settings
 from app.core.errors import AppError
 from app.modules.members.audit_fields import temp_detail
 from app.modules.members.models import Customer
@@ -19,6 +21,19 @@ SEARCH_LIMIT = 20
 NAME_MAX = 100
 PHONE_RE = re.compile(r"^0\d{9}$")
 MIN_PHONE_DIGITS = 3
+BIRTH_MIN = date(1900, 1, 1)
+BIRTH_INVALID = "Ngày sinh không hợp lệ."
+
+
+def birth_date_ok(value: date | None) -> bool:
+    """Ngày sinh: bỏ trống được; không trước 1900, không sau hôm nay (giờ Việt Nam)."""
+    return value is None or BIRTH_MIN <= value <= datetime.now(settings.tz).date()
+
+
+def check_birth_date(value: date | None) -> date | None:
+    if not birth_date_ok(value):
+        raise AppError("E-001", BIRTH_INVALID, 422)
+    return value
 
 
 def normalize_phone(raw: str) -> str:

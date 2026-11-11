@@ -308,7 +308,65 @@ async def test_sort_by_bookings_and_detail(admin, staff, phones):
     assert viewed == 1
     assert (await admin.get(f"{M}/HV9997")).status_code == 404
     assert (await admin.get(f"{M}/{uuid.uuid4()}")).status_code == 404
+
+
+async def test_detail_shows_nickname_and_email(admin, staff, phones):
+    """Biệt danh + email hội viên tự nhập: chi tiết hiện (null khi chưa nhập), danh sách không."""
+    a, b = await add_member(admin, phones), await add_member(admin, phones)
+    email = f"hv-{uuid.uuid4().hex[:8]}@example.com"
+    async with SessionLocal() as s:
+        await s.execute(
+            update(Customer)
+            .where(Customer.member_code == a["member_code"])
+            .values(nickname="Tèo", email=email)
+        )
+        await s.commit()
+    detail = (await staff.get(f"{M}/{a['member_code']}")).json()
+    assert detail["nickname"] == "Tèo" and detail["email"] == email
+    empty = (await staff.get(f"{M}/{b['member_code']}")).json()
+    assert empty["nickname"] is None and empty["email"] is None
+    row = (await admin.get(M, params={"q": a["member_code"]})).json()["items"][0]
+    assert "nickname" not in row and "email" not in row
     assert (await admin.get(f"{M}/123")).status_code == 404
+
+
+async def test_member_birth_date_create_update_and_audit(admin, phones):
+    """Ngày sinh ở quản trị: thêm / sửa / xóa, chặn tương lai + trước 1900, hồ sơ tạm không có."""
+    a = await add_member(admin, phones, birth_date="1995-03-15")
+    code = a["member_code"]
+    assert (await admin.get(f"{M}/{code}")).json()["birth_date"] == "1995-03-15"
+    tomorrow = (dt.datetime.now(settings.tz).date() + dt.timedelta(days=1)).isoformat()
+    for bad in (tomorrow, "1899-12-31"):
+        r = await patch_member(admin, code, {"birth_date": bad})
+        assert r.status_code == 422, bad
+        assert r.json()["detail"]["message"] == "Ngày sinh không hợp lệ."
+        r = await admin.post(
+            M,
+            json={"full_name": name(), "phone": random_phone(), "birth_date": bad},
+            headers=idem(),
+        )
+        assert r.status_code == 422, bad
+    r = await patch_member(admin, code, {"birth_date": "2000-01-02"})
+    assert r.status_code == 200
+    r = await patch_member(admin, code, {"birth_date": None})
+    assert r.status_code == 200
+    assert (await admin.get(f"{M}/{code}")).json()["birth_date"] is None
+    async with SessionLocal() as s:
+        rows = list(
+            await s.scalars(
+                select(AuditLog)
+                .where(AuditLog.entity_code == code, AuditLog.action == "member.update")
+                .order_by(AuditLog.id)
+            )
+        )
+    changes = [x for row in rows for x in row.detail["changes"] if x["field"] == "Ngày sinh"]
+    assert [(x["before"], x["after"]) for x in changes] == [
+        ("15/03/1995", "02/01/2000"),
+        ("02/01/2000", None),
+    ]
+    t = await add_temp(admin, phones)
+    r = await patch_member(admin, t["ref"], {"birth_date": "1990-01-01"})
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-MEM-6"
 
 
 # ------------------------------------------------------------------ đặt tại quầy (việc 3)

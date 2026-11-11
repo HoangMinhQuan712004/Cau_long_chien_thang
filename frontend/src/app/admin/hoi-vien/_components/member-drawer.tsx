@@ -3,7 +3,7 @@
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, CalendarPlusIcon, ClockIcon, PencilIcon, PhoneIcon, RacketIcon, UserIcon } from "@/components/ui/icons";
+import { CalendarIcon, CalendarPlusIcon, ClockIcon, IdCardIcon, InboxIcon, PencilIcon, PhoneIcon, RacketIcon, UserIcon } from "@/components/ui/icons";
 import { SidePanel } from "@/components/ui/side-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Dictionary } from "@/i18n/dictionaries";
@@ -90,16 +90,22 @@ const INFO_GRID = "grid grid-cols-[minmax(0,8rem)_1fr] gap-x-4 sm:grid-cols-[min
 
 function DetailBody({ detail, t }: { detail: MemberDetail; t: Dictionary["members"] }) {
   const d = t.drawer;
-  const info: [string, string, React.ReactNode][] = [
+  type Row = [string, string, React.ReactNode];
+  const isMember = detail.kind === "member";
+  const info: Row[] = [
+    // Biệt danh / email hội viên tự nhập ở khu hội viên (chỉ xem); hồ sơ tạm không có tài khoản nên bỏ
+    ...(isMember ? [[d.nickname, detail.nickname ?? "—", <IdCardIcon key="i" size={16} />] as Row] : []),
     // SĐT đầy đủ (người dùng chốt; mở drawer đã ghi nhật ký xem); bảng danh sách vẫn che
     [d.phone, formatPhone(detail.phone), <PhoneIcon key="i" size={16} />],
+    ...(isMember ? [[d.email, detail.email ?? "—", <InboxIcon key="i" size={16} />] as Row] : []),
     [d.gender, detail.gender ? t.form.genders[detail.gender] : "—", <UserIcon key="i" size={16} />],
+    ...(isMember ? [[d.birthDate, detail.birth_date ? formatDayMonthYear(detail.birth_date) : "—", <CalendarIcon key="i" size={16} />] as Row] : []),
     // Hồ sơ tạm không có vợt / hạng / trạng thái
-    ...(detail.kind === "member" ? [[d.racket, detail.racket ?? "—", <RacketIcon key="i" size={16} />] as [string, string, React.ReactNode]] : []),
+    ...(isMember ? [[d.racket, detail.racket ?? "—", <RacketIcon key="i" size={16} />] as Row] : []),
     [d.created, formatDayMonthYear(vnDate(detail.created_at)), <CalendarIcon key="i" size={16} />],
     // T-021: hội viên tự đăng ký trên web (AC9)
-    ...(detail.kind === "member"
-      ? [[d.createdBy, detail.source === "self_register" ? d.sourceSelf : d.sourceCounter, <UserIcon key="i" size={16} />] as [string, string, React.ReactNode]]
+    ...(isMember
+      ? [[d.createdBy, detail.source === "self_register" ? d.sourceSelf : d.sourceCounter, <UserIcon key="i" size={16} />] as Row]
       : []),
   ];
   const hours = Math.round((detail.total_minutes / 60) * 10) / 10;

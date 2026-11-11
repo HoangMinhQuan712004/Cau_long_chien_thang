@@ -97,6 +97,8 @@ async def test_admin_creates_edits_and_deletes_manual_records(admin, staff, peop
     at = now() - timedelta(minutes=5)
     body = {
         "member_code": hv.code.lower(),
+        "wins": 1,
+        "losses": 0,
         "speed_kmh": 260,
         "measured_at": at.isoformat(),
         "resource_code": court["code"].lower(),
@@ -164,6 +166,40 @@ async def test_admin_creates_edits_and_deletes_manual_records(admin, staff, peop
     assert (await staff.post(ADMIN, json=body, headers=idem())).status_code == 403
 
 
+async def test_admin_play_result_required_and_editable(admin, people):
+    """Admin: thắng / thua bắt buộc khi thêm; sửa thì gửi đủ cả hai, không xóa trống; có nhật ký."""
+    hv = await person(people, "Thắng Thua Admin")
+    base_body = {"member_code": hv.code, "speed_kmh": 250, "measured_at": now().isoformat()}
+    for bad in ({}, {"wins": 2}, {"losses": 1}):
+        r = await admin.post(ADMIN, json={**base_body, **bad}, headers=idem())
+        assert r.status_code == 422, bad
+    r = await admin.post(ADMIN, json={**base_body, "wins": 0, "losses": 0}, headers=idem())
+    assert r.status_code == 422 and code_of(r) == "E-REC-9"
+    r = await admin.post(ADMIN, json={**base_body, "wins": 3, "losses": 2}, headers=idem())
+    assert r.status_code == 201, r.text
+    row = r.json()
+    assert (row["wins"], row["losses"]) == (3, 2)
+
+    url = f"{ADMIN}/{row['id']}"
+    for bad in ({"wins": 4}, {"wins": None, "losses": None}, {"wins": 0, "losses": 0}):
+        r = await admin.patch(url, json={"version": 1, **bad}, headers=idem())
+        assert r.status_code == 422 and code_of(r) == "E-REC-9", bad
+    r = await admin.patch(url, json={"version": 1, "wins": 4, "losses": 1}, headers=idem())
+    assert r.status_code == 200 and (r.json()["wins"], r.json()["losses"]) == (4, 1)
+    async with SessionLocal() as s:
+        logs = list(
+            await s.scalars(
+                select(AuditLog)
+                .where(AuditLog.entity_code == str(row["id"]), AuditLog.action == "record.update")
+                .order_by(AuditLog.id)
+            )
+        )
+    changes = [c for log in logs for c in log.detail["changes"] if c["field"] == "Thắng / thua"]
+    assert [(c["before"], c["after"]) for c in changes] == [
+        ("3 thắng · 2 thua", "4 thắng · 1 thua")
+    ]
+
+
 async def test_device_records_cannot_be_edited_or_deleted(admin, people):
     hv = await person(people, "Máy Đo")
     rid = await device_record(hv.customer_id, 222, now())  # mới nhất -> nằm ở trang 1
@@ -190,7 +226,13 @@ async def test_admin_create_validation(admin, people):
             update(Customer).where(Customer.id == stopped.customer_id).values(is_active=False)
         )
         await s.commit()
-    ok = {"member_code": hv.code, "speed_kmh": 200, "measured_at": now().isoformat()}
+    ok = {
+        "member_code": hv.code,
+        "wins": 1,
+        "losses": 0,
+        "speed_kmh": 200,
+        "measured_at": now().isoformat(),
+    }
     cases = [
         ({"member_code": "HV-KHONG-CO"}, 422, "E-REC-7"),
         ({"member_code": stopped.code}, 422, "E-REC-7"),
@@ -203,8 +245,8 @@ async def test_admin_create_validation(admin, people):
         r = await admin.post(ADMIN, json={**ok, **change}, headers=idem())
         assert (r.status_code, code_of(r)) == (status, code), (change, r.text)
     for change in (
-        {"speed_kmh": 49},
-        {"speed_kmh": 501},
+        {"wins": 1, "losses": 0, "speed_kmh": 49},
+        {"wins": 1, "losses": 0, "speed_kmh": 501},
         {"measured_at": "2026-11-01T10:00:00"},  # thiếu múi giờ
     ):
         r = await admin.post(ADMIN, json={**ok, **change}, headers=idem())
@@ -229,6 +271,8 @@ async def test_member_submission_review_flow(admin, people):
     r = await hv.client.post(
         MINE,
         json={
+            "wins": 1,
+            "losses": 0,
             "speed_kmh": 300,
             "measured_at": at.isoformat(),
             "resource_code": court["code"],
@@ -275,7 +319,13 @@ async def test_member_submission_review_flow(admin, people):
     # Bị từ chối: có lý do, không tính, không hiện ở Video & kỷ lục
     r = await hv.client.post(
         MINE,
-        json={"speed_kmh": 310, "measured_at": at.isoformat(), "video_url": YT},
+        json={
+            "wins": 1,
+            "losses": 0,
+            "speed_kmh": 310,
+            "measured_at": at.isoformat(),
+            "video_url": YT,
+        },
         headers=idem(),
     )
     assert r.status_code == 201, r.text
@@ -309,7 +359,9 @@ async def test_member_submission_review_flow(admin, people):
 
     # Rút lại bản chờ duyệt
     r = await hv.client.post(
-        MINE, json={"speed_kmh": 320, "measured_at": at.isoformat()}, headers=idem()
+        MINE,
+        json={"wins": 1, "losses": 0, "speed_kmh": 320, "measured_at": at.isoformat()},
+        headers=idem(),
     )
     assert r.status_code == 201, r.text
     third = r.json()["id"]
@@ -331,14 +383,20 @@ async def test_member_submit_limits_and_validation(anon, people):
         ({"video_url": "http://youtu.be/dQw4w9WgXcQ"}, 422, "E-REC-1"),
     ):
         r = await hv.client.post(
-            MINE, json={"speed_kmh": 200, "measured_at": at, **change}, headers=idem()
+            MINE,
+            json={"wins": 1, "losses": 0, "speed_kmh": 200, "measured_at": at, **change},
+            headers=idem(),
         )
         assert (r.status_code, code_of(r)) == (status, code), change
     # Lượt lỗi không tính vào giới hạn 5 / ngày
     for kmh in range(201, 206):
-        r = await hv.client.post(MINE, json={"speed_kmh": kmh, "measured_at": at}, headers=idem())
+        r = await hv.client.post(
+            MINE, json={"wins": 1, "losses": 0, "speed_kmh": kmh, "measured_at": at}, headers=idem()
+        )
         assert r.status_code == 201, r.text
-    r = await hv.client.post(MINE, json={"speed_kmh": 206, "measured_at": at}, headers=idem())
+    r = await hv.client.post(
+        MINE, json={"wins": 1, "losses": 0, "speed_kmh": 206, "measured_at": at}, headers=idem()
+    )
     assert r.status_code == 429 and code_of(r) == "E-SEC-5"
 
     async with SessionLocal() as s:
@@ -346,11 +404,15 @@ async def test_member_submit_limits_and_validation(anon, people):
             update(Customer).where(Customer.id == hv.customer_id).values(is_active=False)
         )
         await s.commit()
-    r = await hv.client.post(MINE, json={"speed_kmh": 200, "measured_at": at}, headers=idem())
+    r = await hv.client.post(
+        MINE, json={"wins": 1, "losses": 0, "speed_kmh": 200, "measured_at": at}, headers=idem()
+    )
     assert r.status_code == 403 and code_of(r) == "E-REC-7"
 
     assert (await anon.get(f"{MINE}/mine")).status_code == 401
-    r = await anon.post(MINE, json={"speed_kmh": 200, "measured_at": at}, headers=idem())
+    r = await anon.post(
+        MINE, json={"wins": 1, "losses": 0, "speed_kmh": 200, "measured_at": at}, headers=idem()
+    )
     assert r.status_code == 401
 
 
@@ -379,7 +441,7 @@ async def test_daily_limit_follows_vietnam_calendar_day(people):
     assert start.utcoffset() == timedelta(hours=7) and end - start == timedelta(days=1)
     # 5 bản gửi lúc 23:59:59 hôm qua (giờ VN) không tính cho hôm nay
     await submitted_at(hv.customer_id, start - timedelta(seconds=1), 5)
-    body = {"speed_kmh": 210, "measured_at": now().isoformat()}
+    body = {"wins": 1, "losses": 0, "speed_kmh": 210, "measured_at": now().isoformat()}
     r = await hv.client.post(MINE, json=body, headers=idem())
     assert r.status_code == 201, r.text
     # Thêm 4 bản đúng 00:00 hôm nay (mọi trạng thái đều đếm) -> đủ 5 -> lượt thứ 6 bị chặn

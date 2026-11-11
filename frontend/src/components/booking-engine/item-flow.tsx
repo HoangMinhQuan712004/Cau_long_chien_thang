@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { formatDateTime, formatDayMonth, formatDayMonthYear, formatLongDate, formatVnd, hhmm } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import { authFailure } from "./booking-dialogs";
+import { CollectQrDialog } from "./collect-qr";
 import { MoveDialog } from "./move-dialog";
 import { MoveHistory } from "./move-history";
 import { getItem, sendCancelItem, sendCollect, sendUncollectible } from "./requests";
@@ -41,14 +42,16 @@ type Props = {
   onOpenSession?: (code: string) => void;
   /** Mở cả đơn (danh sách khối + Thu cả đơn) từ dòng "Mã đơn" (T-019). */
   onOpenOrder?: (orderCode: string) => void;
+  /** T-068: mở thẳng bước Thu tiền (nút "Thu tiền" trên dòng vé ở popup Sự kiện); không thu được thì về Thông tin. */
+  startCollect?: boolean;
 };
 
 type Step = "info" | "collect" | "bad" | "cancel" | "move";
 
-export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder }: Props) {
+export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder, startCollect = false }: Props) {
   const [item, setItem] = useState<Item | null>(null);
   const [error, setError] = useState("");
-  const [step, setStep] = useState<Step>("info");
+  const [step, setStep] = useState<Step>(startCollect ? "collect" : "info");
 
   const load = useCallback(async () => {
     const res = await getItem(code);
@@ -80,7 +83,11 @@ export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder 
       </Modal>
     );
   }
-  if (step === "collect") {
+  if (step === "collect" && item.actions.includes("collect")) {
+    // T-065 / T-068: booking quầy và vé quầy thu bằng QR riêng (mã con / mã vé bỏ gạch), có nút tiền mặt + Không thu được
+    if ((item.kind === "booking" && item.order_code) || (item.kind === "ticket" && item.source === "counter")) {
+      return <CollectItemQr item={item} onBack={() => setStep("info")} onBad={() => setStep("bad")} onClose={onClose} onDone={onChanged} onStale={onStale} />;
+    }
     return <CollectDialog item={item} onBack={() => setStep("info")} onClose={onClose} onDone={onChanged} onStale={onStale} />;
   }
   if (step === "bad") {
@@ -381,6 +388,55 @@ type StepProps = {
   onDone: () => void;
   onStale: (message: string) => Promise<void>;
 };
+
+/** Thu tiền một buổi (T-065): popup QR dùng chung với Thu cả đơn; bước tiền mặt gọi thu từng buổi như CollectDialog. */
+function CollectItemQr({ item, onBack, onBad, onClose, onDone, onStale }: StepProps & { onBad: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [banner, setBanner] = useState("");
+
+  async function cash() {
+    if (busy) return;
+    setBusy(true);
+    setBanner("");
+    try {
+      const res = await write((key) => sendCollect(key, item.code, "cash", item.version));
+      if (!res.ok) {
+        const e = res.error;
+        if (authFailure(e)) return;
+        if (e.code === "E-012") return void (await onStale(errorText(e)));
+        setBanner(errorText(e));
+        return;
+      }
+      toast(`Đã thu ${formatVnd(item.payment.amount)} · ${item.code}`, "Tiền mặt · trạng thái chuyển sang Đã thanh toán");
+      onDone();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <CollectQrDialog
+      orderCode={item.order_code ?? item.code /* vé: mã vé */}
+      item={{ code: item.code, bad: { enabled: item.actions.includes("uncollectible"), onClick: onBad } }}
+      busy={busy}
+      banner={banner}
+      onClose={onClose}
+      onBack={onBack}
+      onConfirmCash={() => void cash()}
+      onPaid={() => {
+        onDone();
+        onClose();
+      }}
+      cashBody={
+        <>
+          <StatusAmount item={item} />
+          <CustomerBlock item={item} />
+        </>
+      }
+    />
+  );
+}
 
 function CollectDialog({ item, onBack, onClose, onDone, onStale }: StepProps) {
   const [busy, setBusy] = useState(false);

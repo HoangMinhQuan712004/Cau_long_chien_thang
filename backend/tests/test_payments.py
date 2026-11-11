@@ -9,7 +9,6 @@ from sqlalchemy import func, select
 from app.core.audit import AuditLog
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.core.privacy import mask_phone
 from app.modules.booking_engine.models import Booking, BookingOrder, Resource
 from tests.conftest import API, idem, is_staff_label
 from tests.helpers_booking import (
@@ -205,7 +204,8 @@ async def test_uncollectible_before_start_or_online(admin, staff):
         await s.commit()
     code = f"{code}-01"  # mã con của khối
     item = (await staff.get(f"{BK}/items/{code}")).json()
-    assert item["actions"] == ["collect"]
+    # Khung 00–01h hôm nay: còn "move" khi test chạy trong giờ đầu ngày (T-067) – chỉ xét thu tiền
+    assert "collect" in item["actions"] and "uncollectible" not in item["actions"]
     r = await uncollectible(staff, code)
     assert r.status_code == 422 and r.json()["detail"]["code"] == "E-PAY-1"
 
@@ -251,7 +251,7 @@ async def test_ticket_collect_and_uncollectible(admin, staff):
 # ------------------------------------------------------------------ Lịch sử giao dịch (BR-020)
 
 
-async def test_transactions_filters_cards_and_paging(admin, staff):
+async def test_transactions_filters_cards_and_paging(admin, staff, customer, caplog):
     """Sổ tiền vào (T-057): một dòng mỗi lần thu, SĐT che; lọc phương thức, loại, mã, SĐT, sân."""
     tag = f"TX{uuid.uuid4().hex[:6]}"
     hour = await safe_hour()
@@ -285,7 +285,7 @@ async def test_transactions_filters_cards_and_paging(admin, staff):
     e = entries[0]
     assert set(e) == {
         "kind", "method", "source", "amount", "occurred_at", "order_code", "customer_name",
-        "customer_phone_masked", "member_code", "actor_label", "items",
+        "customer_phone", "member_code", "actor_label", "items",
     }  # fmt: skip
     assert (e["kind"], e["method"], e["source"], e["amount"]) == ("in", "cash", "counter", amount)
     assert is_staff_label(e["actor_label"])
@@ -298,9 +298,12 @@ async def test_transactions_filters_cards_and_paging(admin, staff):
         "end_at",
         "amount",
     }
-    assert {x["customer_phone_masked"] for x in entries} == {mask_phone(p) for p in phones[:9]}
-    raw = (await admin.get(f"{BK}/transactions", params={"q": tag})).text
-    assert not any(p in raw for p in phones)  # SĐT đầy đủ không ra API
+    # T-061 (Sửa 10/11): ai có quyền xem (Admin, NV được cấp) thấy SĐT đầy đủ; không quyền 403
+    assert {x["customer_phone"] for x in entries} == set(phones[:9])
+    by_staff = (await staff.get(f"{BK}/transactions", params={"q": tag})).json()["items"]
+    assert {x["customer_phone"] for x in by_staff} <= set(phones) and by_staff
+    assert (await customer.get(f"{BK}/transactions")).status_code == 403
+    assert not any(p in caplog.text for p in phones)  # log vẫn không có SĐT đầy đủ
 
     assert (await tx(method="cash"))["total"] == 9
     assert (await tx(method="transfer"))["total"] == 0
