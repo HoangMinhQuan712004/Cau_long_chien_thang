@@ -198,7 +198,8 @@ async def test_ac8_checkout_for_tickets_amount_code_expiry_and_no_court_data(adm
             p=co["pay_ref"],
         )
     )[0]["s"]
-    assert 300 <= exp <= 360, f"giữ 5 phút (+≤60 s ân hạn), thực tế {exp}"
+    # expires_at (đồng hồ Python) và created_at (now() của DB) là hai đồng hồ: cho sai lệch dưới 1 giây (T-067)
+    assert 299 <= exp <= 360, f"giữ 5 phút (+≤60 s ân hạn), thực tế {exp}"
     # mã đơn không dùng lại, cùng dãy với booking/sự kiện
     r2 = await buy(anon, ev["code"], 1)
     assert r2.json()["order_code"] != co["order_code"]
