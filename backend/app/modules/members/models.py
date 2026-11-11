@@ -1,12 +1,13 @@
 """Hồ sơ khách: hội viên + hồ sơ tạm (T-006 §2.1, T-014 màn Hội viên)."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -51,6 +52,7 @@ class Customer(TimestampMixin, Base):
             name="tier",
         ),
         CheckConstraint("gender IS NULL OR gender IN ('male', 'female')", name="gender"),
+        CheckConstraint("birth_date IS NULL OR birth_date >= '1900-01-01'", name="birth_date"),
         CheckConstraint("source IN ('counter', 'self_register')", name="source"),
         Index("ix_customer_kind_is_active", "kind", "is_active"),
     )
@@ -66,6 +68,7 @@ class Customer(TimestampMixin, Base):
     phone: Mapped[str] = mapped_column(String(10), unique=True)  # đã chuẩn hóa
     tier: Mapped[str | None] = mapped_column(String(20))  # trình độ; NULL = chưa xếp hạng
     gender: Mapped[str | None] = mapped_column(String(6))
+    birth_date: Mapped[date | None] = mapped_column(Date)  # ngày sinh; NULL = chưa nhập
     racket: Mapped[str | None] = mapped_column(String(100))  # vợt đang dùng
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     note: Mapped[str | None] = mapped_column(String(500))

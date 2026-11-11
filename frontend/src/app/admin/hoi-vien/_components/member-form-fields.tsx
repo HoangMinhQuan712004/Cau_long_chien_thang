@@ -4,25 +4,29 @@ import { RadioGroup } from "@/components/ui/radio-group";
 import { Dropdown } from "@/components/ui/dropdown";
 import type { Dictionary } from "@/i18n/dictionaries";
 import type { MemberFailure } from "@/lib/api/members";
-import type { MemberRow } from "@/lib/api/server";
-import { TIERS } from "./member-params";
+import type { MemberDetail } from "@/lib/api/server";
+import { todayVn } from "@/lib/format";
+import { BIRTH_MIN, TIERS } from "./member-params";
 
 export type MemberValues = {
   fullName: string;
   gender: "" | "male" | "female";
+  /** yyyy-mm-dd; rỗng = chưa nhập */
+  birthDate: string;
   phone: string;
   tier: string;
   racket: string;
   isActive: boolean;
 };
 
-export const EMPTY_MEMBER: MemberValues = { fullName: "", gender: "", phone: "", tier: "", racket: "", isActive: true };
+export const EMPTY_MEMBER: MemberValues = { fullName: "", gender: "", birthDate: "", phone: "", tier: "", racket: "", isActive: true };
 
-// Hồ sơ (chi tiết hoặc dòng danh sách) ⇒ giá trị ban đầu của form; `phone`: số đầy đủ (Sửa) hoặc đã che (Chuyển)
-export function valuesOf(d: MemberRow, phone: string): MemberValues {
+// Chi tiết hồ sơ ⇒ giá trị ban đầu của form Sửa; `phone`: số đầy đủ
+export function valuesOf(d: MemberDetail, phone: string): MemberValues {
   return {
     fullName: d.full_name,
     gender: d.gender ?? "",
+    birthDate: d.birth_date ?? "",
     phone,
     tier: d.tier ?? "",
     // Giữ đúng chữ đang lưu (tự nhập, T-033)
@@ -57,6 +61,7 @@ export function MemberFormFields({ id, values, onChange, withMemberFields, withS
   const errorOf = (field: MemberFailure["field"]) => (error?.field === field ? error.message : undefined);
   const nameError = errorOf("full_name");
   const phoneError = errorOf("phone");
+  const birthError = errorOf("birth_date");
 
   return (
     <>
@@ -97,22 +102,39 @@ export function MemberFormFields({ id, values, onChange, withMemberFields, withS
             aria-invalid={phoneError ? true : undefined}
             aria-describedby={[phoneError ? fieldErrorId(`${id}-phone`) : null, phoneNote ? `${id}-phone-note` : null].filter(Boolean).join(" ") || undefined}
           />
-          {phoneNote ? (
-            <p id={`${id}-phone-note`} className="mt-1.5 text-xs text-muted">
-              {phoneNote}
-            </p>
-          ) : null}
         </Field>
-        <div className="sm:col-span-2">
-        <RadioGroup
-          name={`${id}-gender`}
-          legend={f.genderLabel}
-          value={values.gender}
-          onChange={(gender) => onChange({ gender: gender as MemberValues["gender"] })}
-          // "Không rõ" (giá trị rỗng) ⇒ gửi gender = null, bỏ chọn được
-          options={[...(["male", "female"] as const).map((g) => ({ value: g, label: f.genders[g] })), { value: "", label: f.genderUnknown }]}
-        />
+        {/* Ghi chú trải 2 cột: để dưới riêng ô SĐT thì cột Họ tên bị hổng, lệch hàng */}
+        {phoneNote ? (
+          <p id={`${id}-phone-note`} className="-mt-2 text-xs text-muted sm:col-span-2">
+            {phoneNote}
+          </p>
+        ) : null}
+        {/* Hội viên: Giới tính | Ngày sinh; hồ sơ tạm không có ngày sinh ⇒ Giới tính cả hàng */}
+        <div className={withMemberFields ? undefined : "sm:col-span-2"}>
+          <RadioGroup
+            name={`${id}-gender`}
+            legend={f.genderLabel}
+            value={values.gender}
+            onChange={(gender) => onChange({ gender: gender as MemberValues["gender"] })}
+            // "Không rõ" (giá trị rỗng) ⇒ gửi gender = null, bỏ chọn được
+            options={[...(["male", "female"] as const).map((g) => ({ value: g, label: f.genders[g] })), { value: "", label: f.genderUnknown }]}
+          />
         </div>
+        {withMemberFields ? (
+          <Field label={f.birthLabel} htmlFor={`${id}-birth`} error={birthError}>
+            <Input
+              compact
+              id={`${id}-birth`}
+              type="date"
+              min={BIRTH_MIN}
+              max={todayVn()}
+              value={values.birthDate}
+              onChange={(e) => onChange({ birthDate: e.target.value })}
+              aria-invalid={birthError ? true : undefined}
+              aria-describedby={birthError ? fieldErrorId(`${id}-birth`) : undefined}
+            />
+          </Field>
+        ) : null}
       </div>
       {afterPhone}
       {withMemberFields ? (

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { TIERS } from "@/app/admin/hoi-vien/_components/member-params";
+import { BIRTH_MIN, TIERS } from "@/app/admin/hoi-vien/_components/member-params";
 import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Input } from "@/components/ui/input";
 import { RadioGroup } from "@/components/ui/radio-group";
 import { errorText } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
+import { formatDayMonthYear, todayVn } from "@/lib/format";
 import { toast } from "@/lib/feedback";
 import { Avatar } from "./avatar";
 import { AvatarEditor } from "./avatar-editor";
@@ -102,8 +103,8 @@ function CourtLines() {
 // Hạng (Trình độ): hội viên tự chọn khi Sửa khối Thông tin chơi (T-042, đảo phần khóa Hạng của T-038); NV / Admin vẫn sửa ở quản trị.
 type Section = "personal" | "play";
 type Gender = NonNullable<MemberMe["gender"]>;
-type Values = { full_name: string; nickname: string; gender: Gender | ""; email: string; tier: string; racket: string; show_on_records: boolean };
-type Errors = { full_name?: string; nickname?: string; gender?: string; email?: string; racket?: string };
+type Values = { full_name: string; nickname: string; gender: Gender | ""; birth_date: string; email: string; tier: string; racket: string; show_on_records: boolean };
+type Errors = { full_name?: string; nickname?: string; gender?: string; birth_date?: string; email?: string; racket?: string };
 
 const GENDERS: Record<Gender, string> = { male: "Nam", female: "Nữ" };
 
@@ -111,6 +112,7 @@ const toValues = (m: MemberMe): Values => ({
   full_name: m.full_name,
   nickname: m.nickname ?? "",
   gender: m.gender ?? "",
+  birth_date: m.birth_date ?? "",
   email: m.email ?? "",
   tier: m.tier ?? "",
   racket: m.racket ?? "",
@@ -134,7 +136,7 @@ const LOCK = (
 
 function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promise<void> }) {
   const { setMe, setDirty, leave } = useMember();
-  const ids = { name: useId(), nick: useId(), gender: useId(), email: useId(), phone: useId(), tier: useId(), racket: useId(), show: useId() };
+  const ids = { name: useId(), nick: useId(), gender: useId(), birth: useId(), email: useId(), phone: useId(), tier: useId(), racket: useId(), show: useId() };
   const nameRef = useRef<HTMLInputElement>(null);
   const nickRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -152,7 +154,7 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
   // Chỉ tính thay đổi của khối đang sửa
   const dirty =
     editing === "personal"
-      ? v.full_name.trim() !== saved.full_name.trim() || v.nickname.trim() !== saved.nickname.trim() || v.gender !== saved.gender || v.email.trim() !== saved.email.trim()
+      ? v.full_name.trim() !== saved.full_name.trim() || v.nickname.trim() !== saved.nickname.trim() || v.gender !== saved.gender || v.birth_date !== saved.birth_date || v.email.trim() !== saved.email.trim()
       : editing === "play"
         ? v.tier !== saved.tier || racketName(v) !== racketName(saved) || v.show_on_records !== saved.show_on_records
         : false;
@@ -190,16 +192,18 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
       if (!v.full_name.trim()) e.full_name = "Vui lòng nhập Họ tên.";
       const email = v.email.trim();
       if (email && (email.length > 254 || !EMAIL_RE.test(email))) e.email = "Email không hợp lệ.";
+      if (v.birth_date && (v.birth_date < BIRTH_MIN || v.birth_date > todayVn())) e.birth_date = "Ngày sinh không hợp lệ.";
     }
     return e;
   }
 
   function focusFirst(e: Errors) {
-    const first = (["full_name", "nickname", "gender", "email", "racket"] as const).find((k) => e[k]);
+    const first = (["full_name", "nickname", "gender", "birth_date", "email", "racket"] as const).find((k) => e[k]);
     if (first === "racket") document.getElementById(ids.racket)?.focus();
     else if (first === "full_name") nameRef.current?.focus();
     else if (first === "nickname") nickRef.current?.focus();
     else if (first === "gender") document.getElementsByName(ids.gender)[0]?.focus();
+    else if (first === "birth_date") document.getElementById(ids.birth)?.focus();
     else if (first === "email") emailRef.current?.focus();
   }
 
@@ -212,13 +216,14 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
     if (Object.keys(found).length) return focusFirst(found);
 
     // Khối không sửa giữ nguyên giá trị đã lưu; `tier` luôn là hạng hiện tại (BE bỏ qua, không bao giờ đổi qua đường này)
-    const next = editing === "personal" ? { ...saved, full_name: v.full_name, nickname: v.nickname, gender: v.gender, email: v.email } : { ...saved, tier: v.tier, racket: v.racket, show_on_records: v.show_on_records };
+    const next = editing === "personal" ? { ...saved, full_name: v.full_name, nickname: v.nickname, gender: v.gender, birth_date: v.birth_date, email: v.email } : { ...saved, tier: v.tier, racket: v.racket, show_on_records: v.show_on_records };
     sending.current = true;
     setBusy(true);
     const res = await putMe({
       full_name: next.full_name.trim(),
       nickname: next.nickname.trim() || null,
       gender: next.gender || null,
+      birth_date: next.birth_date || null,
       email: next.email.trim() || null,
       tier: (next.tier || null) as MeInput["tier"],
       racket: racketName(next),
@@ -257,7 +262,7 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
       const list = (res.error.extra.fields as { field?: string; message?: string }[] | undefined) ?? [];
       const nextErrors: Errors = {};
       for (const f of list) {
-        const k = f.field === "full_name" || f.field === "nickname" || f.field === "gender" || f.field === "email" || f.field === "racket" ? f.field : null;
+        const k = f.field === "full_name" || f.field === "nickname" || f.field === "gender" || f.field === "birth_date" || f.field === "email" || f.field === "racket" ? f.field : null;
         if (k && f.message && !nextErrors[k]) nextErrors[k] = f.message;
       }
       if (!list.length && code === "E-HV-11") nextErrors.email = res.error.message;
@@ -286,6 +291,7 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
       </p>
     ) : null;
   const none = <span className="text-subtle">Chưa có</span>;
+  const unset = <span className="text-subtle">Chưa cập nhật</span>;
 
   return (
     <div>
@@ -347,6 +353,10 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
                 />
                 {showErr("gender")}
               </div>
+              <Row label="Ngày sinh" htmlFor={ids.birth}>
+                <Input id={ids.birth} type="date" min={BIRTH_MIN} max={todayVn()} value={v.birth_date} onChange={(e) => set("birth_date", e.target.value)} {...err("birth_date")} />
+                {showErr("birth_date")}
+              </Row>
               <Row label="Email" htmlFor={ids.email}>
                 <Input id={ids.email} ref={emailRef} type="text" inputMode="email" autoComplete="email" maxLength={254} value={v.email} onChange={(e) => set("email", e.target.value)} {...err("email")} />
                 {showErr("email")}
@@ -362,7 +372,8 @@ function ProfileForm({ base, onReload }: { base: MemberMe; onReload: () => Promi
             <dl className="space-y-4">
               <View label="Họ tên đầy đủ">{base.full_name}</View>
               <View label="Biệt danh">{base.nickname || none}</View>
-              <View label="Giới tính">{base.gender ? GENDERS[base.gender] : <span className="text-subtle">Chưa cập nhật</span>}</View>
+              <View label="Giới tính">{base.gender ? GENDERS[base.gender] : unset}</View>
+              <View label="Ngày sinh">{base.birth_date ? formatDayMonthYear(base.birth_date) : unset}</View>
               <View label="Email">{base.email || none}</View>
               <View label="Số điện thoại" hint="Muốn đổi số điện thoại, vui lòng liên hệ quầy.">
                 <span className="inline-flex items-center gap-1">

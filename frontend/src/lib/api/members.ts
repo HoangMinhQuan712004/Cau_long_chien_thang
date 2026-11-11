@@ -3,7 +3,7 @@ import { errorDetail, errorMessage } from "./client";
 
 // Lỗi API hội viên ⇒ hiện ở đâu: dưới ô Họ tên / SĐT, hay thông báo chung
 export type MemberFailure = {
-  field: "full_name" | "phone" | null;
+  field: "full_name" | "phone" | "birth_date" | null;
   code: string;
   message: string;
 };
@@ -13,7 +13,7 @@ type ErrorTexts = { forbidden: string; outOfCodes: string; network: string; unkn
 // E-001 (thiếu/dài) có thể là tên hoặc SĐT: backend nói rõ trong câu ("họ tên"/"số điện thoại")
 function fieldOf(code: string, message: string): MemberFailure["field"] {
   if (code === "E-002" || code === "E-018" || code === "E-MEM-1") return "phone";
-  if (code === "E-001") return /điện thoại/i.test(message) ? "phone" : "full_name";
+  if (code === "E-001") return /điện thoại/i.test(message) ? "phone" : /ngày sinh/i.test(message) ? "birth_date" : "full_name";
   return null;
 }
 

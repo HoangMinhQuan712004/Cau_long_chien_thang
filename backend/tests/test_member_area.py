@@ -3,7 +3,7 @@
 import io
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from PIL import Image
@@ -524,6 +524,40 @@ async def test_member_sets_own_gender(admin):
             ("Chưa chọn", "Nam"),
             ("Nam", "Nữ"),
             ("Nữ", "Chưa chọn"),
+        ]
+
+
+async def test_member_sets_own_birth_date(admin):
+    """Ngày sinh tự nhập: không gửi = giữ, null = xóa, ngày tương lai -> 422 fields."""
+    async with linked_member(admin) as (c, customer_id, code, _):
+        me = (await c.get(ME)).json()
+        assert me["birth_date"] is None
+        tomorrow = (datetime.now(settings.tz).date() + timedelta(days=1)).isoformat()
+        r = await c.put(ME, json=body_of(me, birth_date=tomorrow))
+        assert r.status_code == 422
+        assert r.json()["detail"]["fields"] == [
+            {"field": "birth_date", "code": "E-HV-1", "message": "Ngày sinh không hợp lệ."}
+        ]
+        r = await c.put(ME, json=body_of(me, birth_date="1998-07-20"))
+        assert r.status_code == 200 and r.json()["birth_date"] == "1998-07-20"
+        r = await c.put(ME, json=body_of(r.json(), nickname="Không gửi ngày sinh"))
+        assert r.status_code == 200 and r.json()["birth_date"] == "1998-07-20"  # giữ
+        detail = (await admin.get(f"{API}/members/{code}")).json()
+        assert detail["birth_date"] == "1998-07-20"  # quản trị thấy cùng bản ghi
+        r = await c.put(ME, json=body_of(r.json(), birth_date=None))
+        assert r.status_code == 200 and r.json()["birth_date"] is None
+        async with SessionLocal() as s:
+            rows = list(
+                await s.scalars(
+                    select(AuditLog)
+                    .where(AuditLog.entity_code == code, AuditLog.action == "member.self_update")
+                    .order_by(AuditLog.id)
+                )
+            )
+        changes = [x for row in rows for x in row.detail["changes"] if x["field"] == "Ngày sinh"]
+        assert [(x["before"], x["after"]) for x in changes] == [
+            (None, "20/07/1998"),
+            ("20/07/1998", None),
         ]
 
 

@@ -99,6 +99,7 @@ function DetailBody({ detail, t }: { detail: MemberDetail; t: Dictionary["member
     [d.phone, formatPhone(detail.phone), <PhoneIcon key="i" size={16} />],
     ...(isMember ? [[d.email, detail.email ?? "—", <InboxIcon key="i" size={16} />] as Row] : []),
     [d.gender, detail.gender ? t.form.genders[detail.gender] : "—", <UserIcon key="i" size={16} />],
+    ...(isMember ? [[d.birthDate, detail.birth_date ? formatDayMonthYear(detail.birth_date) : "—", <CalendarIcon key="i" size={16} />] as Row] : []),
     // Hồ sơ tạm không có vợt / hạng / trạng thái
     ...(isMember ? [[d.racket, detail.racket ?? "—", <RacketIcon key="i" size={16} />] as Row] : []),
     [d.created, formatDayMonthYear(vnDate(detail.created_at)), <CalendarIcon key="i" size={16} />],

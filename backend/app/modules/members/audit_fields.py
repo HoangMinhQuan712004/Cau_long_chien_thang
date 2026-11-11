@@ -1,5 +1,6 @@
 """Nội dung dòng Lịch sử thao tác của hồ sơ khách (SRS Lịch sử thao tác BR-006, BR-007, BR-008)."""
 
+from datetime import date
 from typing import Any
 
 from app.core.audit import Value, audit_changes, audit_detail
@@ -7,12 +8,19 @@ from app.modules.members.models import Customer
 
 GENDERS = {"male": "Nam", "female": "Nữ"}
 
+
+def birth_text(value: date | None) -> str | None:
+    """Ngày sinh hiển thị trong nhật ký: ``dd/mm/yyyy``."""
+    return value.strftime("%d/%m/%Y") if value else None
+
+
 # Tên ô theo thứ tự hiện trên màn; SĐT ghi đầy đủ (BR-007)
 MEMBER_LABELS = {
     "kind": "Loại hồ sơ",
     "full_name": "Họ tên",
     "phone": "SĐT",
     "gender": "Giới tính",
+    "birth_date": "Ngày sinh",
     "tier": "Trình độ",
     "racket": "Vợt đang dùng",
     "is_active": "Trạng thái",
@@ -27,6 +35,7 @@ def snapshot(c: Customer) -> dict[str, Value]:
         "full_name": c.full_name,
         "phone": c.phone,
         "gender": GENDERS.get(c.gender or ""),
+        "birth_date": birth_text(c.birth_date),
         "tier": c.tier,
         "racket": c.racket,
         "is_active": "Hoạt động" if c.is_active else "Ngừng",

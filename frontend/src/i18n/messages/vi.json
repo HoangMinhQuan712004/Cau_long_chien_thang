@@ -412,6 +412,7 @@
       "nameLabel": "Họ tên *",
       "namePlaceholder": "Nhập họ tên",
       "genderLabel": "Giới tính",
+      "birthLabel": "Ngày sinh",
       "genders": {
         "male": "Nam",
         "female": "Nữ"
@@ -454,13 +455,14 @@
     },
     "accountNotice": {
       "title": "Đã tạo tài khoản",
-      "created": "Đã tạo tài khoản cho {code} – {name}",
-      "login": "Đăng nhập: {phone} · Mật khẩu ban đầu: {phone}",
+      "subtitle": "{code} · {name}",
+      "phoneLabel": "Số điện thoại đăng nhập",
+      "passwordLabel": "Mật khẩu ban đầu",
+      "copyText": "Số điện thoại: {phone}\nMật khẩu: {phone}",
       "expires": "Hội viên phải đổi mật khẩu trước {at}. Quá hạn thì dùng Quên mật khẩu.",
       "copy": "Sao chép",
       "copied": "Đã sao chép",
-      "copyFailed": "Không sao chép được. Hãy chép tay nội dung ở trên.",
-      "close": "Đóng"
+      "copyFailed": "Không sao chép được. Hãy chép tay nội dung ở trên."
     },
     "errors": {
       "forbidden": "Bạn không có quyền thực hiện thao tác này.",
@@ -472,6 +474,7 @@
       "title": "Chi tiết hội viên",
       "tierLine": "{code} · Hạng {tier}",
       "gender": "Giới tính",
+      "birthDate": "Ngày sinh",
       "nickname": "Biệt danh",
       "phone": "Số điện thoại",
       "email": "Email",
