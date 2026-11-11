@@ -420,7 +420,8 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 - **Bảng xếp hạng theo từng cú đập (T-053, đã vào `dev`):** mỗi **cú đập** một hạng, không còn mỗi hội viên một dòng: một người đạt cả top 3 thì vẫn hiện cả ba bậc. Bằng km/h thì cú đo sớm hơn xếp trên; không đồng hạng. Mỗi dòng ghi sân của cú đó, và API trả thêm tổng số cú trong kỳ. Người ẩn danh vẫn ẩn tên ở mọi bậc. Không đổi DB.
 - **Video & kỷ lục thành dòng thời gian phá kỷ lục (T-048, đã vào `dev`):** API `GET /member-area/record-breaks` trả các lần phá kỷ lục của cả cụm, mới nhất trước, kèm số km/h hơn kỷ lục trước, số ngày giữ kỷ lục và video (nếu có). Nhãn "Kỷ lục ngày dd/mm" lấy theo **ngày dán link video**, không phải ngày đo. Màn này hiện **họ tên thật** kèm biệt danh của người đã bật "Hiện trên Video & kỷ lục" (hoặc của chính mình); Tổng quan và Bảng xếp hạng vẫn chỉ hiện biệt danh. Người ẩn danh hiện "Hội viên ẩn danh". Cần chạy migration `a4c91e7d2f58` (thêm cột `video_set_at`).
 - **Bảng xếp hạng bấm xem video (T-049, đã vào `dev`):** mỗi dòng top 10 và dòng "Hạng của tôi" kèm video của đúng số đo xếp hạng trong kỳ; không có video thì không có gì để bấm. Người ẩn danh vẫn có video, tên vẫn ẩn. Không đổi DB.
-- Chi tiết: `docs/booking-engine-api.md` mục 13.5, 13.6, 13.7 và 13.8.
+- **Theo dõi sân (T-069, backend xong, chưa vào `dev`):** trang quản trị `/admin/theo-doi-san` (menu "Theo dõi sân"), **chỉ xem**. Mỗi sân một hàng, trong hàng là các phòng chơi của ngày đang xem: giờ, trạng thái (Sắp tới, Đang chơi, Đã kết thúc, Booking đã hủy), Host, số người, thể thức, khoảng hạng, trận đang đánh hoặc trận gần nhất kèm tỉ số. Bấm phòng xem thành viên, mọi trận và bảng xếp hạng phòng. Hôm nay tự tải lại mỗi 10 giây; có thể xem ngày khác (trong ±1 năm). Người xem thấy **tên thật, biệt danh, mã HV, kể cả hội viên đã ẩn danh; không có SĐT**. Quyền mới `play_rooms.monitor`: Admin có, Nhân viên mặc định **không**, Admin bật ở tab Phân quyền. API: `GET /api/v1/play-rooms/admin/day` và `/admin/rooms/{room_id}`.
+- Chi tiết: `docs/booking-engine-api.md` mục 13.5, 13.6, 13.7, 13.8 và 13.9.
 
 ### Đăng ký tài khoản = hội viên (T-021)
 
@@ -520,14 +521,14 @@ Từ T-051 Admin còn hủy được booking, vé hoặc đơn (thành **Đã h�
 Khách đặt online (T-008) trả trước: giữ chỗ 5 phút, booking chỉ được tạo khi SePay báo tiền về, xem mục "Đặt online và SePay".
 Giá được server tính và chốt lúc đặt.
 
-**Sổ tiền vào và doanh thu (T-057, T-058, đã vào `dev`).** Mỗi lần nhận hoặc hoàn tiền là một dòng trong sổ `payment_entry`. **Lịch sử giao dịch** chỉ hiện tiền vào (tiền mặt và chuyển khoản), mỗi dòng một lần nhận tiền; hoàn tiền là dòng âm ở ngày hủy; màn chỉ xem, SĐT che. **Báo cáo doanh thu tính theo ngày tiền về** (hoàn tiền trừ ngày hủy, ngày có thể âm); lượt đặt và công suất vẫn theo ngày chơi. Thu cả đơn tại quầy có popup QR (nội dung chuyển khoản = mã đơn bỏ gạch, chỉ nhận **đúng** số tiền; lệch thì ra "cần hoàn") kèm nút tiền mặt. Migration `e3a17c9b5d24` có backfill (một giao dịch SePay = một dòng sổ): **backup production và thử trên bản sao dữ liệu thật trước khi lên**. Chi tiết: `docs/booking-engine-api.md` mục 5.3.
+**Sổ tiền vào và doanh thu (T-057, T-058, đã vào `dev`).** Mỗi lần nhận hoặc hoàn tiền là một dòng trong sổ `payment_entry`. **Lịch sử giao dịch** chỉ hiện tiền vào (tiền mặt và chuyển khoản), mỗi dòng một lần nhận tiền; hoàn tiền là dòng âm ở ngày hủy; màn chỉ xem; từ T-061 hiện SĐT **đầy đủ** cho ai có quyền `booking.transactions.view` (Admin, và Nhân viên mặc định; ngoại lệ có chủ đích của ADR-004 S12, chỉ màn này). **Báo cáo doanh thu tính theo ngày tiền về** (hoàn tiền trừ ngày hủy, ngày có thể âm); lượt đặt và công suất vẫn theo ngày chơi. Thu cả đơn tại quầy có popup QR (nội dung chuyển khoản = mã đơn bỏ gạch, chỉ nhận **đúng** số tiền; lệch thì ra "cần hoàn") kèm nút tiền mặt. Migration `e3a17c9b5d24` có backfill (một giao dịch SePay = một dòng sổ): **backup production và thử trên bản sao dữ liệu thật trước khi lên**. Chi tiết: `docs/booking-engine-api.md` mục 5.3.
 
 **Module giao tiếp qua service + event.** Module không query bảng của module khác; engine ghi sự kiện (vd. `booking.created`)
 vào bảng outbox trong cùng transaction, worker phát cho `notifications`.
 Khi cần tách service chỉ cần thay `app/core/events.py` bằng message broker.
 
 **Bảo mật nền tảng (ADR-004).** Chống CSRF bằng kiểm `Origin`, rate limit bằng Redis, `Idempotency-Key` cho mọi lệnh ghi,
-nhật ký thao tác chỉ thêm (không sửa), quyền khai báo tập trung ở `app/core/permissions.py`, SĐT luôn che ở API.
+nhật ký thao tác chỉ thêm (không sửa), quyền khai báo tập trung ở `app/core/permissions.py`, SĐT che ở API khách và hội viên (riêng màn quản trị có quyền thì hiện đầy đủ).
 
 **Auth.** JWT trong cookie httpOnly (access 30 phút, refresh 14 ngày, path `/api/v1/auth`).
 Trình duyệt gọi `/api/v1/*` cùng domain, Next rewrite sang FastAPI → không cần CORS.

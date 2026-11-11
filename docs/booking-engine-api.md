@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-069)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -127,7 +127,8 @@ Quyền khai báo tập trung ở `backend/app/core/permissions.py`. Router dùn
 | `booking.collect` | ✔ | ✔ | Thu tiền |
 | `booking.uncollectible` | ✔ | ✔ | Đánh dấu Không thu được |
 | `booking.cancel` (T-051) | ✔ | | Hủy booking, vé, đơn (khoản đã thu: mọi lúc; chưa thu: trước giờ bắt đầu; hủy cả đơn: chỉ buổi chưa bắt đầu) (`/front-desk/items/{code}/cancel`, `/front-desk/orders/{order_code}/cancel-preview` và `/cancel`). Chỉ Admin, không gán được; ẩn ở tab Phân quyền |
-| `booking.transactions.view` | ✔ | | Lịch sử giao dịch |
+| `booking.transactions.view` | ✔ | ✔ (mặc định) | Lịch sử giao dịch (T-057). Admin tắt được cho Nhân viên ở tab Phân quyền. **Ngoại lệ ADR-004 S12 (T-061):** người có quyền này thấy SĐT khách **đầy đủ** ở màn này, mọi chỗ khác vẫn che |
+| `play_rooms.monitor` (T-069) | ✔ | | Theo dõi sân: xem mọi phòng chơi theo ngày (mục 13.9). Nhân viên **mặc định không có**, Admin bật được ở tab Phân quyền (nhóm "Theo dõi sân"); không thuộc nhóm chỉ Admin |
 | `member.search` | ✔ | ✔ | `GET /members/search` |
 | `member.manage` (PR #21) | ✔ | ✔ | Màn Hội viên: danh sách, chi tiết, thêm, sửa, hồ sơ tạm; đọc danh mục vợt (mục 12) |
 | `member.status` (PR #21) | ✔ | | Đổi Trạng thái Hoạt động / Ngừng của hội viên |
@@ -401,10 +402,10 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 Trả `{date_from, date_to, cards: {net, cash, transfer, refund}, items: [TransactionEntry], total, page, size}`, mới nhất trước theo `(occurred_at, id)`:
 
 - **`cards`** (VND) chỉ theo bộ lọc **ngày + sân**, **không** theo phương thức, loại hay tìm kiếm: `net = cash + transfer − refund`. Lọc sân: dòng có mục ở sân đó, thẻ cộng cả số tiền của dòng.
-- **`TransactionEntry`:** `{kind, method, source, amount, occurred_at, order_code, customer_name, customer_phone_masked, member_code, actor_label, items[]}`.
+- **`TransactionEntry`:** `{kind, method, source, amount, occurred_at, order_code, customer_name, customer_phone, member_code, actor_label, items[]}`.
   - `amount` luôn dương; giao diện hiện dấu − cho `refund`. `method` là `cash` hoặc `transfer` (chuyển khoản online gộp vào `transfer`; `source` cho biết `online` hay `counter_qr`).
   - `order_code`: mã đơn; vé thì mã sự kiện. `actor_label`: người thu hoặc hủy; tiền về qua cổng là "Hệ thống".
-  - **SĐT đã che** (`customer_phone_masked`); bản cũ trả đầy đủ.
+  - **SĐT đầy đủ** (`customer_phone`, T-061, đã vào `dev`): số như đã lưu, kiểu `string | null` (thực tế luôn có số vì cột DB NOT NULL). T-057 từng trả bản che `customer_phone_masked`; **trường này không còn**. Ai có `booking.transactions.view` (Admin, và Nhân viên mặc định) đều thấy đầy đủ, không rẽ nhánh theo vai; không có quyền → 403 `E-AUTH-2`. **Đây là ngoại lệ có chủ đích của ADR-004 S12 / BR-021, chỉ cho màn này.** Các API khác (khách, hội viên, Tài khoản tại máy) vẫn che hoặc không trả SĐT; log không chứa SĐT; tìm theo SĐT (`q`) không đổi.
   - `items[]`: `{code, kind (booking | ticket), resource_name, play_date, start_at, end_at, amount}`; vé: `resource_name` là các sân của sự kiện, cách nhau bằng dấu phẩy.
   - **Không có `id` số** (giữ quy tắc T-006 SEC4): giao diện dùng vị trí dòng trong trang làm khóa.
 - Các trường cũ `rows`, `page_size`, `cards.paid/unpaid/uncollectible/cancelled` **không còn**.
@@ -1564,3 +1565,53 @@ Tổng quan, Bảng xếp hạng (mục 13.6) và `GET /record-videos` vẫn tr�
 - Seed dữ liệu thử: link được "dán" 1 ngày sau lần đo để thấy nhãn đi theo ngày dán.
 
 **Migration `a4c91e7d2f58`** (nối sau `d5cf1587486a`, **production phải chạy**): thêm `speed_record.video_set_at timestamptz NULL`. Dòng cũ có `video_url` được điền bằng thời điểm audit `record.video_set` mới nhất của số đo đó, không có thì `created_at`; sau đó mới thêm check ở trên. Downgrade bỏ check và cột, giữ nguyên các dòng. RELEASE kiểm lại chỉ còn **một head** Alembic trước khi gộp (nhánh khác có thể thêm migration).
+
+### 13.9 Theo dõi sân: Admin xem mọi phòng chơi theo ngày (T-069, chưa vào `dev`)
+
+> Đối chiếu với code backend `be/T-069-court-monitor` @ `cf0da86` (cục bộ, tạo từ `dev` `951d0e6`). Không migration, không cấu hình mới. BACKEND chạy 5 test mới (`tests/test_play_room_monitor.py`) cùng các test phòng chơi, phân quyền, menu liên quan (416 + 226 passed, không test QA nào đỏ); chưa chạy cả bộ test. Giao diện (`fe/T-069-theo-doi-san`) chưa kiểm. Spec: `board/tasks/T-069-theo-doi-san.md`.
+
+**Khác phần còn lại của mục 13:** đây là API **khu quản trị**, tiền tố `/api/v1/play-rooms/admin` (không phải `/member-area`), cho người có quyền `play_rooms.monitor` (mục 3) chứ không cần là hội viên. Chỉ đọc: không có lệnh ghi nào. Không có quyền → 403 `E-AUTH-2`; chưa đăng nhập → 401. Trang: `/admin/theo-doi-san` (mục menu "Theo dõi sân", khóa `theoDoiSan`, `noindex`).
+
+**Quyền riêng tư (khác các API hội viên).** Người xem thấy **tên thật + biệt danh + mã HV** của mọi người trong phòng, **kể cả hội viên đã tắt "Hiện trên video & kỷ lục"** (ẩn danh T-030 không áp cho màn này). **Không có SĐT.** Ẩn danh giữa các hội viên với nhau và quy tắc T-054 ở màn hội viên **không đổi**. Người không còn hồ sơ: dùng tên chụp lúc bốc trận.
+
+#### `GET /api/v1/play-rooms/admin/day?date=YYYY-MM-DD`
+
+`date` mặc định hôm nay theo giờ VN. Sai định dạng hoặc ngoài ±1 năm (366 ngày) → 422 `E-001`. Trả `MonitorDay {date, courts[]}`:
+
+- `courts`: theo thứ tự sân. Mỗi phần tử `{resource_code, resource_name, is_active, rooms[]}`; `rooms` rỗng nghĩa là "Không có phòng" (giao diện vẫn hiện hàng).
+- **Sân ngừng hoạt động** chỉ có trong danh sách khi có phòng trong ngày. **Sân đã xóa** mà còn phòng thì hiện với tên chụp trên phòng, `is_active = false`.
+- `rooms` theo giờ bắt đầu. `MonitorRoom`:
+
+| Trường | Ý nghĩa |
+|---|---|
+| `room_id`, `booking_code`, `start_at`, `end_at` | Phòng và khung giờ |
+| `status` | `upcoming` Sắp tới · `playing` Đang chơi (đã tới giờ, chưa đóng) · `ended` Đã kết thúc (đã đóng hoặc hết giờ cộng ân hạn) · `cancelled` Booking đã hủy (**ưu tiên cao nhất**) |
+| `host` | `MonitorPerson` |
+| `member_count`, `format`, `min_tier`, `max_tier` | Số người, thể thức, khoảng hạng |
+| `matches_finished` | Số trận đã xong |
+| `current_match` | Trận đang `drawn` hoặc `playing`; `score_a`, `score_b`, `winner` đều `null`. Không có trận thì `null` |
+| `last_match` | Trận `finished` gần nhất, **có tỉ số**. Trận `abandoned` không hiện |
+
+- `MonitorPerson`: `{customer_id, full_name, nickname, member_code, tier, avatar_url}`; `nickname`, `member_code`, `tier`, `avatar_url` có thể `null`.
+- `MonitorMatch`: `{no, format, status (drawn | playing | finished), team_a[], team_b[], score_a, score_b, winner (a | b | null), started_at, ended_at}`.
+- **Tỉ số là kết quả từng trận** do phòng ghi khi xong trận. Hệ thống không có điểm trực tiếp, nên trận đang đánh chỉ có đội, không có tỉ số.
+
+#### `GET /api/v1/play-rooms/admin/rooms/{room_id}`
+
+Chi tiết chỉ đọc, `MonitorRoomDetail`:
+
+- `room`: `MonitorRoom` như trên.
+- `members`: Host đầu tiên; mỗi người là `MonitorPerson` cộng `role` (`host` | `member`) và `queue_state` (`waiting` | `playing`).
+- `matches`: mọi trận, mới nhất trên cùng.
+- `ranking`: `MonitorPerson` cộng `rank`, `wins`, `losses`, `played`, `win_rate` (0 đến 1, làm tròn 4 chữ số). Cùng cách tính với bảng xếp hạng phòng (`matches.standings` dùng chung); đồng hạng khi bằng cả số thắng và tỉ lệ thắng.
+- **404 `E-NOT-FOUND` chỉ khi phòng không tồn tại.** Xem được phòng đã kết thúc, phòng của booking đã hủy, phòng có Host không còn đủ điều kiện (quy tắc T-054 không áp).
+
+#### Làm mới
+
+Cả hai endpoint có `ETag` (yếu, theo nội dung) và `Cache-Control: no-cache, private`. Gửi `If-None-Match` → 304 không thân khi không đổi, như API phòng chơi. Giao diện tự tải lại **mỗi 10 giây khi xem hôm nay**; ngày khác không tự tải lại.
+
+#### Quyền và menu
+
+- Quyền `play_rooms.monitor`: Admin có (Admin có mọi quyền). Nhân viên **mặc định không có**; tab Phân quyền có nhóm mới **"Theo dõi sân"** ("Theo dõi phòng chơi, người chơi, tỉ số"; ghi chú "Thấy tên thật, biệt danh, mã HV (không có SĐT); xem cả phòng đã kết thúc"). Không thuộc nhóm chỉ Admin.
+- **Không cần migration dữ liệu:** quyền của Nhân viên đọc từ `role_permission`, không có dòng nghĩa là không có quyền; Admin bật thì thêm dòng như các quyền khác.
+- Menu quản trị thêm khóa **`theoDoiSan`** ("Theo dõi sân"), mặc định ngay sau `donDatSan`. Admin đã lưu thứ tự menu thì mục mới được nối vào **cuối**, như các mục mới trước đây.
