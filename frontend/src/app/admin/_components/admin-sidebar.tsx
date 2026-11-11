@@ -13,6 +13,7 @@ import {
   RacketIcon,
   ReceiptIcon,
   SettingsIcon,
+  ShuttlecockIcon,
   UsersIcon,
 } from "@/components/ui/icons";
 import { IconButton } from "@/components/ui/icon-button";
@@ -25,6 +26,7 @@ export const NAV_ICONS = {
   baoCao: ChartIcon,
   datSan: CalendarPlusIcon,
   donDatSan: CalendarIcon,
+  theoDoiSan: ShuttlecockIcon,
   kyLuc: RacketIcon,
   lichSu: ReceiptIcon,
   hoiVien: UsersIcon,
