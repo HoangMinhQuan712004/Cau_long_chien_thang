@@ -48,7 +48,6 @@ LABELS = {
     "measured_at": "Thời điểm đo",
     "court_code": "Sân",
     "video_url": "Video",
-    "play_result": "Thắng / thua",
 }
 STATUS_LABELS = {"approved": "Đã duyệt", "pending": "Chờ duyệt", "rejected": "Bị từ chối"}
 
@@ -115,7 +114,6 @@ def _values(r: SpeedRecord) -> dict[str, str | int | None]:
         "measured_at": r.measured_at.isoformat(),
         "court_code": r.court_code,
         "video_url": r.video_url,
-        "play_result": None if r.wins is None else f"{r.wins} thắng · {r.losses} thua",
     }
 
 
@@ -163,11 +161,10 @@ async def create(
     session: AsyncSession, actor: AuditActor, data: SpeedRecordCreateIn
 ) -> AdminSpeedRecordRow:
     """Admin nhập số đo -> duyệt ngay. 422 E-REC-7 (Mã HV không có / không Hoạt động) · E-REC-5 ·
-    E-REC-6 · E-REC-1 · E-REC-9 (tổng thắng + thua = 0)."""
+    E-REC-6 · E-REC-1."""
     customer_id = await members.member_id_by_code(session, data.member_code)
     if customer_id is None or await _active_person(session, customer_id) is None:
         raise _not_active_member(422)
-    _check_play_result(data.wins, data.losses)
     now = datetime.now(UTC)
     r = SpeedRecord(
         customer_id=customer_id,
@@ -182,8 +179,6 @@ async def create(
         reviewed_at=now,
         updated_at=now,
         version=1,
-        wins=data.wins,
-        losses=data.losses,
     )
     r.set_video(_video(data.video_url), now)
     session.add(r)
@@ -197,9 +192,8 @@ async def create(
 async def update(
     session: AsyncSession, actor: AuditActor, record_id: int, data: SpeedRecordPatchIn
 ) -> AdminSpeedRecordRow:
-    """Sửa km/h, thời điểm, sân, video, thắng / thua (chỉ ô có gửi; E-REC-9). 403 E-REC-2 (máy
-    đo) · 409 E-REC-3 (lệch ``version``). Thời điểm chỉ kiểm khi đổi. Không đổi gì -> trả nguyên
-    trạng, không ghi."""
+    """Sửa km/h, thời điểm, sân, video (chỉ ô có gửi). 403 E-REC-2 (máy đo) · 409 E-REC-3 (lệch
+    ``version``). Thời điểm chỉ kiểm khi đổi. Không đổi gì -> trả nguyên trạng, không ghi."""
     r = await locked(session, record_id)
     if r.source == "device":
         raise _not_editable()
@@ -218,11 +212,6 @@ async def update(
         r.court_code = await _court(session, data.resource_code)
     if "video_url" in sent and (data.video_url or "").strip() != (r.video_url or ""):
         r.set_video(_video(data.video_url), datetime.now(UTC))
-    if sent & {"wins", "losses"}:  # đổi thì gửi đủ cả hai, không xóa trống được
-        if data.wins is None or data.losses is None:
-            raise AppError("E-REC-9", "Vui lòng nhập đủ số trận thắng và số trận thua.", 422)
-        _check_play_result(data.wins, data.losses)
-        r.wins, r.losses = data.wins, data.losses
     changes = _diff(before, _values(r))
     if changes:
         touch(r)
@@ -381,21 +370,14 @@ async def _check_daily_limit(session: AsyncSession, customer_id: int, now: datet
         raise ratelimit.too_many(max(1, math.ceil((end - now).total_seconds())))
 
 
-def _check_play_result(wins: int, losses: int) -> None:
-    """Thắng / thua trong buổi (bắt buộc, 0–99 kiểm ở schema): tổng phải ≥ 1 trận."""
-    if wins + losses < 1:
-        raise AppError("E-REC-9", "Tổng số trận thắng và thua phải từ 1 trở lên.", 422)
-
-
 async def submit(session: AsyncSession, me: Submitter, data: SpeedSubmitIn) -> MySpeedRecord:
     """Hội viên gửi cú đập của **chính mình** -> chờ duyệt. 403 E-REC-7 (đang Ngừng) · 422
-    E-REC-5 / E-REC-6 / E-REC-1 / E-REC-9 (tổng thắng + thua = 0) · 429 E-SEC-5 (đã
-    gửi 5 bản trong ngày giờ VN; lượt lỗi không tính; ``Retry-After`` tới 00:00 hôm sau)."""
+    E-REC-5 / E-REC-6 / E-REC-1 · 429 E-SEC-5 (đã gửi 5 bản trong ngày giờ VN; lượt lỗi không
+    tính; ``Retry-After`` tới 00:00 hôm sau)."""
     person = await _active_person(session, me.customer_id)
     if person is None:
         raise AppError("E-REC-7", "Hội viên đang Ngừng không gửi được số đo.", 403)
     measured_at = _check_time(data.measured_at)
-    _check_play_result(data.wins, data.losses)
     court = await _court(session, data.resource_code)
     url = _video(data.video_url)
     now = datetime.now(UTC)
@@ -411,8 +393,6 @@ async def submit(session: AsyncSession, me: Submitter, data: SpeedSubmitIn) -> M
         submitted_by=me.user_id,
         updated_at=now,
         version=1,
-        wins=data.wins,
-        losses=data.losses,
     )
     r.set_video(url, now)
     session.add(r)

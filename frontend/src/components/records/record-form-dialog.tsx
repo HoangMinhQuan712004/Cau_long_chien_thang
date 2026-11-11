@@ -24,14 +24,6 @@ const hmOf = (iso: string) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit"
 
 type Court = { code: string; name: string; is_active?: boolean };
 
-const isCount = (v: string) => /^\d{1,2}$/.test(v.trim());
-/** Thắng / thua (bắt buộc): số nguyên 0–99, tổng ≥ 1 trận (khớp BE E-REC-9). */
-function resultError(wins: string, losses: string): string {
-  if (!wins.trim() || !losses.trim()) return "Vui lòng nhập số trận thắng và số trận thua.";
-  if (!isCount(wins) || !isCount(losses)) return "Số trận là số nguyên từ 0 đến 99.";
-  return Number(wins) + Number(losses) < 1 ? "Tổng số trận thắng và thua phải từ 1 trở lên." : "";
-}
-
 /** `courts`: danh sách sân do nơi gọi cấp (hội viên: từ /mine); bỏ trống (Admin) thì lấy từ API sân của Admin. */
 export function RecordFormDialog({ mode, courts: given, dailyLimit = 5, onClose, onDone }: { mode: RecordFormMode; courts?: Court[]; dailyLimit?: number; onClose: () => void; onDone: () => void }) {
   const editing = mode.kind === "admin-edit" ? mode.record : null;
@@ -42,9 +34,6 @@ export function RecordFormDialog({ mode, courts: given, dailyLimit = 5, onClose,
   const [time, setTime] = useState(editing ? hmOf(editing.measured_at) : nowHm());
   const [court, setCourt] = useState(editing?.resource_code ?? "");
   const [url, setUrl] = useState(editing?.video?.url ?? "");
-  // Thắng / thua trong buổi (bắt buộc); Sửa: điền sẵn số đang lưu
-  const [wins, setWins] = useState(editing?.wins != null ? String(editing.wins) : "");
-  const [losses, setLosses] = useState(editing?.losses != null ? String(editing.losses) : "");
   const [fetched, setFetched] = useState<Court[]>([]);
   const courts = given ?? fetched;
   const [busy, setBusy] = useState(false);
@@ -74,7 +63,6 @@ export function RecordFormDialog({ mode, courts: given, dailyLimit = 5, onClose,
     speed: speed.trim() === "" ? "Vui lòng nhập tốc độ." : !Number.isInteger(speedNum) || speedNum < MIN || speedNum > MAX ? `Tốc độ là số nguyên từ ${MIN} đến ${MAX} km/h.` : "",
     when: !date || !time ? "Vui lòng chọn ngày và giờ." : vnIso(date, time) > vnIso(todayVn(), nowHm()) ? "Thời điểm không được ở tương lai." : date < addDaysIso(todayVn(), -365) ? "Chỉ nhận số đo trong 365 ngày gần đây." : "",
     video: url.trim() !== "" && !parsed ? VIDEO_LINK_HINT : "",
-    result: resultError(wins, losses),
   };
   const invalid = Object.values(errors).some(Boolean);
 
@@ -84,12 +72,11 @@ export function RecordFormDialog({ mode, courts: given, dailyLimit = 5, onClose,
     setBusy(true);
     setBanner("");
     const body: RecordInput = { speed_kmh: speedNum, measured_at: vnIso(date, time), resource_code: courtValue || null, video_url: url.trim() || null };
-    const result = { wins: Number(wins), losses: Number(losses) };
     try {
       const res = await write<unknown>((key) => {
-        if (mode.kind === "admin-create") return sendAdminCreateRecord(key, { ...body, ...result, member_code: customer.picked!.member_code });
-        if (mode.kind === "admin-edit") return sendAdminUpdateRecord(key, mode.record.id, { ...body, ...result, version: mode.record.version });
-        return sendMemberSubmitRecord(key, { ...body, ...result });
+        if (mode.kind === "admin-create") return sendAdminCreateRecord(key, { ...body, member_code: customer.picked!.member_code });
+        if (mode.kind === "admin-edit") return sendAdminUpdateRecord(key, mode.record.id, { ...body, version: mode.record.version });
+        return sendMemberSubmitRecord(key, body);
         // Hết lượt trong ngày: báo ngay, không tự thử lại (Retry-After kéo dài tới 0h hôm sau)
       }, { retryRateLimit: false });
       if (!res.ok) {
@@ -170,25 +157,6 @@ export function RecordFormDialog({ mode, courts: given, dailyLimit = 5, onClose,
         </div>
       </div>
       {show(errors.when)}
-
-      <div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(
-            [
-              ["wins", "Số trận thắng", wins, setWins],
-              ["losses", "Số trận thua", losses, setLosses],
-            ] as const
-          ).map(([key, label, value, set]) => (
-            <div key={key}>
-              <label htmlFor={`${id}-${key}`} className="mb-1 block text-sm font-medium">
-                {label} <span className="text-danger">*</span>
-              </label>
-              <input id={`${id}-${key}`} type="number" inputMode="numeric" min={0} max={99} step={1} value={value} onChange={(e) => set(e.target.value)} aria-invalid={(submitted && !!errors.result) || undefined} className={`${inputCls} h-11 tabular-nums`} />
-            </div>
-          ))}
-        </div>
-        {show(errors.result)}
-      </div>
 
       <div>
         <label htmlFor={`${id}-video`} className="mb-1 block text-sm font-medium">

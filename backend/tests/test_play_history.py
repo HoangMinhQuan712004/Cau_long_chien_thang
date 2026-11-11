@@ -172,28 +172,22 @@ async def test_date_range_spans_months_vn_time_and_errors(staff, admin, people):
     assert (await span(**{"from": "2025-02-30", "to": "2025-03-01"})).status_code == 422
 
 
-async def test_session_stats_for_record_card(staff, admin, people):
-    """Thẻ kỷ lục: thắng / thua trong buổi chứa lúc đo trên đúng sân, [start, end)."""
+async def test_career_stats_for_record_card(staff, admin, people):
+    """Thẻ kỷ lục: tổng thắng / thua mọi thời gian (mọi phòng), cùng cách đếm Lịch sử chơi."""
     host, mate = await people("Phá Kỷ Lục"), await people("Đồng Đội")
     h, x = host.customer_id, mate.customer_id
-    room = (await room_for(staff, admin, host.code))["room"]
-    await add_match(room.id, 1, [h, x], [-1, -2], win="a")
-    await add_match(room.id, 2, [-1, -2], [h, -3], win="a")
-    await add_match(room.id, 3, [h], [-1], status="abandoned")  # không tính
-    code, inside = room.resource_code, room.start_at + timedelta(minutes=10)
-    keys = [
-        (h, code, inside),
-        (x, code, inside),
-        (h, code, room.end_at),  # giờ kết thúc không thuộc buổi
-        (h, "KHAC", inside),  # sân khác
-        (-9, code, inside),  # không có trận trong buổi
-    ]
+    first = (await room_for(staff, admin, host.code))["room"]
+    second = (await room_for(staff, admin, host.code))["room"]
+    await add_match(first.id, 1, [h, x], [-1, -2], win="a")  # h, x thắng
+    await add_match(first.id, 2, [-1, -2], [h, -3], win="a")  # h thua
+    await add_match(first.id, 3, [h], [-1], status="abandoned")  # không tính
+    await add_match(second.id, 1, [h], [-4], win="b")  # phòng khác: h thua
     async with SessionLocal() as s:
-        got = await rooms.session_stats(s, keys)
-    assert set(got) == {keys[0], keys[1]}
-    mine = got[keys[0]]
-    assert (mine.matches, mine.wins) == (2, 1)
-    assert (mine.start_at, mine.end_at) == (room.start_at, room.end_at)
-    assert (got[keys[1]].matches, got[keys[1]].wins) == (1, 1)
-    async with SessionLocal() as s:
-        assert await rooms.session_stats(s, []) == {}
+        got = await rooms.career_stats(s, {h, x, -9})
+        assert await rooms.career_stats(s, set()) == {}
+    assert (got[h].matches, got[h].wins) == (3, 1)
+    assert (got[x].matches, got[x].wins) == (1, 1)
+    assert -9 not in got  # chưa có trận nào
+    # Khớp tổng Lịch sử chơi của tháng có các trận đó
+    d = (await history(host.client)).json()
+    assert (d["summary"]["matches"], d["summary"]["wins"]) == (got[h].matches, got[h].wins)

@@ -127,57 +127,30 @@ async def play_history(
 
 
 @dataclass(frozen=True)
-class SessionStats:
-    """Thắng / thua của một người trong một buổi (phòng) – cùng cách đếm Lịch sử chơi."""
+class CareerStats:
+    """Tổng thắng / thua mọi thời gian của một người – cùng cách đếm Lịch sử chơi."""
 
-    start_at: datetime
-    end_at: datetime
     matches: int
     wins: int
 
 
-SessionKey = tuple[int, str, datetime]  # (id hồ sơ, mã sân, thời điểm)
-
-
-async def session_stats(
-    session: AsyncSession, keys: list[SessionKey]
-) -> dict[SessionKey, SessionStats]:
-    """Buổi chứa thời điểm ``at`` trên sân ``court`` (``start_at <= at < end_at``) và số trận đã lưu
-    của người đó trong buổi. Không có phòng / không có trận -> không có trong kết quả."""
-    if not keys:
+async def career_stats(session: AsyncSession, customer_ids: set[int]) -> dict[int, CareerStats]:
+    """Mọi trận đã lưu kết quả mà người đó ở đội A/B (kể cả phòng đã rời / buổi bị hủy sau đó, như
+    Lịch sử chơi). Chưa có trận nào -> không có trong kết quả."""
+    if not customer_ids:
         return {}
-    rooms = list(
-        await session.scalars(
-            select(PlayRoom).where(
-                PlayRoom.resource_code.in_({court for _, court, _ in keys}),
-                PlayRoom.start_at <= max(at for *_, at in keys),
-                PlayRoom.end_at > min(at for *_, at in keys),
-            )
-        )
-    )
-    room_of = {}
-    for key in keys:
-        _, court, at = key
-        room = next(
-            (r for r in rooms if r.resource_code == court and r.start_at <= at < r.end_at), None
-        )
-        if room is not None:
-            room_of[key] = room
-    if not room_of:
-        return {}
-    rows = await session.execute(
+    ids = sorted(customer_ids)
+    games = await session.scalars(
         select(PlayMatch).where(
             PlayMatch.status == "finished",
-            PlayMatch.room_id.in_({r.id for r in room_of.values()}),
+            or_(PlayMatch.team_a.overlap(ids), PlayMatch.team_b.overlap(ids)),
         )
     )
-    games = list(rows.scalars())
-    out = {}
-    for key, room in room_of.items():
-        cid = key[0]
-        mine = [m for m in games if m.room_id == room.id and cid in (*m.team_a, *m.team_b)]
-        if not mine:
-            continue
-        wins = sum(1 for m in mine if m.winner == ("a" if cid in m.team_a else "b"))
-        out[key] = SessionStats(room.start_at, room.end_at, len(mine), wins)
-    return out
+    played: dict[int, int] = defaultdict(int)
+    won: dict[int, int] = defaultdict(int)
+    for m in games:
+        for cid in {*m.team_a, *m.team_b} & customer_ids:
+            played[cid] += 1
+            if m.winner == ("a" if cid in m.team_a else "b"):
+                won[cid] += 1
+    return {cid: CareerStats(played[cid], won[cid]) for cid in played}

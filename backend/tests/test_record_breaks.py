@@ -315,13 +315,7 @@ async def test_label_date_follows_latest_paste(admin, people):
 async def test_admin_manual_paths_write_paste_date(admin, people):
     hv = await people("Admin Nhập")
     at = datetime.now(UTC) - timedelta(days=3)
-    body = {
-        "member_code": hv.code,
-        "wins": 1,
-        "losses": 0,
-        "speed_kmh": 300,
-        "measured_at": at.isoformat(),
-    }
+    body = {"member_code": hv.code, "speed_kmh": 300, "measured_at": at.isoformat()}
 
     # Admin thêm số đo có / không có video
     r = await admin.post(ADMIN, json={**body, "video_url": f" {YT} "}, headers=idem())
@@ -373,13 +367,7 @@ async def test_member_submit_keeps_paste_date_after_approval(admin, people):
     at = datetime.now(UTC) - timedelta(days=3)
     r = await hv.client.post(
         SUBMIT,
-        json={
-            "wins": 1,
-            "losses": 0,
-            "speed_kmh": 300,
-            "measured_at": at.isoformat(),
-            "video_url": YT,
-        },
+        json={"speed_kmh": 300, "measured_at": at.isoformat(), "video_url": YT},
         headers=idem(),
     )
     assert r.status_code == 201, r.text
@@ -392,35 +380,6 @@ async def test_member_submit_keeps_paste_date_after_approval(admin, people):
     assert r.status_code == 200, r.text
     assert await set_at_of(rid) == old
     assert (await item_of(hv.client, rid))["label_date"] == "2026-02-02"
-
-
-async def test_member_submit_play_result_shows_on_card(admin, people):
-    """Thắng / thua bắt buộc khi gửi, lên thẻ kỷ lục (ưu tiên); thiếu / tổng 0 / quá 99 -> 422."""
-    hv = await people("Gửi Thắng Thua")
-    await profile(hv.customer_id, show_on_records=False)
-    at = (datetime.now(UTC) - timedelta(days=2)).isoformat()
-    for bad in (
-        {},
-        {"wins": 3},
-        {"losses": 1},
-        {"wins": 0, "losses": 0},
-        {"wins": 100, "losses": 1},
-    ):
-        r = await hv.client.post(
-            SUBMIT, json={"speed_kmh": 310, "measured_at": at, **bad}, headers=idem()
-        )
-        assert r.status_code == 422, bad
-    r = await hv.client.post(
-        SUBMIT, json={"speed_kmh": 310, "measured_at": at, "wins": 3, "losses": 1}, headers=idem()
-    )
-    assert r.status_code == 201, r.text
-    rid = r.json()["id"]
-    assert (await admin.post(f"{ADMIN}/{rid}/approve", headers=idem())).status_code == 200
-    stats = (await item_of(hv.client, rid))["play_stats"]
-    assert stats == {"start_at": None, "end_at": None, "matches": 4, "wins": 3, "losses": 1}
-    # Người khác xem lần của người ẩn danh: không lộ thắng / thua
-    other = await people("Người Xem Thắng Thua")
-    assert (await item_of(other.client, rid))["play_stats"] is None
 
 
 async def test_constraint_rejects_link_without_date_and_date_without_link(people):

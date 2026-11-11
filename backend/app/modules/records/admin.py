@@ -49,8 +49,6 @@ async def rows_of(session: AsyncSession, records: list[SpeedRecord]) -> list[Adm
             source=r.source,  # type: ignore[arg-type]
             status=r.status,  # type: ignore[arg-type]
             reject_reason=r.reject_reason,
-            wins=r.wins,
-            losses=r.losses,
             editable=r.source != "device",
             submitted_at=r.created_at,
             version=r.version,
