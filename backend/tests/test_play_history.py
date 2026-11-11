@@ -6,6 +6,7 @@ from sqlalchemy import update
 
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.modules.play_rooms import api as rooms
 from app.modules.play_rooms.models import PlayMatch, PlayRoom
 from tests import test_play_rooms as base
 from tests.test_play_rooms import MA, room_for
@@ -169,3 +170,30 @@ async def test_date_range_spans_months_vn_time_and_errors(staff, admin, people):
         assert r.status_code == 422, params
         assert r.json()["detail"] == {"code": "E-001", "message": message}
     assert (await span(**{"from": "2025-02-30", "to": "2025-03-01"})).status_code == 422
+
+
+async def test_session_stats_for_record_card(staff, admin, people):
+    """Thẻ kỷ lục: thắng / thua trong buổi chứa lúc đo trên đúng sân, [start, end)."""
+    host, mate = await people("Phá Kỷ Lục"), await people("Đồng Đội")
+    h, x = host.customer_id, mate.customer_id
+    room = (await room_for(staff, admin, host.code))["room"]
+    await add_match(room.id, 1, [h, x], [-1, -2], win="a")
+    await add_match(room.id, 2, [-1, -2], [h, -3], win="a")
+    await add_match(room.id, 3, [h], [-1], status="abandoned")  # không tính
+    code, inside = room.resource_code, room.start_at + timedelta(minutes=10)
+    keys = [
+        (h, code, inside),
+        (x, code, inside),
+        (h, code, room.end_at),  # giờ kết thúc không thuộc buổi
+        (h, "KHAC", inside),  # sân khác
+        (-9, code, inside),  # không có trận trong buổi
+    ]
+    async with SessionLocal() as s:
+        got = await rooms.session_stats(s, keys)
+    assert set(got) == {keys[0], keys[1]}
+    mine = got[keys[0]]
+    assert (mine.matches, mine.wins) == (2, 1)
+    assert (mine.start_at, mine.end_at) == (room.start_at, room.end_at)
+    assert (got[keys[1]].matches, got[keys[1]].wins) == (1, 1)
+    async with SessionLocal() as s:
+        assert await rooms.session_stats(s, []) == {}

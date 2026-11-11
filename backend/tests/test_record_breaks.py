@@ -208,6 +208,8 @@ async def test_card_fields_and_anonymity(admin, people):
     assert open_card["nickname"] == "Sấm Sét" and open_card["tier"] == "Khá"
     assert open_card["racket"] == "Yonex 99" and open_card["resource_name"] == court["name"]
     assert open_card["video"] is None and open_card["is_me"] is False
+    # Không thuộc phòng chơi nào / ẩn danh -> không có thắng thua
+    assert open_card["play_stats"] is None and anon["play_stats"] is None
 
     # Mình luôn thấy thẻ của mình dù đang ẩn
     mine = await item_of(hidden.client, high)

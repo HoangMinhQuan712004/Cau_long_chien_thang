@@ -5,6 +5,7 @@ Tính cả phòng mình đã rời / bị mời ra (kết quả trận giữ the
 """
 
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import or_, select
@@ -123,3 +124,60 @@ async def play_history(
         ),
         items=items,
     )
+
+
+@dataclass(frozen=True)
+class SessionStats:
+    """Thắng / thua của một người trong một buổi (phòng) – cùng cách đếm Lịch sử chơi."""
+
+    start_at: datetime
+    end_at: datetime
+    matches: int
+    wins: int
+
+
+SessionKey = tuple[int, str, datetime]  # (id hồ sơ, mã sân, thời điểm)
+
+
+async def session_stats(
+    session: AsyncSession, keys: list[SessionKey]
+) -> dict[SessionKey, SessionStats]:
+    """Buổi chứa thời điểm ``at`` trên sân ``court`` (``start_at <= at < end_at``) và số trận đã lưu
+    của người đó trong buổi. Không có phòng / không có trận -> không có trong kết quả."""
+    if not keys:
+        return {}
+    rooms = list(
+        await session.scalars(
+            select(PlayRoom).where(
+                PlayRoom.resource_code.in_({court for _, court, _ in keys}),
+                PlayRoom.start_at <= max(at for *_, at in keys),
+                PlayRoom.end_at > min(at for *_, at in keys),
+            )
+        )
+    )
+    room_of = {}
+    for key in keys:
+        _, court, at = key
+        room = next(
+            (r for r in rooms if r.resource_code == court and r.start_at <= at < r.end_at), None
+        )
+        if room is not None:
+            room_of[key] = room
+    if not room_of:
+        return {}
+    rows = await session.execute(
+        select(PlayMatch).where(
+            PlayMatch.status == "finished",
+            PlayMatch.room_id.in_({r.id for r in room_of.values()}),
+        )
+    )
+    games = list(rows.scalars())
+    out = {}
+    for key, room in room_of.items():
+        cid = key[0]
+        mine = [m for m in games if m.room_id == room.id and cid in (*m.team_a, *m.team_b)]
+        if not mine:
+            continue
+        wins = sum(1 for m in mine if m.winner == ("a" if cid in m.team_a else "b"))
+        out[key] = SessionStats(room.start_at, room.end_at, len(mine), wins)
+    return out

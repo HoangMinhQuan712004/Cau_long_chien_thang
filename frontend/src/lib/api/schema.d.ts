@@ -6089,6 +6089,35 @@ export interface components {
              */
             wins: number;
         };
+        /**
+         * PlayStats
+         * @description Thắng / thua trong buổi chơi lúc phá kỷ lục (phòng chơi cùng sân, khung giờ chứa lúc đo).
+         */
+        PlayStats: {
+            /**
+             * Start At
+             * Format: date-time
+             * @description Khung giờ buổi chơi
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Matches
+             * @description Số trận đã lưu kết quả mà người này ở đội A/B (≥ 1)
+             */
+            matches: number;
+            /**
+             * Wins
+             * @description 2 vs 2: cả 2 người đội thắng đều được tính
+             */
+            wins: number;
+            /** Losses */
+            losses: number;
+        };
         /** PlayerOut */
         PlayerOut: {
             /**
@@ -6576,6 +6605,8 @@ export interface components {
             is_me: boolean;
             /** @description null: “Chưa có video” */
             video: components["schemas"]["VideoOut"] | null;
+            /** @description Thắng / thua trong buổi phá kỷ lục; null: ẩn danh, không có sân, không thuộc phòng chơi nào hoặc buổi đó chưa lưu trận nào của người này */
+            play_stats: components["schemas"]["PlayStats"] | null;
         };
         /** RecordBreakList */
         RecordBreakList: {
