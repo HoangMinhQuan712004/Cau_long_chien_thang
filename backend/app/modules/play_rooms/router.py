@@ -21,6 +21,7 @@ from app.core import ratelimit
 from app.core.db import SessionDep
 from app.core.idempotency import IdempotencyDep
 from app.core.middleware import require_origin
+from app.core.params import SMALLINT_MAX, path_id
 from app.modules.auth import api as auth
 from app.modules.member_inbox import api as inbox
 from app.modules.play_rooms import actions, history, matches, views
@@ -45,7 +46,12 @@ from app.modules.play_rooms.schemas import (
 
 router = APIRouter(prefix="/member-area", tags=["member-area"])
 
-RoomId = Annotated[int, Path(ge=1)]
+# Id ngoài khoảng cột -> 404 như phòng không tồn tại (T-070, không lộ khác biệt – T-054)
+RoomId = path_id("room_id", room_errors.not_found)
+RequestId = path_id("request_id", room_errors.not_found)
+InviteId = path_id("invite_id", room_errors.not_found)
+MemberId = path_id("member_id", room_errors.not_found, description="Id dòng thành viên phòng")
+MatchNo = path_id("no", room_errors.not_found, max_value=SMALLINT_MAX)
 WRITE = [Depends(require_origin)]
 SEARCH_PER_MINUTE = 30  # T-054: lượt tìm theo mã booking / tài khoản
 
@@ -178,7 +184,7 @@ async def cancel_join(
 )
 async def approve_join(
     room_id: RoomId,
-    request_id: Annotated[int, Path(ge=1)],
+    request_id: RequestId,
     data: VersionIn,
     member: auth.CurrentMember,
     idem: IdempotencyDep,
@@ -201,7 +207,7 @@ async def approve_join(
 )
 async def reject_join(
     room_id: RoomId,
-    request_id: Annotated[int, Path(ge=1)],
+    request_id: RequestId,
     data: VersionIn,
     member: auth.CurrentMember,
     idem: IdempotencyDep,
@@ -243,7 +249,7 @@ async def invite(
 
 @router.post("/invites/{invite_id}/accept", response_model=RoomDetail, dependencies=WRITE)
 async def accept_invite(
-    invite_id: Annotated[int, Path(ge=1)],
+    invite_id: InviteId,
     member: auth.CurrentMember,
     idem: IdempotencyDep,
     session: SessionDep,
@@ -257,7 +263,7 @@ async def accept_invite(
 
 @router.post("/invites/{invite_id}/decline", response_model=RoomDetail, dependencies=WRITE)
 async def decline_invite(
-    invite_id: Annotated[int, Path(ge=1)],
+    invite_id: InviteId,
     member: auth.CurrentMember,
     idem: IdempotencyDep,
     session: SessionDep,
@@ -290,7 +296,7 @@ async def leave(
 )
 async def kick(
     room_id: RoomId,
-    member_id: Annotated[int, Path(ge=1, description="Id dòng thành viên phòng")],
+    member_id: MemberId,
     data: VersionIn,
     member: auth.CurrentMember,
     idem: IdempotencyDep,
@@ -310,7 +316,7 @@ async def kick(
 )
 async def transfer_host(
     room_id: RoomId,
-    member_id: Annotated[int, Path(ge=1, description="Id dòng thành viên phòng")],
+    member_id: MemberId,
     data: VersionIn,
     member: auth.CurrentMember,
     idem: IdempotencyDep,
@@ -396,7 +402,7 @@ async def start(
 @router.post("/rooms/{room_id}/matches/{no}/result", response_model=RoomDetail, dependencies=WRITE)
 async def save_result(
     room_id: RoomId,
-    no: Annotated[int, Path(ge=1)],
+    no: MatchNo,
     data: ResultIn,
     member: auth.CurrentMember,
     idem: IdempotencyDep,
