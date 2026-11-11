@@ -23,7 +23,16 @@ from app.modules.auth.deps import SessionDep
 SETTING_KEY = "admin_menu_order"
 # Thứ tự mặc định = thứ tự khai báo
 MenuKey = Literal[
-    "baoCao", "san", "datSan", "donDatSan", "hoiVien", "lichSu", "kyLuc", "thanhToan", "nhanVien"
+    "baoCao",
+    "san",
+    "datSan",
+    "donDatSan",
+    "theoDoiSan",  # T-069
+    "hoiVien",
+    "lichSu",
+    "kyLuc",
+    "thanhToan",
+    "nhanVien",
 ]
 MENU_KEYS: tuple[str, ...] = get_args(MenuKey)
 MENU_LABELS = {
@@ -31,6 +40,7 @@ MENU_LABELS = {
     "san": "Sân",
     "datSan": "Đặt sân",
     "donDatSan": "Đơn đặt sân",
+    "theoDoiSan": "Theo dõi sân",
     "hoiVien": "Hội viên",
     "lichSu": "Lịch sử giao dịch",
     "kyLuc": "Kỷ lục",

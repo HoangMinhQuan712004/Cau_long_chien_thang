@@ -416,11 +416,12 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 - **Chưa có cách ghi số đo thật** (giai đoạn A chỉ đọc). Để thử trên máy dev, nạp số đo giả: `cd backend; .venv\Scripts\python -m app.modules.records.seed_demo` (xóa bằng `--clear`). Lệnh từ chối chạy khi `ENV=production`; biến tên là `ENV`, không phải `APP_ENV`.
 - **Số đo nhập tay và duyệt (T-047, đã vào `dev`):** Admin nhập, sửa, xóa số đo tốc độ của hội viên (có thể gắn sân và video). Hội viên bấm "Gửi cú đập" để tự gửi số đo; số này **chờ Admin duyệt**, chưa tính vào bảng xếp hạng, kỷ lục hay "Video & kỷ lục". Duyệt hoặc từ chối (phải có lý do) thì hội viên nhận thông báo. Hội viên gửi tối đa 5 lượt hợp lệ mỗi 24 giờ. Số đo từ máy đo không sửa hay xóa được. Cần chạy migration `5b7e2c9d41a3` trên server.
 - **Video kỷ lục (T-046, đã vào `dev`):** Admin gắn link YouTube hoặc file `.mp4` / `.webm` (https) vào số đo; hệ thống **không tải file lên**. Hội viên xem ở trang Video & kỷ lục. Nếu sau này thêm `Content-Security-Policy`, phải cho phép `https://www.youtube-nocookie.com` (khung nhúng), `https://i.ytimg.com` (ảnh bìa) và host của file video.
-- **Danh sách sân: tìm theo mã booking, hiện phòng đã kết thúc (T-054, backend xong, chưa vào `dev`):** hội viên nhập **đủ** mã đơn (`BK-20261106-001`) hoặc mã con (`BK-20261106-001-02`) để tìm phòng, kể cả của người khác và ngày khác; không tìm theo tên, SĐT hay một phần mã. Mã sai hoặc phòng không xem được đều ra kết quả rỗng, không báo lý do. Giới hạn 30 lượt tìm mỗi phút mỗi tài khoản. Phòng đã đóng hoặc đã hủy hiện nhãn "Đã kết thúc", chỉ xem, không xin vào. Thẻ phòng không hiện mã booking. Cần T-052 lên `dev` trước hoặc cùng.
-- **Bảng xếp hạng theo từng cú đập (T-053, backend xong, chưa vào `dev`):** mỗi **cú đập** một hạng, không còn mỗi hội viên một dòng: một người đạt cả top 3 thì vẫn hiện cả ba bậc. Bằng km/h thì cú đo sớm hơn xếp trên; không đồng hạng. Mỗi dòng ghi sân của cú đó, và API trả thêm tổng số cú trong kỳ. Người ẩn danh vẫn ẩn tên ở mọi bậc. Không đổi DB.
+- **Danh sách sân: tìm theo mã booking, hiện phòng đã kết thúc (T-054, đã vào `dev`):** hội viên nhập **đủ** mã đơn (`BK-20261106-001`) hoặc mã con (`BK-20261106-001-02`) để tìm phòng, kể cả của người khác và ngày khác; không tìm theo tên, SĐT hay một phần mã. Mã sai hoặc phòng không xem được đều ra kết quả rỗng, không báo lý do. Giới hạn 30 lượt tìm mỗi phút mỗi tài khoản. Phòng đã đóng hoặc đã hủy hiện nhãn "Đã kết thúc", không xin vào; **chỉ người từng ở trong phòng mới xem được** (chỉ đọc), người ngoài nhận "không tìm thấy" (đổi quy tắc so với T-017). Thẻ phòng không hiện mã booking. Cần T-052 lên `dev` trước hoặc cùng.
+- **Bảng xếp hạng theo từng cú đập (T-053, đã vào `dev`):** mỗi **cú đập** một hạng, không còn mỗi hội viên một dòng: một người đạt cả top 3 thì vẫn hiện cả ba bậc. Bằng km/h thì cú đo sớm hơn xếp trên; không đồng hạng. Mỗi dòng ghi sân của cú đó, và API trả thêm tổng số cú trong kỳ. Người ẩn danh vẫn ẩn tên ở mọi bậc. Không đổi DB.
 - **Video & kỷ lục thành dòng thời gian phá kỷ lục (T-048, đã vào `dev`):** API `GET /member-area/record-breaks` trả các lần phá kỷ lục của cả cụm, mới nhất trước, kèm số km/h hơn kỷ lục trước, số ngày giữ kỷ lục và video (nếu có). Nhãn "Kỷ lục ngày dd/mm" lấy theo **ngày dán link video**, không phải ngày đo. Màn này hiện **họ tên thật** kèm biệt danh của người đã bật "Hiện trên Video & kỷ lục" (hoặc của chính mình); Tổng quan và Bảng xếp hạng vẫn chỉ hiện biệt danh. Người ẩn danh hiện "Hội viên ẩn danh". Cần chạy migration `a4c91e7d2f58` (thêm cột `video_set_at`).
 - **Bảng xếp hạng bấm xem video (T-049, đã vào `dev`):** mỗi dòng top 10 và dòng "Hạng của tôi" kèm video của đúng số đo xếp hạng trong kỳ; không có video thì không có gì để bấm. Người ẩn danh vẫn có video, tên vẫn ẩn. Không đổi DB.
-- Chi tiết: `docs/booking-engine-api.md` mục 13.5, 13.6, 13.7 và 13.8.
+- **Theo dõi sân (T-069, backend xong, chưa vào `dev`):** trang quản trị `/admin/theo-doi-san` (menu "Theo dõi sân"), **chỉ xem**. Mỗi sân một hàng, trong hàng là các phòng chơi của ngày đang xem: giờ, trạng thái (Sắp tới, Đang chơi, Đã kết thúc, Booking đã hủy), Host, số người, thể thức, khoảng hạng, trận đang đánh hoặc trận gần nhất kèm tỉ số. Bấm phòng xem thành viên, mọi trận và bảng xếp hạng phòng. Hôm nay tự tải lại mỗi 10 giây; có thể xem ngày khác (trong ±1 năm). Người xem thấy **tên thật, biệt danh, mã HV, kể cả hội viên đã ẩn danh; không có SĐT**. Quyền mới `play_rooms.monitor`: Admin có, Nhân viên mặc định **không**, Admin bật ở tab Phân quyền. API: `GET /api/v1/play-rooms/admin/day` và `/admin/rooms/{room_id}`.
+- Chi tiết: `docs/booking-engine-api.md` mục 13.5, 13.6, 13.7, 13.8 và 13.9.
 
 ### Đăng ký tài khoản = hội viên (T-021)
 
@@ -450,7 +451,10 @@ API, mã lỗi `E-MEM-*`, `E-HV-*`, `E-AUTH-25…32`: [docs/booking-engine-api.m
 
 | Việc | Lệnh |
 |---|---|
+| Cài gói dev (làm trước khi chạy test, T-059) | `cd backend && pip install -e ".[dev]"`. **Bắt buộc cả với `pytest` thường:** `pyproject.toml` có `addopts = "--dist=loadfile"` của `pytest-xdist`, venv cũ chưa có gói này sẽ báo lỗi tham số ngay |
 | Test backend | `cd backend && pytest` (tự dùng DB `<tên db>_test`, cần tạo trước) |
+| Test backend nhanh (T-059) | `cd backend && pytest -q -n auto` (đã `pip install -e ".[dev]"` ở dòng trên). Mỗi worker `gwN` dùng DB riêng `<tên db>_gwN_test`, tự tạo nếu chưa có, nên user Postgres cần quyền `CREATEDB`. Mỗi file test chạy trọn trên một worker (`--dist=loadfile`). Máy ít RAM thì dùng `-n 2` |
+| Test ở giờ giả (T-067) | `$env:TEST_FAKE_NOW="2026-11-10T23:59:30+07:00"; cd backend; pytest -q -n 2` (PowerShell). Cả bộ chạy từ mốc đó, giờ vẫn trôi; dùng để thử ranh nửa đêm, 19h. `time-machine` dời `datetime.now` / `time.time` (không dời `time.monotonic`), và DB test có `public.now()` lệch cùng độ lệch. Không đặt biến thì không đổi gì. Công cụ ở `backend/tests/fake_clock.py`; cần `pip install -e ".[dev]"` để có `time-machine`. Test migration (`…_mig_*`) không theo giờ giả |
 | Lint backend | `ruff check . && ruff format .` |
 | Tạo migration | `alembic revision --autogenerate -m "mô tả"` → **đọc lại file sinh ra** |
 | Sinh type API cho FE | `cd frontend && npm run gen:api` (backend phải đang chạy) |
@@ -463,9 +467,11 @@ API, mã lỗi `E-MEM-*`, `E-HV-*`, `E-AUTH-25…32`: [docs/booking-engine-api.m
 
 | Job | Kiểm tra |
 |---|---|
-| Backend | ruff lint + format, `alembic upgrade head` trên DB mới, `alembic check` (model ↔ migration), downgrade → upgrade, pytest với Postgres thật |
+| Backend | **Lint và migration** (một job): ruff lint + format, `alembic upgrade head` trên DB mới, `alembic check` (model ↔ migration), downgrade → upgrade. **pytest** với Postgres thật chia **3 shard** theo file, mỗi shard `pytest -n 2`. Job tổng `Backend (lint, migrations, tests)` (id `backend`) chỉ xanh khi cả hai phần xanh: CD và quy tắc nhánh chỉ cần đợi job này |
 | Frontend | ESLint, `next build` (gồm TypeScript) |
 | API contract | Sinh lại `schema.d.ts` từ OpenAPI của backend, fail nếu lệch → nhắc chạy `npm run gen:api` |
+
+**Không chạy lại pytest khi push lên `dev` (T-059).** CI của PR xanh đủ thì đóng dấu cây code (`git rev-parse HEAD^{tree}`) bằng artifact `tested-tree-<tree>` (giữ 2 ngày). Push lên `dev` có cùng cây code → bỏ pytest, vẫn chạy ruff và migration (dưới 1 phút). `dev` đã đổi giữa lúc PR chạy và lúc merge → cây khác, không có dấu → chạy đủ như cũ. **Push lên `main` (production) luôn chạy đủ bộ test.**
 
 **CD** – [.github/workflows/cd.yml](.github/workflows/cd.yml), chạy khi CI trên `dev` hoặc `main` xanh (hoặc chạy tay):
 
@@ -512,16 +518,18 @@ không biết gì về cầu lông: sân, giờ mở, cao điểm, giá, giữ c
 Khi cần có thể tách thành service riêng. Chi tiết: [docs/booking-engine-api.md](docs/booking-engine-api.md).
 
 **Thanh toán tách khỏi chỗ.** Booking có `payment_status`: Chưa thanh toán → Đã thanh toán hoặc Không thu được (hai trạng thái cuối).
-Từ T-051 Admin còn hủy được booking, vé hoặc đơn (thành **Đã hủy**, trạng thái cuối): khoản **đã thu** hủy được mọi lúc (T-052, chưa vào `dev`), khoản chưa thu chỉ trước giờ bắt đầu. Chỗ trống lại ngay, khoản đã thu được trừ khỏi doanh thu của ngày chơi nhưng **hệ thống không tự hoàn tiền**, Admin tự trả khách. Chi tiết: `docs/booking-engine-api.md` mục 5.2. Tại quầy chơi trước, trả sau; hiện chỉ thu tiền mặt (chuyển khoản QR tại quầy là T-007).
+Từ T-051 Admin còn hủy được booking, vé hoặc đơn (thành **Đã hủy**, trạng thái cuối): khoản **đã thu** hủy được mọi lúc (T-052, đã vào `dev`), khoản chưa thu chỉ trước giờ bắt đầu. Chỗ trống lại ngay, khoản đã thu được trừ khỏi doanh thu nhưng **hệ thống không tự hoàn tiền**, Admin tự trả khách. Chi tiết: `docs/booking-engine-api.md` mục 5.2. Tại quầy chơi trước, trả sau; hiện chỉ thu tiền mặt (chuyển khoản QR tại quầy là T-007).
 Khách đặt online (T-008) trả trước: giữ chỗ 5 phút, booking chỉ được tạo khi SePay báo tiền về, xem mục "Đặt online và SePay".
 Giá được server tính và chốt lúc đặt.
+
+**Sổ tiền vào và doanh thu (T-057, T-058, đã vào `dev`).** Mỗi lần nhận hoặc hoàn tiền là một dòng trong sổ `payment_entry`. **Lịch sử giao dịch** chỉ hiện tiền vào (tiền mặt và chuyển khoản), mỗi dòng một lần nhận tiền; hoàn tiền là dòng âm ở ngày hủy; màn chỉ xem; từ T-061 hiện SĐT **đầy đủ** cho ai có quyền `booking.transactions.view` (Admin, và Nhân viên mặc định; ngoại lệ có chủ đích của ADR-004 S12, chỉ màn này). **Báo cáo doanh thu tính theo ngày tiền về** (hoàn tiền trừ ngày hủy, ngày có thể âm); lượt đặt và công suất vẫn theo ngày chơi. Thu cả đơn tại quầy có popup QR (nội dung chuyển khoản = mã đơn bỏ gạch, chỉ nhận **đúng** số tiền; lệch thì ra "cần hoàn") kèm nút tiền mặt. Popup chờ **5 phút** (hết giờ thì "Tạo lại mã QR"), nhưng tiền về muộn vẫn được nhận nếu đúng số. Từ T-065 và T-068 có thể thu bằng QR **từng buổi** (nội dung = mã con bỏ gạch) và **từng vé quầy** (nội dung = mã vé bỏ gạch); webhook ưu tiên mã vé, rồi mã con, rồi mã đơn, vì SePay tự cắt mã theo mẫu "BK + 11 số" (**không cần đổi cấu hình SePay**). Quyền mở QR là `booking.collect`. **Không thu được cả đơn** (T-064): đánh dấu mọi buổi chưa thanh toán đã tới giờ một lượt. Màn Đơn đặt sân có **Còn phải thu** (`unpaid_amount`, T-066) bằng đúng số QR cả đơn và Thu cả đơn thu. Migration `e3a17c9b5d24` có backfill (một giao dịch SePay = một dòng sổ): **backup production và thử trên bản sao dữ liệu thật trước khi lên**. Chi tiết: `docs/booking-engine-api.md` mục 5.3.
 
 **Module giao tiếp qua service + event.** Module không query bảng của module khác; engine ghi sự kiện (vd. `booking.created`)
 vào bảng outbox trong cùng transaction, worker phát cho `notifications`.
 Khi cần tách service chỉ cần thay `app/core/events.py` bằng message broker.
 
 **Bảo mật nền tảng (ADR-004).** Chống CSRF bằng kiểm `Origin`, rate limit bằng Redis, `Idempotency-Key` cho mọi lệnh ghi,
-nhật ký thao tác chỉ thêm (không sửa), quyền khai báo tập trung ở `app/core/permissions.py`, SĐT luôn che ở API.
+nhật ký thao tác chỉ thêm (không sửa), quyền khai báo tập trung ở `app/core/permissions.py`, SĐT che ở API khách và hội viên (riêng màn quản trị có quyền thì hiện đầy đủ).
 
 **Auth.** JWT trong cookie httpOnly (access 30 phút, refresh 14 ngày, path `/api/v1/auth`).
 Trình duyệt gọi `/api/v1/*` cùng domain, Next rewrite sang FastAPI → không cần CORS.

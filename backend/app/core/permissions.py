@@ -52,6 +52,8 @@ class Perm(enum.StrEnum):
     PAYMENTS_SETTINGS = "payments.settings"  # tài khoản nhận tiền, khóa SePay (chỉ Admin, T-012)
     AUDIT_LOG_VIEW = "audit_log.view"  # Lịch sử thao tác (chỉ Admin, SRS Lịch sử thao tác BR-001)
     RECORDS_VIDEO_MANAGE = "records.video.manage"  # gắn / gỡ video kỷ lục (chỉ Admin, T-046)
+    # Theo dõi sân (T-069): xem mọi phòng chơi, tên thật – NV mặc định tắt, Admin cấp được
+    PLAY_ROOMS_MONITOR = "play_rooms.monitor"
     REPORTS_VIEW = "reports.view"  # Báo cáo & phân tích (chỉ Admin, SRS Báo cáo BR-001)
     ROLES_MANAGE = "roles.manage"  # tab Phân quyền: chỉ Admin, không gán được cho NV
     SETTINGS_MENU = "settings.menu"  # sắp thứ tự menu khu quản trị: chỉ Admin

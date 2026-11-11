@@ -18,6 +18,8 @@ class RoomPerson:
     phone: str  # nội bộ – chỉ để xét liên kết tài khoản, không trả ra API
     show_on_records: bool = False  # T-030: Tắt -> "Hội viên ẩn danh" trên bảng xếp hạng
     tier: str | None = None  # T-031: hạng (trình độ) – None = chưa xếp hạng
+    full_name: str = ""  # T-069: Theo dõi sân (Admin) thấy tên thật + biệt danh riêng
+    nickname: str | None = None
 
 
 async def people(session: AsyncSession, ids: set[int] | list[int]) -> dict[int, RoomPerson]:
@@ -38,6 +40,8 @@ async def people(session: AsyncSession, ids: set[int] | list[int]) -> dict[int, 
             phone=c.phone,
             show_on_records=c.show_on_records,
             tier=c.tier,
+            full_name=c.full_name,
+            nickname=c.nickname,
         )
         for c, etag in rows
     }
