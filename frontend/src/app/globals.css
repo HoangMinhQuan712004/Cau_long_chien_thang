@@ -146,6 +146,18 @@
   --animate-shine-text: shine-text 6s ease-in-out infinite;
   /* Sao quanh số kỷ lục: luôn hiện, nháy sáng ↔ dịu liên tục (không xoay); lệch nhịp bằng animation-delay ở nơi dùng */
   --animate-star-glint: star-glint 2.2s ease-in-out infinite both;
+  /* Bảng xếp hạng "lên ngôi": khối bục mọc lên, nội dung bật lên, vương miện rơi xuống, dòng trượt vào, thanh tốc độ
+     chạy dài; độ trễ đặt ở nơi dùng */
+  --animate-podium-rise: podium-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-pop-in: pop-in 500ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  --animate-crown-drop: crown-drop 650ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
+  --animate-row-in: row-in 450ms ease-out both;
+  --animate-grow-x: grow-x 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* Đèn rọi sân khấu (Bảng xếp hạng): quầng sáng "thở" chậm; màu luồng đổi nhẹ (ô liu nhạt → xanh lá dịu → xanh lá ấm);
+     ánh trắng ở đỉnh luồng lấp lánh (áp lên <stop> của gradient) */
+  --animate-spot-breathe: spot-breathe 5s ease-in-out infinite alternate;
+  --animate-beam-tint: beam-tint 6s ease-in-out infinite alternate;
+  --animate-beam-twinkle: beam-twinkle 1.4s ease-in-out infinite alternate;
 
   @keyframes fade-in {
     from {
@@ -162,6 +174,63 @@
     from {
       opacity: 0;
       transform: scale(0.96);
+    }
+  }
+  @keyframes spot-breathe {
+    from {
+      opacity: 0.75;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1.04);
+    }
+  }
+  @keyframes podium-rise {
+    from {
+      transform: scaleY(0);
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem) scale(0.85);
+    }
+  }
+  @keyframes crown-drop {
+    from {
+      opacity: 0;
+      transform: translateY(-1.5rem) rotate(-15deg);
+    }
+  }
+  @keyframes row-in {
+    from {
+      opacity: 0;
+      transform: translateX(1.5rem);
+    }
+  }
+  @keyframes grow-x {
+    from {
+      transform: scaleX(0);
+    }
+  }
+  @keyframes beam-tint {
+    0% {
+      stop-color: color-mix(in srgb, var(--cta) 35%, var(--primary));
+    }
+    50% {
+      stop-color: color-mix(in srgb, var(--primary) 60%, var(--surface));
+    }
+    100% {
+      stop-color: color-mix(in srgb, var(--primary) 80%, var(--cta));
+    }
+  }
+  @keyframes beam-twinkle {
+    from {
+      stop-opacity: 0.06;
+    }
+    to {
+      stop-opacity: 0.11;
     }
   }
   @keyframes star-glint {
@@ -203,7 +272,15 @@
   .animate-scale-in,
   .animate-shake,
   .animate-shine-text,
-  .animate-star-glint {
+  .animate-star-glint,
+  .animate-podium-rise,
+  .animate-pop-in,
+  .animate-crown-drop,
+  .animate-row-in,
+  .animate-grow-x,
+  .animate-spot-breathe,
+  .animate-beam-tint,
+  .animate-beam-twinkle {
     animation: none;
   }
 }
