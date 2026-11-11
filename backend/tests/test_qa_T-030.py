@@ -197,7 +197,14 @@ async def test_ac4_anonymous_members_keep_their_rank_but_leak_nothing(people):
     assert f"avatars/{shy.customer_id}" not in body, (
         "không lộ id của người ẩn danh qua đường dẫn ảnh"
     )
-    assert f'"{shy.customer_id}"' not in body and f":{shy.customer_id}," not in body
+    # id không nằm ở trường nào (trừ số đo / hạng – có thể trùng số, vd id 300 = 300 km/h)
+    leaked = [
+        k
+        for row in [*top, r.json()["me"]]
+        for k, v in row.items()
+        if k not in ("speed_kmh", "rank") and str(v) == str(shy.customer_id)
+    ]
+    assert not leaked, leaked
     for p in hv:
         assert p.phone not in body and p.code not in body or p is viewer
     assert "customer_id" not in body and "public_id" not in body
