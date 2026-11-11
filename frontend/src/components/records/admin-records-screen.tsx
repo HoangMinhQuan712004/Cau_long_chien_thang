@@ -136,6 +136,7 @@ export function AdminRecordsScreen() {
                 <p className="text-xs text-muted tabular-nums">
                   {formatDate(r.measured_at)} · {formatTime(r.measured_at)}
                   {r.resource_name ? ` · ${r.resource_name}` : ""}
+                  {r.wins !== null && r.losses !== null ? ` · ${r.wins} thắng · ${r.losses} thua` : ""}
                 </p>
                 {r.status === "rejected" && r.reject_reason ? <p className="text-xs text-danger">Lý do: {r.reject_reason}</p> : null}
               </div>
