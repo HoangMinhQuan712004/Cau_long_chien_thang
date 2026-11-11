@@ -95,8 +95,10 @@ export function RoomDetailDialog({ target, live, onClose }: { target: MonitorTar
                       <b className="block truncate text-sm">{personName(m)}</b>
                       <span className="block truncate text-xs text-muted">{personMeta(m) || "Chưa có mã HV"}</span>
                     </span>
-                    {m.role === "host" ? <Badge variant="warning">Host</Badge> : null}
-                    <Badge variant={m.queue_state === "playing" ? "success" : "neutral"}>{QUEUE_LABEL[m.queue_state]}</Badge>
+                    <span className="flex shrink-0 flex-col items-end gap-1">
+                      {m.role === "host" ? <Badge variant="warning">Host</Badge> : null}
+                      <Badge variant={m.queue_state === "playing" ? "success" : "neutral"}>{QUEUE_LABEL[m.queue_state]}</Badge>
+                    </span>
                   </li>
                 ))}
               </ul>
