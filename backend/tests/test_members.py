@@ -330,6 +330,45 @@ async def test_detail_shows_nickname_and_email(admin, staff, phones):
     assert (await admin.get(f"{M}/123")).status_code == 404
 
 
+async def test_member_birth_date_create_update_and_audit(admin, phones):
+    """Ngày sinh ở quản trị: thêm / sửa / xóa, chặn tương lai + trước 1900, hồ sơ tạm không có."""
+    a = await add_member(admin, phones, birth_date="1995-03-15")
+    code = a["member_code"]
+    assert (await admin.get(f"{M}/{code}")).json()["birth_date"] == "1995-03-15"
+    tomorrow = (dt.datetime.now(settings.tz).date() + dt.timedelta(days=1)).isoformat()
+    for bad in (tomorrow, "1899-12-31"):
+        r = await patch_member(admin, code, {"birth_date": bad})
+        assert r.status_code == 422, bad
+        assert r.json()["detail"]["message"] == "Ngày sinh không hợp lệ."
+        r = await admin.post(
+            M,
+            json={"full_name": name(), "phone": random_phone(), "birth_date": bad},
+            headers=idem(),
+        )
+        assert r.status_code == 422, bad
+    r = await patch_member(admin, code, {"birth_date": "2000-01-02"})
+    assert r.status_code == 200
+    r = await patch_member(admin, code, {"birth_date": None})
+    assert r.status_code == 200
+    assert (await admin.get(f"{M}/{code}")).json()["birth_date"] is None
+    async with SessionLocal() as s:
+        rows = list(
+            await s.scalars(
+                select(AuditLog)
+                .where(AuditLog.entity_code == code, AuditLog.action == "member.update")
+                .order_by(AuditLog.id)
+            )
+        )
+    changes = [x for row in rows for x in row.detail["changes"] if x["field"] == "Ngày sinh"]
+    assert [(x["before"], x["after"]) for x in changes] == [
+        ("15/03/1995", "02/01/2000"),
+        ("02/01/2000", None),
+    ]
+    t = await add_temp(admin, phones)
+    r = await patch_member(admin, t["ref"], {"birth_date": "1990-01-01"})
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-MEM-6"
+
+
 # ------------------------------------------------------------------ đặt tại quầy (việc 3)
 
 

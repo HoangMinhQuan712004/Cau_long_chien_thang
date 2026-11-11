@@ -31,7 +31,7 @@ from app.modules.members.schemas import (
     MemberUpdateIn,
     TempCreateIn,
 )
-from app.modules.members.service import clean_name, clean_phone
+from app.modules.members.service import check_birth_date, clean_name, clean_phone
 
 
 async def _new_code(session: AsyncSession) -> str:
@@ -56,6 +56,7 @@ async def create_member(
         full_name=full_name,
         phone=phone,
         gender=data.gender,
+        birth_date=check_birth_date(data.birth_date),
         tier=data.tier,
         racket=rackets.clean_racket(data.racket),
         is_active=True,
@@ -98,6 +99,8 @@ async def update_profile(
         changes["full_name"] = clean_name(changes["full_name"] or "")
     if "racket" in changes:
         changes["racket"] = rackets.clean_racket(changes["racket"])
+    if "birth_date" in changes:
+        check_birth_date(changes["birth_date"])
     before = snapshot(c)
     changed = sorted(k for k, v in changes.items() if getattr(c, k) != v)
     for field in changed:

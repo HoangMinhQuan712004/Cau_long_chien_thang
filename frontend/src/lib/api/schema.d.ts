@@ -1491,7 +1491,8 @@ export interface paths {
         /**
          * Update Me
          * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier /
-         *     gender / racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
+         *     gender / birth_date / racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ
+         *     sơ, không ghi.
          *     Hạng hội viên tự chọn (T-042); đổi hạng ghi audit ``member.tier_self_change``.
          */
         put: operations["update_me_api_v1_member_area_me_put"];
@@ -4660,6 +4661,11 @@ export interface components {
              */
             tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
             /**
+             * Birth Date
+             * @description Ngày sinh (1900 → hôm nay, sai -> E-001); null = bỏ trống
+             */
+            birth_date?: string | null;
+            /**
              * Racket
              * @description Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null
              */
@@ -4786,6 +4792,11 @@ export interface components {
              * @description Email hội viên tự nhập ở khu hội viên (chỉ xem)
              */
             email: string | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh; null = chưa nhập
+             */
+            birth_date: string | null;
             /** Total Minutes */
             total_minutes: number;
             /**
@@ -4830,6 +4841,11 @@ export interface components {
              * @description Giới tính tự chọn: male / female hoặc null (Chưa chọn); giá trị lạ -> 422 (fields: gender, E-HV-1). Không gửi = giữ nguyên
              */
             gender?: ("male" | "female") | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh (1900 → hôm nay, sai -> 422 fields: birth_date, E-HV-1); null = xóa. Không gửi = giữ nguyên
+             */
+            birth_date?: string | null;
             /**
              * Racket
              * @description Tên vợt tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự, rỗng = null; không dùng danh mục
@@ -4879,6 +4895,11 @@ export interface components {
              * @description null = Chưa chọn
              */
             gender: ("male" | "female") | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh; null = chưa nhập
+             */
+            birth_date: string | null;
             /**
              * Racket
              * @description Tên vợt đang dùng (tự nhập)
@@ -5066,7 +5087,8 @@ export interface components {
         };
         /**
          * MemberUpdateIn
-         * @description Chỉ gửi trường muốn đổi; không đổi SĐT. Hồ sơ tạm: chỉ ``full_name``, ``gender``.
+         * @description Chỉ gửi trường muốn đổi; không đổi SĐT. Hồ sơ tạm: chỉ ``full_name``, ``gender``
+         *     (không có ngày sinh).
          *
          *     ``tier: null`` = bỏ xếp hạng; trạng thái: chỉ Admin.
          */
@@ -5075,6 +5097,11 @@ export interface components {
             full_name?: string | null;
             /** Gender */
             gender?: ("male" | "female") | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh (1900 → hôm nay, sai -> E-001); null = bỏ trống
+             */
+            birth_date?: string | null;
             /** Tier */
             tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
             /**

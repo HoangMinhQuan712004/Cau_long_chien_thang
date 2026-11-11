@@ -7,7 +7,7 @@ Hàm ghi **không commit** – lớp gọi (BFF ``member_area``) gộp cùng vi�
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 
 from email_validator import EmailNotValidError, validate_email
 from sqlalchemy import func, select
@@ -17,9 +17,10 @@ from app.core.audit import AuditActor, audit, audit_change, audit_changes, audit
 from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
 from app.modules.members import rackets
-from app.modules.members.audit_fields import GENDERS
+from app.modules.members.audit_fields import GENDERS, birth_text
 from app.modules.members.models import TIERS, Customer, CustomerAvatar
 from app.modules.members.profiles import booking_refs
+from app.modules.members.service import BIRTH_INVALID, birth_date_ok
 
 NAME_MAX = 100
 NICKNAME_MAX = 20
@@ -37,6 +38,7 @@ class SelfProfile:
     joined_at: datetime
     tier: str | None
     gender: str | None
+    birth_date: date | None
     racket: str | None
     show_on_records: bool
     avatar_etag: str | None
@@ -57,6 +59,9 @@ class SelfUpdate:
     # Giới tính giống tier: không gửi -> giữ nguyên, gửi null -> bỏ chọn (Chưa chọn)
     gender: str | None = None
     gender_sent: bool = False
+    # Ngày sinh giống giới tính: không gửi -> giữ nguyên, gửi null -> xóa
+    birth_date: date | None = None
+    birth_date_sent: bool = False
 
 
 @dataclass
@@ -120,6 +125,7 @@ async def _to_profile(session: AsyncSession, c: Customer) -> SelfProfile:
         joined_at=c.created_at,
         tier=c.tier,
         gender=c.gender,
+        birth_date=c.birth_date,
         racket=c.racket,
         show_on_records=c.show_on_records,
         avatar_etag=etag,
@@ -147,6 +153,8 @@ async def _validate(
         errors.add("tier", "E-HV-1", "Trình độ không hợp lệ.")
     if data.gender_sent and data.gender is not None and data.gender not in GENDERS:
         errors.add("gender", "E-HV-1", "Giới tính không hợp lệ.")
+    if data.birth_date_sent and not birth_date_ok(data.birth_date):
+        errors.add("birth_date", "E-HV-1", BIRTH_INVALID)
     nickname = (data.nickname or "").strip() or None
     if nickname is not None and len(nickname) > NICKNAME_MAX:
         errors.add("nickname", "E-HV-1", f"Biệt danh tối đa {NICKNAME_MAX} ký tự.")
@@ -181,6 +189,7 @@ SELF_LABELS = {
     "email": "Email",
     "tier": "Trình độ",
     "gender": "Giới tính",
+    "birth_date": "Ngày sinh",
     "racket": "Vợt đang dùng",
     "show_on_records": "Hiện trên Video & kỷ lục",
 }
@@ -196,6 +205,7 @@ def _shown(values: dict) -> dict:
         **values,
         "email": mask_email(values["email"]),
         "gender": GENDERS.get(values["gender"] or "", "Chưa chọn"),
+        "birth_date": birth_text(values["birth_date"]),
         "show_on_records": "Bật" if values["show_on_records"] else "Tắt",
     }
 
@@ -222,6 +232,7 @@ async def update_profile(
         "email": email,
         "tier": data.tier if data.tier_sent else c.tier,  # T-042: hội viên tự chọn
         "gender": data.gender if data.gender_sent else c.gender,
+        "birth_date": data.birth_date if data.birth_date_sent else c.birth_date,
         "racket": racket,
         "show_on_records": data.show_on_records,
     }

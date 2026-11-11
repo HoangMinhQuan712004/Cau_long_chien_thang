@@ -18,6 +18,7 @@ class MemberMeOut(BaseModel):
     joined_at: dt.date = Field(description="Ngày tạo hồ sơ hội viên (giờ VN)")
     tier: str | None = Field(description="Trình độ = Hạng (8 bậc); null = chưa xếp hạng")
     gender: Gender | None = Field(description="null = Chưa chọn")
+    birth_date: dt.date | None = Field(description="Ngày sinh; null = chưa nhập")
     racket: str | None = Field(description="Tên vợt đang dùng (tự nhập)")
     show_on_records: bool
     avatar_url: str | None = Field(description="Đã gồm ?v={etag}; null -> hiện chữ cái")
@@ -46,6 +47,11 @@ class MemberMeIn(StrictIn):
         json_schema_extra={"anyOf": [{"type": "string", "enum": list(GENDERS)}, {"type": "null"}]},
         description="Giới tính tự chọn: male / female hoặc null (Chưa chọn); giá trị lạ -> 422 "
         "(fields: gender, E-HV-1). Không gửi = giữ nguyên",
+    )
+    birth_date: dt.date | None = Field(
+        default=None,
+        description="Ngày sinh (1900 → hôm nay, sai -> 422 fields: birth_date, E-HV-1); "
+        "null = xóa. Không gửi = giữ nguyên",
     )
     racket: str | None = Field(
         default=None,

@@ -44,6 +44,7 @@ def to_out(p: members.SelfProfile, record_kmh: int | None = None) -> MemberMeOut
         joined_at=p.joined_at.astimezone(settings.tz).date(),
         tier=p.tier,
         gender=p.gender,
+        birth_date=p.birth_date,
         racket=p.racket,
         show_on_records=p.show_on_records,
         avatar_url=members.avatar_url(p.customer_id, p.avatar_etag),
@@ -79,7 +80,8 @@ async def get_me(member: auth.CurrentMember, session: SessionDep):
 )
 async def update_me(data: MemberMeIn, member: auth.CurrentMember, session: SessionDep):
     """Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier /
-    gender / racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ sơ, không ghi.
+    gender / birth_date / racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ
+    sơ, không ghi.
     Hạng hội viên tự chọn (T-042); đổi hạng ghi audit ``member.tier_self_change``."""
     current = await _profile(session, member)
     profile, changed = await members.update_self_profile(
@@ -93,6 +95,8 @@ async def update_me(data: MemberMeIn, member: auth.CurrentMember, session: Sessi
             tier_sent="tier" in data.model_fields_set,
             gender=data.gender,
             gender_sent="gender" in data.model_fields_set,
+            birth_date=data.birth_date,
+            birth_date_sent="birth_date" in data.model_fields_set,
             racket=data.racket,
             show_on_records=data.show_on_records,
             version=data.version,

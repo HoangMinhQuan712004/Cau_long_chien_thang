@@ -144,6 +144,7 @@ class MemberDetail(MemberRow):
     note: str | None
     nickname: str | None = Field(description="Biệt danh hội viên tự nhập ở khu hội viên (chỉ xem)")
     email: str | None = Field(description="Email hội viên tự nhập ở khu hội viên (chỉ xem)")
+    birth_date: dt.date | None = Field(description="Ngày sinh; null = chưa nhập")
     total_minutes: int
     recent_bookings: list[MemberBooking] = Field(description="5 lượt đặt gần nhất")
     can: MemberCan
@@ -160,6 +161,9 @@ class MemberCreateIn(StrictIn):
     phone: str = Field(max_length=20)
     gender: Gender | None = None
     tier: Tier | None = Field(default=None, description="Trình độ; bỏ trống = chưa xếp hạng")
+    birth_date: dt.date | None = Field(
+        default=None, description="Ngày sinh (1900 → hôm nay, sai -> E-001); null = bỏ trống"
+    )
     racket: str | None = Field(
         default=None,
         max_length=300,
@@ -168,13 +172,17 @@ class MemberCreateIn(StrictIn):
 
 
 class MemberUpdateIn(StrictIn):
-    """Chỉ gửi trường muốn đổi; không đổi SĐT. Hồ sơ tạm: chỉ ``full_name``, ``gender``.
+    """Chỉ gửi trường muốn đổi; không đổi SĐT. Hồ sơ tạm: chỉ ``full_name``, ``gender``
+    (không có ngày sinh).
 
     ``tier: null`` = bỏ xếp hạng; trạng thái: chỉ Admin.
     """
 
     full_name: str | None = Field(default=None, max_length=200)
     gender: Gender | None = None
+    birth_date: dt.date | None = Field(
+        default=None, description="Ngày sinh (1900 → hôm nay, sai -> E-001); null = bỏ trống"
+    )
     tier: Tier | None = None
     racket: str | None = Field(
         default=None,

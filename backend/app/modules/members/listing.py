@@ -124,6 +124,7 @@ async def get_detail(
         note=c.note,
         nickname=c.nickname,
         email=c.email,
+        birth_date=c.birth_date,
         total_minutes=sum(s.minutes for s in stats.values()),
         recent_bookings=[
             MemberBooking(
