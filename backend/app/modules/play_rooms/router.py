@@ -5,6 +5,7 @@ trên trạng thái phòng gửi kèm ``version`` (cũ -> 409 E-ROOM-6, FE tải
 phát sự kiện ``member.notification_created`` sau commit.
 """
 
+import datetime as dt
 import hashlib
 import json
 from collections.abc import Awaitable, Callable
@@ -433,11 +434,21 @@ async def play_history(
     month: Annotated[
         str | None, Query(pattern=r"^\d{4}-\d{2}$", description="YYYY-MM, mặc định tháng này")
     ] = None,
+    date_from: Annotated[
+        dt.date | None,
+        Query(alias="from", description="Từ ngày (gửi kèm ``to``; có thì bỏ qua month)"),
+    ] = None,
+    date_to: Annotated[
+        dt.date | None, Query(alias="to", description="Đến ngày, gồm cả ngày này")
+    ] = None,
     if_none_match: IfNoneMatch = None,
 ):
-    """Lịch sử chơi của mình theo tháng ngày chơi, giờ VN (T-029): buổi = phòng có ≥ 1 trận đã lưu
-    mà mình ở đội A/B, kể cả phòng đã rời. Tháng sai -> 422; tháng tương lai -> rỗng."""
-    body = await history.play_history(session, member.customer_id, month)
+    """Lịch sử chơi của mình theo ngày chơi, giờ VN (T-029): buổi = phòng có ≥ 1 trận đã lưu mà
+    mình ở đội A/B, kể cả phòng đã rời. Khoảng ``from``–``to`` (tối đa 1 năm) hoặc tháng; sai ->
+    422 E-001; tương lai -> rỗng."""
+    body = await history.play_history(
+        session, member.customer_id, month, date_from=date_from, date_to=date_to
+    )
     return _etag_response(body, if_none_match)
 
 

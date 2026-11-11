@@ -235,6 +235,8 @@ class PlayHistoryItem(BaseModel):
 
 
 class PlayHistory(BaseModel):
-    month: str = Field(description="YYYY-MM")
+    month: str = Field(description="YYYY-MM (tháng của ngày đầu khoảng)")
+    start: dt.date = Field(description="Ngày đầu khoảng đang xem (giờ VN)")
+    end: dt.date = Field(description="Ngày cuối khoảng đang xem, gồm cả ngày này (giờ VN)")
     summary: PlayHistorySummary
     items: list[PlayHistoryItem] = Field(description="Mới nhất trước")
