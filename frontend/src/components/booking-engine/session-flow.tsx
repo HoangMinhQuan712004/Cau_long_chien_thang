@@ -32,7 +32,8 @@ type Props = {
   /** Đã ghi thay đổi (đăng ký vé / xóa buổi) hoặc phát hiện dữ liệu đổi: cha tải lại lịch. */
   onChanged: () => void;
   /** Mở Thông tin vé khi bấm một dòng vé. */
-  onOpenTicket: (code: string) => void;
+  /** Mở vé; `collect` = mở thẳng bước Thu tiền (T-068). */
+  onOpenTicket: (code: string, collect?: boolean) => void;
 };
 
 type Step = "info" | "ticket" | "delete";
@@ -178,13 +179,24 @@ export function SessionFlow({ code, onClose, onChanged, onOpenTicket }: Props) {
                   <th className="px-3 py-1.5 text-left font-medium">SĐT</th>
                   <th className="px-3 py-1.5 text-left font-medium">Nguồn</th>
                   <th className="px-3 py-1.5 text-left font-medium">Trạng thái</th>
+                  <th className="px-3 py-1.5">
+                    <span className="sr-only">Thao tác</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {s.tickets.map((t) => (
-                  <tr key={t.code} className="border-b border-border last:border-0 hover:bg-primary-softer">
+                  // T-068: cả dòng bấm được (mở thông tin vé); nút trong dòng tự chặn để không mở hai lần
+                  <tr key={t.code} onClick={() => onOpenTicket(t.code)} className="cursor-pointer border-b border-border last:border-0 hover:bg-primary-softer">
                     <td className="px-3 py-2 font-mono text-xs">
-                      <button type="button" onClick={() => onOpenTicket(t.code)} className="text-primary hover:underline">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenTicket(t.code);
+                        }}
+                        className="text-primary hover:underline focus-ring"
+                      >
                         {t.code.slice(-3)}
                         <span className="sr-only"> — mở thông tin vé {t.code}</span>
                       </button>
@@ -194,6 +206,21 @@ export function SessionFlow({ code, onClose, onChanged, onOpenTicket }: Props) {
                     <td className="px-3 py-2">{t.source === "online" ? "Web" : "Quầy"}</td>
                     <td className="px-3 py-2">
                       <StatusBadge status={t.payment_status} />
+                    </td>
+                    <td className="px-3 py-1.5 text-right">
+                      {t.payment_status === "unpaid" && t.source !== "online" ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenTicket(t.code, true);
+                          }}
+                          className="relative inline-flex min-h-8 items-center rounded-md bg-primary px-3 text-xs font-semibold whitespace-nowrap text-white hover:bg-primary-hover focus-ring before:absolute before:-inset-1"
+                          aria-label={`Thu tiền vé ${t.code}`}
+                        >
+                          Thu tiền
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

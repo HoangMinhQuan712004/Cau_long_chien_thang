@@ -363,7 +363,8 @@ async def item_collect_qr_info(
 ) -> CollectQrInfo:
     """QR một buổi (T-065): tiền của khối + nội dung = mã con bỏ gạch. Chỉ đọc.
 
-    404 E-BOOK-3 · 422 E-PAY-1 (vé / booking online). ``status`` unpaid / paid / closed."""
+    Vé quầy (T-068) cũng được. 404 E-BOOK-3 · 422 E-PAY-1 (booking / vé online). ``status``
+    unpaid / paid / closed."""
     return await counter_qr.item_collect_qr_info(session, _tid(tenant_id), code)
 
 

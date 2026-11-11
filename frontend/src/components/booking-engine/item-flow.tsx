@@ -42,14 +42,16 @@ type Props = {
   onOpenSession?: (code: string) => void;
   /** Mở cả đơn (danh sách khối + Thu cả đơn) từ dòng "Mã đơn" (T-019). */
   onOpenOrder?: (orderCode: string) => void;
+  /** T-068: mở thẳng bước Thu tiền (nút "Thu tiền" trên dòng vé ở popup Sự kiện); không thu được thì về Thông tin. */
+  startCollect?: boolean;
 };
 
 type Step = "info" | "collect" | "bad" | "cancel" | "move";
 
-export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder }: Props) {
+export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder, startCollect = false }: Props) {
   const [item, setItem] = useState<Item | null>(null);
   const [error, setError] = useState("");
-  const [step, setStep] = useState<Step>("info");
+  const [step, setStep] = useState<Step>(startCollect ? "collect" : "info");
 
   const load = useCallback(async () => {
     const res = await getItem(code);
@@ -81,9 +83,9 @@ export function ItemFlow({ code, onClose, onChanged, onOpenSession, onOpenOrder 
       </Modal>
     );
   }
-  if (step === "collect") {
-    // T-065: booking (quầy) thu bằng QR riêng của buổi, có nút tiền mặt + Không thu được; vé giữ hộp tiền mặt cũ
-    if (item.kind === "booking" && item.order_code) {
+  if (step === "collect" && item.actions.includes("collect")) {
+    // T-065 / T-068: booking quầy và vé quầy thu bằng QR riêng (mã con / mã vé bỏ gạch), có nút tiền mặt + Không thu được
+    if ((item.kind === "booking" && item.order_code) || (item.kind === "ticket" && item.source === "counter")) {
       return <CollectItemQr item={item} onBack={() => setStep("info")} onBad={() => setStep("bad")} onClose={onClose} onDone={onChanged} onStale={onStale} />;
     }
     return <CollectDialog item={item} onBack={() => setStep("info")} onClose={onClose} onDone={onChanged} onStale={onStale} />;
@@ -415,7 +417,7 @@ function CollectItemQr({ item, onBack, onBad, onClose, onDone, onStale }: StepPr
 
   return (
     <CollectQrDialog
-      orderCode={item.order_code ?? item.code}
+      orderCode={item.order_code ?? item.code /* vé: mã vé */}
       item={{ code: item.code, bad: { enabled: item.actions.includes("uncollectible"), onClick: onBad } }}
       busy={busy}
       banner={banner}

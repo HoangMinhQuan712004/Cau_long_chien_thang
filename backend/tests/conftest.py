@@ -12,6 +12,10 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.engine import make_url
 
 from app.core.config import settings
+from tests import fake_clock
+
+# Giờ giả cho cả bộ (``TEST_FAKE_NOW``, T-067) – bật trước mọi chỗ đọc giờ lúc import
+fake_clock.start()
 
 
 def _test_database_url() -> str:
@@ -109,7 +113,7 @@ def _alembic_upgrade_head() -> None:
 
 
 async def _create_database_if_missing(database_url: str) -> None:
-    """DB của worker xdist (hoặc DB test lần đầu) chưa có thì tạo."""
+    """DB của worker xdist (hoặc DB test lần đầu) chưa có thì tạo; đặt / gỡ giờ giả (T-067)."""
     url = make_url(database_url)
     server = create_async_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
     try:
@@ -119,6 +123,7 @@ async def _create_database_if_missing(database_url: str) -> None:
             )
             if not found:
                 await conn.execute(text(f'CREATE DATABASE "{url.database}"'))
+            await fake_clock.configure_database(conn, url.database)
     finally:
         await server.dispose()
 
@@ -136,6 +141,7 @@ async def setup_db() -> AsyncIterator[None]:
         await conn.execute(text("DROP SCHEMA IF EXISTS payments CASCADE"))
         await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(text("CREATE SCHEMA public"))
+        await fake_clock.install_now(conn)
     # env.py của alembic tự chạy asyncio.run -> chạy ở thread riêng
     await asyncio.to_thread(_alembic_upgrade_head)
     await seed.main()
