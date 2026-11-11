@@ -55,8 +55,6 @@ def code_of(r) -> str:
 def body(hv, kmh=200, **kw) -> dict:
     return {
         "member_code": hv.code,
-        "wins": 1,
-        "losses": 0,
         "speed_kmh": kmh,
         "measured_at": (now() - timedelta(minutes=3)).isoformat(),
         **kw,
@@ -72,13 +70,7 @@ async def admin_add(admin, hv, kmh=200, **kw) -> dict:
 async def submit(hv, kmh=200, **kw):
     return await hv.client.post(
         MINE,
-        json={
-            "wins": 1,
-            "losses": 0,
-            "speed_kmh": kmh,
-            "measured_at": (now() - timedelta(minutes=2)).isoformat(),
-            **kw,
-        },
+        json={"speed_kmh": kmh, "measured_at": (now() - timedelta(minutes=2)).isoformat(), **kw},
         headers=idem(),
     )
 
@@ -136,9 +128,7 @@ async def test_sec_member_endpoints_need_login_and_only_own_withdrawal(anon, adm
         assert (await getattr(anon, method)(url, **kw)).status_code == 401
     assert (
         await anon.post(
-            MINE,
-            json={"wins": 1, "losses": 0, "speed_kmh": 200, "measured_at": now().isoformat()},
-            headers=idem(),
+            MINE, json={"speed_kmh": 200, "measured_at": now().isoformat()}, headers=idem()
         )
     ).status_code == 401
     # Người khác rút/lộ bản của mình: 404, không đổi gì
@@ -157,8 +147,6 @@ async def test_sec_member_cannot_submit_for_someone_else_or_force_status(admin, 
     r = await a.client.post(
         MINE,
         json={
-            "wins": 1,
-            "losses": 0,
             "speed_kmh": 480,
             "measured_at": now().isoformat(),
             "customer_id": b.customer_id,
@@ -185,16 +173,14 @@ async def test_sec_writes_require_idempotency_key_and_replay_does_not_duplicate(
     hv = await person(people, "QA Idem")
     r = await admin.post(ADMIN, json=body(hv))
     assert r.status_code in (400, 422), (r.status_code, r.text)
-    r = await hv.client.post(
-        MINE, json={"wins": 1, "losses": 0, "speed_kmh": 200, "measured_at": now().isoformat()}
-    )
+    r = await hv.client.post(MINE, json={"speed_kmh": 200, "measured_at": now().isoformat()})
     assert r.status_code in (400, 422), (r.status_code, r.text)
     # Dựng body một lần: now() làm tròn giây, dựng lại có thể khác nhau -> E-SEC-4 (test chập chờn)
     key, payload = idem(), body(hv, 230)
     r1 = await admin.post(ADMIN, json=payload, headers=key)
     r2 = await admin.post(ADMIN, json=payload, headers=key)
     assert r1.status_code == 201 and r2.status_code == 201 and r1.json()["id"] == r2.json()["id"]
-    key, mine = idem(), {"wins": 1, "losses": 0, "speed_kmh": 240, "measured_at": now().isoformat()}
+    key, mine = idem(), {"speed_kmh": 240, "measured_at": now().isoformat()}
     p1 = await hv.client.post(MINE, json=mine, headers=key)
     p2 = await hv.client.post(MINE, json=mine, headers=key)
     assert p1.status_code == 201 and p2.json()["id"] == p1.json()["id"]
@@ -597,13 +583,13 @@ async def test_patch_validation_and_not_found(admin, people):
     hv = await person(people, "QA Sửa Lỗi")
     row = await admin_add(admin, hv, 200)
     u = f"{ADMIN}/{row['id']}"
-    assert (
-        await admin.patch(u, json={"wins": 1, "losses": 0, "speed_kmh": 250}, headers=idem())
-    ).status_code == 422, "thiếu version"
+    assert (await admin.patch(u, json={"speed_kmh": 250}, headers=idem())).status_code == 422, (
+        "thiếu version"
+    )
     for bad in (
-        {"wins": 1, "losses": 0, "speed_kmh": 49},
-        {"wins": 1, "losses": 0, "speed_kmh": 501},
-        {"wins": 1, "losses": 0, "speed_kmh": "x"},
+        {"speed_kmh": 49},
+        {"speed_kmh": 501},
+        {"speed_kmh": "x"},
         {"measured_at": "2026-01-01T10:00:00"},
     ):
         r = await admin.patch(u, json={"version": 1, **bad}, headers=idem())
@@ -628,8 +614,6 @@ async def test_patch_validation_and_not_found(admin, people):
             "speed_kmh": 251,
             "customer_id": other.customer_id,
             "member_code": other.code,
-            "wins": 1,
-            "losses": 0,
             "status": "pending",
             "source": "member",
         },

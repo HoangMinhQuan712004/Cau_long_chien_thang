@@ -71,8 +71,7 @@ export const sendApproveRecord = (key: string, id: number) => api.POST(`${P}/adm
 
 export const sendRejectRecord = (key: string, id: number, reason: string) => api.POST(`${P}/admin/speed-records/{record_id}/reject`, { params: { path: { record_id: id } }, body: { reason }, headers: idem(key) });
 
-/** Hội viên gửi cú đập của mình (bắt buộc kèm số trận thắng / thua trong buổi) → chờ Admin duyệt. */
-export const sendMemberSubmitRecord = (key: string, body: components["schemas"]["SpeedSubmitIn"]) => api.POST(`${P}/member-area/speed-records`, { body, headers: idem(key) });
+export const sendMemberSubmitRecord = (key: string, body: RecordInput & { speed_kmh: number }) => api.POST(`${P}/member-area/speed-records`, { body, headers: idem(key) });
 
 export const sendMemberWithdrawRecord = (key: string, id: number) => api.DELETE(`${P}/member-area/speed-records/{record_id}`, { params: { path: { record_id: id } }, headers: idem(key) });
 
