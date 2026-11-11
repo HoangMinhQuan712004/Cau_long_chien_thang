@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-069)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-063, T-064, T-065, T-066, T-068, T-069)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -8,7 +8,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 > **khách đặt online, thanh toán QR SePay, tra cứu booking, tiền về không khớp chỉ ghi vào DB, không có màn xử lý (T-008, bỏ màn ngày 02/11), Admin tự cài tài khoản nhận tiền và khóa SePay (T-012) – mục 10**.
 > **Đăng nhập, nhiều tài khoản nhân viên, OTP, tài khoản khách (T-013) – mục 11; xác minh SĐT bằng OTP khi đặt online – mục 10.2.**
 > **Màn Hội viên quản trị, tài khoản hội viên, danh mục vợt (PR #21, chỉnh ở T-020) và khu hội viên trên web (T-016) – mục 12. Đăng ký bằng OTP và "SĐT đã xác minh = hội viên" (T-021, đã vào `dev`) – mục 11.2 và 12.11.**
-> **Thu cả đơn bằng QR tại quầy và sổ tiền vào (T-058, T-057, đã vào `dev`):** mục 5.3. (Thu chuyển khoản QR cho **từng mục** tại quầy, T-007, vẫn chưa có.) Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, đã vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
+> **Thu cả đơn bằng QR tại quầy và sổ tiền vào (T-058, T-057, đã vào `dev`):** mục 5.3. (Thu QR **từng buổi** và **từng vé quầy**: T-065, T-068, cũng mục 5.3.) Bán vé sự kiện online và giá từng ô trên lịch admin (T-023, T-025) mới có ở nhánh backend, đã vào `dev` (mục 10.8 và mục Lịch). Báo cáo (PR #26) và các màn khu hội viên T-017, T-018 đã có trong `dev` nhưng chưa được mô tả ở tài liệu này.
 > **Tổng quan, Lịch sử thanh toán, phòng chơi, thông báo của khu hội viên (T-017, T-018, đã vào `dev`) – mục 13. Mua vé sự kiện online (T-023) – mục 10.8. Lịch sử chơi (T-029) và Bảng xếp hạng tốc độ (T-030), đã vào `dev` – mục 13.5, 13.6. Video kỷ lục (T-046) và số đo nhập tay / chờ duyệt (T-047), đã vào `dev` – mục 13.7. Dòng thời gian phá kỷ lục (T-048, đã vào `dev`) – mục 13.8.**
 > **Mã chung cho một lượt đặt (T-019, ADR-010) – mục 5.1; đổi contract đặt quầy, tra cứu, tìm mã (đã vào `dev`).**
 > **Luồng đặt sân cũ đã bị gỡ** trong T-006, xem mục 8.
@@ -95,14 +95,14 @@ vẫn là 422 mặc định của FastAPI, khi đó `detail` là **mảng**.
 | E-BOOK-1 | 422 | Ngày sau "hết tháng sau" – **T-008 bỏ giới hạn này** (người dùng chốt 28/10): backend không còn trả mã này |
 | E-BOOK-2 | 422 | Sân của sự kiện không liền nhau |
 | E-BOOK-3 | 404 | **(T-019)** "Không tìm thấy mã đặt." (thu cả đơn với mã đơn không có) |
-| E-BOOK-4 | 409 | **(T-019)** "Đơn không còn khối nào chưa thanh toán." (thu cả đơn) |
+| E-BOOK-4 | 409 | **(T-019)** "Đơn không còn khối nào chưa thanh toán." (thu cả đơn; T-064: Không thu được cả đơn khi không còn khối chưa thu; QR cả đơn không còn trả mã này, xem mục 5.3) |
 | E-PAY-0 | 422 | Thu chuyển khoản tại quầy – chưa hỗ trợ (chờ T-007); cả với thu cả đơn |
 | E-PAY-1 | 422 | Đánh dấu Không thu được với booking online, hoặc chưa tới giờ chơi |
 | E-PAY-5 | 422 | **(T-051, đổi ở T-052)** Hủy khoản **chưa thu** của buổi đã bắt đầu (dùng Không thu được) |
 | E-PAY-6 | 409 | **(T-051)** Mục đã Đã hủy / Không thu được: không hủy được; `collect` hoặc `uncollectible` lên mục đã hủy |
 | E-PAY-7 | 422 | **(T-051)** Hủy khoản đã thu mà chưa xác nhận hoàn tiền (`refund_confirmed`) |
 | E-PAY-8 | 422 | **(T-051; đã bỏ ở T-052)** Không còn trả ở hủy từng mục. Mã giữ chỗ, không dùng lại |
-| E-PAY-9 | 409 | **(T-058)** Chưa cài đặt nhận tiền chuyển khoản (`GET /front-desk/orders/{code}/collect-qr`) |
+| E-PAY-9 | 409 | **(T-058)** Chưa cài đặt nhận tiền chuyển khoản (`GET /front-desk/orders/{code}/collect-qr`, `GET /front-desk/items/{code}/collect-qr`) |
 
 Thông báo thành công (E-005, E-006, E-008, E-011, E-022, E-026) không có trong API: giao diện tự dựng từ response.
 
@@ -124,7 +124,7 @@ Quyền khai báo tập trung ở `backend/app/core/permissions.py`. Router dùn
 | `booking.item.view` | ✔ | ✔ | `GET /booking/items/{code}` |
 | `booking.session.view` | ✔ | ✔ | `GET /booking/sessions/{code}` |
 | `booking.session.manage` | ✔ | | Tạo và xóa sự kiện |
-| `booking.collect` | ✔ | ✔ | Thu tiền |
+| `booking.collect` | ✔ | ✔ | Thu tiền, kèm QR cả đơn, từng buổi, từng vé (`GET /front-desk/orders/{code}/collect-qr`, `/items/{code}/collect-qr`; T-065) |
 | `booking.uncollectible` | ✔ | ✔ | Đánh dấu Không thu được |
 | `booking.cancel` (T-051) | ✔ | | Hủy booking, vé, đơn (khoản đã thu: mọi lúc; chưa thu: trước giờ bắt đầu; hủy cả đơn: chỉ buổi chưa bắt đầu) (`/front-desk/items/{code}/cancel`, `/front-desk/orders/{order_code}/cancel-preview` và `/cancel`). Chỉ Admin, không gán được; ẩn ở tab Phân quyền |
 | `booking.transactions.view` | ✔ | ✔ (mặc định) | Lịch sử giao dịch (T-057). Admin tắt được cho Nhân viên ở tab Phân quyền. **Ngoại lệ ADR-004 S12 (T-061):** người có quyền này thấy SĐT khách **đầy đủ** ở màn này, mọi chỗ khác vẫn che |
@@ -153,6 +153,7 @@ Chưa đăng nhập → 401 `E-AUTH-1`; thiếu quyền → 403 `E-AUTH-2`. Thê
 | PUT | `/prices` | `booking.config.manage` | Body `{version, prices}`, phải gửi **đủ 12 ô** (2 loại sân × 3 loại ngày × 2 band) |
 | GET | `/special-days?year=2026` | `booking.config.manage` | Danh sách ngày Lễ/Tết |
 | POST | `/special-days` | `booking.config.manage` | Body `{date_from, date_to?, name}` → 201; bỏ `date_to` = một ngày |
+| PATCH | `/special-days/{id}` **(T-063)** | `booking.config.manage` | Sửa ngày Lễ/Tết. Cần `Idempotency-Key`, kiểm `Origin`. Body `SpecialDayIn {date_from, date_to?, name}`, kiểm như POST → 200 `SpecialDayOut`. Kiểm chồng **bỏ qua chính mục đang sửa**; khóa dòng `FOR UPDATE`, hai lần sửa cùng lúc mà chồng nhau thì exclusion constraint chặn và trả `E-CFG-8`. Lỗi: 409 `E-CFG-8` ("Ngày dd/mm đã nằm trong {tên}."), 404 như DELETE, 422 vắt qua năm ("Từ ngày và Đến ngày phải trong cùng một năm."), ngày ngược, tên rỗng hoặc quá 100 ký tự. **Chuyển năm được** miễn cả khoảng nằm trong một năm; sửa được mục của ngày đã qua. Booking và vé đã có **giữ giá**; báo giá mới theo khoảng mới. Chỉ ghi khi có thay đổi thật: audit `config.special_day.update` (`changes`: Từ ngày / Đến ngày / Tên, trước → sau), outbox `config.special_day.updated {id, before, after}`; gửi lên không đổi gì → 200, không ghi gì. Lịch sử thao tác nhóm "Sân & bảng giá" có nhãn Thêm / Sửa / Xóa ngày Lễ/Tết (trước đây create và delete chưa có nhãn) |
 | DELETE | `/special-days/{id}` | `booking.config.manage` | → 204 |
 | POST | `/quote` | `booking.quote` | Body `{resource_code, date, start_hour, end_hour}` → giá từng khung + `total_amount`. Không cần `Idempotency-Key` |
 | GET | `/prices/public` | **không cần đăng nhập** | Bảng giá rút gọn cho trang chủ (mục 4.1) |
@@ -198,6 +199,7 @@ Quyền theo bảng mục 3. "Hôm nay" tính theo `Asia/Ho_Chi_Minh`.
 | POST | `/api/v1/booking/items/{code}/collect` | Thu tiền. Body `{method: "cash", version}` → `ItemOut`; `"transfer"` → 422 `E-PAY-0` |
 | POST | `/api/v1/booking/orders/{order_code}/collect` **(T-019)** | Thu cả đơn bằng tiền mặt (xem 5.1) |
 | POST | `/api/v1/booking/items/{code}/uncollectible` | Không thu được. Body `{reason, version}` (lý do 1–200 ký tự) → `ItemOut` |
+| POST | `/api/v1/booking/orders/{order_code}/uncollectible` **(T-064)** | Không thu được cả đơn (mục 5.1) |
 | GET | `/api/v1/booking/transactions?from&to&resource&method&kind&q&page` | Lịch sử giao dịch = sổ tiền vào (quyền `booking.transactions.view`). **Đổi phá vỡ ở T-057 (đã vào `dev`)**: mục 5.3 |
 
 ### Khách đặt (`customer`)
@@ -268,6 +270,16 @@ Một lượt đặt (một checkout online, hoặc một lần bấm Đặt sâ
 **Đặt quầy nhiều khối** `POST /front-desk/bookings`: 1–20 khối cùng `date`. Hai khối cùng sân, giờ liền nhau → **gộp** làm một; hai khối chồng giờ → 422 `E-001`. All-or-nothing: có khối trùng lịch → 409 `E-003` kèm `conflicts: [{resource_code, start_hour}]`, không tạo khối nào. Response `{order_code, bookings: [ItemOut…]}`.
 
 **Thu cả đơn** `POST /booking/orders/{order_code}/collect`: quyền `booking.collect` (Admin và nhân viên), cần `Idempotency-Key`, body `{method: "cash"}`. Thu mọi khối **Chưa thanh toán** của đơn; khối đã thu hoặc Không thu được giữ nguyên. Trả `{order_code, collected: [mã con], amount, bookings: [ItemOut…]}`. Lỗi: 404 `E-BOOK-3`, 409 `E-BOOK-4` (không còn khối chưa thanh toán), 422 `E-PAY-0` (`transfer`). Ghi `payment.collect_order`. Thu / Không thu được từng khối vẫn dùng `/booking/items/{mã con}/…`.
+
+**Không thu được cả đơn (T-064, đã vào `dev`)** `POST /booking/orders/{order_code}/uncollectible`: quyền `booking.uncollectible` (Admin và nhân viên), cần `Idempotency-Key`, kiểm `Origin`. Body `{reason: str = ""}`. Trả 200 `OrderUncollectibleOut {order_code, marked[], remaining_unpaid[], bookings: ItemOut[]}`.
+
+- Đánh dấu **Không thu được** mọi khối **Chưa thanh toán đã tới giờ** (`start_at ≤ now`), cùng quy tắc với đánh dấu từng khối (dùng chung hàm `apply_uncollectible`; `actions[]` của từng khối chứa `uncollectible` đúng khi `now ≥ start_at`). Khung **không** trống lại (allocation vẫn hiệu lực). Khối chưa tới giờ giữ Chưa thanh toán và nằm trong `remaining_unpaid`.
+- Một transaction, khóa dòng mọi khối. **Mỗi khối một dòng audit** `payment.uncollectible` và một outbox `payment.uncollectible`.
+- **Lý do không bắt buộc**: để trống thì lưu chuỗi rỗng và audit không có ô "Lý do"; có nhập thì ghi vào từng dòng. Tối đa **200** ký tự (cột DB dài 200); 201 đến 500 ký tự → 422 `E-001` "Lý do tối đa 200 ký tự." (DTO nhận tới 500 như `UncollectibleIn`).
+- Lỗi, kiểm theo thứ tự: 404 `E-BOOK-3` (không có đơn) → 422 `E-PAY-1` "Booking đặt online đã trả trước, không đánh dấu Không thu được." (đơn online) → 409 `E-BOOK-4` (không còn khối chưa thu) → 422 `E-PAY-1` "Chưa có buổi nào tới giờ chơi, chưa thể đánh dấu Không thu được."
+- **Hai máy bấm cùng lúc:** một bên 200; bên kia nhận 422 `E-PAY-1` nếu đơn còn buổi chưa tới giờ, hoặc 409 `E-BOOK-4` nếu đơn đã hết khối chưa thu. Giao diện coi `E-BOOK-4` là "đã xong"; `E-PAY-1` trường hợp này hiện banner.
+- Tiền QR về sau khi đánh dấu: số chưa thu đã đổi nên ra `refund_needed` (mục 5.3).
+- Đối chiếu code backend `be/T-064-order-uncollectible` @ `7f582ce`; không migration, không cấu hình mới. BACKEND không có test QA nào đỏ. Giao diện chưa kiểm.
 
 **Nhật ký và sự kiện:** `booking.counter.create` (mỗi khối) ghi thêm `order_code`; `checkout.created` và `booking.online_paid` mang `order_code` và danh sách mã con; `booking.created` phát **cho từng khối** (online và quầy): `{code, order_code, source, play_date}`, không mang tham chiếu khách hay SĐT.
 
@@ -420,9 +432,9 @@ Hình dạng phản hồi **không đổi**; thay cách tính:
 - **Lượt đặt, công suất, giờ cao điểm vẫn theo ngày chơi** (đo dùng sân, không phải tiền).
 - Hủy buổi đã qua nay trừ vào **ngày hủy**; số liệu các ngày cũ **không đổi** (thay quy tắc "trừ vào ngày chơi" của T-052).
 
-#### `GET /api/v1/front-desk/orders/{code}/collect-qr` – Thu cả đơn bằng QR (T-058)
+#### `GET /api/v1/front-desk/orders/{code}/collect-qr` – Thu cả đơn bằng QR (T-058, sửa ở T-065)
 
-Quyền: `booking.orders.view` **và** `booking.collect` (Admin). `Cache-Control: no-store`. Popup gọi lại mỗi 3 giây tới khi `status = paid`.
+Quyền: **`booking.collect`** (Admin và nhân viên có quyền thu tiền; gỡ quyền → 403). T-065 bỏ yêu cầu `booking.orders.view` mà T-058 từng đặt. `Cache-Control: no-store`. Popup gọi lại mỗi 3 giây tới khi `status` khác `unpaid`.
 
 ```json
 { "order_code": "BK-20261106-001", "pay_ref": "BK20261106001", "amount": 360000,
@@ -431,23 +443,69 @@ Quyền: `booking.orders.view` **và** `booking.collect` (Admin). `Cache-Control
 ```
 
 - `pay_ref` = mã đơn bỏ gạch = **nội dung chuyển khoản**. `amount` = tổng các khối Chưa thanh toán (cùng tập với `POST /booking/orders/{code}/collect` tiền mặt). `bank` như trang thanh toán online.
-- Đã thu hết nhưng đơn có khối đã thu: `status = paid`, `amount = 0` (popup đang hỏi lại thấy ngay).
+- **`status` có 3 giá trị** (T-065, áp cho cả QR đơn và QR buổi / vé):
+
+| `status` | Khi nào |
+|---|---|
+| `unpaid` | Còn khối Chưa thanh toán |
+| `paid` | Hết khối chưa thu, **không có** khối Không thu được, và có ít nhất một khối Đã thanh toán. Khối đã hủy không chặn `paid` (đơn định kỳ hủy một buổi, các buổi còn lại trả QR → `paid`) |
+| `closed` | Hết khối chưa thu nhưng có khối Không thu được, hoặc không có khối nào Đã thanh toán (hủy hết). Hiểu là đã xử lý ở máy khác, **không có tiền về**; popup không báo nhận tiền |
+
+- Hết khối chưa thu: `amount = 0`, `blocks = 0`.
+- **Đã bỏ 409 `E-BOOK-4`** của QR đơn (đơn hủy hết nay trả 200 `closed`). Đơn có cả khối Đã thanh toán lẫn Không thu được → `closed` (ARCHITECT chốt).
+- **Popup (T-058 sửa 10/11, chỉ giao diện, không đổi máy chủ):** chờ **5 phút**, đếm ngược "Còn m:ss"; hết giờ thì QR mờ, có nút "Tạo lại mã QR" (chờ thêm 5 phút) và kiểm lần cuối ngay lúc hết giờ. Bỏ dòng ghi chú "Chuyển thiếu hoặc thừa…". **Tiền về sau 5 phút vẫn được nhận nếu đúng số** và khối còn Chưa thanh toán: 5 phút chỉ là thời gian popup chờ, không có `expires_at`.
 
 | Mã lỗi | HTTP | Khi nào |
 |---|---|---|
 | `E-BOOK-3` | 404 | Không có đơn (spec ghi `E-NOT-FOUND`, code dùng mã sẵn có) |
-| `E-BOOK-4` | 409 | "Đơn không còn khối nào chưa thanh toán." (không còn khối chưa thu **và** không có khối đã thu; mã của Thu cả đơn, spec ghi `E-PAY-6`) |
 | `E-PAY-9` | 409 | "Chưa cài đặt nhận tiền chuyển khoản. Vào Cài đặt thanh toán hoặc thu tiền mặt." |
 
-**Webhook SePay** (đường dẫn không đổi): nếu **không có lượt online** cùng `pay_ref`, tìm đơn quầy theo mã (`BK20261106001` → `BK-20261106-001`):
+#### `GET /api/v1/front-desk/items/{code}/collect-qr` – QR từng buổi (T-065) và từng vé quầy (T-068)
 
-| Tình huống | `outcome` |
-|---|---|
-| Số tiền **đúng bằng** tổng chưa thu | `applied`: mọi khối đó chuyển Đã thanh toán, `payment_method = transfer`, người thu "Hệ thống", `paid_at` = giờ giao dịch; một dòng sổ `in` / `transfer` / `counter_qr`, `reference = sepay:{id}`; audit `booking.counter_qr.paid` (loại "Thu tiền", "Thanh toán → Đã thanh toán, Phương thức QR") |
-| Lệch số, hoặc không còn khối chưa thu | `refund_needed`: hoàn đủ, đơn giữ nguyên (không có màn xử lý tay; chủ sân hoàn ngoài hệ thống) |
-| Không có đơn nào | `unmatched` |
+Quyền `booking.collect` (không quyền → 403). `Cache-Control: no-store`. `{code}` là **mã con** của buổi (`BK-20261110-006-01`) hoặc **mã vé quầy** (`BK-20261110-002-V05`). Trả `CollectQrOut` như trên:
 
-Khóa dòng booking như thu tiền mặt, nên tiền về cùng lúc với bấm tiền mặt thì chỉ một bên thu.
+- `order_code` = mã của khối hoặc vé, `pay_ref` = mã đó bỏ gạch: mã con `BK2026111000601` (bắt đầu bằng mã đơn chung), mã vé `BK20261110002V05` (bắt đầu bằng mã sự kiện). `amount` = tiền của khối hoặc vé, `blocks = 1`, kèm `bank`.
+- `status`: `unpaid` · `paid` (đã thu, QR hoặc tiền mặt; `amount = 0`) · `closed` (đã hủy hoặc Không thu được; `amount = 0`).
+- **Không có 409 cho "khối không còn Chưa thanh toán"**: trả 200 với `status` để popup đang hỏi lại biết ngay.
+
+| Mã lỗi | HTTP | Khi nào |
+|---|---|---|
+| `E-BOOK-3` | 404 | Không có mã đó |
+| `E-PAY-1` | 422 | Booking hoặc vé **đặt online** ("Booking đặt online đã trả trước, không cần thu tiền." / "Vé đặt online đã trả trước, không cần thu tiền."). Trước T-068, vé trả "Vé sự kiện chưa hỗ trợ thu bằng QR." |
+| `E-PAY-9` | 409 | Chưa cài nhận chuyển khoản |
+
+#### Webhook SePay: cách đọc mã (T-065, T-068)
+
+Đường dẫn không đổi. **Cách lấy mã thanh toán** (`payments.service.extract_code`), theo thứ tự:
+
+1. Trong **nội dung** chuyển khoản: **mã vé** `BK\d{11}V\d{2}` (T-068), rồi **mã con** `BK\d{13}` (T-065), **trước** trường `code`. Nhiều mã khác nhau cùng loại → **không khớp** (không đoán).
+2. Trường `code` dạng mã đơn.
+3. `BK\d{11}` trong nội dung, chỉ khi đúng một mã khác nhau; không khớp khi còn chữ số theo sau nên mã con không bị đọc thành mã đơn. Ký tự đứng trước "BK" không bị chặn (ngân hàng có thể dính mã giao dịch của họ).
+
+**Vì sao:** SePay tách `code` theo mẫu "BK + 11 số", nên nội dung `BK2026111000601` cho `code = BK20261110006` (mã đơn) và mã vé `…V05` bị cắt thành mã sự kiện. Không sửa thì tiền một buổi hoặc một vé bị áp vào cả đơn hoặc cả sự kiện. **Không cần đổi cấu hình SePay**: giữ mẫu "BK + 11 số" vẫn đúng, vì mã con và mã vé đọc từ nội dung.
+
+Nếu **không có lượt online** cùng `pay_ref`, tìm theo loại mã:
+
+| Mã | Tình huống | `outcome` |
+|---|---|---|
+| Mã đơn (`BK20261106001` → `BK-20261106-001`) | Số tiền **đúng bằng** tổng chưa thu | `applied`: mọi khối đó chuyển Đã thanh toán, `payment_method = transfer`, người thu "Hệ thống", `paid_at` = giờ giao dịch; một dòng sổ `in` / `transfer` / `counter_qr`, `reference = sepay:{id}`; audit `booking.counter_qr.paid` (loại "Thu tiền", "Thanh toán → Đã thanh toán, Phương thức QR") |
+| Mã con (T-065) | Khối còn Chưa thanh toán và đúng số tiền của khối | `applied`: **chỉ khối đó** Đã thanh toán; một dòng sổ `in` / `transfer` / `counter_qr`; audit `booking.counter_qr.paid` (entity `booking`) |
+| Mã vé (T-068) | Vé quầy còn Chưa thanh toán và đúng số tiền vé | `applied`: **chỉ vé đó** Đã thanh toán; một dòng sổ mục là vé; audit `booking.counter_qr.paid` (entity `ticket`); outbox `payment.collected` (kind `ticket`) |
+| Bất kỳ | Lệch số, hoặc khối / vé đã thu, đã hủy, Không thu được | `refund_needed`: hoàn đủ, **không đụng** khối hay vé khác (không có màn xử lý tay; chủ sân hoàn ngoài hệ thống) |
+| Bất kỳ | Mã không tồn tại, hoặc booking / vé online | `unmatched` |
+| Mã sự kiện (không kèm `-Vnn`) | | `unmatched` như trước, không tự áp cho vé nào. Mã vé không tồn tại (`…V99`) cũng `unmatched` |
+
+Khóa dòng booking hoặc vé như thu tiền mặt, nên tiền về cùng lúc với bấm tiền mặt thì chỉ một bên thu. Thu tiền mặt rồi mới chuyển khoản → `refund_needed`.
+
+- Đối chiếu code backend `be/T-065-item-collect-qr` @ `4a23dbb` và `be/T-068-ticket-collect-qr` @ `8c93123` (nay đã vào `dev`). Không migration, không cấu hình mới. Hai ca QA cũ đỏ đã được QA sửa (`test_ac8_permissions`: nhân viên có `booking.collect` nay mở được QR đơn; đơn hủy hết nay là `closed`). Giao diện chưa kiểm.
+
+#### `GET /api/v1/front-desk/orders`: còn phải thu (T-066, đã vào `dev`)
+
+Mỗi `OrderOut` thêm hai trường, tính lúc đọc trong cùng truy vấn tổng hợp của danh sách, dùng đúng điều kiện `payment_status = 'unpaid'` mà "Thu cả đơn" tiền mặt và QR cả đơn dùng, nên **ba số luôn trùng nhau**:
+
+- `unpaid_amount: int` (VND): tổng tiền các khối **Chưa thanh toán**, đã giảm % (là `amount` đã lưu trên khối).
+- `unpaid_blocks: int`: số khối đó.
+- Không tính khối đã thu, đã hủy, Không thu được. `total` giữ nghĩa cũ: tổng đơn sau giảm, bỏ khối đã hủy. `GET /front-desk/recurring` (màn Đơn định kỳ cũ) không đổi.
 
 **Thử trên link dev hoặc local:** đơn Chưa thanh toán → `GET /front-desk/orders/{code}/collect-qr` → `POST /api/v1/payments/dev/simulate {pay_ref, amount}` → gọi lại `collect-qr` thấy `status = paid` → Lịch sử giao dịch có một dòng Chuyển khoản / Hệ thống / `counter_qr`.
 
