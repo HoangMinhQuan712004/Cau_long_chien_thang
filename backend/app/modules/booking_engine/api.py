@@ -419,6 +419,21 @@ async def register_ticket(
     )
 
 
+async def register_tickets(
+    session: AsyncSession,
+    actor: Actor,
+    session_code: str,
+    customers: list[tuple[CustomerSnapshot, str | None]],
+    *,
+    tenant_id: int | None = None,
+) -> list[ItemOut]:
+    """Vé cho nhiều người một lần (T-071): tất cả hoặc không ai. 409 E-024 (``remaining``),
+    422 E-004."""
+    return await session_service.register_tickets(
+        session, _tid(tenant_id), actor, session_code, customers
+    )
+
+
 # ---- Thu tiền, Không thu được, Lịch sử giao dịch
 
 

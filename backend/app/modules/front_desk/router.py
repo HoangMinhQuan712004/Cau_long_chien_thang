@@ -91,6 +91,22 @@ class TicketIn(StrictIn):
     customer: CustomerIn
 
 
+BATCH_MAX = 50
+
+
+class TicketBatchIn(StrictIn):
+    customers: list[CustomerIn] = Field(
+        description=f"1..{BATCH_MAX} người, mỗi người một vé, theo thứ tự cấp số vé"
+    )
+    note: str | None = Field(
+        default=None, max_length=200, description="Ghi chú chung (hồ sơ tạm có ghi chú riêng)"
+    )
+
+
+class TicketBatchOut(BaseModel):
+    tickets: list[ItemOut] = Field(description="Theo thứ tự gửi")
+
+
 def actor_of(p: Principal) -> Actor:
     return Actor(type=p.actor_type, id=p.actor_id, label=p.label)
 
@@ -169,6 +185,49 @@ async def register_ticket(
         snapshot, note = await customer_snapshot(session, data.customer, principal)
         item = await engine.register_ticket(session, actor_of(principal), code, snapshot, note)
         return _for_viewer(item, principal)
+
+    return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
+
+
+@router.post(
+    "/sessions/{code}/tickets/batch",
+    response_model=TicketBatchOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def register_tickets(
+    code: str,
+    data: TicketBatchIn,
+    principal: TicketSeller,
+    idem: IdempotencyDep,
+    session: SessionDep,
+):
+    """Đăng ký vé cho nhiều người một lần (T-071): hội viên và hồ sơ tạm lẫn nhau, mỗi người một
+    vé, **tất cả hoặc không ai** (một transaction, khóa sự kiện, đếm chỗ một lần).
+
+    Lỗi: E-001 (rỗng, quá 50, trùng người, hồ sơ tạm thiếu tên / SĐT), E-004 (không phải hôm nay
+    / đã kết thúc), E-024 409 "Chỉ còn n chỗ." kèm ``remaining`` (hết sạch: "Sự kiện đã đủ chỗ.").
+    """
+    if not data.customers:
+        raise AppError("E-001", "Vui lòng chọn ít nhất một người.", 422)
+    if len(data.customers) > BATCH_MAX:
+        raise AppError("E-001", f"Mỗi lần đăng ký tối đa {BATCH_MAX} người.", 422)
+
+    async def run() -> TicketBatchOut:
+        customers: list[tuple[CustomerSnapshot, str | None]] = []
+        seen: set[str] = set()
+        for item in data.customers:
+            snapshot, note = await customer_snapshot(session, item, principal)
+            if snapshot.ref_id in seen:
+                raise AppError(
+                    "E-001",
+                    f"{snapshot.display_name} có hai lần trong danh sách.",
+                    422,
+                    member_code=snapshot.member_code,
+                )
+            seen.add(snapshot.ref_id)
+            customers.append((snapshot, note or data.note))
+        items = await engine.register_tickets(session, actor_of(principal), code, customers)
+        return TicketBatchOut(tickets=[_for_viewer(i, principal) for i in items])
 
     return await idem.run(session, principal.key, run, status_code=status.HTTP_201_CREATED)
 
