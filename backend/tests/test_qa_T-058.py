@@ -90,7 +90,9 @@ async def test_ac1_contract_shape_and_headers(admin):
     r = await qr(admin, code)
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
     d = r.json()
-    assert set(d) == {"order_code", "pay_ref", "amount", "status", "blocks", "bank"}
+    # T-072: thêm `qr_paid` (mặc định false khi không gửi `since`)
+    assert set(d) == {"order_code", "pay_ref", "amount", "status", "blocks", "bank", "qr_paid"}
+    assert d["qr_paid"] is False
     assert d["pay_ref"] == ref(code) and d["status"] == "unpaid" and d["blocks"] == 4
     assert set(d["bank"]) >= {"bank_name", "account_number", "account_name", "qr_url"}
     assert d["amount"] == order["total"] and d["amount"] > 0
