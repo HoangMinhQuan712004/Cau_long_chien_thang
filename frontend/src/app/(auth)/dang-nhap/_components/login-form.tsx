@@ -136,7 +136,7 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
       )}
       {notice && <Alert variant="info">{notice}</Alert>}
 
-      <Field label={t.loginLabel} htmlFor="login">
+      <Field label={t.loginLabel} htmlFor="login" required>
         <Input
           id="login"
           name="login"
@@ -153,7 +153,7 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
         />
       </Field>
 
-      <Field label={t.passwordLabel} htmlFor="password">
+      <Field label={t.passwordLabel} htmlFor="password" required>
         <PasswordInput
           ref={passwordRef}
           id="password"

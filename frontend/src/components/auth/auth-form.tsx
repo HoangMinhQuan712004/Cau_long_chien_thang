@@ -5,6 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { GoogleSignIn } from "@/app/(auth)/dang-nhap/_components/google-sign-in";
 import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { googleSignIn, otpErrorText, otpResendAt, registerRequest, registerVerify } from "@/lib/api/auth";
 import { toast } from "@/lib/feedback";
@@ -13,8 +17,6 @@ import { destination, safeNext } from "@/lib/safe-next";
 import { EMPTY_OTP, OtpForm } from "./otp-form";
 import { isPasswordValid, PASSWORD_MAX, PasswordRules, type PasswordRulesTexts } from "./password-rules";
 import { TestOtpNotice } from "./test-otp-notice";
-
-const input = "w-full rounded-md border border-border bg-surface px-3 py-2";
 
 // "0912345678" ⇒ "09•• ••• 678"
 const maskPhone = (phone: string) => `${phone.slice(0, 2)}•• ••• ${phone.slice(-3)}`;
@@ -160,23 +162,22 @@ export function AuthForm({
         e.preventDefault();
         if (canSubmit) void send();
       }}
-      className="space-y-4"
+      className="flex flex-col gap-4"
     >
-      <label className="block space-y-1">
-        <span className="text-sm font-medium">Họ tên</span>
-        <input
+      <Field label="Họ tên" htmlFor="full_name" required>
+        <Input
+          id="full_name"
           name="full_name"
           required
           maxLength={100}
           autoComplete="name"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-          className={input}
         />
-      </label>
-      <label className="block space-y-1">
-        <span className="text-sm font-medium">Số điện thoại</span>
-        <input
+      </Field>
+      <Field label="Số điện thoại" htmlFor="phone" required>
+        <Input
+          id="phone"
           name="phone"
           type="tel"
           inputMode="tel"
@@ -184,38 +185,34 @@ export function AuthForm({
           autoComplete="tel"
           value={phoneText}
           onChange={(e) => setPhoneText(e.target.value)}
-          className={input}
         />
-      </label>
-      <label className="block space-y-1">
-        <span className="text-sm font-medium">Mật khẩu</span>
-        <input
+      </Field>
+      <Field label="Mật khẩu" htmlFor="password" required>
+        <PasswordInput
+          id="password"
           name="password"
-          type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
           maxLength={PASSWORD_MAX}
           autoComplete="new-password"
           aria-describedby="register-password-rules"
-          className={input}
+          showLabel={login.showPassword}
+          hideLabel={login.hidePassword}
         />
-      </label>
+      </Field>
       <PasswordRules id="register-password-rules" password={password} t={rules} />
       {error && <Alert variant="error">{error}</Alert>}
-      <button
-        disabled={!canSubmit}
-        className="w-full rounded-md bg-primary py-2.5 font-medium text-surface disabled:opacity-50"
-      >
+      <Button type="submit" block loading={pending} disabled={!canSubmit}>
         {pending ? "Đang gửi mã…" : "Đăng ký"}
-      </button>
+      </Button>
       <p className="text-center text-xs text-muted">
-        Mã xác minh gửi qua Zalo tới số điện thoại của bạn. Đăng ký xong bạn là hội viên của sân.
+        Mã xác minh gửi qua Zalo tới số điện thoại của bạn.
       </p>
       <GoogleSignIn onCredential={onGoogle} disabled={pending} isServerDisabled={isGoogleOff} t={login.google} />
       <p className="text-center text-sm text-muted">
         Đã có tài khoản?{" "}
-        <Link href={loginHref} className="text-primary">
+        <Link href={loginHref} className="rounded-sm font-semibold text-primary focus-ring hover:underline">
           Đăng nhập
         </Link>
       </p>

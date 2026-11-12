@@ -1,38 +1,30 @@
 import { Suspense } from "react";
-import { SiteLogo } from "@/components/site-logo";
-import { getBranding } from "@/lib/api/server";
+import { FeedbackHost } from "@/components/feedback/feedback-host";
+import { NetMesh } from "@/components/net-mesh";
 import { cn } from "@/lib/cn";
+import { BrandPanel } from "./_components/brand-panel";
 
-// Khung các màn đăng nhập / quên mật khẩu: logo + thẻ canh giữa, không header/footer
+// Khung các màn đăng nhập / đăng ký / quên mật khẩu / OTP / đặt lại – đổi mật khẩu (không header / footer), mọi khổ màn
+// cùng kiểu: cả trang nền xanh thương hiệu, logo + tên app trên cùng, thẻ form trắng canh giữa bên dưới.
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main
-      className={cn(
-        "flex min-h-dvh flex-1 flex-col items-center justify-center-safe gap-6 px-4 py-safe",
-      )}
-    >
-      <Suspense
-        fallback={
-          <div
-            aria-hidden
-            className="h-7.5 w-40 animate-pulse rounded-lg bg-background motion-reduce:animate-none"
-          />
-        }
-      >
-        <Brand />
+    <main data-fluid-text className="
+      relative isolate flex min-h-dvh flex-1 flex-col overflow-hidden bg-appbar
+    ">
+      {/* Nền mắt lưới cầu lông mờ 2 đầu – giống banner khu hội viên (người dùng 12/11) */}
+      <NetMesh />
+      <Suspense fallback={<div aria-hidden className="h-44 sm:h-52" />}>
+        <BrandPanel />
       </Suspense>
-      {children}
+      <div
+        className={cn(
+          "flex flex-1 items-start justify-center px-4",
+          "pb-[calc(env(safe-area-inset-bottom)+1.5rem)] sm:pb-12",
+        )}
+      >
+        {children}
+      </div>
+      <FeedbackHost />
     </main>
-  );
-}
-
-// Logo + tên sân
-async function Brand() {
-  const { name, logo_url: logoUrl } = await getBranding();
-  return (
-    <div className="flex max-w-full items-center gap-2.5 text-ui font-extrabold tracking-wide">
-      <SiteLogo url={logoUrl} className="size-7.5" />
-      <span className="truncate" title={name}>{name.toLocaleUpperCase("vi")}</span>
-    </div>
   );
 }

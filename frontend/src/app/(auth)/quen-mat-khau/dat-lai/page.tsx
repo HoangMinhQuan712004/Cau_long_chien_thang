@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getDictionary } from "@/i18n/dictionaries";
-import { AuthCard, AuthFormSkeleton } from "../../_components/auth-card";
+import { AuthCard, AuthFormSkeleton, forgotSteps as steps } from "../../_components/auth-card";
 import { ResetForm } from "../_components/reset-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -21,7 +21,7 @@ async function ResetCard() {
   const dictionary = await getDictionary();
   const t = dictionary.forgot;
   return (
-    <AuthCard title={t.reset.title} description={t.reset.description}>
+    <AuthCard steps={steps(t, 3)} title={t.reset.title} description={t.reset.description}>
       <ResetForm t={t} rules={dictionary.passwordRules} />
     </AuthCard>
   );

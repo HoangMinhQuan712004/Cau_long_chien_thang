@@ -26,7 +26,7 @@ export function PhoneForm({ id, t, value, onChange, isPending, onSubmit, onEmpty
         else onEmpty();
       }}
     >
-      <Field label={t.label} htmlFor={id}>
+      <Field label={t.label} htmlFor={id} required>
         <Input
           id={id}
           name="phone"

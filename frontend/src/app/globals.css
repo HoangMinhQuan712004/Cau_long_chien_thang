@@ -19,6 +19,8 @@
   --danger-soft: color-mix(in srgb, var(--danger) 11%, white);
 
   --card-shadow: 0 1px 2px rgb(20 40 30 / 0.06), 0 4px 16px rgb(20 40 30 / 0.06);
+  /* Thẻ form màn đăng nhập nổi trên dải hero xanh */
+  --auth-shadow: 0 2px 4px rgb(20 40 30 / 0.06), 0 16px 40px -12px rgb(20 40 30 / 0.22);
 
   /* Trạng thái ô lịch đặt sân (BR-002) – chỉ giao diện sáng. Chữ/nền đều ≥ 4.5:1.
      Chưa TT vàng · Đã TT đỏ · Không thu được xám · Sự kiện tím · Giữ chỗ viền đứt. */
@@ -122,6 +124,7 @@
   --color-cell-booked: var(--cell-booked);
   --color-cell-booked-fg: var(--cell-booked-fg);
   --shadow-card: var(--card-shadow);
+  --shadow-auth: var(--auth-shadow);
   --radius-card: 14px;
   /* Cỡ theo prototype, viết bằng rem để phóng to cùng trang trên màn lớn */
   --text-ui: 0.8125rem;
@@ -158,7 +161,14 @@
   --animate-spot-breathe: spot-breathe 5s ease-in-out infinite alternate;
   --animate-beam-tint: beam-tint 6s ease-in-out infinite alternate;
   --animate-beam-twinkle: beam-twinkle 1.4s ease-in-out infinite alternate;
+  /* Viền đứt đoạn "chạy" quanh thẻ Tiếp theo khi đang diễn ra (áp lên <rect> SVG) */
+  --animate-dash-run: dash-run 0.4s linear infinite;
 
+  @keyframes dash-run {
+    to {
+      stroke-dashoffset: -6;
+    }
+  }
   @keyframes fade-in {
     from {
       opacity: 0;
@@ -304,6 +314,14 @@ body {
   ::after {
     border-color: var(--border);
   }
+}
+
+/* Màn có `data-fluid-text` (auth, khu hội viên): chữ gốc co giãn liên tục theo khổ màn – lấy giá trị nhỏ hơn giữa theo
+   chiều rộng (~15px ở 360px, 16px ở 768px) và theo chiều cao (2% chiều cao: 18px ở 900px) để màn rộng mà thấp không
+   tràn; giới hạn 14–18px. Mọi cỡ viết bằng rem (chữ, ô nhập, nút, khoảng cách, bề rộng thẻ) to/nhỏ theo.
+   Ngoài layer để thắng 3xl/4xl của <html>. svh: không đổi cỡ khi thanh địa chỉ điện thoại ẩn/hiện. */
+html:has([data-fluid-text]) {
+  font-size: clamp(87.5%, min(86.6% + 0.32vw, 2svh), 112.5%);
 }
 
 /* Ô tìm: ẩn ✕ gốc của trình duyệt (màu không đổi được), dùng ClearButton chung qua Input `onClear` */
