@@ -535,6 +535,10 @@ class ResourceRef(BaseModel):
 class SessionTicket(BaseModel):
     code: str
     customer_name: str
+    customer_kind: CustomerKind = Field(description="member: hội viên · temp: hồ sơ tạm")
+    member_code: str | None = Field(
+        description='Mã HV khi là hội viên – FE so để hiện "Đã có vé" (T-071); hồ sơ tạm: null'
+    )
     phone: str | None
     source: Source
     payment_status: PaymentStatus
