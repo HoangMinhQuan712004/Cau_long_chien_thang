@@ -144,14 +144,26 @@ def tier_range_members_only() -> Exception:
 
 
 async def open_rooms_today(
-    session: AsyncSession, user_id: int, customer_id: int, limit: int = 3
+    session: AsyncSession,
+    user_id: int,
+    customer_id: int,
+    limit: int = 3,
+    *,
+    upcoming_only: bool = False,
 ) -> list[RoomCard]:
     """ "Phòng đang trống": phòng hôm nay còn mở, **còn chỗ**, mình chưa ở trong, theo giờ bắt đầu.
 
     Cùng shape thẻ Danh sách sân (có ``tier_range``, ``my_join_block``, ``my_join_pending``).
+    ``upcoming_only``: bỏ phòng đang diễn ra (Tổng quan: "đang diễn ra" chỉ là phòng có mình).
     """
     rooms = await views.list_rooms(session, Me(user_id, customer_id), "all")
-    free = [c for c in rooms.items if not c.is_mine and c.member_count < c.capacity]
+    free = [
+        c
+        for c in rooms.items
+        if not c.is_mine
+        and c.member_count < c.capacity
+        and not (upcoming_only and c.phase == "ongoing")
+    ]
     return free[:limit]
 
 
