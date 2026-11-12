@@ -11,7 +11,6 @@ import { errorText } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
 import { formatLongDate, vnMinutes } from "@/lib/format";
 import { UpcomingEvents } from "./overview-events";
-import { DEV_PREVIEW, NextPreviewBar, previewNext, type NextPreview } from "./overview-dev-states";
 import { NextCard, NoNext } from "./overview-next";
 import { OverviewBanner, type StatItem } from "./overview-banner";
 import { RankPanel } from "./overview-rank";
@@ -37,11 +36,9 @@ const CARD = "rounded-2xl bg-surface p-4 shadow-card sm:p-6";
 export function OverviewScreen() {
   const [data, setData] = useState<Overview | null>(null);
   const [failed, setFailed] = useState(false);
-  // Mốc lúc tải gần nhất: dùng cho lời chào và nút xem thử dev (không đọc đồng hồ khi render)
+  // Mốc lúc tải gần nhất: dùng cho lời chào (không đọc đồng hồ khi render)
   const [nowMs, setNowMs] = useState(0);
   const [busyId, setBusyId] = useState<number | null>(null);
-  // Chỉ dev: xem thử trạng thái thẻ "Tiếp theo"
-  const [preview, setPreview] = useState<NextPreview>("real");
 
   const load = useCallback(async () => {
     try {
@@ -80,7 +77,7 @@ export function OverviewScreen() {
     await load();
   }
 
-  const next = data ? previewNext(data.upcoming[0], preview, nowMs, data.today) : undefined;
+  const next = data?.upcoming[0];
   const month = data ? monthNo(data.month, data.today) : 0;
 
   return (
@@ -122,7 +119,6 @@ export function OverviewScreen() {
                 <h2 id="up-title" className="sr-only">
                   Lịch chơi tiếp theo
                 </h2>
-                {DEV_PREVIEW ? <NextPreviewBar value={preview} onChange={setPreview} /> : null}
                 {next ? <NextCard item={next} today={data.today} /> : <NoNext />}
                 <div className="mt-6">
                   <OpenRooms rooms={data.open_rooms} busyId={busyId} onJoin={(r) => void requestJoin(r)} />
