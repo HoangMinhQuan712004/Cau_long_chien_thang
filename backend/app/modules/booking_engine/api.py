@@ -350,22 +350,30 @@ async def uncollectible_order(
 
 
 async def collect_qr_info(
-    session: AsyncSession, order_code: str, *, tenant_id: int | None = None
+    session: AsyncSession,
+    order_code: str,
+    since: str | None = None,
+    *,
+    tenant_id: int | None = None,
 ) -> CollectQrInfo:
     """Thu cả đơn bằng QR (T-058): số tiền chưa thu + nội dung chuyển khoản. Chỉ đọc.
 
     404 E-BOOK-3. ``status`` unpaid / paid / closed (T-065)."""
-    return await counter_qr.collect_qr_info(session, _tid(tenant_id), order_code)
+    return await counter_qr.collect_qr_info(
+        session, _tid(tenant_id), order_code, counter_qr.parse_since(since)
+    )
 
 
 async def item_collect_qr_info(
-    session: AsyncSession, code: str, *, tenant_id: int | None = None
+    session: AsyncSession, code: str, since: str | None = None, *, tenant_id: int | None = None
 ) -> CollectQrInfo:
     """QR một buổi (T-065): tiền của khối + nội dung = mã con bỏ gạch. Chỉ đọc.
 
     Vé quầy (T-068) cũng được. 404 E-BOOK-3 · 422 E-PAY-1 (booking / vé online). ``status``
     unpaid / paid / closed."""
-    return await counter_qr.item_collect_qr_info(session, _tid(tenant_id), code)
+    return await counter_qr.item_collect_qr_info(
+        session, _tid(tenant_id), code, counter_qr.parse_since(since)
+    )
 
 
 # ---- Sự kiện / vé
@@ -416,6 +424,21 @@ async def register_ticket(
 ) -> ItemOut:
     return await session_service.register_ticket(
         session, _tid(tenant_id), actor, session_code, customer, note
+    )
+
+
+async def register_tickets(
+    session: AsyncSession,
+    actor: Actor,
+    session_code: str,
+    customers: list[tuple[CustomerSnapshot, str | None]],
+    *,
+    tenant_id: int | None = None,
+) -> list[ItemOut]:
+    """Vé cho nhiều người một lần (T-071): tất cả hoặc không ai. 409 E-024 (``remaining``),
+    422 E-004."""
+    return await session_service.register_tickets(
+        session, _tid(tenant_id), actor, session_code, customers
     )
 
 

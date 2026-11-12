@@ -25,7 +25,7 @@ from tests.conftest import idem
 from tests.helpers_booking import BK, FD, new_court, random_phone, temp, today
 from tests.helpers_web import sepay_payload, simulate, webhook
 
-KEYS = {"order_code", "pay_ref", "amount", "status", "blocks", "bank"}
+KEYS = {"order_code", "pay_ref", "amount", "status", "blocks", "bank", "qr_paid"}  # T-072
 PRICE = 50_000
 
 

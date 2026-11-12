@@ -133,6 +133,8 @@ async def session_view(
             SessionTicket(
                 code=t.code,
                 customer_name=t.customer_name,
+                customer_kind=t.customer_kind,
+                member_code=t.member_code if t.customer_kind == "member" else None,
                 phone=t.customer_phone,
                 source=t.source,
                 payment_status=t.payment_status,
@@ -377,6 +379,28 @@ async def register_ticket(
     customer: CustomerSnapshot,
     note: str | None = None,
 ) -> ItemOut:
+    # Endpoint một vé giữ nguyên lỗi cũ (không kèm ``remaining``)
+    [item] = await register_tickets(
+        session, tenant_id, actor, code, [(customer, note)], report_remaining=False
+    )
+    return item
+
+
+async def register_tickets(
+    session: AsyncSession,
+    tenant_id: int,
+    actor: Actor,
+    code: str,
+    customers: list[tuple[CustomerSnapshot, str | None]],
+    *,
+    report_remaining: bool = True,
+) -> list[ItemOut]:
+    """Đăng ký vé tại quầy cho 1..n người, mỗi người một vé (T-071): **tất cả hoặc không ai**.
+
+    Khóa dòng sự kiện, đếm chỗ một lần (gồm ghế đang giữ online), cấp số vé tuần tự theo thứ tự
+    danh sách. Thiếu chỗ -> 409 E-024 kèm ``remaining``, không tạo vé nào. Người trùng trong danh
+    sách do lớp gọi chặn (E-001); người đã có vé trong sự kiện vẫn đăng ký được.
+    """
     ctx = await context(session, tenant_id)
     # Nhả ghế của lượt mua vé online đã hết hạn trước khi đếm (T-023)
     await expire_holds(session)
@@ -393,12 +417,37 @@ async def register_ticket(
     if ev.end_at <= ctx.now:
         raise AppError("E-004", "Không thể đăng ký vé cho sự kiện đã kết thúc.", 422)
     tickets_n, _, held = (await session_counts(session, tenant_id, [ev.id]))[ev.id]
-    if tickets_n + held >= ev.capacity:
-        raise AppError("E-024", "Sự kiện đã đủ chỗ.", 409)
+    remaining = max(ev.capacity - tickets_n - held, 0)
+    if remaining == 0:
+        extra = {"remaining": 0} if report_remaining else {}
+        raise AppError("E-024", "Sự kiện đã đủ chỗ.", 409, **extra)
+    if len(customers) > remaining:
+        raise AppError("E-024", f"Chỉ còn {remaining} chỗ.", 409, remaining=remaining)
 
-    seq = (
-        await session.scalar(select(func.max(Ticket.seq)).where(Ticket.session_id == ev.id)) or 0
-    ) + 1
+    last = await session.scalar(select(func.max(Ticket.seq)).where(Ticket.session_id == ev.id))
+    tickets = [
+        await _new_ticket(session, ctx, actor, ev, (last or 0) + i, customer, note)
+        for i, (customer, note) in enumerate(customers, start=1)
+    ]
+    await session.flush()
+    out = []
+    for ticket in tickets:
+        await session.refresh(ticket)
+        out.append(await ticket_item(session, ctx, ticket))
+    return out
+
+
+async def _new_ticket(
+    session: AsyncSession,
+    ctx: Ctx,
+    actor: Actor,
+    ev: EventSession,
+    seq: int,
+    customer: CustomerSnapshot,
+    note: str | None,
+) -> Ticket:
+    """Một vé Chưa thanh toán (giá của sự kiện) + một dòng nhật ký + sự kiện ``ticket.created``."""
+    tenant_id = ctx.tenant.id
     ticket = Ticket(
         tenant_id=tenant_id,
         session_id=ev.id,
@@ -440,6 +489,4 @@ async def register_ticket(
     outbox.add_event(
         session, tenant_id, "ticket.created", {"code": ticket.code, "session": ev.code}
     )
-    await session.flush()
-    await session.refresh(ticket)
-    return await ticket_item(session, ctx, ticket)
+    return ticket
