@@ -91,6 +91,10 @@ export function SessionFlow({ code, onClose, onChanged, onOpenTicket }: Props) {
           onChanged();
           await backToInfo();
         }}
+        onRefresh={async () => {
+          onChanged();
+          await load();
+        }}
         onStale={async (message) => {
           toast(message, undefined, "error");
           onChanged();
@@ -236,7 +240,7 @@ export function SessionFlow({ code, onClose, onChanged, onOpenTicket }: Props) {
 }
 
 /** Một người trong danh sách đăng ký (T-071): hội viên (mã HV) hoặc hồ sơ tạm (SĐT). */
-type Person = { key: string; name: string; phone: string; payload: CustomerPayload };
+type Person = { key: string; name: string; phone: string; memberCode: string | null; payload: CustomerPayload };
 
 function personOf(c: CustomerState): Person | null {
   const payload = customerPayload(c);
@@ -244,9 +248,9 @@ function personOf(c: CustomerState): Person | null {
   if ("member_code" in payload) {
     const m = c.picked;
     if (!m) return null;
-    return { key: `m:${m.member_code}`, name: m.name, phone: normalizePhone(m.phone), payload };
+    return { key: `m:${m.member_code}`, name: m.name, phone: normalizePhone(m.phone), memberCode: m.member_code, payload };
   }
-  return { key: `t:${payload.temp.phone}`, name: payload.temp.full_name, phone: payload.temp.phone, payload };
+  return { key: `t:${payload.temp.phone}`, name: payload.temp.full_name, phone: payload.temp.phone, memberCode: null, payload };
 }
 
 /**
@@ -258,12 +262,15 @@ function TicketDialog({
   onBack,
   onClose,
   onRegistered,
+  onRefresh,
   onStale,
 }: {
   session: SessionDetail;
   onBack: () => void;
   onClose: () => void;
   onRegistered: () => Promise<void>;
+  /** Tải lại sự kiện mà vẫn ở hộp đăng ký (số chỗ còn mới), danh sách đã chọn giữ nguyên. */
+  onRefresh: () => Promise<void>;
   onStale: (message: string) => Promise<void>;
 }) {
   const [customer, setCustomer] = useState<CustomerState>(emptyCustomer);
@@ -275,8 +282,8 @@ function TicketDialog({
   const s = session;
   const remaining = Math.max(0, s.capacity - s.taken);
   const full = people.length >= remaining;
-  // SĐT của người đã có vé trong sự kiện ⇒ nhãn "Đã có vé" (vẫn đăng ký được)
-  const ticketed = new Set(s.tickets.map((t) => (t.phone ? normalizePhone(t.phone) : "")).filter(Boolean));
+  // Hội viên đã có vé trong sự kiện (so theo mã HV) ⇒ nhãn "Đã có vé", vẫn đăng ký được. Hồ sơ tạm không có mã nên không có nhãn.
+  const ticketed = new Set(s.tickets.flatMap((t) => (t.customer_kind === "member" && t.member_code ? [t.member_code] : [])));
 
   function add(c: CustomerState): boolean {
     setAddTried(true);
@@ -322,8 +329,14 @@ function TicketDialog({
       if (!res.ok) {
         const e = res.error;
         if (authFailure(e)) return;
+        if (e.code === "E-024") {
+          // Máy khác vừa bán mất chỗ (AC3): không vé nào được tạo; báo "Chỉ còn n chỗ.", cập nhật số chỗ, giữ danh sách để bớt người
+          setBanner(errorText(e));
+          await onRefresh();
+          return;
+        }
         if (e.code && STALE_CODES.includes(e.code)) return void (await onStale(errorText(e)));
-        setBanner(errorText(e)); // E-024 "Chỉ còn n chỗ." / E-001…: giữ danh sách để sửa
+        setBanner(errorText(e)); // E-001 / E-004…: giữ danh sách để sửa
         return;
       }
       const out = res.data as { tickets: Item[] };
@@ -344,7 +357,7 @@ function TicketDialog({
           <button type="button" onClick={onBack} disabled={busy} className={btnCls}>
             Hủy
           </button>
-          <button type="button" onClick={submit} disabled={busy || !people.length} className={btnPrimaryCls}>
+          <button type="button" onClick={submit} disabled={busy || !people.length || people.length > remaining} className={btnPrimaryCls}>
             {busy ? "Đang đăng ký…" : people.length > 1 ? `Đăng ký ${people.length} vé` : "Đăng ký vé"}
           </button>
         </>
@@ -380,7 +393,7 @@ function TicketDialog({
                   </span>
                   <span className="block text-xs text-muted tabular-nums">{formatPhone(p.phone)}</span>
                 </span>
-                {ticketed.has(p.phone) ? <span className="shrink-0 rounded-full bg-primary-softer px-2 py-0.5 text-xs font-medium text-primary">Đã có vé</span> : null}
+                {p.memberCode && ticketed.has(p.memberCode) ? <span className="shrink-0 rounded-full bg-primary-softer px-2 py-0.5 text-xs font-medium text-primary">Đã có vé</span> : null}
                 <button
                   type="button"
                   onClick={() => setPeople((xs) => xs.filter((x) => x.key !== p.key))}
@@ -398,6 +411,11 @@ function TicketDialog({
         )}
       </section>
 
+      {people.length > remaining ? (
+        <p role="alert" className="text-sm font-medium text-danger">
+          Danh sách nhiều hơn số chỗ còn ({remaining}). Bỏ bớt {people.length - remaining} người rồi đăng ký.
+        </p>
+      ) : null}
       {full ? (
         <p className="text-sm text-muted">Đã đủ số chỗ còn trống. Bỏ bớt người để thêm người khác.</p>
       ) : (
