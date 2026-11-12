@@ -120,10 +120,11 @@ export const sendCreateSession = (
 export const sendDeleteSession = (key: string, code: string, version: number) =>
   looseApi.DELETE(`${P}/booking/sessions/{code}`, { params: { path: { code } }, body: { version }, headers: idem(key) });
 
-export const sendTicket = (key: string, sessionCode: string, customer: CustomerPayload) =>
-  looseApi.POST(`${P}/front-desk/sessions/{code}/tickets`, {
+/** Đăng ký vé cho nhiều người một lần (T-071): tất cả hoặc không; 409 E-024 "Chỉ còn n chỗ.", 422 E-001 / E-004. 201 `{tickets}`. */
+export const sendTicketBatch = (key: string, sessionCode: string, customers: CustomerPayload[]) =>
+  looseApi.POST(`${P}/front-desk/sessions/{code}/tickets/batch`, {
     params: { path: { code: sessionCode } },
-    body: { customer },
+    body: { customers },
     headers: idem(key),
   });
 

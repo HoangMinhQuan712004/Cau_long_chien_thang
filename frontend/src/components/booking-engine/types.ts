@@ -155,6 +155,9 @@ export type SessionDetail = {
   tickets: {
     code: string;
     customer_name: string;
+    /** T-071: hội viên hay hồ sơ tạm; `member_code` chỉ có ở hội viên (FE so để hiện nhãn "Đã có vé"). */
+    customer_kind: "member" | "temp";
+    member_code: string | null;
     phone: string | null;
     source: Source;
     payment_status: PaymentStatus;
