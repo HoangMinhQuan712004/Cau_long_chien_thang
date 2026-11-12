@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
@@ -285,20 +285,27 @@ function TicketDialog({
   // Hội viên đã có vé trong sự kiện (so theo mã HV) ⇒ nhãn "Đã có vé", vẫn đăng ký được. Hồ sơ tạm không có mã nên không có nhãn.
   const ticketed = new Set(s.tickets.flatMap((t) => (t.customer_kind === "member" && t.member_code ? [t.member_code] : [])));
 
+  // Danh sách mới nhất, đọc đồng bộ: một cú bấm vào ô chọn của hàng hội viên phát 2 lần chọn (radio onChange + hàng onClick)
+  // trong cùng một sự kiện ⇒ kiểm trùng / đủ chỗ theo `people` của lần render cũ sẽ lọt cả hai
+  const peopleRef = useRef<Person[]>([]);
+
   function add(c: CustomerState): boolean {
     setAddTried(true);
     const p = personOf(c);
     if (!p) return false;
-    setBanner("");
-    if (people.some((x) => x.key === p.key)) {
-      setBanner(`${p.name} đã có trong danh sách.`);
+    const current = peopleRef.current;
+    if (current.some((x) => x.key === p.key)) {
+      // Lần chọn thứ hai của cùng một cú bấm: im lặng; người dùng thêm lại người đã có: báo
+      if (c.picked !== customer.picked) setBanner(`${p.name} đã có trong danh sách.`);
       return false;
     }
-    if (full) {
+    if (current.length >= remaining) {
       setBanner(`Chỉ còn ${remaining} chỗ.`);
       return false;
     }
-    setPeople((xs) => [...xs, p]);
+    setBanner("");
+    peopleRef.current = [...current, p];
+    setPeople(peopleRef.current);
     setCustomer({ ...emptyCustomer, mode: c.mode });
     setPickerKey((k) => k + 1); // dựng lại ô tìm cho người tiếp theo
     setAddTried(false);
@@ -396,7 +403,10 @@ function TicketDialog({
                 {p.memberCode && ticketed.has(p.memberCode) ? <span className="shrink-0 rounded-full bg-primary-softer px-2 py-0.5 text-xs font-medium text-primary">Đã có vé</span> : null}
                 <button
                   type="button"
-                  onClick={() => setPeople((xs) => xs.filter((x) => x.key !== p.key))}
+                  onClick={() => {
+                    peopleRef.current = peopleRef.current.filter((x) => x.key !== p.key);
+                    setPeople(peopleRef.current);
+                  }}
                   disabled={busy}
                   aria-label={`Bỏ ${p.name} khỏi danh sách`}
                   className="relative grid size-8 shrink-0 place-items-center rounded-full text-muted hover:bg-danger-soft hover:text-danger focus-ring before:absolute before:-inset-1"
