@@ -5,7 +5,8 @@ import { formatLongDate, formatVnd } from "@/lib/format";
 import { hourRange } from "./utils";
 
 // Thẻ "Sự kiện sắp tới" (T-045): dùng ở Tổng quan và tab "Sự kiện" của Danh sách sân.
-// Nút "Đặt vé" mở popup mua vé T-023 qua `/hoi-vien/dat-san?date&event`; không đặt được thì nút mờ kèm lý do (`reason`).
+// Nút "Đặt vé" mở popup mua vé T-023 qua `/hoi-vien/dat-san?date&event`; hết chỗ ⇒ nút xám "Đã đủ chỗ"; lý do khác
+// (`reason`) ⇒ nút mờ kèm dòng lý do.
 
 export type EventCardData = components["schemas"]["EventCard"];
 
@@ -46,6 +47,15 @@ export function EventCard({ e, className }: { e: EventCardData; className?: stri
             </Link>
           ) : free ? (
             <p className="rounded-lg bg-background px-3 py-2.5 text-center text-sm font-medium text-muted">{reason}</p>
+          ) : e.reason === "full" ? (
+            // Hết chỗ: nút đổi hẳn thành "Đã đủ chỗ" (xám, không bấm được) thay vì nút Đặt vé mờ + dòng lý do
+            <>
+              <button type="button" disabled className="h-11 w-full cursor-not-allowed rounded-lg bg-border px-4 text-sm font-bold text-muted">
+                {reason}
+              </button>
+              {/* Dòng trống cao bằng dòng lý do của thẻ khác ⇒ nút thẳng hàng khi các thẻ đứng cạnh nhau */}
+              <p aria-hidden className="invisible mt-1.5 text-xs">&nbsp;</p>
+            </>
           ) : (
             <>
               <button type="button" disabled aria-describedby={`ev-${e.code}-why`} className="h-11 w-full rounded-lg bg-cta px-4 text-sm font-bold tracking-wide text-cta-fg uppercase opacity-45">
