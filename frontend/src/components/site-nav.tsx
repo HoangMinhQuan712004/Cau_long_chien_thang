@@ -13,7 +13,8 @@ const NAV = [
 export function SiteNav({ mobile = false }: { mobile?: boolean }) {
   const pathname = usePathname();
   return (
-    <nav aria-label={mobile ? "Chính (di động)" : "Chính"} className={mobile ? "flex gap-5 text-sm sm:hidden" : "hidden gap-6 text-sm font-medium sm:flex"}>
+    // Máy tính: mục cao hết header, vạch vàng nằm sát mép dưới header – giống header khu hội viên (desktop-header.tsx)
+    <nav aria-label={mobile ? "Chính (di động)" : "Chính"} className={mobile ? "flex gap-5 text-sm sm:hidden" : "hidden gap-1 self-stretch text-sm sm:flex"}>
       {NAV.map((n) => {
         const active = pathname === n.href || pathname.startsWith(`${n.href}/`) || (n.href === "/dat-san" && pathname.startsWith("/thanh-toan"));
         return (
@@ -21,9 +22,14 @@ export function SiteNav({ mobile = false }: { mobile?: boolean }) {
             key={n.href}
             href={n.href}
             aria-current={active ? "page" : undefined}
-            className={`border-b-2 py-1 whitespace-nowrap ${active ? "border-primary text-primary" : "border-transparent hover:text-primary"}`}
+            className={
+              mobile
+                ? `border-b-4 py-1 whitespace-nowrap focus-ring ${active ? "border-accent font-bold text-surface" : "border-transparent text-surface/75 hover:text-surface"}`
+                : `relative flex h-full items-center px-3 whitespace-nowrap focus-ring ${active ? "font-bold text-surface" : "text-surface/75 hover:text-surface"}`
+            }
           >
             {mobile ? n.short : n.label}
+            {active && !mobile ? <span aria-hidden className="absolute inset-x-3 bottom-0 h-1 rounded-t-full bg-accent" /> : null}
           </Link>
         );
       })}

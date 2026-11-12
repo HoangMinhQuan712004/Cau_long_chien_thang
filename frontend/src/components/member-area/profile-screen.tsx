@@ -13,6 +13,7 @@ import { toast } from "@/lib/feedback";
 import { Avatar } from "./avatar";
 import { AvatarEditor } from "./avatar-editor";
 import { useMember } from "./member-shell";
+import { NetMesh } from "@/components/net-mesh";
 import { deleteAvatar, getMe, putAvatar, putMe } from "./requests";
 import { formatPhone, type MemberMe, type MeInput, NICKNAME_MAX } from "./types";
 
@@ -59,8 +60,9 @@ function Hero({ me }: { me: MemberMe }) {
   const joined = `${me.joined_at.slice(5, 7)}/${me.joined_at.slice(0, 4)}`;
 
   return (
-    <section aria-label="Thông tin hội viên" className="relative overflow-hidden bg-appbar text-surface">
-      <CourtLines />
+    <section aria-label="Thông tin hội viên" className="relative isolate overflow-hidden bg-appbar text-surface">
+      {/* Nền mắt lưới mờ như banner Tổng quan (người dùng chốt 12/11) */}
+      <NetMesh />
       <div className="relative mx-auto flex max-w-6xl items-center gap-4 px-4 py-8 sm:gap-6 sm:py-10">
         <AvatarEditor
           hasImage={Boolean(me.avatar_url)}
@@ -86,16 +88,6 @@ function Hero({ me }: { me: MemberMe }) {
       </div>
 
     </section>
-  );
-}
-
-/** Hình sân mờ ở góc phải hero (trang trí). */
-function CourtLines() {
-  return (
-    <svg aria-hidden viewBox="0 0 320 160" className="pointer-events-none absolute -top-2 right-0 hidden h-full max-h-48 text-surface opacity-10 sm:block" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="20" y="10" width="280" height="140" />
-      <path d="M160 10v140M20 80h280M20 40h280M20 120h280M90 10v140M230 10v140" />
-    </svg>
   );
 }
 

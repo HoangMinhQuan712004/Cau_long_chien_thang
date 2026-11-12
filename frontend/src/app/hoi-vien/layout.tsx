@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { FeedbackHost } from "@/components/feedback/feedback-host";
 import { MemberShell } from "@/components/member-area/member-shell";
+import { SiteFooter } from "@/components/site-footer";
 import { getBranding, getMemberMe, readCurrentUser } from "@/lib/api/server";
 import { safeNext } from "@/lib/safe-next";
 
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function MemberAreaLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-background">
+    <div data-fluid-text className="flex min-h-full flex-1 flex-col bg-background">
       <Suspense fallback={<p className="p-8 text-center text-muted">Đang tải…</p>}>
         <Gate>{children}</Gate>
       </Suspense>
@@ -50,5 +51,9 @@ async function Gate({ children }: { children: React.ReactNode }) {
     );
   }
   const branding = await getBranding();
-  return <MemberShell initial={res.data} branding={branding}>{children}</MemberShell>;
+  return (
+    <MemberShell initial={res.data} branding={branding} footer={<SiteFooter />}>
+      {children}
+    </MemberShell>
+  );
 }

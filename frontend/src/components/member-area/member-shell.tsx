@@ -6,12 +6,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { SiteLogo } from "@/components/site-logo";
 import { api } from "@/lib/api/client";
 import { cn } from "@/lib/cn";
 import { formatLongDate, vnDate, vnMinutes } from "@/lib/format";
 import type { SiteBranding } from "@/lib/api/server";
 import { Avatar } from "./avatar";
+import { DesktopHeader } from "./desktop-header";
 import { NotificationBell } from "./notification-bell";
 import { maskPhone, type MemberMe } from "./types";
 
@@ -78,7 +78,7 @@ const SCREENS: { prefix: string; title: string; back: string }[] = [
   { prefix: "/hoi-vien/lich-su-thanh-toan", title: "Lịch sử thanh toán", back: HOME_HREF },
 ];
 
-export function MemberShell({ initial, branding, children }: { initial: MemberMe; branding: Pick<SiteBranding, "name" | "logo_url">; children: React.ReactNode }) {
+export function MemberShell({ initial, branding, footer, children }: { initial: MemberMe; branding: Pick<SiteBranding, "name" | "logo_url">; footer?: React.ReactNode; children: React.ReactNode }) {
   const [me, setMe] = useState(initial);
   const [asking, setAsking] = useState(false);
   const dirtyRef = useRef(false);
@@ -118,8 +118,11 @@ export function MemberShell({ initial, branding, children }: { initial: MemberMe
   return (
     <MemberCtx.Provider value={value}>
       <MemberHeader branding={branding} />
-      {/* Chừa chỗ cho thanh điều hướng dưới (điện thoại); thanh tự ẩn khi màn có thanh hành động riêng */}
-      <main className="flex-1 pb-24 lg:pb-0 [body:has([data-bottom-bar])_&]:pb-32 lg:[body:has([data-bottom-bar])_&]:pb-0">{children}</main>
+      <main className="flex-1">{children}</main>
+      {/* Footer chung của web (server component, layout truyền vào) */}
+      {footer}
+      {/* Chừa chỗ cho thanh điều hướng dưới (điện thoại) sau footer – cùng nền xanh footer; màn có thanh hành động riêng chừa cao hơn */}
+      <div aria-hidden className="h-24 bg-appbar lg:hidden [body:has([data-bottom-bar])_&]:h-32" />
       <BottomNav />
       <Modal
         open={asking}
@@ -193,26 +196,19 @@ function MemberHeader({ branding }: { branding: Pick<SiteBranding, "name" | "log
       {/* ===== Điện thoại / tablet: app bar xanh ===== */}
       <MobileBar />
 
-      {/* ===== Desktop: header ngang ===== */}
-      <header className="sticky top-0 z-(--z-header) hidden border-b border-border bg-surface lg:block">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 xl:gap-8">
-          <Link href={HOME_HREF} onClick={go(HOME_HREF)} className="flex min-w-0 items-center gap-2 font-bold text-primary">
-            <SiteLogo url={branding.logo_url} className="size-8" />
-            <span className="truncate" title={branding.name}>{branding.name}</span>
-          </Link>
-
-          <nav aria-label="Khu hội viên" className="flex h-full items-stretch gap-1">
-            {MAIN_NAV.map((n) => (
-              <NavLink key={n.href} n={n} active={isActive(pathname, n)} onClick={go(n.href)} />
-            ))}
-          </nav>
-
-          <div className="ml-auto flex items-center gap-2">
-            <NotificationBell />
-            <AccountMenu />
-          </div>
-        </div>
-      </header>
+      {/* ===== Desktop: header ngang xanh đậm (desktop-header.tsx) ===== */}
+      <DesktopHeader
+        branding={branding}
+        homeHref={HOME_HREF}
+        onHome={go(HOME_HREF)}
+        nav={MAIN_NAV.map((n) => ({ href: n.href, label: n.label, active: isActive(pathname, n), onClick: go(n.href) }))}
+        actions={
+          <>
+            <NotificationBell onDark />
+            <AccountMenu onDark />
+          </>
+        }
+      />
     </>
   );
 }
@@ -236,7 +232,7 @@ function MobileBar() {
           <div className="min-w-0 flex-1">
             <p className="text-xs text-surface/80">{now ? formatLongDate(vnDate(new Date(now).toISOString())) : " "}</p>
             <p className="truncate text-lg leading-snug font-bold">
-              Chào buổi {now ? greetingOf(now) : "…"}, <span className="text-accent-soft">{me.short_name}</span>
+              Chào buổi {now ? greetingOf(now) : "…"}, <span className="text-cta">{me.short_name}</span>
             </p>
           </div>
           <NotificationBell onDark />
@@ -277,22 +273,8 @@ function CourtPattern() {
   );
 }
 
-function NavLink({ n, active, onClick, className }: { n: NavItem; active: boolean; onClick: (e: React.MouseEvent) => void; className?: string }) {
-  return (
-    <Link
-      href={n.href}
-      onClick={onClick}
-      aria-current={active ? "page" : undefined}
-      className={cn("relative flex items-center px-2 text-sm whitespace-nowrap hover:text-primary focus-ring", active ? "font-bold text-primary" : "text-muted", className)}
-    >
-      {n.label}
-      {active ? <span aria-hidden className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-primary" /> : null}
-    </Link>
-  );
-}
-
 /** Dropdown tài khoản (desktop): avatar + tên mở menu; Enter/Space/↓ mở, ↑↓ Home End di chuyển, Esc đóng và trả focus (T-032 AC2). */
-function AccountMenu() {
+function AccountMenu({ onDark = false }: { onDark?: boolean }) {
   const { me, leave } = useMember();
   const pathname = usePathname();
   const go = useGo();
@@ -337,16 +319,16 @@ function AccountMenu() {
             setOpen(true);
           }
         }}
-        className="flex h-10 items-center gap-2 rounded-full border border-border py-1 pr-3 pl-1 hover:bg-primary-softer focus-ring"
+        className={cn("flex h-10 items-center gap-2 rounded-full border py-1 pr-3 pl-1 focus-ring", onDark ? "border-surface/30 text-surface hover:bg-surface/15" : "border-border hover:bg-primary-softer")}
       >
         <Avatar url={me.avatar_url} name={me.short_name} size={32} />
         <span className="max-w-24 truncate text-sm font-medium">{me.short_name}</span>
-        <span aria-hidden className="text-xs text-muted">
+        <span aria-hidden className={cn("text-xs", onDark ? "text-surface/75" : "text-muted")}>
           ▾
         </span>
       </button>
       {open ? (
-        <div ref={menuRef} role="menu" aria-label="Tài khoản" onKeyDown={onMenuKey} className="absolute right-0 z-40 mt-2 w-64 rounded-card bg-surface p-2 shadow-card ring-1 ring-border">
+        <div ref={menuRef} role="menu" aria-label="Tài khoản" onKeyDown={onMenuKey} className="absolute right-0 z-40 mt-2 w-64 rounded-card bg-surface p-2 text-foreground shadow-card ring-1 ring-border">
           <div className="px-3 py-2">
             <p className="font-semibold break-words">{me.full_name}</p>
             <p className="text-sm text-muted">{maskPhone(me.phone)}</p>
