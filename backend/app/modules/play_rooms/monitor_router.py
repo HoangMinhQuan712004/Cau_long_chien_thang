@@ -5,12 +5,12 @@ Màn hôm nay tự tải lại mỗi 10 giây: gửi ``If-None-Match`` -> 304 kh
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Query
 
 from app.core.db import SessionDep
 from app.core.permissions import Perm, Principal, require
 from app.modules.play_rooms import monitor
-from app.modules.play_rooms.router import NOT_MODIFIED, IfNoneMatch, _etag_response
+from app.modules.play_rooms.router import NOT_MODIFIED, IfNoneMatch, RoomId, _etag_response
 from app.modules.play_rooms.schemas import MonitorDay, MonitorRoomDetail
 
 router = APIRouter(prefix="/play-rooms/admin", tags=["admin: play rooms"])
@@ -35,8 +35,8 @@ async def monitor_day(
 
 @router.get("/rooms/{room_id}", response_model=MonitorRoomDetail, responses=NOT_MODIFIED)
 async def monitor_room(
-    room_id: Annotated[int, Path(ge=1)],
-    _: Monitor,
+    _: Monitor,  # quyền trước id: không có quyền -> 403 dù id ngoài khoảng
+    room_id: RoomId,
     session: SessionDep,
     if_none_match: IfNoneMatch = None,
 ):

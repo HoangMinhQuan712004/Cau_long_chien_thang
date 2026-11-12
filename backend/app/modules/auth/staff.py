@@ -97,8 +97,12 @@ class StaffSessionHistoryOut(SessionDeviceOut):
     is_active: bool
 
 
-def _not_found() -> AppError:
+def not_found() -> AppError:
     return AppError("E-STAFF-1", "Không tìm thấy nhân viên.", 404)
+
+
+def session_not_found() -> AppError:
+    return AppError("E-STAFF-2", "Không tìm thấy phiên đăng nhập.", 404)
 
 
 def _clean_name(name: str) -> str:
@@ -113,7 +117,7 @@ async def _get_staff(session: AsyncSession, staff_id: int, lock: bool = False) -
     query = select(User).where(User.id == staff_id, User.role == Role.STAFF)
     user = await session.scalar(query.with_for_update() if lock else query)
     if user is None:
-        raise _not_found()
+        raise not_found()
     return user
 
 
@@ -311,7 +315,7 @@ async def revoke_staff_session(
         .with_for_update()
     )
     if admin_session is None:
-        raise AppError("E-STAFF-2", "Không tìm thấy phiên đăng nhập.", 404)
+        raise session_not_found()
     admin_session.revoked_at = now
     admin_session.revoked_reason = SessionEndReason.REVOKED_BY_ADMIN
     staff = await session.get(User, staff_id)

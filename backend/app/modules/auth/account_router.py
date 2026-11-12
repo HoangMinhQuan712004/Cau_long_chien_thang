@@ -4,14 +4,23 @@ tự đổi / xóa ảnh đại diện (``/admin/auth/me/avatar``)."""
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Header, Path, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, Response, UploadFile, status
 
 from app.core import images
 from app.core.config import settings
 from app.core.middleware import require_origin
+from app.core.params import not_found, path_id
 from app.core.permissions import OptionalPrincipal
 from app.core.ratelimit import rate_limit
-from app.modules.auth import admin_account, cookies, member_accounts, membership, menu, sessions
+from app.modules.auth import (
+    admin_account,
+    cookies,
+    member_accounts,
+    membership,
+    menu,
+    sessions,
+    staff,
+)
 from app.modules.auth.deps import CustomerAnyState, SessionDep
 from app.modules.auth.router import AdminSessionDep
 from app.modules.auth.schemas import (
@@ -51,6 +60,9 @@ async def change_password(
 # ---------------------------------------------------------------- Admin / NV (phiên quản trị)
 
 admin_account_router = APIRouter(prefix="/admin/account", tags=["admin: account"])
+# Id ngoài khoảng cột -> 404 như không tồn tại (T-070)
+MySessionId = path_id("session_id", staff.session_not_found)
+AvatarUserId = path_id("user_id", not_found("Không tìm thấy ảnh."))
 
 
 @admin_account_router.get("", response_model=AdminProfileOut)
@@ -114,7 +126,7 @@ async def revoke_other_sessions(current: AdminSessionDep, session: SessionDep):
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_origin)],
 )
-async def revoke_my_session(session_id: int, current: AdminSessionDep, session: SessionDep):
+async def revoke_my_session(session_id: MySessionId, current: AdminSessionDep, session: SessionDep):
     """Đăng xuất một phiên khác. 400 E-AUTH-33 (phiên đang dùng) · 404 E-STAFF-2."""
     admin_session, user = current
     await admin_account.revoke_session(session, user, admin_session, session_id)
@@ -194,7 +206,7 @@ async def delete_my_avatar(current: AdminSessionDep, session: SessionDep):
     responses={200: {"content": {"image/webp": {}}}, 304: {}, 404: {}},
 )
 async def admin_avatar(
-    user_id: Annotated[int, Path(ge=1)],
+    user_id: AvatarUserId,
     _: AdminSessionDep,
     session: SessionDep,
     if_none_match: Annotated[str | None, Header()] = None,

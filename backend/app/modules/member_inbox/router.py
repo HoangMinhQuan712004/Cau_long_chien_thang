@@ -2,15 +2,18 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.core.db import SessionDep
 from app.core.middleware import require_origin
+from app.core.params import not_found, path_id
 from app.modules.auth import api as auth
 from app.modules.member_inbox import service
 from app.modules.member_inbox.schemas import NotificationList
 
 router = APIRouter(prefix="/member-area/notifications", tags=["member-area"])
+# Id ngoài khoảng cột -> 404 như không tồn tại (T-070)
+NotificationId = path_id("notification_id", not_found("Không tìm thấy thông báo."))
 
 
 def no_store(response: Response) -> None:
@@ -42,7 +45,7 @@ async def read_all(member: auth.CurrentMember, session: SessionDep) -> None:
     dependencies=[Depends(require_origin)],
 )
 async def read_one(
-    notification_id: Annotated[int, Path(ge=1)], member: auth.CurrentMember, session: SessionDep
+    notification_id: NotificationId, member: auth.CurrentMember, session: SessionDep
 ) -> None:
     """Đánh dấu đã đọc. Thông báo không phải của mình -> 404 E-NOT-FOUND (SEC6)."""
     await service.mark_read(session, member.customer_id, notification_id)
