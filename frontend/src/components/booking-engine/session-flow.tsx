@@ -285,18 +285,19 @@ function TicketDialog({
   // Hội viên đã có vé trong sự kiện (so theo mã HV) ⇒ nhãn "Đã có vé", vẫn đăng ký được. Hồ sơ tạm không có mã nên không có nhãn.
   const ticketed = new Set(s.tickets.flatMap((t) => (t.customer_kind === "member" && t.member_code ? [t.member_code] : [])));
 
-  // Danh sách mới nhất, đọc đồng bộ: một cú bấm vào ô chọn của hàng hội viên phát 2 lần chọn (radio onChange + hàng onClick)
-  // trong cùng một sự kiện ⇒ kiểm trùng / đủ chỗ theo `people` của lần render cũ sẽ lọt cả hai
+  // Danh sách mới nhất, đọc đồng bộ (kiểm trùng / đủ chỗ không phụ thuộc lần render). Một cú bấm chỉ phát MỘT lần chọn:
+  // ô radio trong hàng hội viên chặn sự kiện nổi lên hàng (customer-picker.tsx)
   const peopleRef = useRef<Person[]>([]);
 
   function add(c: CustomerState): boolean {
-    setAddTried(true);
     const p = personOf(c);
-    if (!p) return false;
+    if (!p) {
+      setAddTried(true); // hồ sơ tạm thiếu tên / SĐT: hiện lỗi dưới ô
+      return false;
+    }
     const current = peopleRef.current;
     if (current.some((x) => x.key === p.key)) {
-      // Lần chọn thứ hai của cùng một cú bấm: im lặng; người dùng thêm lại người đã có: báo
-      if (c.picked !== customer.picked) setBanner(`${p.name} đã có trong danh sách.`);
+      setBanner(`${p.name} đã có trong danh sách.`);
       return false;
     }
     if (current.length >= remaining) {
