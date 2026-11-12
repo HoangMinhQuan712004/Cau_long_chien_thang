@@ -3,7 +3,9 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { LocalBusinessJsonLd } from "@/components/local-business-json-ld";
 import { openingText, WithPublicPrices } from "@/components/public-prices";
+import { PageBanner } from "@/components/member-area/page-banner";
 import { WebBookingFlow } from "@/components/web-booking/booking-flow";
+import { BOOKING_BANNER_SLOT } from "@/components/web-booking/types";
 import { getDictionary } from "@/i18n/dictionaries";
 import { todayVn } from "@/lib/format";
 import { getBranding } from "@/lib/api/server";
@@ -24,19 +26,28 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function BookingPage({ searchParams }: PageProps<"/dat-san">) {
   const info = await getBranding();
   return (
-    <div className="space-y-4">
+    <div>
       <Suspense fallback={null}>
         <WithPublicPrices>{(data) => <LocalBusinessJsonLd data={data} info={info} />}</WithPublicPrices>
       </Suspense>
-      <div>
-        <h1 className="text-3xl font-bold">Đặt sân</h1>
-        {/* Một dòng thông tin sân cho khách và cho Google (thay phần giới thiệu của trang chủ cũ) */}
-        <p className="mt-1 text-sm text-muted">
-          {info.name} · {info.address}
-          <Suspense fallback={null}>
-            <WithPublicPrices>{(data) => (openingText(data) ? ` · Mở cửa ${openingText(data)}` : null)}</WithPublicPrices>
-          </Suspense>
-        </p>
+      {/* Banner xanh lưới giống màn Đặt sân khu hội viên (người dùng 12/11): tràn hết bề ngang, sát header; bộ chọn ngày
+          được bước 1 đưa vào chỗ trống cuối banner (step1-layouts.tsx) */}
+      <div className="relative left-1/2 -mt-8 mb-6 w-screen -translate-x-1/2 sm:mb-8">
+        <PageBanner
+          mobileTitle
+          title={<span className="text-cta">Đặt sân</span>}
+          subtitle={
+            // Một dòng thông tin sân cho khách và cho Google (thay phần giới thiệu của trang chủ cũ)
+            <>
+              {info.name} · {info.address}
+              <Suspense fallback={null}>
+                <WithPublicPrices>{(data) => (openingText(data) ? ` · Mở cửa ${openingText(data)}` : null)}</WithPublicPrices>
+              </Suspense>
+            </>
+          }
+        >
+          <div id={BOOKING_BANNER_SLOT} className="mx-auto max-w-6xl px-4 empty:hidden not-empty:pb-4 lg:not-empty:pb-14" />
+        </PageBanner>
       </div>
       <Suspense fallback={<p className="text-muted">Đang tải lịch sân…</p>}>
         <FlowLoader searchParams={searchParams} />

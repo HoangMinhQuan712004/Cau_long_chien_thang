@@ -34,3 +34,6 @@ export type EventReason = NonNullable<EventDetail["reason"]>;
 export type EventCheckoutBody = S["EventCheckoutIn"];
 /** Khối `event` của CheckoutOut (kind='ticket') */
 export type TicketInfo = S["CheckoutEvent"];
+
+/** Chỗ trống cuối banner màn Đặt sân để bước 1 đưa bộ chọn ngày vào (step1-layouts.tsx). */
+export const BOOKING_BANNER_SLOT = "booking-banner-slot";
