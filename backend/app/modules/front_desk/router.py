@@ -409,6 +409,13 @@ async def order_collect_qr(
     _: Collector,
     session: SessionDep,
     response: Response,
+    since: Annotated[
+        str | None,
+        Query(
+            description="T-072: lúc mở popup (ISO 8601 có múi giờ, nhớ URL-encode dấu +) -> "
+            "``qr_paid``; sai -> 422 E-001"
+        ),
+    ] = None,
 ):
     """Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại tới khi ``status`` khác ``unpaid``.
 
@@ -419,7 +426,7 @@ async def order_collect_qr(
     (chưa cài nhận chuyển khoản).
     """
     response.headers["Cache-Control"] = "no-store"
-    info = await engine.collect_qr_info(session, order_code)
+    info = await engine.collect_qr_info(session, order_code, since)
     bank = await payments.bank_info(session, info.amount, info.pay_ref)
     if bank is None:
         raise _no_bank()
@@ -432,6 +439,13 @@ async def item_collect_qr(
     _: Collector,
     session: SessionDep,
     response: Response,
+    since: Annotated[
+        str | None,
+        Query(
+            description="T-072: lúc mở popup (ISO 8601 có múi giờ, nhớ URL-encode dấu +) -> "
+            "``qr_paid``; sai -> 422 E-001"
+        ),
+    ] = None,
 ):
     """Thu một buổi (T-065) hoặc một vé quầy (T-068) bằng QR: ``order_code`` = mã khối / mã vé,
     ``pay_ref`` = mã đó bỏ gạch (mã con ``BK2026111000601`` / mã vé ``BK20261110002V05``, bắt
@@ -441,7 +455,7 @@ async def item_collect_qr(
     unpaid / paid / closed.
     """
     response.headers["Cache-Control"] = "no-store"
-    info = await engine.item_collect_qr_info(session, code)
+    info = await engine.item_collect_qr_info(session, code, since)
     bank = await payments.bank_info(session, info.amount, info.pay_ref)
     if bank is None:
         raise _no_bank()
