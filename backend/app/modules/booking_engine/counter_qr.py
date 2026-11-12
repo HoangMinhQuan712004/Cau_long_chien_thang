@@ -13,8 +13,9 @@ bắt đầu bằng mã đơn chung). Tiền về khớp mã con, khối còn Ch
 """
 
 import re
+from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import SYSTEM_ACTOR, audit, audit_detail
@@ -23,7 +24,13 @@ from app.modules.booking_engine import ledger, outbox
 from app.modules.booking_engine.audit_fields import paid_changes
 from app.modules.booking_engine.booking_service import normalize_code
 from app.modules.booking_engine.dto import CollectQrInfo, OnlinePaymentIn, OnlinePaymentResult
-from app.modules.booking_engine.models import Booking, BookingOrder, Ticket
+from app.modules.booking_engine.models import (
+    Booking,
+    BookingOrder,
+    PaymentEntry,
+    PaymentEntryItem,
+    Ticket,
+)
 from app.modules.booking_engine.orders import order_blocks, order_not_found
 
 # ``{tiền tố}{YYYYMMDD}{NNN}`` -> ``{tiền tố}-{YYYYMMDD}-{NNN}``
@@ -72,7 +79,40 @@ async def _order(session: AsyncSession, tenant_id: int, code: str) -> BookingOrd
     )
 
 
-async def collect_qr_info(session: AsyncSession, tenant_id: int, raw_code: str) -> CollectQrInfo:
+def parse_since(raw: str | None) -> datetime | None:
+    """Mốc lúc mở popup QR (T-072): ISO 8601 **có múi giờ**; sai / thiếu múi giờ -> 422 E-001."""
+    if raw is None or raw == "":
+        return None
+    try:
+        since = datetime.fromisoformat(raw)
+    except ValueError:
+        since = None
+    if since is None or since.tzinfo is None:
+        raise AppError(
+            "E-001",
+            "Mốc thời gian không hợp lệ (ISO 8601 có múi giờ, vd 2026-11-12T10:00:00Z).",
+            422,
+        )
+    return since
+
+
+def _qr_entry_since(since: datetime, tenant_id: int):
+    """Dòng sổ tiền QR quầy (``counter_qr``) từ ``since`` – lọc tiếp theo phạm vi QR."""
+    return (
+        select(PaymentEntry.id)
+        .join(PaymentEntryItem, PaymentEntryItem.entry_id == PaymentEntry.id)
+        .where(
+            PaymentEntry.tenant_id == tenant_id,
+            PaymentEntry.kind == "in",
+            PaymentEntry.source == "counter_qr",
+            PaymentEntry.occurred_at >= since,
+        )
+    )
+
+
+async def collect_qr_info(
+    session: AsyncSession, tenant_id: int, raw_code: str, since: datetime | None = None
+) -> CollectQrInfo:
     """Số tiền QR = tổng khối Chưa thanh toán (cùng tập khối với Thu cả đơn tiền mặt). Chỉ đọc.
 
     Hết khối chưa thu -> ``amount = 0``, ``status`` theo ``qr_status`` (``paid`` / ``closed``) –
@@ -84,12 +124,28 @@ async def collect_qr_info(session: AsyncSession, tenant_id: int, raw_code: str) 
         raise order_not_found()
     blocks = await order_blocks(session, order.id)
     unpaid = [b for b in blocks if b.payment_status == "unpaid"]
+    # qr_paid (T-072): hết khối chưa thu **và** có tiền QR về cho khối của đơn từ lúc mở popup.
+    # Đòi hết khối chưa thu: tiền QR của một buổi lẻ không làm popup cả đơn báo "Đã nhận tiền".
+    qr_paid = False
+    if since is not None and not unpaid and blocks:
+        qr_paid = bool(
+            await session.scalar(
+                select(
+                    exists(
+                        _qr_entry_since(since, tenant_id).where(
+                            PaymentEntryItem.booking_id.in_([b.id for b in blocks])
+                        )
+                    )
+                )
+            )
+        )
     return CollectQrInfo(
         order_code=order.code,
         pay_ref=pay_ref_of(order.code),
         amount=sum(b.amount for b in unpaid),
         status=qr_status([b.payment_status for b in blocks]),
         blocks=len(unpaid),
+        qr_paid=qr_paid,
     )
 
 
@@ -104,7 +160,7 @@ async def _counter_ticket(session: AsyncSession, tenant_id: int, code: str, *, l
 
 
 async def item_collect_qr_info(
-    session: AsyncSession, tenant_id: int, raw_code: str
+    session: AsyncSession, tenant_id: int, raw_code: str, since: datetime | None = None
 ) -> CollectQrInfo:
     """QR một buổi (T-065): số tiền = tiền của khối, nội dung = mã con bỏ gạch. Chỉ đọc.
 
@@ -122,12 +178,23 @@ async def item_collect_qr_info(
         what = "Vé" if isinstance(item, Ticket) else "Booking"
         raise AppError("E-PAY-1", f"{what} đặt online đã trả trước, không cần thu tiền.", 422)
     unpaid = item.payment_status == "unpaid"
+    qr_paid = False
+    if since is not None and item.payment_status == "paid":
+        target = (
+            PaymentEntryItem.ticket_id if isinstance(item, Ticket) else PaymentEntryItem.booking_id
+        )
+        qr_paid = bool(
+            await session.scalar(
+                select(exists(_qr_entry_since(since, tenant_id).where(target == item.id)))
+            )
+        )
     return CollectQrInfo(
         order_code=item.code,
         pay_ref=pay_ref_of(item.code),
         amount=item.amount if unpaid else 0,
         status=qr_status([item.payment_status]),
         blocks=1 if unpaid else 0,
+        qr_paid=qr_paid,
     )
 
 
