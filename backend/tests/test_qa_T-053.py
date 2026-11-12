@@ -7,7 +7,6 @@ Qua HTTP thật: một người chiếm nhiều bậc, thứ tự (km/h ↓, đ�
 """
 
 import random
-import time
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -21,6 +20,7 @@ from app.modules.records.models import SpeedRecord
 from tests import test_play_rooms as base
 from tests.conftest import _rate_limit_backend
 from tests.helpers_booking import new_court
+from tests.qa_queries import count_statements
 from tests.test_play_rooms import MA
 
 people = base.people
@@ -380,9 +380,11 @@ async def test_large_data_is_summarised_in_sql_and_stays_fast(people):
         for k in range(0, len(rows), 500):
             await s.execute(insert(SpeedRecord), rows[k : k + 500])
         await s.commit()
-    t0 = time.perf_counter()
-    d = await rank(hv[0].client)
-    took = time.perf_counter() - t0
+    with count_statements() as n:
+        d = await rank(hv[0].client)
     assert d["total_records"] == 3000 and len(d["top"]) == 10
     assert [t["speed_kmh"] for t in d["top"]] == [500] * 6 + [499] * 4
-    assert took < 5, f"mất {took:.1f}s"
+    print("T053 rank statements", n[0])
+    assert n[0] <= 15, (
+        f"bảng xếp hạng chạy {n[0]} câu SQL với 3000 bản ghi (không đo ms – T-067 AC3)"
+    )

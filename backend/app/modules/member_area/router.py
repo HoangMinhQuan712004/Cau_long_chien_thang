@@ -6,7 +6,7 @@ BFF ghép Xác thực (liên kết tài khoản, đồng bộ Họ tên) + Hội
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Header, Path, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, Response, UploadFile, status
 from fastapi.responses import Response as RawResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,7 @@ from app.core.audit import AuditActor
 from app.core.config import settings
 from app.core.db import SessionDep
 from app.core.middleware import require_origin
+from app.core.params import not_found, path_id
 from app.core.ratelimit import rate_limit
 from app.modules.auth import api as auth
 from app.modules.member_area.schemas import AvatarOut, MemberMeIn, MemberMeOut
@@ -161,7 +162,7 @@ async def delete_avatar(member: auth.CurrentMember, session: SessionDep):
     responses={200: {"content": {"image/webp": {}}}, 304: {}, 404: {}},
 )
 async def get_avatar(
-    customer_id: Annotated[int, Path(ge=1)],
+    customer_id: path_id("customer_id", not_found("Không tìm thấy ảnh.")),  # T-070
     session: SessionDep,
     if_none_match: Annotated[str | None, Header()] = None,
     v: str | None = None,

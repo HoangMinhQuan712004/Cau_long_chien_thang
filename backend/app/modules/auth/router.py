@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import AuditActor, audit
 from app.core.context import client_ip
 from app.core.middleware import require_origin
+from app.core.params import path_id
 from app.core.permissions import Perm, Principal, require
 from app.core.security import decode_token, hash_password
 from app.modules.auth import (
@@ -253,6 +254,9 @@ async def admin_logout(response: Response, state: AuthStateDep, session: Session
 staff_router = APIRouter(prefix="/admin/staff", tags=["admin: staff"])
 
 StaffManager = Annotated[Principal, Depends(require(Perm.STAFF_MANAGE))]
+# Id ngoài khoảng cột -> 404 như không tồn tại (T-070)
+StaffId = path_id("staff_id", staff.not_found)
+StaffSessionId = path_id("session_id", staff.session_not_found)
 
 
 def _actor(p: Principal) -> AuditActor:
@@ -279,7 +283,7 @@ async def create_staff(data: staff.StaffCreateIn, principal: StaffManager, sessi
 
 @staff_router.patch("/{staff_id}", response_model=staff.StaffOut)
 async def update_staff(
-    staff_id: int, data: staff.StaffUpdateIn, principal: StaffManager, session: SessionDep
+    staff_id: StaffId, data: staff.StaffUpdateIn, principal: StaffManager, session: SessionDep
 ):
     """Sửa họ tên; khóa (thu hồi mọi phiên – ``account_disabled``) / mở khóa. 404 E-STAFF-1."""
     return await staff.update_staff(session, _actor(principal), staff_id, data)
@@ -287,21 +291,21 @@ async def update_staff(
 
 @staff_router.post("/{staff_id}/password", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_staff_password(
-    staff_id: int, data: staff.StaffPasswordIn, principal: StaffManager, session: SessionDep
+    staff_id: StaffId, data: staff.StaffPasswordIn, principal: StaffManager, session: SessionDep
 ):
     """Đặt lại mật khẩu: thu hồi mọi phiên (``password_changed``), gỡ khóa do nhập sai."""
     await staff.reset_staff_password(session, _actor(principal), staff_id, data.password)
 
 
 @staff_router.get("/{staff_id}/sessions", response_model=list[staff.StaffSessionOut])
-async def list_staff_sessions(staff_id: int, _: StaffManager, session: SessionDep):
+async def list_staff_sessions(staff_id: StaffId, _: StaffManager, session: SessionDep):
     """Thiết bị đang đăng nhập (loại máy / HĐH / trình duyệt), không trả IP. 404 E-STAFF-1."""
     return await staff.list_staff_sessions(session, staff_id)
 
 
 @staff_router.get("/{staff_id}/sessions/history", response_model=list[staff.StaffSessionHistoryOut])
 async def staff_session_history(
-    staff_id: int,
+    staff_id: StaffId,
     _: StaffManager,
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -312,7 +316,7 @@ async def staff_session_history(
 
 @staff_router.delete("/{staff_id}/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_staff_session(
-    staff_id: int, session_id: int, principal: StaffManager, session: SessionDep
+    staff_id: StaffId, session_id: StaffSessionId, principal: StaffManager, session: SessionDep
 ):
     """Đăng xuất từ xa một phiên (``revoked_by_admin``). 404 E-STAFF-1 / E-STAFF-2."""
     await staff.revoke_staff_session(session, _actor(principal), staff_id, session_id)

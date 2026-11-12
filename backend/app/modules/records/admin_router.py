@@ -6,13 +6,14 @@ T-047: nhập tay (duyệt ngay), sửa / xóa (trừ số đo máy đo), duyệ
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Path, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
 from app.core.db import SessionDep
 from app.core.idempotency import Idempotency, IdempotencyDep
 from app.core.middleware import require_origin
+from app.core.params import not_found, path_id
 from app.core.permissions import Perm, Principal, require
 from app.modules.member_inbox import api as inbox
 from app.modules.records import admin, manual
@@ -30,7 +31,8 @@ from app.modules.records.schemas import (
 router = APIRouter(prefix="/admin/speed-records", tags=["records"])
 
 VideoManager = Annotated[Principal, Depends(require(Perm.RECORDS_VIDEO_MANAGE))]
-RecordId = Annotated[int, Path(ge=1)]
+# Id ngoài khoảng cột -> 404 như không tồn tại (T-070)
+RecordId = path_id("record_id", not_found("Không tìm thấy số đo."))
 
 
 WRITE = [Depends(require_origin)]
