@@ -6,7 +6,8 @@ export function Avatar({ url, name, size, className }: { url: string | null; nam
   return (
     <span
       aria-hidden
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.42) }}
+      // Cỡ px quy ra rem: co giãn theo chữ gốc của trang (màn có chữ gốc co giãn – `data-fluid-text`)
+      style={{ width: `${size / 16}rem`, height: `${size / 16}rem`, fontSize: `${(size * 0.42) / 16}rem` }}
       className={cn("grid shrink-0 place-items-center overflow-hidden rounded-full bg-primary font-bold text-surface select-none", className)}
     >
       {url ? (

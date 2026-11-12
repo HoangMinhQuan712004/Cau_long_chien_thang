@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Avatar } from "@/components/member-area/avatar";
 import { CrownIcon, GlintStar } from "@/components/member-area/record-card";
 import { StageLights } from "@/components/member-area/stage-lights";
@@ -52,6 +53,25 @@ export function Playable({ video, label, onPlay, className, children }: { video:
   return (
     <button type="button" onClick={onPlay} aria-label={label} className={cn("min-h-11 cursor-pointer text-left focus-ring", className)}>
       {children}
+    </button>
+  );
+}
+
+/** Tên dài: thu 2 dòng; dòng không có video ⇒ chạm tên để mở hết / thu lại (cảm ứng không rê chuột được).
+ *  Dòng có video thì cả dòng là nút mở popup – tiêu đề popup đã hiện tên đầy đủ – nên tên chỉ là chữ thường. */
+export function NameText({ name, tappable, className }: { name: string; tappable: boolean; className?: string }) {
+  const [open, setOpen] = useState(false);
+  const cls = cn("break-words", open ? "" : "line-clamp-2", className);
+  if (!tappable) {
+    return (
+      <span title={name} className={cls}>
+        {name}
+      </span>
+    );
+  }
+  return (
+    <button type="button" title={name} aria-expanded={open} onClick={() => setOpen(!open)} className={cn(cls, "cursor-pointer rounded-sm focus-ring")}>
+      {name}
     </button>
   );
 }
@@ -123,9 +143,9 @@ function PodiumPlace({ row, place, onPlay }: { row: Row; place: 1 | 2 | 3; onPla
             </span>
           </span>
         </span>
-        {/* Tên dài: xuống tối đa 2 dòng (căn giữa) thay vì cắt cụt; quá 2 dòng mới "…", rê / giữ để xem đủ */}
-        <span title={row.display_name} className="mt-1.5 line-clamp-2 max-w-full px-0.5 text-center text-xs leading-tight font-bold break-words sm:mt-2 sm:px-1 sm:text-base">
-          {row.display_name}
+        {/* Tên dài: xuống tối đa 2 dòng (căn giữa) thay vì cắt cụt; quá 2 dòng thì chạm để mở hết (dòng không có video) */}
+        <span className="mt-1.5 max-w-full px-0.5 text-center text-xs leading-tight font-bold sm:mt-2 sm:px-1 sm:text-base">
+          <NameText name={row.display_name} tappable={!row.video} />
           {/* Điện thoại ẩn "(Bạn)" cho tên khỏi bị cắt */}
           {row.is_me ? <span className="ml-1 hidden text-xs font-normal text-surface/80 sm:inline">(Bạn)</span> : null}
         </span>

@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/member-area/avatar";
-import { Bolt, type Clip, type Me, PlayBadge, Playable, type Row, clipOf, hitText, play } from "@/components/member-area/ranking-parts";
+import { Bolt, type Clip, type Me, NameText, PlayBadge, Playable, type Row, clipOf, hitText, play } from "@/components/member-area/ranking-parts";
 import { CrownIcon } from "@/components/member-area/record-card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -159,10 +159,8 @@ export function RankRows({ rows, best, floor, onPlay }: { rows: Row[]; best: num
                 <span className="flex min-w-0 items-center gap-2.5 text-sm font-medium">
                   <Avatar url={r.avatar_url} name={r.display_name} size={30} className={r.avatar_url ? "" : tintOf(r.display_name)} />
                   <span className="min-w-0">
-                    {/* Tên dài xuống tối đa 2 dòng thay vì cắt cụt */}
-                    <span title={r.display_name} className="line-clamp-2 leading-tight break-words">
-                      {r.display_name}
-                    </span>
+                    {/* Tên dài xuống tối đa 2 dòng; quá thì chạm để mở hết (dòng không có video) */}
+                    <NameText name={r.display_name} tappable={!r.video} className="block text-left leading-tight" />
                     <span className="block truncate text-xs font-normal text-muted tabular-nums">{hitText(r)}</span>
                   </span>
                   {r.is_me ? <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Bạn</span> : null}

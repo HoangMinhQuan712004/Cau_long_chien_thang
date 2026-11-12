@@ -137,7 +137,7 @@ async def test_seed_twice_then_clear_keeps_real_data(admin, clean, capsys):
         free = [
             r
             for r in (await c.get(f"{MA}/rooms")).json()["items"]
-            if not r["is_mine"] and r["member_count"] < r["capacity"]
+            if not r["is_mine"] and r["member_count"] < r["capacity"] and r["phase"] != "ongoing"
         ]
         assert [r["id"] for r in o["open_rooms"]] == [r["id"] for r in free[:3]]
         async with SessionLocal() as s:

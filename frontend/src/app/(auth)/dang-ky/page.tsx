@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { AuthCard, AuthFormSkeleton } from "@/app/(auth)/_components/auth-card";
 import { AuthForm } from "@/components/auth/auth-form";
 import { getDictionary } from "@/i18n/dictionaries";
 
@@ -8,14 +9,14 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
+// Đăng ký trong khung chung các màn auth (hero xanh + thẻ nổi); URL /dang-ky giữ nguyên
 export default function RegisterPage() {
   return (
-    <div className="mx-auto max-w-sm space-y-6">
-      <h1 className="text-2xl font-bold">Đăng ký tài khoản</h1>
-      <Suspense>
+    <AuthCard title="Đăng ký tài khoản" description="Tạo tài khoản để đặt sân nhanh và trở thành hội viên của sân.">
+      <Suspense fallback={<AuthFormSkeleton fields={3} />}>
         <RegisterForm />
       </Suspense>
-    </div>
+    </AuthCard>
   );
 }
 

@@ -69,13 +69,13 @@ async def test_overview_greeting_rooms_and_unread(staff, admin, people):
     assert len(gi["members_preview"]) == 2
     assert (await overview(host.client))["unread_count"] == 1
 
-    # Biệt danh thay tên ngắn
+    # Có biệt danh vẫn chào bằng tên thật (tên ngắn)
     async with SessionLocal() as s:
         await s.execute(
             update(Customer).where(Customer.id == host.customer_id).values(nickname="Bình Smash")
         )
         await s.commit()
-    assert (await overview(host.client))["greeting_name"] == "Bình Smash"
+    assert (await overview(host.client))["greeting_name"] == "Bình"
 
 
 async def test_overview_booking_without_room_and_limits(staff, admin, people):

@@ -18,6 +18,7 @@ import type { SiteBranding } from "@/lib/api/server";
 import { phoneHref } from "@/lib/site";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { DayStrip } from "./day-strip";
+import { Step1Layout } from "./step1-layouts";
 import { EventDialog } from "./event-dialog";
 import { MemberHint } from "./member-hint";
 import { clearToken, readJson, removeKey, saveToken, savedToken, useVerifiedPhone, writeJson } from "./session-store";
@@ -617,116 +618,114 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
 
   // ================= Bước 1 =================
   const hours = calendar?.columns ?? [];
-  const openText =
-    calendar && calendar.columns.length ? `Mở cửa ${pad2(calendar.columns[0])}:00 – ${pad2(calendar.columns[calendar.columns.length - 1] + 1)}:00 · ` : "";
 
   return (
     <div className={cn("space-y-4", cells.length > 0 && "pb-24 sm:pb-0")}>
-      <DayStrip date={date} today={today} onPick={onDateInput} />
-
-      <ul aria-label="Chú thích màu" className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted">
-        <Legend swatch="border border-border-strong bg-surface" text="Trống" />
-        <Legend swatch="bg-cell-booked" text="Đã đặt" />
-        {member ? <Legend swatch="bg-blk-mine" text="Sân của bạn" /> : null}
-        <Legend swatch="bg-blk-session" text="Sự kiện" />
-        <Legend swatch="bg-cell-off" text="Không bán / Quá giờ" />
-        <Legend swatch="border-2 border-sel-edge bg-sel" text="Đang chọn" />
-      </ul>
-
-      <p className="px-1 text-xs text-muted">
-        {openText}Bấm vào ô trắng để chọn, có thể chọn nhiều khung giờ và nhiều sân trong cùng ngày. Đặt online thanh toán trước bằng chuyển khoản QR.
-      </p>
-
-      <section aria-label="Lịch sân" className="space-y-3">
-        {loadError ? (
-          <div role="alert" className="space-y-2 rounded-xl bg-surface py-8 text-center text-sm shadow-card">
-            <p className="text-danger">{loadError}</p>
-            <button type="button" onClick={() => void load(date)} className="min-h-11 rounded-lg border border-border px-4 py-2">
-              Thử lại
-            </button>
-          </div>
-        ) : !calendar ? (
-          <p className="rounded-xl bg-surface py-10 text-center text-sm text-muted shadow-card">Đang tải lịch sân…</p>
-        ) : calendar.resources.length === 0 ? (
-          <p className="rounded-xl bg-surface py-10 text-center text-sm text-muted shadow-card">Chưa có sân nào mở cho ngày này.</p>
-        ) : (
-          <CourtGrid
-            label="Lịch sân"
-            columns={hours}
-            rows={gridRows}
-            selected={selected}
-            selectable
-            busy={loading}
-            onToggle={toggle}
-            onClear={() => applyCells([])}
-            mergeBlocks
-            scrollToNow={date === today}
-            scrollKey={`${date}|${calendar.resources.length}`}
-          />
-        )}
-        {onlineOff ? (
-          <p role="status" className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
-            Đặt online đang tạm ngưng. Vui lòng gọi hotline {venue.phone}.
-          </p>
-        ) : null}
-      </section>
-
-      {notice ? (
-        <p role="status" className="rounded-lg border border-border bg-surface p-3 text-sm">
-          {notice}
-        </p>
-      ) : null}
-
-      {cells.length > 0 ? (
-        <section
-          data-bottom-bar
-          aria-label="Bạn đang chọn"
-          className="fixed inset-x-0 bottom-0 z-40 rounded-t-[20px] bg-appbar text-surface shadow-[0_-6px_24px_rgb(0_0_0/0.25)] sm:sticky sm:bottom-3 sm:rounded-2xl sm:shadow-lg"
-        >
-          {/* Điện thoại: thanh gọn (người dùng 03/11) – đệm, chữ và nút nhỏ hơn; từ sm giữ cỡ cũ */}
-          <div className="px-4 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:py-3">
-            <button
-              type="button"
-              onClick={() => setBarOpen((o) => !o)}
-              aria-expanded={barOpen}
-              aria-controls="bar-list"
-              className="mx-auto mb-0.5 flex h-5 w-full items-center justify-center rounded text-surface/80 hover:text-surface focus-ring sm:mb-1 sm:h-6"
-            >
-              <span className="sr-only">{barOpen ? "Thu gọn danh sách khung đã chọn" : "Xem danh sách khung đã chọn"}</span>
-              <svg aria-hidden viewBox="0 0 20 20" className={cn("size-5 transition-transform motion-reduce:transition-none", barOpen && "rotate-180")} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m5 12.5 5-5 5 5" />
-              </svg>
-            </button>
-            {barOpen ? (
-              <ul id="bar-list" className="mb-3 max-h-40 space-y-1 overflow-y-auto rounded-xl bg-surface/10 p-3 text-sm">
-                {groups.map((g) => (
-                  <li key={g.code} className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0">
-                      <b>{g.name}</b>: {g.ranges}
-                    </span>
-                    <span className="shrink-0 tabular-nums">{formatVnd(g.amount)}</span>
-                  </li>
-                ))}
-                <li className="pt-1 text-xs text-surface/80">Khung giờ được giữ {holdMinutes} phút sau khi bạn bấm thanh toán.</li>
-              </ul>
-            ) : null}
-            <div className="flex items-center gap-3">
-              <div className="min-w-0 flex-1 leading-tight">
-                <p className="text-[11px] text-surface/80 sm:text-xs">
-                  Tổng giờ: <b className="text-surface">{totalHours}</b>
-                </p>
-                <p className="text-base font-bold tabular-nums sm:text-lg">
-                  <span className="text-[11px] font-normal text-surface/80 sm:text-xs">Tổng tiền: </span>
-                  {formatVnd(total)}
-                </p>
+      <Step1Layout
+        dayStrip={<DayStrip date={date} today={today} onPick={onDateInput} flat />}
+        dateLabel={formatLongDate(date)}
+        legendItems={
+          <>
+            <Legend swatch="border border-border-strong bg-surface" text="Trống" />
+            <Legend swatch="bg-cell-booked" text="Đã đặt" />
+            {member ? <Legend swatch="bg-blk-mine" text="Sân của bạn" /> : null}
+            <Legend swatch="bg-blk-session" text="Sự kiện" />
+            <Legend swatch="bg-cell-off" text="Không bán / Quá giờ" />
+            <Legend swatch="border-2 border-sel-edge bg-sel" text="Đang chọn" />
+          </>
+        }
+        alert={onlineOff ? `Đặt online đang tạm ngưng. Vui lòng gọi hotline ${venue.phone}.` : null}
+        grid={
+          <section aria-label="Lịch sân" className="space-y-3">
+            {loadError ? (
+              <div role="alert" className="space-y-2 rounded-xl bg-surface py-8 text-center text-sm shadow-card">
+                <p className="text-danger">{loadError}</p>
+                <button type="button" onClick={() => void load(date)} className="min-h-11 rounded-lg border border-border px-4 py-2">
+                  Thử lại
+                </button>
               </div>
-              <Button variant="cta" onClick={() => applyStep(2)} disabled={onlineOff || !calendar} className="h-11 min-w-28 px-4 text-xs sm:h-12 sm:min-w-36 sm:px-6 sm:text-sm">
-                Tiếp theo
-              </Button>
-            </div>
-          </div>
-        </section>
-      ) : null}
+            ) : !calendar ? (
+              <p className="rounded-xl bg-surface py-10 text-center text-sm text-muted shadow-card">Đang tải lịch sân…</p>
+            ) : calendar.resources.length === 0 ? (
+              <p className="rounded-xl bg-surface py-10 text-center text-sm text-muted shadow-card">Chưa có sân nào mở cho ngày này.</p>
+            ) : (
+              <CourtGrid
+                label="Lịch sân"
+                columns={hours}
+                rows={gridRows}
+                selected={selected}
+                selectable
+                busy={loading}
+                onToggle={toggle}
+                onClear={() => applyCells([])}
+                mergeBlocks
+                scrollToNow={date === today}
+                scrollKey={`${date}|${calendar.resources.length}`}
+              />
+            )}
+          </section>
+        }
+        notice={
+          notice ? (
+              <p role="status" className="rounded-lg border border-border bg-surface p-3 text-sm">
+                {notice}
+              </p>
+          ) : null
+        }
+        bar={
+          cells.length > 0 ? (
+              <section
+                data-bottom-bar
+                aria-label="Bạn đang chọn"
+                className="fixed inset-x-0 bottom-0 z-40 rounded-t-[20px] bg-appbar text-surface shadow-[0_-6px_24px_rgb(0_0_0/0.25)] sm:sticky sm:bottom-3 sm:rounded-2xl sm:shadow-lg"
+              >
+                {/* Điện thoại: thanh gọn (người dùng 03/11) – đệm, chữ và nút nhỏ hơn; từ sm giữ cỡ cũ */}
+                <div className="px-4 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:py-3">
+                  <button
+                    type="button"
+                    onClick={() => setBarOpen((o) => !o)}
+                    aria-expanded={barOpen}
+                    aria-controls="bar-list"
+                    className="mx-auto mb-0.5 flex h-5 w-full items-center justify-center rounded text-surface/80 hover:text-surface focus-ring sm:mb-1 sm:h-6"
+                  >
+                    <span className="sr-only">{barOpen ? "Thu gọn danh sách khung đã chọn" : "Xem danh sách khung đã chọn"}</span>
+                    <svg aria-hidden viewBox="0 0 20 20" className={cn("size-5 transition-transform motion-reduce:transition-none", barOpen && "rotate-180")} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m5 12.5 5-5 5 5" />
+                    </svg>
+                  </button>
+                  {barOpen ? (
+                    <ul id="bar-list" className="mb-3 max-h-40 space-y-1 overflow-y-auto rounded-xl bg-surface/10 p-3 text-sm">
+                      {groups.map((g) => (
+                        <li key={g.code} className="flex items-baseline justify-between gap-3">
+                          <span className="min-w-0">
+                            <b>{g.name}</b>: {g.ranges}
+                          </span>
+                          <span className="shrink-0 tabular-nums">{formatVnd(g.amount)}</span>
+                        </li>
+                      ))}
+                      <li className="pt-1 text-xs text-surface/80">Khung giờ được giữ {holdMinutes} phút sau khi bạn bấm thanh toán.</li>
+                    </ul>
+                  ) : null}
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1 leading-tight">
+                      <p className="text-[11px] text-surface/80 sm:text-xs">
+                        Tổng giờ: <b className="text-surface">{totalHours}</b>
+                      </p>
+                      <p className="text-base font-bold tabular-nums sm:text-lg">
+                        <span className="text-[11px] font-normal text-surface/80 sm:text-xs">Tổng tiền: </span>
+                        {formatVnd(total)}
+                      </p>
+                    </div>
+                    <Button variant="cta" onClick={() => applyStep(2)} disabled={onlineOff || !calendar} className="h-11 min-w-28 px-4 text-xs sm:h-12 sm:min-w-36 sm:px-6 sm:text-sm">
+                      Tiếp theo
+                    </Button>
+                  </div>
+                </div>
+              </section>
+          ) : null
+        }
+      />
+
 
       {member ? <MyBookingModal orderCode={cellDialog?.kind === "mine" ? cellDialog.code : null} onClose={closeCellDialog} /> : null}
       <EventDialog

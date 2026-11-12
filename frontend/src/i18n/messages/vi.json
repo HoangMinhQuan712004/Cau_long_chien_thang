@@ -1,5 +1,7 @@
 {
-  "auth": {},
+  "auth": {
+    "tags": ["Đặt sân", "Phòng chơi", "Bảng xếp hạng"]
+  },
   "login": {
     "metaTitle": "Đăng nhập",
     "title": "Đăng nhập",
@@ -151,6 +153,8 @@
     "devicesMenu": "Thiết bị ({n})"
   },
   "forgot": {
+    "steps": ["Số điện thoại", "Mã xác minh", "Mật khẩu mới"],
+    "stepOf": "Bước {n}/{total}",
     "request": {
       "metaTitle": "Quên mật khẩu",
       "title": "Quên mật khẩu",

@@ -5855,7 +5855,7 @@ export interface components {
         Overview: {
             /**
              * Greeting Name
-             * @description Biệt danh, không có thì tên ngắn
+             * @description Tên ngắn (từ cuối của họ tên) – không dùng biệt danh
              */
             greeting_name: string;
             /**

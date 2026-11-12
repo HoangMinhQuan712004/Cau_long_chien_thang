@@ -43,7 +43,12 @@ function OtpInput({ digits, onChange, disabled, label, digitLabel }: OtpInputPro
 
   return (
     <fieldset className="flex flex-col gap-1.5">
-      <legend className="mb-1.5 text-label font-semibold text-muted">{label}</legend>
+      <legend className="mb-1.5 text-label font-semibold text-muted">
+        {label}
+        <span aria-hidden className="ml-0.5 text-danger">
+          *
+        </span>
+      </legend>
       <div className="grid grid-cols-6 gap-2">
         {digits.map((d, i) => (
           <input

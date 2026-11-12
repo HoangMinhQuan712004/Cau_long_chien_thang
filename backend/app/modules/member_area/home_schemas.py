@@ -27,7 +27,7 @@ class UpcomingItem(BaseModel):
 
 
 class Overview(BaseModel):
-    greeting_name: str = Field(description="Biệt danh, không có thì tên ngắn")
+    greeting_name: str = Field(description="Tên ngắn (từ cuối của họ tên) – không dùng biệt danh")
     today: dt.date = Field(description="Hôm nay (giờ VN)")
     today_count: int = Field(description="Lịch chơi hôm nay chưa kết thúc")
     upcoming: list[UpcomingItem] = Field(description="Tối đa 4: thẻ TIẾP THEO + 3 dòng")

@@ -45,7 +45,7 @@ export function NewPasswordFields({ password, confirm, onPassword, onConfirm, is
 
   return (
     <>
-      <Field label={t.passwordLabel} htmlFor="new-password">
+      <Field label={t.passwordLabel} htmlFor="new-password" required>
         <PasswordInput
           id="new-password"
           value={password}
@@ -62,7 +62,7 @@ export function NewPasswordFields({ password, confirm, onPassword, onConfirm, is
           </p>
         ) : null}
       </Field>
-      <Field label={t.confirmLabel} htmlFor="confirm-password">
+      <Field label={t.confirmLabel} htmlFor="confirm-password" required>
         <PasswordInput
           id="confirm-password"
           value={confirm}

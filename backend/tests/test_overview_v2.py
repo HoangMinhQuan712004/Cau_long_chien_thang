@@ -152,3 +152,19 @@ async def test_recent_club_record_breaks_with_privacy(admin, people):
     # Người ẩn danh tự xem: thấy tên + vợt của mình
     recent = (await overview(p3.client))["recent_records"]
     assert recent[0]["display_name"] == "Phá Kỷ Lục Ba" and recent[0]["racket"] == "Victor Bí Mật"
+
+
+async def test_open_rooms_overview_skip_ongoing(staff, admin, people):
+    """Tổng quan: phòng người khác đang diễn ra không vào "Phòng đang trống" (chỉ phòng sắp tới)."""
+    viewer = await people("Người Xem Tổng Quan")
+    host = await people()
+    ongoing = (await room_for(staff, admin, host.code))["room"]  # đặt giờ đang diễn ra
+    async with SessionLocal() as s:
+        cards = await rooms_api.open_rooms_today(s, 0, viewer.customer_id, limit=100)
+        upcoming = await rooms_api.open_rooms_today(
+            s, 0, viewer.customer_id, limit=100, upcoming_only=True
+        )
+    assert ongoing.id in [c.id for c in cards]
+    assert ongoing.id not in [c.id for c in upcoming]
+    assert all(c.phase == "upcoming" for c in upcoming)
+    assert ongoing.id not in [c["id"] for c in (await overview(viewer.client))["open_rooms"]]

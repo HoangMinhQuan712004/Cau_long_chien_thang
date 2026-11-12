@@ -118,7 +118,8 @@ async def overview(session: AsyncSession, customer_id: int, user_id: int) -> Ove
     items.sort(key=lambda i: (i.start_at, i.resource_name, i.booking_code))
     month = _ym(today)
     return Overview(
-        greeting_name=profile.nickname or short_name(profile.full_name),
+        # Chào bằng tên thật (tên ngắn), không biệt danh – khớp app bar điện thoại (12/11)
+        greeting_name=short_name(profile.full_name),
         today=today,
         today_count=sum(_local(i.start_at).date() == today for i in items),
         upcoming=items[:UPCOMING_MAX],
@@ -127,7 +128,10 @@ async def overview(session: AsyncSession, customer_id: int, user_id: int) -> Ove
         month_stats=await rooms.month_stats(session, customer_id, month),
         month_record_kmh=await records.month_best(session, customer_id, today),
         record_kmh=await records.record_kmh(session, customer_id),
-        open_rooms=await rooms.open_rooms_today(session, user_id, customer_id, OPEN_ROOMS_MAX),
+        # Phòng người khác đang diễn ra không hiện – "đang diễn ra" chỉ là phòng có mình (12/11)
+        open_rooms=await rooms.open_rooms_today(
+            session, user_id, customer_id, OPEN_ROOMS_MAX, upcoming_only=True
+        ),
         ranking=await _ranking(session, customer_id, today),
         recent_records=await _recent_records(session, customer_id),
         upcoming_events=(await events(session, customer_id, EVENT_DAYS))[:EVENTS_MAX],

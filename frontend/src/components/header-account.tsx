@@ -9,7 +9,7 @@ const linkCls = "rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap fo
 /**
  * Góc tài khoản của header khách (T-013 AC23): chưa đăng nhập ⇒ Đăng nhập / Đăng ký;
  * khách đã đăng nhập ⇒ tên + menu (Tài khoản, Đăng xuất); Admin/nhân viên ⇒ lối vào khu quản lý.
- * Không có cookie phiên thì không gọi backend. Đọc cookie ⇒ phải đặt trong <Suspense>.
+ * Không có cookie phiên thì không gọi backend. Đọc cookie ⇒ phải đặt trong <Suspense>. Đặt trên header nền xanh đậm.
  */
 export async function HeaderAccount() {
   const jar = await cookies();
@@ -17,7 +17,7 @@ export async function HeaderAccount() {
     const result = await getAdminSession().catch(() => null);
     if (result?.ok) {
       return (
-        <Link href="/admin" className={`${linkCls} border border-border hover:text-primary`}>
+        <Link href="/admin" className={`${linkCls} border border-surface/30 hover:bg-surface/15`}>
           Quản lý
         </Link>
       );
@@ -30,10 +30,10 @@ export async function HeaderAccount() {
   }
   return (
     <div className="flex items-center gap-1">
-      <Link href="/dang-nhap" className={`${linkCls} hover:text-primary`}>
+      <Link href="/dang-nhap" className={`${linkCls} hover:bg-surface/15`}>
         Đăng nhập
       </Link>
-      <Link href="/dang-ky" className={`${linkCls} bg-primary text-white hover:bg-primary-hover`}>
+      <Link href="/dang-ky" className={`${linkCls} bg-cta font-bold text-cta-fg hover:bg-cta-hover`}>
         Đăng ký
       </Link>
     </div>
@@ -45,12 +45,12 @@ function CustomerMenu({ name, isMember }: { name: string; isMember: boolean }) {
   return (
     <details className="group relative">
       <summary
-        className={`${linkCls} flex max-w-40 cursor-pointer list-none items-center gap-1 border border-border hover:text-primary`}
+        className={`${linkCls} flex max-w-40 cursor-pointer list-none items-center gap-1 border border-surface/30 hover:bg-surface/15`}
       >
         <span className="truncate">{name}</span>
         <span aria-hidden className="text-xs">▾</span>
       </summary>
-      <div className="absolute right-0 z-40 mt-1 flex min-w-40 flex-col gap-1 rounded-card bg-surface p-2 text-sm shadow-card ring-1 ring-border">
+      <div className="absolute right-0 z-40 mt-1 flex min-w-40 flex-col gap-1 rounded-card bg-surface p-2 text-sm text-foreground shadow-card ring-1 ring-border">
         {isMember ? (
           <Link href="/hoi-vien" className="rounded-lg px-3 py-2 font-medium text-primary hover:bg-primary-softer">
             Khu hội viên

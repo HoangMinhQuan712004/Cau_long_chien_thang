@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { cn } from "@/lib/cn";
 
 // Đèn rọi sân khấu của bục top 3 (Bảng xếp hạng): 3 luồng SVG theo khung bục, kịch bản đổi chỗ / hội tụ, quầng ombre.
 
@@ -97,15 +98,43 @@ const useReducedMotion = () => useSyncExternalStore(onMotionChange, () => window
  *  Hiệu ứng: kịch bản ánh sáng sân khấu (rọi 3 hạng → hội tụ hạng 1 → bắt chéo → hội tụ), dịu khi quét – sáng khi
  *  dừng, quầng sáng "thở"; giảm chuyển động ⇒ đứng yên ở bước mở màn.
  *  Đỉnh đèn đặt cao hơn mép banner, banner (overflow-hidden) cắt phần thừa. */
+/** Đèn đang nằm trong màn hình và trang / app không chạy nền (dừng hiệu ứng khi khuất ⇒ đỡ tốn pin, nhất là trong app). */
+function useOnScreen<T extends Element>() {
+  const ref = useRef<T>(null);
+  const [inView, setInView] = useState(true);
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const el = ref.current;
+    const io = el ? new IntersectionObserver(([e]) => setInView(e.isIntersecting)) : null;
+    if (el && io) io.observe(el);
+    const onVis = () => setVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      io?.disconnect();
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+  return [ref, inView && visible] as const;
+}
+
 export function StageLights() {
   const still = useReducedMotion();
+  const [ref, active] = useOnScreen<HTMLSpanElement>();
+  const svg = useRef<SVGSVGElement>(null);
+  // Khuất màn hình / chạy nền ⇒ tạm dừng (SVG giữ nguyên vị trí, chạy tiếp từ chỗ dừng khi quay lại)
+  useEffect(() => {
+    if (active) svg.current?.unpauseAnimations();
+    else svg.current?.pauseAnimations();
+  }, [active]);
   return (
-    // -top-56: đỉnh đèn nằm trên mép banner (banner cắt phần thừa) ⇒ luồng sáng sát mép trên, không hở dải xanh
-    <span aria-hidden className="pointer-events-none absolute inset-x-0 -top-56 bottom-0">
+    // -top-56: đỉnh đèn nằm trên mép banner (banner cắt phần thừa) ⇒ luồng sáng sát mép trên, không hở dải xanh.
+    // Tạm dừng: dừng cả animation CSS của các lớp con (quầng thở, đổi màu, lấp lánh)
+    <span ref={ref} aria-hidden className={cn("pointer-events-none absolute inset-x-0 -top-56 bottom-0", !active && "[&_*]:[animation-play-state:paused]")}>
       {/* Quầng ombre mờ (như mẫu): đỉnh ánh trắng nhẹ, quanh hạng 1 ánh vàng ô liu ấm → xanh rêu đậm ở các góc */}
       <span className="absolute inset-x-0 top-0 bottom-0 bg-[radial-gradient(ellipse_30%_35%_at_50%_22%,color-mix(in_srgb,var(--surface)_3%,transparent),transparent_70%)]" />
       <span className="absolute inset-x-0 top-1/4 bottom-0 animate-spot-breathe bg-[radial-gradient(ellipse_40%_55%_at_50%_50%,color-mix(in_srgb,color-mix(in_srgb,var(--cta)_35%,var(--primary))_20%,transparent),color-mix(in_srgb,color-mix(in_srgb,var(--cta)_35%,var(--primary))_7%,transparent)_50%,transparent_78%)]" />
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-y-0 left-1/2 h-full w-full max-w-xs -translate-x-1/2 overflow-visible blur-[3px] sm:max-w-2xl">
+      {/* Điện thoại bỏ blur (nặng với máy yếu, nhìn gần như không khác); từ sm làm nhoè mép luồng */}
+      <svg ref={svg} viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-y-0 left-1/2 h-full w-full max-w-xs -translate-x-1/2 overflow-visible sm:max-w-2xl sm:blur-[3px]">
         <defs>
           <linearGradient id="beam-fill" x1="0" y1="0" x2="0" y2="1">
             {OMBRE.map(([o, c, a], i) => (
