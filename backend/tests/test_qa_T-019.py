@@ -8,10 +8,11 @@ import asyncio
 import importlib
 import json
 import re
-from datetime import date
+from contextlib import asynccontextmanager
+from datetime import date, datetime
 
-import pytest
-
+from app.core.config import settings
+from app.modules.booking_engine import common
 from tests.conftest import API, idem, vn_today
 
 t6 = importlib.import_module("tests.test_qa_T-006")
@@ -29,12 +30,38 @@ def counter_day() -> date:
     return vn_today()
 
 
+_MORNING = {"depth": 0, "real": None}
+
+
+@asynccontextmanager
+async def morning(hour: int = 6):
+    """Trong khối này engine coi như đang là ``hour`` (mặc định 06:00) hôm nay: 06:00 → khung 8h–13h ở tương lai (T-067).
+
+    Trước đây ``h()`` bỏ qua 21 test sau ~18h vì "không đủ giờ trong ngày". Chỉ áp cho lúc ĐẶT (request tạo
+    đơn quầy); đếm lồng nhau để các request song song (``asyncio.gather``) không dẫm lên nhau."""
+    if _MORNING["depth"] == 0:
+        _MORNING["real"] = common.datetime
+        day = vn_today()
+        frozen_now = datetime(day.year, day.month, day.day, hour, tzinfo=settings.tz)
+
+        class Frozen(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return frozen_now.astimezone(tz)
+
+        common.datetime = Frozen
+    _MORNING["depth"] += 1
+    try:
+        yield
+    finally:
+        _MORNING["depth"] -= 1
+        if _MORNING["depth"] == 0:
+            common.datetime = _MORNING["real"]
+
+
 def h(n: int) -> int:
-    """Giờ trong ngày cho khối đặt quầy: khung chưa qua (đang diễn ra vẫn đặt được); n = 0..5."""
-    base = t6.usable_hour()
-    if base + 6 > 24:
-        pytest.skip("not enough hours left today to book at the counter")
-    return base + n
+    """Giờ trong ngày cho khối đặt quầy (8h–13h): luôn là tương lai vì ``counter()`` đặt trong ``morning()``."""
+    return 8 + n
 
 
 def block(code: str, start: int, end: int) -> dict:
@@ -48,7 +75,8 @@ async def counter(client, blocks, *, customer=None, d: date | None = None, extra
         "customer": customer or {"temp": {"full_name": "QA Đơn Quầy", "phone": t8.phone()}},
         **(extra or {}),
     }
-    return await client.post(f"{FD}/bookings", json=body, headers=idem())
+    async with morning():
+        return await client.post(f"{FD}/bookings", json=body, headers=idem())
 
 
 async def counter_ok(client, blocks, **kw) -> dict:
@@ -107,7 +135,8 @@ async def test_ac1_order_codes_are_sequential_per_play_date_and_never_reused(adm
 
 async def test_ac1_event_codes_share_the_daily_sequence_with_orders(admin):
     (a,) = await courts(admin, 1)
-    ev = await t6.new_session(admin, [a], hour=h(0))
+    async with morning():
+        ev = await t6.new_session(admin, [a], hour=h(0))
     assert ev.status_code == 201, ev.text
     ev_code = ev.json()["code"]
     assert ORDER.fullmatch(ev_code) and not CHILD.fullmatch(ev_code), "AC5: event code unchanged"
@@ -279,12 +308,13 @@ async def test_ac4_all_or_nothing_on_conflict(admin):
 
 async def test_ac4_legacy_single_block_form_still_works_and_returns_order(admin):
     (a,) = await courts(admin, 1)
-    r = await admin.post(
-        f"{FD}/bookings",
-        json={"resource_code": a, "date": counter_day().isoformat(), "start_hour": h(0), "end_hour": h(1),
-              "customer": {"temp": {"full_name": "QA Một Khối", "phone": t8.phone()}}},
-        headers=idem(),
-    )  # fmt: skip
+    async with morning():
+        r = await admin.post(
+            f"{FD}/bookings",
+            json={"resource_code": a, "date": counter_day().isoformat(), "start_hour": h(0), "end_hour": h(1),
+                  "customer": {"temp": {"full_name": "QA Một Khối", "phone": t8.phone()}}},
+            headers=idem(),
+        )  # fmt: skip
     assert r.status_code == 201, r.text
     body = r.json()
     assert ORDER.fullmatch(body["order_code"]) and len(body["bookings"]) == 1
@@ -298,8 +328,9 @@ async def test_ac4_double_submit_with_same_idempotency_key_creates_one_order(adm
         "date": counter_day().isoformat(), "blocks": [block(a, h(0), h(1))],
         "customer": {"temp": {"full_name": "QA Idem", "phone": t8.phone()}},
     }  # fmt: skip
-    r1 = await admin.post(f"{FD}/bookings", json=body, headers=key)
-    r2 = await admin.post(f"{FD}/bookings", json=body, headers=key)
+    async with morning():
+        r1 = await admin.post(f"{FD}/bookings", json=body, headers=key)
+        r2 = await admin.post(f"{FD}/bookings", json=body, headers=key)
     assert r1.status_code == 201 and r2.status_code == 201
     o1, o2 = r1.json(), r2.json()
     assert o1["order_code"] == o2["order_code"]
@@ -342,11 +373,12 @@ async def test_ac4_collect_whole_order_rules(admin, staff, anon, customer):
     assert (await admin.post(url, json={"method": "cash"})).status_code in (400, 422)
     # khối 1 không thu được, khối 2 đã thu lẻ -> thu cả đơn chỉ thu khối 3
     b1, b2, b3 = order["bookings"]
-    r = await admin.post(
-        f"{BK}/items/{b1['code']}/uncollectible",
-        json={"reason": "QA", "version": b1["version"]},
-        headers=idem(),
-    )
+    async with morning(20):  # khối 8h–13h đã tới giờ (Không thu được chỉ cho khối đã bắt đầu)
+        r = await admin.post(
+            f"{BK}/items/{b1['code']}/uncollectible",
+            json={"reason": "QA", "version": b1["version"]},
+            headers=idem(),
+        )
     assert r.status_code == 200, r.text
     r = await admin.post(
         f"{BK}/items/{b2['code']}/collect",

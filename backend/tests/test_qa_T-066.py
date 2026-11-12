@@ -9,10 +9,14 @@ thu, = số "Thu cả đơn" tiền mặt thu được; ``total`` = Σ khối ch
 """
 
 import random
+from datetime import datetime
 
+import pytest
 from sqlalchemy import select, update
 
+from app.core.config import settings
 from app.core.db import SessionLocal
+from app.modules.booking_engine import common
 from app.modules.booking_engine.models import Booking
 from tests.conftest import idem
 from tests.helpers_booking import BK, book_order, new_court, random_phone, temp
@@ -178,7 +182,21 @@ async def test_two_orders_on_one_page_do_not_mix_amounts_across_filters_and_page
         assert (done["unpaid_amount"], done["unpaid_blocks"]) == (0, 0)
 
 
-async def test_multi_court_single_day_order_different_prices_and_online_order(admin, anon):
+@pytest.fixture
+def morning(monkeypatch):
+    """Đóng băng đồng hồ engine lúc 06:00 hôm nay: các khung 15h–22h luôn ở tương lai, bất kể giờ chạy (T-067)."""
+    day = datetime.now(settings.tz).date()
+    frozen_now = datetime(day.year, day.month, day.day, 6, tzinfo=settings.tz)
+
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen_now.astimezone(tz)
+
+    monkeypatch.setattr(common, "datetime", Frozen)
+
+
+async def test_multi_court_single_day_order_different_prices_and_online_order(admin, anon, morning):
     c1, c2 = await new_court(admin), await new_court(admin)
     r = await book_order(
         admin,
@@ -211,7 +229,11 @@ async def test_multi_court_single_day_order_different_prices_and_online_order(ad
         len(blocks) - 1,
         want_total,
     )
-    # Đơn online đã trả trước: không còn gì để thu
+
+
+async def test_online_order_paid_in_advance_has_nothing_to_collect(admin, anon):
+    c1 = await new_court(admin)
+    # Đơn online đã trả trước: không còn gì để thu (khung ngày mai: không phụ thuộc giờ chạy)
     co = (await checkout(anon, [(c1["code"], 15)])).json()
     assert await simulate(admin, co["pay_ref"], co["amount"]) == "applied"
     online = await row(admin, co["order_code"])
