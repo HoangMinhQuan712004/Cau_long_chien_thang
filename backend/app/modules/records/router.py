@@ -6,12 +6,13 @@ T-047: hội viên gửi cú đập của mình (chờ Admin duyệt), xem / rú
 import datetime as dt
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.config import settings
 from app.core.db import SessionDep
 from app.core.idempotency import IdempotencyDep
 from app.core.middleware import require_origin
+from app.core.params import not_found, path_id
 from app.modules.auth import api as auth
 from app.modules.records import manual, service
 from app.modules.records.schemas import (
@@ -120,7 +121,7 @@ async def my_speed_records(member: auth.CurrentMember, session: SessionDep):
 
 @router.delete("/speed-records/{record_id}", status_code=204, dependencies=WRITE)
 async def withdraw_speed_record(
-    record_id: Annotated[int, Path(ge=1)],
+    record_id: path_id("record_id", not_found("Không tìm thấy số đo.")),  # T-070
     member: auth.CurrentMember,
     idem: IdempotencyDep,
     session: SessionDep,

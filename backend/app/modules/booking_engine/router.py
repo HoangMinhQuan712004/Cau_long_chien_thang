@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Path, Query, Response, status
 from app.core.db import SessionDep
 from app.core.idempotency import IdempotencyDep
 from app.core.middleware import require_origin
+from app.core.params import not_found, path_id
 from app.core.permissions import Perm, Principal, require
 from app.core.ratelimit import rate_limit
 from app.modules.booking_engine import api, resource_router
@@ -49,6 +50,8 @@ from app.modules.booking_engine.dto import (
 )
 
 router = APIRouter(prefix="/booking", tags=["booking"])
+# Id ngoài khoảng cột -> 404 như không tồn tại (T-070)
+SpecialDayId = path_id("special_day_id", not_found("Không tìm thấy ngày Lễ/Tết."))
 
 ResourceViewer = Annotated[Principal, Depends(require(Perm.BOOKING_RESOURCES_VIEW))]
 ConfigManager = Annotated[Principal, Depends(require(Perm.BOOKING_CONFIG_MANAGE))]
@@ -201,7 +204,7 @@ async def create_special_day(
 
 @router.patch("/special-days/{special_day_id}", response_model=SpecialDayOut)
 async def update_special_day(
-    special_day_id: int,
+    special_day_id: SpecialDayId,
     data: SpecialDayIn,
     principal: ConfigManager,
     idem: IdempotencyDep,
@@ -221,7 +224,10 @@ async def update_special_day(
     response_class=Response,
 )
 async def delete_special_day(
-    special_day_id: int, principal: ConfigManager, idem: IdempotencyDep, session: SessionDep
+    special_day_id: SpecialDayId,
+    principal: ConfigManager,
+    idem: IdempotencyDep,
+    session: SessionDep,
 ):
     return await idem.run(
         session,

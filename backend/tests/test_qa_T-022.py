@@ -10,7 +10,6 @@ import datetime as dt
 import importlib
 import json
 import re
-import time
 import uuid
 
 import pytest
@@ -19,6 +18,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.db import engine
 from tests.conftest import API, _client, idem, sign_in
+from tests.qa_queries import count_statements
 
 t15 = importlib.import_module("tests.test_qa_T-015")
 t16 = importlib.import_module("tests.test_qa_T-016")
@@ -672,7 +672,7 @@ async def test_list_stays_fast_with_20000_rows(admin):
         t=tag,
     )
     try:
-        timings = {}
+        counts = {}
         for name, params in (
             ("default", {}),
             ("size100", {"size": 100}),
@@ -680,11 +680,12 @@ async def test_list_stays_fast_with_20000_rows(admin):
             ("asc_page50", {"sort": "at_asc", "page": 50, "size": 100}),
             ("actor", {"actor": "admin"}),
         ):
-            t0 = time.perf_counter()
-            r = await admin.get(LOG, params=params)
-            timings[name] = time.perf_counter() - t0
+            with count_statements() as n:
+                r = await admin.get(LOG, params=params)
+            counts[name] = n[0]
             assert r.status_code == 200
-        print("T-022 timings", {k: round(v, 2) for k, v in timings.items()})
-        assert max(timings.values()) < 3, timings
+        print("T-022 statements", counts)
+        # Nhật ký nhiều dòng: số câu SQL không theo số dòng, không đo ms (T-067 AC3)
+        assert max(counts.values()) <= 12, counts
     finally:
         await purge(tag)

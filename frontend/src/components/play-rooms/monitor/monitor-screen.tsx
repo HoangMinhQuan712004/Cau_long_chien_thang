@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePolling } from "@/hooks/use-polling";
 import { errorText } from "@/lib/api/write";
-import { addDaysIso, formatLongDate, formatTime, todayVn } from "@/lib/format";
+import { addDaysIso, formatTime, todayVn } from "@/lib/format";
 import { MonitorRoomCard } from "./room-card";
 import { type MonitorTarget, RoomDetailDialog } from "./room-detail-dialog";
 import { getMonitorDay } from "./requests";
@@ -65,25 +65,21 @@ export function MonitorScreen() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Theo dõi sân"
-        description="Các phòng chơi theo từng sân, chỉ xem."
-        aside={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <IconButton icon={<ChevronLeftIcon />} label="Ngày trước" onClick={() => go(addDaysIso(date, -1))} disabled={date <= addDaysIso(today, -LIMIT_DAYS)} />
-            <DatePicker value={date} today={today} onChange={go} className="w-44" />
-            <IconButton icon={<ChevronRightIcon />} label="Ngày sau" onClick={() => go(addDaysIso(date, 1))} disabled={date >= addDaysIso(today, LIMIT_DAYS)} />
-            {isToday ? null : (
-              <Button variant="secondary" onClick={() => go(today)}>
-                Hôm nay
-              </Button>
-            )}
-          </div>
-        }
-      />
+      <PageHeader title="Theo dõi sân" description="Các phòng chơi theo từng sân, chỉ xem." />
+
+      {/* Bộ chọn ngày ở hàng riêng: để tiêu đề không bị ép hẹp ở điện thoại */}
+      <div className="flex flex-wrap items-center gap-2">
+        <IconButton icon={<ChevronLeftIcon />} label="Ngày trước" onClick={() => go(addDaysIso(date, -1))} disabled={date <= addDaysIso(today, -LIMIT_DAYS)} />
+        <DatePicker value={date} today={today} onChange={go} className="min-w-0 flex-1 sm:w-56 sm:flex-none" />
+        <IconButton icon={<ChevronRightIcon />} label="Ngày sau" onClick={() => go(addDaysIso(date, 1))} disabled={date >= addDaysIso(today, LIMIT_DAYS)} />
+        {isToday ? null : (
+          <Button variant="secondary" onClick={() => go(today)}>
+            Hôm nay
+          </Button>
+        )}
+      </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
-        <span className="font-semibold text-foreground">{formatLongDate(date)}</span>
         {shown ? (
           <>
             <span>

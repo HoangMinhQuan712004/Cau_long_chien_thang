@@ -2600,6 +2600,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/front-desk/sessions/{code}/tickets/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Tickets
+         * @description Đăng ký vé cho nhiều người một lần (T-071): hội viên và hồ sơ tạm lẫn nhau, mỗi người một
+         *     vé, **tất cả hoặc không ai** (một transaction, khóa sự kiện, đếm chỗ một lần).
+         *
+         *     Lỗi: E-001 (rỗng, quá 50, trùng người, hồ sơ tạm thiếu tên / SĐT), E-004 (không phải hôm nay
+         *     / đã kết thúc), E-024 409 "Chỉ còn n chỗ." kèm ``remaining`` (hết sạch: "Sự kiện đã đủ chỗ.").
+         */
+        post: operations["register_tickets_api_v1_front_desk_sessions__code__tickets_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/front-desk/recurring/preview": {
         parameters: {
             query?: never;
@@ -3958,6 +3982,12 @@ export interface components {
              * @description Số khối chưa thu
              */
             blocks: number;
+            /**
+             * Qr Paid
+             * @description T-072: có tiền QR về cho phạm vi QR này (đơn: đã hết khối chưa thu) từ ``since`` – popup ưu tiên báo "Đã nhận tiền". Không gửi ``since`` -> false
+             * @default false
+             */
+            qr_paid: boolean;
             /** @description Như trang thanh toán online: ngân hàng, số TK, chủ TK, QR */
             bank: components["schemas"]["BankInfo"];
         };
@@ -7867,6 +7897,17 @@ export interface components {
             code: string;
             /** Customer Name */
             customer_name: string;
+            /**
+             * Customer Kind
+             * @description member: hội viên · temp: hồ sơ tạm
+             * @enum {string}
+             */
+            customer_kind: "member" | "temp";
+            /**
+             * Member Code
+             * @description Mã HV khi là hội viên – FE so để hiện "Đã có vé" (T-071); hồ sơ tạm: null
+             */
+            member_code: string | null;
             /** Phone */
             phone: string | null;
             /**
@@ -8481,6 +8522,27 @@ export interface components {
             phone: string;
             /** Note */
             note?: string | null;
+        };
+        /** TicketBatchIn */
+        TicketBatchIn: {
+            /**
+             * Customers
+             * @description 1..50 người, mỗi người một vé, theo thứ tự cấp số vé
+             */
+            customers: components["schemas"]["CustomerIn"][];
+            /**
+             * Note
+             * @description Ghi chú chung (hồ sơ tạm có ghi chú riêng)
+             */
+            note?: string | null;
+        };
+        /** TicketBatchOut */
+        TicketBatchOut: {
+            /**
+             * Tickets
+             * @description Theo thứ tự gửi
+             */
+            tickets: components["schemas"]["ItemOut"][];
         };
         /** TicketIn */
         TicketIn: {
@@ -13573,6 +13635,44 @@ export interface operations {
             };
         };
     };
+    register_tickets_api_v1_front_desk_sessions__code__tickets_batch_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketBatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketBatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     preview_recurring_api_v1_front_desk_recurring_preview_post: {
         parameters: {
             query?: never;
@@ -13755,7 +13855,10 @@ export interface operations {
     };
     order_collect_qr_api_v1_front_desk_orders__order_code__collect_qr_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description T-072: lúc mở popup (ISO 8601 có múi giờ, nhớ URL-encode dấu +) -> ``qr_paid``; sai -> 422 E-001 */
+                since?: string | null;
+            };
             header?: never;
             path: {
                 order_code: string;
@@ -13786,7 +13889,10 @@ export interface operations {
     };
     item_collect_qr_api_v1_front_desk_items__code__collect_qr_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description T-072: lúc mở popup (ISO 8601 có múi giờ, nhớ URL-encode dấu +) -> ``qr_paid``; sai -> 422 E-001 */
+                since?: string | null;
+            };
             header?: never;
             path: {
                 code: string;

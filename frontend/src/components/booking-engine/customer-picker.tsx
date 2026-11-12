@@ -175,7 +175,8 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, membe
                         </td>
                         <td className="px-3 py-2">{m.tier ?? "—"}</td>
                         <td className="px-3 py-2 text-center">
-                          <input type="radio" name="member-pick" checked={on} onChange={pick} aria-label={`Chọn ${m.name}`} />
+                          {/* Chặn click nổi lên hàng: hàng cũng chọn (onClick) ⇒ không chặn thì một cú bấm vào radio chọn HAI lần */}
+                          <input type="radio" name="member-pick" checked={on} onChange={pick} onClick={(e) => e.stopPropagation()} aria-label={`Chọn ${m.name}`} />
                         </td>
                       </tr>
                     );

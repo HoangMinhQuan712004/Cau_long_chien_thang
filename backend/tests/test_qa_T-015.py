@@ -8,7 +8,6 @@ và hễ BACKEND sửa theo spec thì test báo XPASS (strict) để gỡ dấu.
 
 import importlib
 import re
-import time
 import uuid
 
 import pytest
@@ -18,6 +17,7 @@ from app.core.db import engine
 from tests.conftest import API, _client, idem, sign_in
 from tests.helpers_booking import book, new_court, random_phone, safe_hour, temp
 from tests.qa_accounts import db_account
+from tests.qa_queries import count_statements
 
 sepay = importlib.import_module("tests.test_qa_T-008").sepay  # fixture cấu hình SePay thử
 M = f"{API}/members"
@@ -351,9 +351,10 @@ async def test_sec4_search_limits_and_wildcards_are_literal(admin, made):
             for i in r.json()["items"]
         ), evil
     assert (await q("SELECT count(*) AS n FROM customer"))[0]["n"] >= 1, "table still there"
-    t0 = time.perf_counter()
-    await admin.get(M, params={"q": "(a+)+$" + "a" * 40})
-    assert time.perf_counter() - t0 < 2
+    # ReDoS: tìm kiếm so khớp theo chữ (LIKE đã thoát ký tự), không dùng regex → trả kết quả rỗng, không treo.
+    # Không đo thời gian (T-067 AC3): chỉ cần trả lời đúng; nếu dùng regex backtracking test sẽ treo thay vì chập chờn.
+    r = await admin.get(M, params={"q": "(a+)+$" + "a" * 40})
+    assert r.status_code == 200 and r.json()["items"] == []
 
 
 async def test_ac4_kind_and_filters_combine(admin, made):
@@ -851,11 +852,7 @@ async def test_member_account_does_not_take_over_an_existing_account(admin, made
 # ============================================================ AC22 hiệu năng (5.000 hồ sơ)
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="[OPEN] D16: sắp theo Số lần đặt tính trong Python; máy QA yếu đo 1,7-3,2 s (NFR-005 <= 3 s)"
-    " - sát ngưỡng, tùy phần cứng nên không strict",
-)
+# T-067: không đo ms nữa; số câu SQL không theo số dòng (đã gỡ xfail D16: test từng hỏng lặng lẽ từ T-019)
 async def test_ac22_list_under_3s_with_5000_profiles_and_20000_bookings(admin):
     prefix = str(uuid.uuid4().int % 90_000)
     await x(
@@ -865,22 +862,30 @@ async def test_ac22_list_under_3s_with_5000_profiles_and_20000_bookings(admin):
         base=int(prefix) * 1000,
     )
     try:
+        # Từ T-019 mỗi booking thuộc một đơn (order_id NOT NULL, seq 1–99): mỗi hồ sơ một đơn 4 khối
         await x(
-            "INSERT INTO booking.booking (tenant_id, code, source, resource_id, play_date, start_at, end_at,"
-            " customer_ref, customer_kind, customer_name, customer_phone, amount, payment_status,"
-            " created_by_type, created_by_label) "
-            "SELECT 1, 'QALOAD-' || c.id || '-' || n, 'counter', (SELECT min(id) FROM booking.resource),"
+            "INSERT INTO booking.booking_order (tenant_id, code, play_date, channel, customer_ref,"
+            " customer_kind, customer_name, customer_phone, created_by_label) "
+            "SELECT 1, 'BK-QALOAD-' || c.id, current_date, 'counter', c.id::text, 'temp', c.full_name,"
+            " c.phone, 'Admin' FROM customer c WHERE c.full_name LIKE 'QA Load %'"
+        )
+        await x(
+            "INSERT INTO booking.booking (tenant_id, order_id, seq, code, source, resource_id, play_date,"
+            " start_at, end_at, customer_ref, customer_kind, customer_name, customer_phone, amount,"
+            " payment_status, created_by_type, created_by_label) "
+            "SELECT 1, o.id, n, 'QALOAD-' || c.id || '-' || n, 'counter', (SELECT min(id) FROM booking.resource),"
             " current_date - (n * 3 + (c.id % 3))::int,"
             " (current_date - (n * 3 + (c.id % 3))::int)::timestamptz + interval '9 hours',"
             " (current_date - (n * 3 + (c.id % 3))::int)::timestamptz + interval '10 hours',"
             " c.id::text, 'temp', c.full_name, c.phone, 100000, 'unpaid', 'admin', 'Admin' "
-            "FROM customer c, generate_series(1, 4) n WHERE c.full_name LIKE 'QA Load %'"
+            "FROM customer c JOIN booking.booking_order o ON o.code = 'BK-QALOAD-' || c.id,"
+            " generate_series(1, 4) n WHERE c.full_name LIKE 'QA Load %'"
         )
         total = (await q("SELECT count(*) AS n FROM booking.booking WHERE code LIKE 'QALOAD-%'"))[
             0
         ]["n"]
         assert total == 20000, total
-        timings = {}
+        counts = {}
         for name, params in (
             ("default", {}),
             ("sort_desc", {"sort": "bookings_desc"}),
@@ -888,14 +893,16 @@ async def test_ac22_list_under_3s_with_5000_profiles_and_20000_bookings(admin):
             ("search", {"q": "QA Load 4999"}),
             ("filter_kind_sort", {"kind": "temp", "sort": "bookings_desc"}),
         ):
-            t0 = time.perf_counter()
-            got = await listing(admin, **params)
-            timings[name] = time.perf_counter() - t0
+            with count_statements() as n:
+                got = await listing(admin, **params)
+            counts[name] = n[0]
             assert got["total"] >= 1
-        print("AC22 timings", {k: round(v, 2) for k, v in timings.items()})
-        assert max(timings.values()) < 3, timings
+        print("AC22 statements", counts)
+        # 20.000 booking: số câu SQL không theo số dòng (không N+1); không đo ms (T-067 AC3)
+        assert max(counts.values()) <= 12, counts
     finally:
         await x("DELETE FROM booking.booking WHERE code LIKE 'QALOAD-%'")
+        await x("DELETE FROM booking.booking_order WHERE code LIKE 'BK-QALOAD-%'")
         await x("DELETE FROM customer WHERE full_name LIKE 'QA Load %'")
 
 

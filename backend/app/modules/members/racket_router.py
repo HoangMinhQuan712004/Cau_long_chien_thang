@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, status
 from app.core.audit import AuditActor
 from app.core.db import SessionDep
 from app.core.errors import AppError
+from app.core.params import not_found, path_id
 from app.core.permissions import OptionalPrincipal, Perm, Principal, require
 from app.modules.auth import api as auth
 from app.modules.auth.deps import unauthenticated
@@ -14,6 +15,8 @@ from app.modules.members import rackets
 from app.modules.members.schemas import RacketCreateIn, RacketOut, RacketUpdateIn
 
 router = APIRouter(prefix="/rackets", tags=["members"])
+# Id ngoài khoảng cột -> 404 như không tồn tại (T-070)
+RacketId = path_id("racket_id", not_found("Không tìm thấy vợt."))
 
 RacketManager = Annotated[Principal, Depends(require(Perm.RACKET_MANAGE))]
 
@@ -56,13 +59,13 @@ async def create_racket(data: RacketCreateIn, principal: RacketManager, session:
 
 @router.patch("/{racket_id}", response_model=RacketOut)
 async def update_racket(
-    racket_id: int, data: RacketUpdateIn, principal: RacketManager, session: SessionDep
+    racket_id: RacketId, data: RacketUpdateIn, principal: RacketManager, session: SessionDep
 ):
     """Sửa tên / ẩn-hiện / thứ tự. 404 E-NOT-FOUND · 409 E-MEM-5."""
     return await rackets.update(session, _actor(principal), racket_id, data)
 
 
 @router.delete("/{racket_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_racket(racket_id: int, principal: RacketManager, session: SessionDep):
+async def delete_racket(racket_id: RacketId, principal: RacketManager, session: SessionDep):
     """Xóa hẳn (hồ sơ đang ghi vợt này giữ nguyên tên). 404 E-NOT-FOUND."""
     await rackets.delete(session, _actor(principal), racket_id)

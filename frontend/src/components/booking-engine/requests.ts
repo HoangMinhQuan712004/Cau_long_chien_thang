@@ -79,10 +79,10 @@ export const sendCounterBooking = (
   v: { date: string; blocks: { resource_code: string; start_hour: number; end_hour: number }[]; customer: CustomerPayload },
 ) => looseApi.POST(`${P}/front-desk/bookings`, { body: v, headers: idem(key) });
 
-/** QR chuyển khoản cho "Thu cả đơn" (T-058); hỏi lại định kỳ khi popup mở. 409 E-PAY-9 chưa cài nhận tiền, 409 E-BOOK-4 hết khối chưa thu, 404 E-BOOK-3. */
-export const getCollectQr = (orderCode: string) =>
+/** QR chuyển khoản cho "Thu cả đơn" (T-058); hỏi lại định kỳ khi popup mở. `since` (T-072) = lúc mở popup: BE trả `qr_paid` khi có tiền QR của phạm vi này từ mốc đó. 409 E-PAY-9 chưa cài nhận tiền, 409 E-BOOK-4 hết khối chưa thu, 404 E-BOOK-3. */
+export const getCollectQr = (orderCode: string, since?: string) =>
   read<CollectQr>(() =>
-    looseApi.GET(`${P}/front-desk/orders/{code}/collect-qr`, { params: { path: { code: orderCode } }, cache: "no-store" }),
+    looseApi.GET(`${P}/front-desk/orders/{code}/collect-qr`, { params: { path: { code: orderCode }, query: since ? { since } : {} }, cache: "no-store" }),
   );
 
 /** Mọi khối của một đơn (theo mã đơn), như hộp Đơn: tìm mã rồi lấy từng khối. */
@@ -105,8 +105,10 @@ export const sendOrderUncollectible = (key: string, orderCode: string, reason: s
   });
 
 /** QR chuyển khoản cho MỘT buổi (T-065, nội dung = mã con bỏ gạch); `order_code` trong kết quả là mã con, `blocks` = 1. */
-export const getItemCollectQr = (code: string) =>
-  read<CollectQr>(() => looseApi.GET(`${P}/front-desk/items/{code}/collect-qr`, { params: { path: { code } }, cache: "no-store" }));
+export const getItemCollectQr = (code: string, since?: string) =>
+  read<CollectQr>(() =>
+    looseApi.GET(`${P}/front-desk/items/{code}/collect-qr`, { params: { path: { code }, query: since ? { since } : {} }, cache: "no-store" }),
+  );
 
 /** Thu tiền mặt mọi khối Chưa thanh toán của đơn. */
 export const sendCollectOrder = (key: string, orderCode: string) =>
@@ -120,10 +122,11 @@ export const sendCreateSession = (
 export const sendDeleteSession = (key: string, code: string, version: number) =>
   looseApi.DELETE(`${P}/booking/sessions/{code}`, { params: { path: { code } }, body: { version }, headers: idem(key) });
 
-export const sendTicket = (key: string, sessionCode: string, customer: CustomerPayload) =>
-  looseApi.POST(`${P}/front-desk/sessions/{code}/tickets`, {
+/** Đăng ký vé cho nhiều người một lần (T-071): tất cả hoặc không; 409 E-024 "Chỉ còn n chỗ.", 422 E-001 / E-004. 201 `{tickets}`. */
+export const sendTicketBatch = (key: string, sessionCode: string, customers: CustomerPayload[]) =>
+  looseApi.POST(`${P}/front-desk/sessions/{code}/tickets/batch`, {
     params: { path: { code: sessionCode } },
-    body: { customer },
+    body: { customers },
     headers: idem(key),
   });
 

@@ -535,6 +535,10 @@ class ResourceRef(BaseModel):
 class SessionTicket(BaseModel):
     code: str
     customer_name: str
+    customer_kind: CustomerKind = Field(description="member: hội viên · temp: hồ sơ tạm")
+    member_code: str | None = Field(
+        description='Mã HV khi là hội viên – FE so để hiện "Đã có vé" (T-071); hồ sơ tạm: null'
+    )
     phone: str | None
     source: Source
     payment_status: PaymentStatus
@@ -894,6 +898,11 @@ class CollectQrInfo(BaseModel):
         "không có khối nào Đã thanh toán (đã hủy hết) – xử lý ở máy khác, không phải tiền về"
     )
     blocks: int = Field(description="Số khối chưa thu")
+    qr_paid: bool = Field(
+        default=False,
+        description="T-072: có tiền QR về cho phạm vi QR này (đơn: đã hết khối chưa thu) từ "
+        '``since`` – popup ưu tiên báo "Đã nhận tiền". Không gửi ``since`` -> false',
+    )
 
 
 # ---------- Khu hội viên: lịch, đơn của mình, sự kiện + mua vé (T-023) ----------
