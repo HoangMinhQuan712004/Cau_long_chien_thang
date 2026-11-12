@@ -226,6 +226,8 @@ export type CollectQr = {
   amount: number;
   /** "paid" = tiền chuyển khoản đã về; "closed" = đơn / buổi đã xong theo cách khác (tiền mặt, hủy, Không thu được ở máy khác). */
   status: "unpaid" | "paid" | "closed";
+  /** T-072: có tiền QR (sổ `counter_qr`) của phạm vi này từ `since`; true ⇒ "Đã nhận tiền", ưu tiên hơn `status`. Thiếu `since` ⇒ false. */
+  qr_paid: boolean;
   blocks: number;
   bank: import("@/components/web-booking/types").Bank;
 };
