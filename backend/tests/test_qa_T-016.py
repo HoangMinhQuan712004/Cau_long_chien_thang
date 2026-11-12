@@ -883,7 +883,9 @@ async def test_ac19_audit_for_avatar_update_and_delete(admin, made):
 async def test_ac19_avatar_endpoint_unknown_ids_and_headers(admin, made, anon):
     assert (await anon.get(f"{MA}/avatars/99999999")).status_code == 404
     assert (await anon.get(f"{MA}/avatars/abc")).status_code == 422
-    assert (await anon.get(f"{MA}/avatars/0")).status_code == 422
+    # T-070: id số nằm ngoài 1..2^63-1 (0, âm, quá lớn) → 404 như id không có; chỉ id không phải số mới 422
+    for out_of_range in ("0", "-1", "9223372036854775808", "99999999999999999999"):
+        assert (await anon.get(f"{MA}/avatars/{out_of_range}")).status_code == 404, out_of_range
 
 
 async def test_ac19_avatar_upload_is_rate_limited_per_user(admin, made):
