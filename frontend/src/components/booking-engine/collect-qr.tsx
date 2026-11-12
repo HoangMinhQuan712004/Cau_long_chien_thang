@@ -62,6 +62,8 @@ export function CollectQrDialog({ orderCode, item, cashBody, onConfirmCash, busy
   const [back, setBack] = useState<"qr" | "cash">("qr");
   const [qr, setQr] = useState<Qr>({ state: "loading" });
   const startedAt = useRef(0);
+  // T-072: mốc lúc mở popup, gửi kèm mỗi lần hỏi; "Tạo lại mã QR" giữ nguyên mốc đầu để tiền về lúc QR cũ hết hạn vẫn được tính
+  const since = useRef("");
   const done = useRef(false);
   const onPaidRef = useRef(onPaid);
   useEffect(() => {
@@ -78,12 +80,13 @@ export function CollectQrDialog({ orderCode, item, cashBody, onConfirmCash, busy
   /** Một lần hỏi server. `silent`: lỗi mạng khi đang hỏi định kỳ thì giữ QR, lần sau hỏi tiếp. */
   const check = useCallback(
     async (silent: boolean) => {
-      const res = itemCode ? await getItemCollectQr(itemCode) : await getCollectQr(orderCode);
+      const res = itemCode ? await getItemCollectQr(itemCode, since.current) : await getCollectQr(orderCode, since.current);
       if (done.current) return;
       if (res.ok) {
-        if (res.data.status === "paid") return finish(res.data);
-        if (res.data.status === "closed") {
-          // Máy khác đã thu tiền mặt / hủy / đánh dấu Không thu được: không báo nhận tiền
+        // Có tiền QR từ lúc mở popup ⇒ "Đã nhận tiền", ưu tiên hơn status (đơn có khối Không thu được vẫn trả "closed")
+        if (res.data.qr_paid) return finish(res.data);
+        if (res.data.status === "paid" || res.data.status === "closed") {
+          // Không có tiền QR mà đơn / buổi đã xong: máy khác thu tiền mặt / hủy / đánh dấu Không thu được, không báo nhận tiền
           done.current = true;
           toast("Đơn đã được xử lý ở máy khác", itemCode ?? orderCode, "info");
           onPaidRef.current();
@@ -104,7 +107,7 @@ export function CollectQrDialog({ orderCode, item, cashBody, onConfirmCash, busy
   // Lần đầu mở
   useEffect(() => {
     startedAt.current = Date.now();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- tải QR khi mở popup
+    since.current = new Date().toISOString();
     void check(false);
   }, [check]);
 
