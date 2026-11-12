@@ -3982,6 +3982,12 @@ export interface components {
              * @description Số khối chưa thu
              */
             blocks: number;
+            /**
+             * Qr Paid
+             * @description T-072: có tiền QR về cho phạm vi QR này (đơn: đã hết khối chưa thu) từ ``since`` – popup ưu tiên báo "Đã nhận tiền". Không gửi ``since`` -> false
+             * @default false
+             */
+            qr_paid: boolean;
             /** @description Như trang thanh toán online: ngân hàng, số TK, chủ TK, QR */
             bank: components["schemas"]["BankInfo"];
         };
@@ -13849,7 +13855,10 @@ export interface operations {
     };
     order_collect_qr_api_v1_front_desk_orders__order_code__collect_qr_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description T-072: lúc mở popup (ISO 8601 có múi giờ, nhớ URL-encode dấu +) -> ``qr_paid``; sai -> 422 E-001 */
+                since?: string | null;
+            };
             header?: never;
             path: {
                 order_code: string;
@@ -13880,7 +13889,10 @@ export interface operations {
     };
     item_collect_qr_api_v1_front_desk_items__code__collect_qr_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description T-072: lúc mở popup (ISO 8601 có múi giờ, nhớ URL-encode dấu +) -> ``qr_paid``; sai -> 422 E-001 */
+                since?: string | null;
+            };
             header?: never;
             path: {
                 code: string;

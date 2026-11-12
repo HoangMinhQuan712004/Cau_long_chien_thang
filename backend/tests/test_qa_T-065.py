@@ -24,7 +24,7 @@ from tests.helpers_booking import BK, new_court
 from tests.helpers_web import checkout, sepay_payload, simulate, webhook
 from tests.test_counter_qr import FD, blocks, qr, recurring
 
-KEYS = {"order_code", "pay_ref", "amount", "status", "blocks", "bank"}
+KEYS = {"order_code", "pay_ref", "amount", "status", "blocks", "bank", "qr_paid"}  # T-072
 
 
 def ref(code: str) -> str:
