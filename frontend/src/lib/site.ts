@@ -21,3 +21,6 @@ export const phoneHref = (phone: string) => `tel:${phone.trim().startsWith("+") 
 
 /** Tên khu quản trị theo tên sân: "Quản trị {name}" ⇒ "QUẢN TRỊ SÂN CẦU LÔNG ABC". */
 export const adminBrand = (template: string, name: string) => template.replace("{name}", name).toLocaleUpperCase("vi");
+
+/** Tên app cài từ web (PWA / iPhone) – cố định, ngắn gọn (người dùng chốt), không theo tên web ở Cài đặt. */
+export const APP_NAME = "Đặt sân Chiến Thắng";

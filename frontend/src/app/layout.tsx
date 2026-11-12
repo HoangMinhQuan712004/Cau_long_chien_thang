@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro } from "next/font/google";
 import { getBranding } from "@/lib/api/server";
-import { site, siteDescription } from "@/lib/site";
+import { APP_NAME, site, siteDescription } from "@/lib/site";
 import "./globals.css";
 
 const font = Be_Vietnam_Pro({
@@ -26,8 +26,10 @@ export async function generateMetadata(): Promise<Metadata> {
       url: "/",
     },
     formatDetection: { telephone: false },
+    // iPhone: "Thêm vào màn hình chính" ⇒ mở toàn màn hình như app, icon riêng (PWA – manifest ở app/manifest.ts)
+    appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "default" },
     // Có logo ⇒ favicon theo logo (URL có ?v= đổi theo ảnh); chưa có ⇒ app/favicon.ico mặc định
-    ...(favicon ? { icons: { icon: favicon } } : {}),
+    icons: { ...(favicon ? { icon: favicon } : {}), apple: "/pwa-icon/180" },
   };
 }
 
