@@ -45,15 +45,6 @@ export function selectionBlocks(calendar: Calendar, selected: ReadonlySet<string
 }
 
 export const EVENT_RECT_HINT = "Sự kiện cần các sân liền nhau, cùng khung giờ liền nhau";
-export const EVENT_GAP_HINT = "Giữa các sân đã chọn có sân ngừng hoạt động (đang ẩn), không tạo sự kiện qua sân đó được";
-
-/** T-062: các sân đã chọn chỉ cách nhau bởi sân ngừng hoạt động (đang ẩn trên lưới) ⇒ trông liền nhau mà không tạo sự kiện được. */
-export function gapIsInactive(calendar: Calendar, selected: ReadonlySet<string>): boolean {
-  const rowIdx = calendar.resources.map((r, i) => (calendar.columns.some((h) => selected.has(cellKey(r.code, h))) ? i : -1)).filter((i) => i >= 0);
-  if (rowIdx.length < 2) return false;
-  const between = calendar.resources.slice(rowIdx[0], rowIdx[rowIdx.length - 1] + 1).filter((_, k) => !rowIdx.includes(rowIdx[0] + k));
-  return between.length > 0 && between.every((r) => !r.is_active);
-}
 
 /** Vùng chọn là hình chữ nhật (sân liền nhau × một dải giờ liền nhau) ⇒ dùng được cho "Tạo sự kiện" (AC7). */
 export function selectionRect(calendar: Calendar, selected: ReadonlySet<string>, date: string): Selection | null {
