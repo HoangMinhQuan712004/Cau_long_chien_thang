@@ -5180,7 +5180,7 @@ export interface components {
             state: "free" | "booked" | "event" | "closed" | "held";
             /**
              * Expires At
-             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ (chưa cộng 60 giây ân hạn; quá hạn mà ô còn ``held`` = đang trong ân hạn, sắp mở lại)
+             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ – quá hạn là ô trống lại ngay
              */
             expires_at?: string | null;
             /** Price */
@@ -6233,6 +6233,11 @@ export interface components {
              * @description Token trang /thanh-toan/{token}; null với đơn tạo trước khi có tính năng này
              */
             pay_token: string | null;
+            /**
+             * Slots
+             * @description Từng sân · giờ theo thứ tự mã con; vé sự kiện: rỗng
+             */
+            slots?: components["schemas"]["PendingSlot"][];
         };
         /** PendingPersonOut */
         PendingPersonOut: {
@@ -6255,6 +6260,24 @@ export interface components {
              * @description Hạng của người xin / được mời (T-031); null = chưa xếp
              */
             tier: string | null;
+        };
+        /**
+         * PendingSlot
+         * @description Một dải giờ liền nhau trên một sân của đơn chờ (cùng ngày ``play_date`` của đơn).
+         */
+        PendingSlot: {
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Start Time
+             * @description HH:MM
+             */
+            start_time: string;
+            /**
+             * End Time
+             * @description HH:MM
+             */
+            end_time: string;
         };
         /** PeriodOut */
         PeriodOut: {
@@ -6720,7 +6743,7 @@ export interface components {
             state: "free" | "booked" | "event" | "closed" | "held";
             /**
              * Expires At
-             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ (chưa cộng 60 giây ân hạn; quá hạn mà ô còn ``held`` = đang trong ân hạn, sắp mở lại)
+             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ – quá hạn là ô trống lại ngay
              */
             expires_at?: string | null;
             /** Price */

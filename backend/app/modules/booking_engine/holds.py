@@ -1,7 +1,9 @@
 """Giữ chỗ online (BR-002, 5 phút): hết hạn -> ``expired`` + trả khung (tắt allocation).
 
-Giữ chỗ của một lượt thanh toán (checkout, ADR-007) được thêm **ân hạn**
-``ONLINE_HOLD_GRACE_SECONDS`` (60 giây) để nhận tiền báo trễ: trong ân hạn khung vẫn bị chiếm.
+Hết ``expires_at`` là khung mở lại ngay (người dùng 13/11: bỏ "Sắp mở lại"). **Ân hạn**
+``ONLINE_HOLD_GRACE_SECONDS`` (60 giây) chỉ còn để nhận tiền báo trễ: worker chờ hết ân hạn mới đóng
+lượt; thao tác đặt thì đóng ngay lượt đã quá hạn (``grace_seconds=0``) để khung lấy lại được.
+Tiền về trong ân hạn mà khung đã bị lấy -> lượt đã ``expired`` -> cần hoàn như tiền về trễ.
 Checkout hết hạn mà đã nhận một phần tiền -> phát ``checkout.expired`` để module thanh toán đánh
 dấu các giao dịch đó cần hoàn (T-008 AC22).
 """
@@ -50,14 +52,8 @@ def grace() -> timedelta:
 
 
 def hold_visible(now: datetime):
-    """Điều kiện SQL: giữ chỗ còn chiếm khung lúc ``now`` (kể cả trong ân hạn của checkout)."""
-    return and_(
-        Hold.status == "active",
-        or_(
-            and_(Hold.checkout_id.is_(None), Hold.expires_at > now),
-            and_(Hold.checkout_id.isnot(None), Hold.expires_at > now - grace()),
-        ),
-    )
+    """Điều kiện SQL: giữ chỗ còn chiếm khung lúc ``now`` – tới đúng ``expires_at``."""
+    return and_(Hold.status == "active", Hold.expires_at > now)
 
 
 def seat_hold_counted(now: datetime):
@@ -72,15 +68,14 @@ def seat_hold_counted(now: datetime):
     )
 
 
-async def expire_holds(session: AsyncSession) -> int:
+async def expire_holds(session: AsyncSession, grace_seconds: int = 0) -> int:
     """Hết hạn giữ chỗ / checkout quá giờ (không commit). Trả số giữ chỗ vừa hết hạn.
 
-    Worker gọi mỗi 30 giây; thao tác đặt cũng gọi trước khi chiếm khung để giữ chỗ vừa hết
-    hạn không chặn lượt đặt mới. Khóa dòng checkout giống lúc nhận tiền -> không đua với webhook.
+    Worker gọi mỗi 30 giây với ân hạn (``ONLINE_HOLD_GRACE_SECONDS``); thao tác đặt gọi với 0
+    trước khi chiếm khung để lượt vừa quá hạn không chặn lượt đặt mới. Khóa dòng checkout giống lúc
+    nhận tiền -> không đua với webhook.
     """
-    checkouts = (
-        await session.execute(_EXPIRE_CHECKOUTS, {"grace": settings.ONLINE_HOLD_GRACE_SECONDS})
-    ).all()
+    checkouts = (await session.execute(_EXPIRE_CHECKOUTS, {"grace": grace_seconds})).all()
     row = (
         await session.execute(_EXPIRE_HOLDS, {"checkout_ids": [str(c.id) for c in checkouts]})
     ).one()

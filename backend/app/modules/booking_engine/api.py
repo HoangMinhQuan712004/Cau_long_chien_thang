@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config import settings
 from app.modules.booking_engine import (
     booking_service,
     cancel_service,
@@ -728,8 +729,9 @@ async def publish_outbox(session_factory: async_sessionmaker[AsyncSession]) -> i
 
 
 async def expire_holds(session: AsyncSession) -> int:
-    """Worker gọi mỗi 30 giây (không commit): giữ chỗ quá hạn -> ``expired``, trả khung."""
-    return await holds.expire_holds(session)
+    """Worker gọi mỗi 30 giây (không commit): giữ chỗ quá hạn -> ``expired``, trả khung; lượt
+    thanh toán chờ thêm ân hạn nhận tiền trễ (khung thì đã mở từ ``expires_at``)."""
+    return await holds.expire_holds(session, settings.ONLINE_HOLD_GRACE_SECONDS)
 
 
 async def rename_customer(

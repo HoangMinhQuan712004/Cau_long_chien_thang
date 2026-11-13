@@ -2,7 +2,7 @@
 """QA T-075 (API, AC1–AC4, AC14): lịch khách / hội viên hiện ô ``held`` kèm ``expires_at``.
 
 Góc nhìn độc lập với ``test_public_held_slot.py`` của BACKEND: nhiều khung liền nhau của một lượt giữ và nhiều lượt khác nhau có
-``expires_at`` riêng, biên ân hạn 60 giây (55 giây còn ``held``, 65 giây trống) KHÔNG cần chạy tác vụ dọn, lượt đã thanh toán → ``booked``,
+``expires_at`` riêng, quá hạn là trống ngay (người dùng 13/11 bỏ "Sắp mở lại" trong ân hạn) KHÔNG cần chạy tác vụ dọn, lượt đã thanh toán → ``booked``,
 sự kiện thắng giữ chỗ, ô đóng cửa vẫn ``closed``, tập khóa ô đúng ở mọi trạng thái, không lộ tên / SĐT / mã đơn / mã con / ``pay_ref`` /
 token ở BẤT KỲ chỗ nào của phản hồi, lịch hội viên (``mine = false``, ``order_code = null``), lịch admin không đổi, hồi quy luồng đặt
 (E-WEB-4 cùng SĐT, hai khách tranh một ô, tiền về đúng số).
@@ -119,25 +119,22 @@ async def test_held_is_shown_to_the_holder_too_and_to_members(anon, admin, peopl
     assert free["state"] == "free" and "mine" in free
 
 
-# ---------------------------------------------------------------- AC2: ân hạn 60 giây
+# ---------------------------------------------------------------- AC2: hết hạn là mở lại ngay
 
 
-async def test_ac2_grace_period_boundaries_without_any_cleanup_job(anon, admin):
+async def test_ac2_free_right_at_expiry_without_any_cleanup_job(anon, admin):
+    """Người dùng 13/11: bỏ 60 giây "Sắp mở lại" – quá hạn là trống trên lịch và đặt được ngay;
+    ân hạn chỉ còn cho tiền báo trễ khi khung chưa bị lấy."""
     court = await new_court(admin)
     code = court["code"]
     co = await hold(anon, code, (14, 15))
-    await shift_expiry(co["pay_ref"], 55)  # quá hạn 55 giây: còn trong ân hạn
-    s = await slots(anon, code)
-    assert s[14]["state"] == s[15]["state"] == "held"
-    assert parse(s[14]["expires_at"]) < datetime.now().astimezone(), "đang trong ân hạn: hạn đã qua"
-    # Khung vẫn bị giữ: người khác không đặt được ô đó
-    other = await checkout(anon, [(code, 14)], phone=random_phone(), name="QA Tranh Ô")
-    assert other.status_code in (409, 422), other.text
-    await shift_expiry(co["pay_ref"], 65)  # hết ân hạn (không chạy dọn): ô trống lại ngay trên lịch
+    await shift_expiry(co["pay_ref"], 5)  # quá hạn 5 giây (trong ân hạn nhận tiền, không chạy dọn)
     s = await slots(anon, code)
     assert (s[14]["state"], s[14]["expires_at"], s[15]["state"]) == ("free", None, "free")
     again = await checkout(anon, [(code, 14)], phone=random_phone(), name="QA Đặt Lại")
     assert again.status_code == 201, again.text
+    # Khung đã bị lấy ⇒ tiền báo trễ của lượt cũ không tạo booking (cần hoàn)
+    assert await simulate(admin, co["pay_ref"], co["amount"]) != "applied"
 
 
 async def test_paid_hold_becomes_booked_and_event_beats_held(anon, admin):

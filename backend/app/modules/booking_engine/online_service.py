@@ -116,7 +116,7 @@ async def public_calendar(session: AsyncSession, tenant_id: int, day: date) -> P
                         event_code=b.code,
                     )
                 elif b.type == "hold":
-                    # Giữ chỗ còn chiếm khung (gồm 60 giây ân hạn): chỉ hạn thanh toán, không tên /
+                    # Giữ chỗ còn chiếm khung (tới đúng hạn): chỉ hạn thanh toán, không tên /
                     # SĐT / mã đơn / token – ai giữ thì trình duyệt của họ tự nhận ra
                     slot = PublicSlot(start_hour=h, state="held", expires_at=b.expires_at)
                 else:  # booking mọi trạng thái

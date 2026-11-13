@@ -165,9 +165,10 @@ async def test_expiry_grace_and_late_money(anon, admin, staff):
         await s.commit()
     view = (await anon.get(f"{WEB}/checkouts/{co['token']}")).json()
     assert view["status"] == "pending"
+    # Quá hạn là khung mở lại ngay trên lịch (người dùng 13/11), lượt vẫn chờ tiền trễ trong ân hạn
     cal = await calendar(staff, tomorrow())
-    assert [b for b in cal["blocks"] if co["court"]["code"] in b["resource_codes"]]
-    # Tiền về trong ân hạn vẫn được nhận
+    assert not [b for b in cal["blocks"] if co["court"]["code"] in b["resource_codes"]]
+    # Tiền về trong ân hạn (khung chưa ai lấy) vẫn được nhận
     assert await simulate(admin, co["pay_ref"], co["amount"]) == "applied"
 
     late = await new_checkout(anon, admin, hours=(12,))

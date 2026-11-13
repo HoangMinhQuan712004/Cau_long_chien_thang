@@ -690,8 +690,7 @@ class PublicSlot(BaseModel):
     )
     expires_at: dt.datetime | None = Field(
         default=None,
-        description="Chỉ khi ``held``: hạn thanh toán của lượt giữ (chưa cộng 60 giây ân hạn; "
-        "quá hạn mà ô còn ``held`` = đang trong ân hạn, sắp mở lại)",
+        description="Chỉ khi ``held``: hạn thanh toán của lượt giữ – quá hạn là ô trống lại ngay",
     )
     price: int | None = None
     band: Literal["offpeak", "partial", "peak"] | None = None
@@ -787,6 +786,14 @@ class CheckoutCreated(CheckoutView):
     token: str = Field(description="Chuỗi truy cập – chỉ trả ở lần tạo; DB chỉ lưu SHA-256")
 
 
+class PendingSlot(BaseModel):
+    """Một dải giờ liền nhau trên một sân của đơn chờ (cùng ngày ``play_date`` của đơn)."""
+
+    resource_name: str
+    start_time: str = Field(description="HH:MM")
+    end_time: str = Field(description="HH:MM")
+
+
 class PendingCheckout(BaseModel):
     """Đơn online đang chờ thanh toán của một SĐT (chặn đặt mới E-WEB-4, thẻ "Chờ thanh toán")."""
 
@@ -802,6 +809,9 @@ class PendingCheckout(BaseModel):
     paid_amount: int = Field(description="> 0: đã ghi nhận một phần tiền – không hủy được")
     pay_token: str | None = Field(
         description="Token trang /thanh-toan/{token}; null với đơn tạo trước khi có tính năng này"
+    )
+    slots: list[PendingSlot] = Field(
+        default_factory=list, description="Từng sân · giờ theo thứ tự mã con; vé sự kiện: rỗng"
     )
 
 

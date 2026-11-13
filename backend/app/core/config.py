@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     # 0 = không chặn theo tuổi timestamp (ADR-001 §2); > 0: lệch quá số giây này -> 401
     SEPAY_TIMESTAMP_TOLERANCE_SECONDS: int = 0
     ONLINE_HOLD_MINUTES: int = 5
-    # Ân hạn nhận tiền báo trễ sau khi hết giữ chỗ; trong ân hạn khung vẫn bị chiếm
+    # Ân hạn nhận tiền báo trễ sau khi hết giữ chỗ (khung mở lại ngay từ hạn; ai lấy trước thì hoàn)
     ONLINE_HOLD_GRACE_SECONDS: int = 60
     # Chỉ dev/staging: POST /payments/dev/simulate. ENV=production + bật -> app không khởi động
     PAYMENTS_SIMULATE: bool = False

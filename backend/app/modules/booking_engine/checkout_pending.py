@@ -12,14 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import AppError
 from app.modules.booking_engine import outbox
 from app.modules.booking_engine.common import Ctx, context, recover_token
-from app.modules.booking_engine.dto import PendingCheckout
+from app.modules.booking_engine.dto import PendingCheckout, PendingSlot
 from app.modules.booking_engine.models import Allocation, Checkout, EventSession, Hold, Resource
 
 PENDING_MESSAGE = "Bạn còn đơn chưa thanh toán. Hãy thanh toán hoặc hủy đơn đó để đặt đơn mới."
 
 
 async def _court_span(session: AsyncSession, checkout: Checkout) -> tuple[str, list]:
-    """(Tên các sân theo thứ tự mã con, danh sách (bắt đầu, kết thúc)) của lượt đặt sân."""
+    """(Tên các sân theo thứ tự mã con, danh sách (tên sân, bắt đầu, kết thúc)) của lượt đặt sân."""
     rows = (
         await session.execute(
             select(Resource.name, Allocation.time_range)
@@ -30,7 +30,7 @@ async def _court_span(session: AsyncSession, checkout: Checkout) -> tuple[str, l
         )
     ).all()
     names = list(dict.fromkeys(name for name, _ in rows))
-    return ", ".join(names), [(r.lower, r.upper) for _, r in rows]
+    return ", ".join(names), [(name, r.lower, r.upper) for name, r in rows]
 
 
 async def summary(session: AsyncSession, ctx: Ctx, checkout: Checkout) -> PendingCheckout:
@@ -43,7 +43,7 @@ async def summary(session: AsyncSession, ctx: Ctx, checkout: Checkout) -> Pendin
         )
         if ev is None:  # bất biến: lượt mua vé có đúng một hold seat
             raise RuntimeError(f"Ticket checkout {checkout.order_code} has no event")
-        title, spans = ev.name, [(ev.start_at, ev.end_at)]
+        title, spans = ev.name, [(None, ev.start_at, ev.end_at)]
     else:
         title, spans = await _court_span(session, checkout)
     day = checkout.play_date
@@ -52,13 +52,18 @@ async def summary(session: AsyncSession, ctx: Ctx, checkout: Checkout) -> Pendin
         kind=checkout.kind,
         title=title,
         play_date=day,
-        start_time=ctx.hhmm(day, min(s for s, _ in spans)) if spans else "",
-        end_time=ctx.hhmm(day, max(e for _, e in spans)) if spans else "",
+        start_time=ctx.hhmm(day, min(s for _, s, _ in spans)) if spans else "",
+        end_time=ctx.hhmm(day, max(e for _, _, e in spans)) if spans else "",
         expires_at=checkout.expires_at,
         server_now=ctx.now,
         amount=checkout.amount,
         paid_amount=checkout.paid_amount,
         pay_token=recover_token(checkout.id, checkout.token_hash),
+        slots=[
+            PendingSlot(resource_name=n, start_time=ctx.hhmm(day, s), end_time=ctx.hhmm(day, e))
+            for n, s, e in spans
+            if n is not None
+        ],
     )
 
 

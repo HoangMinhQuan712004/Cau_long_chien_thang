@@ -30,9 +30,9 @@ async def slots_of(anon, court_code: str) -> dict[int, dict]:
     return {s["start_hour"]: s for s in row["slots"]}
 
 
-async def test_held_slot_in_grace_then_free_or_booked(anon, admin):
-    """AC1–AC3: ô giữ -> held + hạn; quá hạn mà còn trong ân hạn -> vẫn held; hết ân hạn -> trống;
-    lượt đã thanh toán -> booked."""
+async def test_held_slot_free_at_expiry_or_booked(anon, admin):
+    """AC1–AC3: ô giữ -> held + hạn; quá hạn là trống ngay (người dùng 13/11: không còn "Sắp mở
+    lại" trong ân hạn); lượt đã thanh toán -> booked."""
     co = await new_checkout(anon, admin, hours=(15, 16), name="Người Đang Giữ")
     code = co["court"]["code"]
     slots = await slots_of(anon, code)
@@ -46,12 +46,7 @@ async def test_held_slot_in_grace_then_free_or_booked(anon, admin):
     raw = str(slots)
     assert co["order_code"] not in raw and co["pay_ref"] not in raw and "Người Đang Giữ" not in raw
 
-    await shift_expiry(co["pay_ref"], 30)  # quá hạn 30 giây: đang trong 60 giây ân hạn
-    slots = await slots_of(anon, code)
-    assert slots[15]["state"] == "held"
-    assert datetime.fromisoformat(slots[15]["expires_at"]) < datetime.now().astimezone()
-
-    await shift_expiry(co["pay_ref"], 70)  # hết ân hạn: khung trống lại
+    await shift_expiry(co["pay_ref"], 5)  # vừa quá hạn (worker chưa chạy): khung trống lại ngay
     slots = await slots_of(anon, code)
     assert (slots[15]["state"], slots[15]["expires_at"]) == ("free", None)
 
