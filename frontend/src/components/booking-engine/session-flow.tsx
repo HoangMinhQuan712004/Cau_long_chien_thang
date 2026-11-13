@@ -175,15 +175,16 @@ export function SessionFlow({ code, onClose, onChanged, onOpenTicket }: Props) {
       <Group title="Danh sách vé">
         {s.tickets.length ? (
           <div className="max-h-64 overflow-y-auto rounded-md border border-border">
-            <table className="w-full text-sm">
+            {/* Máy tính (≥ 768px): bảng; nhãn trạng thái + nút một dòng, cột Khách co lại */}
+            <table className="hidden w-full text-sm md:table">
               <thead className="text-xs text-muted">
                 <tr className="border-b border-border">
-                  <th className="px-3 py-1.5 text-left font-medium">Mã check-in</th>
-                  <th className="px-3 py-1.5 text-left font-medium">Khách</th>
-                  <th className="px-3 py-1.5 text-left font-medium">SĐT</th>
-                  <th className="px-3 py-1.5 text-left font-medium">Nguồn</th>
-                  <th className="px-3 py-1.5 text-left font-medium">Trạng thái</th>
-                  <th className="px-3 py-1.5">
+                  <th className="px-2.5 py-1.5 text-left font-medium whitespace-nowrap" title="Mã check-in">Mã</th>
+                  <th className="px-2.5 py-1.5 text-left font-medium">Khách</th>
+                  <th className="px-2.5 py-1.5 text-left font-medium">SĐT</th>
+                  <th className="px-2.5 py-1.5 text-left font-medium">Nguồn</th>
+                  <th className="px-2.5 py-1.5 text-left font-medium whitespace-nowrap">Trạng thái</th>
+                  <th className="px-2.5 py-1.5">
                     <span className="sr-only">Thao tác</span>
                   </th>
                 </tr>
@@ -192,50 +193,89 @@ export function SessionFlow({ code, onClose, onChanged, onOpenTicket }: Props) {
                 {s.tickets.map((t) => (
                   // T-068: cả dòng bấm được (mở thông tin vé); nút trong dòng tự chặn để không mở hai lần
                   <tr key={t.code} onClick={() => onOpenTicket(t.code)} className="cursor-pointer border-b border-border last:border-0 hover:bg-primary-softer">
-                    <td className="px-3 py-2 font-mono text-xs">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenTicket(t.code);
-                        }}
-                        className="text-primary hover:underline focus-ring"
-                      >
-                        {t.code.slice(-3)}
-                        <span className="sr-only"> — mở thông tin vé {t.code}</span>
-                      </button>
+                    <td className="px-2.5 py-2 font-mono text-xs">
+                      <TicketCode code={t.code} onOpen={onOpenTicket} />
                     </td>
-                    <td className="px-3 py-2">{t.customer_name}</td>
-                    <td className="px-3 py-2 whitespace-nowrap tabular-nums">{t.phone ? formatPhone(t.phone) : "—"}</td>
-                    <td className="px-3 py-2">{t.source === "online" ? "Web" : "Quầy"}</td>
-                    <td className="px-3 py-2">
+                    <td className="max-w-36 truncate px-2.5 py-2" title={t.customer_name}>
+                      {t.customer_name}
+                    </td>
+                    <td className="px-2.5 py-2 whitespace-nowrap tabular-nums">{t.phone ? formatPhone(t.phone) : "—"}</td>
+                    <td className="px-2.5 py-2 whitespace-nowrap">{t.source === "online" ? "Web" : "Quầy"}</td>
+                    <td className="px-2.5 py-2">
                       <StatusBadge status={t.payment_status} />
                     </td>
-                    <td className="px-3 py-1.5 text-right">
-                      {t.payment_status === "unpaid" && t.source !== "online" ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenTicket(t.code, true);
-                          }}
-                          className="relative inline-flex min-h-8 items-center rounded-md bg-primary px-3 text-xs font-semibold whitespace-nowrap text-white hover:bg-primary-hover focus-ring before:absolute before:-inset-1"
-                          aria-label={`Thu tiền vé ${t.code}`}
-                        >
-                          Thu tiền
-                        </button>
-                      ) : null}
+                    <td className="px-2.5 py-1.5 text-right">
+                      <CollectButton ticket={t} onOpen={onOpenTicket} />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {/* Điện thoại: mỗi vé một thẻ 2 dòng, không cuộn ngang; tên dài cắt "…" */}
+            <ul className="divide-y divide-border md:hidden">
+              {s.tickets.map((t) => (
+                <li key={t.code} onClick={() => onOpenTicket(t.code)} className="cursor-pointer space-y-1 px-3 py-2 text-sm hover:bg-primary-softer">
+                  <div className="flex items-center gap-2">
+                    <span className="shrink-0 font-mono text-xs">
+                      <TicketCode code={t.code} onOpen={onOpenTicket} />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-medium" title={t.customer_name}>
+                      {t.customer_name}
+                    </span>
+                    <StatusBadge status={t.payment_status} />
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted">
+                    <span className="min-w-0 flex-1 truncate tabular-nums">
+                      {t.phone ? formatPhone(t.phone) : "—"} · {t.source === "online" ? "Web" : "Quầy"}
+                    </span>
+                    <CollectButton ticket={t} onOpen={onOpenTicket} />
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : (
           <p className="py-3 text-center text-sm text-muted">Chưa có người đăng ký.</p>
         )}
       </Group>
     </Modal>
+  );
+}
+
+type TicketRow = SessionDetail["tickets"][number];
+
+/** Mã check-in (3 ký tự cuối) bấm mở thông tin vé; chặn nổi lên dòng / thẻ để không mở hai lần. */
+function TicketCode({ code, onOpen }: { code: string; onOpen: (code: string) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen(code);
+      }}
+      className="text-primary hover:underline focus-ring"
+    >
+      {code.slice(-3)}
+      <span className="sr-only"> — mở thông tin vé {code}</span>
+    </button>
+  );
+}
+
+/** Nút "Thu tiền" cho vé quầy chưa thanh toán (T-068): mở thẳng bước thu. */
+function CollectButton({ ticket: t, onOpen }: { ticket: TicketRow; onOpen: (code: string, collect?: boolean) => void }) {
+  if (t.payment_status !== "unpaid" || t.source === "online") return null;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen(t.code, true);
+      }}
+      className="relative inline-flex min-h-8 shrink-0 items-center rounded-md bg-primary px-3 text-xs font-semibold whitespace-nowrap text-white hover:bg-primary-hover focus-ring before:absolute before:-inset-1"
+      aria-label={`Thu tiền vé ${t.code}`}
+    >
+      Thu tiền
+    </button>
   );
 }
 
