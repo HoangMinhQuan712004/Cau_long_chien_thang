@@ -675,8 +675,8 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
 
   return (
     <div className={cn("space-y-4", cells.length > 0 && "pb-24 sm:pb-0")}>
-      <PendingCheckoutBanner member={Boolean(member)} />
       <Step1Layout
+        pending={<PendingCheckoutBanner member={Boolean(member)} />}
         dayStrip={<DayStrip date={date} today={today} onPick={onDateInput} flat />}
         dateLabel={formatLongDate(date)}
         legendItems={

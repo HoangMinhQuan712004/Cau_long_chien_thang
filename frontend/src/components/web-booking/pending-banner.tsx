@@ -51,27 +51,31 @@ export function PendingCheckoutBanner({ member, className = "" }: { member: bool
 
   if (!pending || left == null || left <= 0) return null;
   return (
-    <div role="status" className={`rounded-xl border border-blk-unpaid-fg/30 bg-blk-unpaid px-4 py-3 text-blk-unpaid-fg ${className}`}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <p className="min-w-0 flex-1 text-sm">
-          <b>Bạn có lượt {pending.kind === "event" ? "mua vé" : "đặt"} đang chờ thanh toán</b>
-          <span className="whitespace-nowrap"> · mã {pending.order_code}</span>
-          <span className="whitespace-nowrap">
-            {" "}
-            · còn <b className="tabular-nums">{mmss(left)}</b>
-          </span>
-        </p>
+    // Điện thoại: tiêu đề + đồng hồ một hàng, mã đơn dưới, nút rộng hết; từ sm: nút nằm bên phải cùng hàng
+    <div role="status" className={`rounded-xl border border-blk-unpaid-fg/25 bg-blk-unpaid p-3 text-blk-unpaid-fg sm:px-4 ${className}`}>
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="min-w-0 text-sm font-bold">Lượt {pending.kind === "event" ? "mua vé" : "đặt sân"} đang chờ thanh toán</p>
+            <span className="shrink-0 rounded-full bg-surface/70 px-2.5 py-0.5 text-sm font-bold tabular-nums" aria-label={`còn ${mmss(left)}`}>
+              {mmss(left)}
+            </span>
+          </div>
+          <p className="mt-0.5 truncate text-xs">
+            Mã <b className="font-mono">{pending.order_code}</b>
+          </p>
+        </div>
         <Link
           href={paymentPath(pending)}
-          className="inline-flex min-h-10 shrink-0 items-center rounded-lg bg-primary px-4 text-sm font-semibold whitespace-nowrap text-white hover:bg-primary-hover focus-ring"
+          className="inline-flex min-h-10 w-full shrink-0 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold whitespace-nowrap text-white hover:bg-primary-hover focus-ring sm:w-auto"
         >
           Tiếp tục thanh toán
         </Link>
       </div>
-      <p className="mt-1.5 text-xs opacity-80">
+      <p className="mt-2 text-xs opacity-80">
         Đổi máy hoặc trình duyệt? Tra cứu bằng mã đơn + SĐT tại{" "}
         <Link href="/tra-cuu" className="font-semibold underline focus-ring">
-          /tra-cuu
+          Tra cứu
         </Link>
         .
       </p>
