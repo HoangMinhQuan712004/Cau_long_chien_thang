@@ -1,6 +1,9 @@
 """Tiện ích dùng chung cho các dịch vụ đặt chỗ của engine (T-006)."""
 
+import base64
 import hashlib
+import hmac
+import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -9,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
+from app.core.config import settings
 from app.core.errors import AppError
 from app.modules.booking_engine.dto import Actor
 from app.modules.booking_engine.models import Tenant
@@ -79,3 +83,19 @@ def profile_label(kind: str, member_code: str | None, tier: str | None) -> str:
 def token_hash(token: str) -> bytes:
     """SHA-256 của token trang thanh toán – DB chỉ lưu giá trị này (ADR-007)."""
     return hashlib.sha256(token.encode()).digest()
+
+
+def checkout_token(checkout_id: uuid.UUID) -> str:
+    """Token trang thanh toán = HMAC(SECRET_KEY, id lượt): tính lại được để trả cho chủ đơn khi
+    bị chặn đặt mới (E-WEB-4); DB vẫn chỉ lưu ``token_hash``."""
+    mac = hmac.new(
+        settings.SECRET_KEY.encode(), f"checkout:{checkout_id}".encode(), hashlib.sha256
+    ).digest()
+    return base64.urlsafe_b64encode(mac).rstrip(b"=").decode()
+
+
+def recover_token(checkout_id: uuid.UUID, stored_hash: bytes) -> str | None:
+    """Token của lượt nếu cấp theo ``checkout_token`` (so hash thời gian cố định); lượt cũ cấp
+    token ngẫu nhiên -> None."""
+    token = checkout_token(checkout_id)
+    return token if hmac.compare_digest(token_hash(token), stored_hash) else None

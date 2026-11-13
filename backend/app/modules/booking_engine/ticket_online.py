@@ -9,7 +9,7 @@ cả trong ân hạn nhận tiền trễ.
 Hàm ở đây **không commit** – lớp gọi sở hữu transaction.
 """
 
-import secrets
+import uuid
 from datetime import timedelta
 
 from sqlalchemy import func, select
@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import SYSTEM_ACTOR, audit, audit_detail
 from app.core.errors import AppError
-from app.modules.booking_engine import ledger, outbox
+from app.modules.booking_engine import checkout_pending, ledger, outbox
 from app.modules.booking_engine.audit_fields import paid_changes
 from app.modules.booking_engine.booking_service import (
     normalize_code,
@@ -26,7 +26,7 @@ from app.modules.booking_engine.booking_service import (
     session_resources,
 )
 from app.modules.booking_engine.codes import next_code
-from app.modules.booking_engine.common import Ctx, audit_actor, context, token_hash
+from app.modules.booking_engine.common import Ctx, audit_actor, checkout_token, context, token_hash
 from app.modules.booking_engine.dto import (
     Actor,
     CheckoutCreated,
@@ -147,15 +147,6 @@ async def event_info(
 # ------------------------------------------------------------------ giữ ghế (AC8, AC9, AC12)
 
 
-def _pending_exists() -> AppError:
-    return AppError(
-        "E-WEB-4",
-        "Số điện thoại này đang có lượt giữ chỗ chưa thanh toán. "
-        "Vui lòng thanh toán hoặc chờ hết hạn.",
-        409,
-    )
-
-
 async def create_ticket_checkout(
     session: AsyncSession,
     tenant_id: int,
@@ -171,6 +162,8 @@ async def create_ticket_checkout(
     await expire_holds(session)
     # Khóa dòng sự kiện: đếm chỗ (vé + ghế đang giữ) không đua với lượt mua khác / quầy
     ev = await _event_by_code(session, tenant_id, event_code, for_update=True)
+    # Trước khi đếm chỗ: lượt quá hạn của chính SĐT này được đóng, ghế của nó không còn tính
+    await checkout_pending.raise_if_pending(session, ctx, customer.phone)
     remaining = ev.capacity - await _taken(session, tenant_id, ev)
     reason = _buy_block(ctx, ev, remaining)
     if reason is not None:
@@ -178,21 +171,13 @@ async def create_ticket_checkout(
         raise AppError(code, message, 409, remaining=max(remaining, 0))
     if seats > remaining:
         raise AppError("E-WEB-10", f"Sự kiện chỉ còn {remaining} chỗ.", 409, remaining=remaining)
-    pending = await session.scalar(
-        select(Checkout.id).where(
-            Checkout.tenant_id == tenant_id,
-            Checkout.customer_phone == customer.phone,
-            Checkout.status == "pending",
-        )
-    )
-    if pending is not None:
-        raise _pending_exists()
-
     order_code = await next_code(session, tenant_id, ctx.code_prefix, ev.play_date)
-    token = secrets.token_urlsafe(32)
+    checkout_id = uuid.uuid4()
+    token = checkout_token(checkout_id)
     expires_at = ctx.now + timedelta(minutes=hold_minutes)
     total = seats * ev.ticket_price
     checkout = Checkout(
+        id=checkout_id,
         tenant_id=tenant_id,
         kind="ticket",
         token_hash=token_hash(token),
@@ -225,7 +210,7 @@ async def create_ticket_checkout(
             await session.flush()
     except IntegrityError as e:
         if PENDING_PHONE_INDEX in str(e.orig):
-            raise _pending_exists() from None
+            raise await checkout_pending.pending_error(session, ctx, customer.phone) from None
         raise
 
     audit(

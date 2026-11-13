@@ -760,7 +760,7 @@ class CheckoutView(BaseModel):
     """Trạng thái lượt thanh toán (engine) – lớp gọi che SĐT và thêm thông tin ngân hàng."""
 
     kind: Literal["court", "ticket"] = "court"
-    status: Literal["pending", "paid", "expired"]
+    status: Literal["pending", "paid", "expired", "cancelled"]
     expires_at: dt.datetime
     server_now: dt.datetime
     amount: int
@@ -777,6 +777,24 @@ class CheckoutView(BaseModel):
 
 class CheckoutCreated(CheckoutView):
     token: str = Field(description="Chuỗi truy cập – chỉ trả ở lần tạo; DB chỉ lưu SHA-256")
+
+
+class PendingCheckout(BaseModel):
+    """Đơn online đang chờ thanh toán của một SĐT (chặn đặt mới E-WEB-4, thẻ "Chờ thanh toán")."""
+
+    order_code: str
+    kind: Literal["court", "ticket"]
+    title: str = Field(description="Tên các sân (nối dấu phẩy) hoặc tên sự kiện")
+    play_date: dt.date
+    start_time: str = Field(description="HH:MM – giờ bắt đầu sớm nhất")
+    end_time: str = Field(description="HH:MM – giờ kết thúc muộn nhất")
+    expires_at: dt.datetime
+    server_now: dt.datetime
+    amount: int
+    paid_amount: int = Field(description="> 0: đã ghi nhận một phần tiền – không hủy được")
+    pay_token: str | None = Field(
+        description="Token trang /thanh-toan/{token}; null với đơn tạo trước khi có tính năng này"
+    )
 
 
 class LookupPending(BaseModel):
@@ -912,7 +930,10 @@ class MemberSlot(PublicSlot):
     """Ô lịch hội viên: thêm đánh dấu của chính mình. Không có thông tin của người khác."""
 
     mine: bool = Field(default=False, description="Ô thuộc booking của chính hội viên")
-    order_code: str | None = Field(default=None, description="Mã đơn – chỉ khi ``mine``")
+    holding: bool = Field(
+        default=False, description="Ô đang giữ chỗ của chính hội viên (chờ thanh toán)"
+    )
+    order_code: str | None = Field(default=None, description="Mã đơn – khi mine / holding")
     has_ticket: bool = Field(default=False, description="Ô sự kiện mà hội viên đã có vé")
 
 

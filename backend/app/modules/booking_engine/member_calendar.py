@@ -4,7 +4,7 @@
 khai không bao giờ có mã đơn của người khác; ở đây chỉ thêm mã đơn cho ô của chính mình.
 """
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,9 +18,12 @@ from app.modules.booking_engine.dto import (
     MemberSlot,
 )
 from app.modules.booking_engine.models import (
+    Allocation,
     Booking,
     BookingOrder,
+    Checkout,
     EventSession,
+    Hold,
     Resource,
     Ticket,
 )
@@ -51,6 +54,27 @@ async def member_calendar(
         end = -(-ctx.minute_of(day, b.end_at) // 60)
         for h in range(start, end):
             mine[(resource_code, h)] = order_code
+    # Ô đang giữ của chính mình (lượt chờ thanh toán còn hạn) – chưa có booking
+    held: dict[tuple[str, int], str] = {}
+    hold_rows = await session.execute(
+        select(Allocation.time_range, Resource.code, Checkout.order_code)
+        .join(Hold, Hold.id == Allocation.hold_id)
+        .join(Checkout, Checkout.id == Hold.checkout_id)
+        .join(Resource, Resource.id == Allocation.resource_id)
+        .where(
+            Allocation.tenant_id == tenant_id,
+            Allocation.active.is_(True),
+            Checkout.play_date == day,
+            Checkout.status == "pending",
+            Checkout.expires_at > datetime.now(UTC),
+            Checkout.customer_ref.in_(refs),
+        )
+    )
+    for rng, resource_code, order_code in hold_rows:
+        start = ctx.minute_of(day, rng.lower) // 60
+        end = -(-ctx.minute_of(day, rng.upper) // 60)
+        for h in range(start, end):
+            held[(resource_code, h)] = order_code
     with_ticket = set(
         await session.scalars(
             select(EventSession.code)
@@ -73,6 +97,9 @@ async def member_calendar(
             if s.state == "booked" and (r.code, s.start_hour) in mine:
                 slot.mine = True
                 slot.order_code = mine[(r.code, s.start_hour)]
+            elif s.state == "booked" and (r.code, s.start_hour) in held:
+                slot.holding = True
+                slot.order_code = held[(r.code, s.start_hour)]
             if s.state == "event":
                 slot.has_ticket = s.event_code in with_ticket
             slots.append(slot)
