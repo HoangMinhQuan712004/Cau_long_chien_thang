@@ -15,6 +15,8 @@ export type Step1Parts = {
   /** Lưu ý quan trọng (vd đặt online tạm ngưng); null ⇒ không hiện. */
   alert: string | null;
   grid: React.ReactNode;
+  /** T-075: banner "lượt đang chờ thanh toán" – nằm TRONG thẻ lịch (trên lưới) để không bị thẻ trồi lên banner đè. */
+  pending?: React.ReactNode;
   notice: React.ReactNode;
   /** Thanh tóm tắt dính đáy; null khi chưa chọn ô. */
   bar: React.ReactNode;
@@ -55,6 +57,7 @@ export function Step1Layout(p: Step1Parts) {
             {p.legendItems}
           </ul>
         </div>
+        {p.pending ? <div className="px-4 pt-3 empty:hidden lg:px-4 lg:pt-4">{p.pending}</div> : null}
         {p.alert ? (
           <p role="status" className="px-4 py-3 text-sm text-danger lg:hidden">
             <b className="font-semibold">Lưu ý:</b> {p.alert}

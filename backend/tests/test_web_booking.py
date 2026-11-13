@@ -57,8 +57,22 @@ async def test_public_calendar_states_and_prices(anon, admin, staff):
         "taken": 0,
         "capacity": 8,
         "event_code": event_code,  # T-023: mở popup sự kiện / mua vé
+        "expires_at": None,
     }
-    assert slots[12]["state"] == "booked" and slots[12]["price"] is None
+    # Ô đang giữ (T-075): "held" + hạn thanh toán; không giá, không thông tin người giữ
+    assert slots[12] == {
+        "start_hour": 12,
+        "state": "held",
+        "expires_at": slots[12]["expires_at"],
+        "price": None,
+        "band": None,
+        "taken": None,
+        "capacity": None,
+        "event_code": None,
+    }
+    assert datetime.fromisoformat(slots[12]["expires_at"]) == datetime.fromisoformat(
+        held.json()["expires_at"]
+    )
     assert slots[13]["state"] == "free" and slots[13]["price"] > 0 and slots[13]["band"]
     # Không lộ tên / SĐT / mã của người khác; sân ngừng không hiện
     assert "Bí Mật" not in r.text and held.json()["order_code"] not in r.text
@@ -133,10 +147,15 @@ async def test_create_checkout_groups_ranges_and_prices(anon, admin, staff):
     assert timedelta(minutes=4, seconds=50) < expires - now <= timedelta(minutes=5)
     assert phone not in r.text
 
-    # Lịch khách: ô đã giữ -> Đỏ; lịch quầy: khối giữ chỗ (viền đứt) không tên
+    # Lịch khách: ô đang giữ -> "held" + hạn thanh toán (T-075), không tên / SĐT / mã đơn;
+    # lịch quầy: khối giữ chỗ (viền đứt) không tên
     cal = (await web_calendar(anon, day)).json()
     row = next(x for x in cal["resources"] if x["code"] == a["code"])
-    assert {s["start_hour"]: s["state"] for s in row["slots"]}[19] == "booked"
+    held = {s["start_hour"]: s for s in row["slots"]}
+    assert (held[19]["state"], held[20]["state"]) == ("held", "held")
+    assert held[19]["expires_at"] == held[20]["expires_at"]
+    assert datetime.fromisoformat(held[19]["expires_at"]) == expires
+    assert co["order_code"] not in str(row) and phone not in str(row)
     admin_cal = await calendar(staff, day)
     holds = [x for x in admin_cal["blocks"] if a["code"] in x["resource_codes"]]
     assert [(h["type"], h["start_hour"], h["end_hour"]) for h in holds] == [("hold", 19, 21)]

@@ -49,9 +49,11 @@ type Props = {
   serverErrors?: CustomerErrors;
   /** Chỉ cho chọn hội viên (không có Hồ sơ tạm), vd Thêm số đo kỷ lục. */
   memberOnly?: boolean;
+  /** Mã HV đã có vé trong sự kiện (T-071): hàng kết quả hiện nhãn "Đã có vé", vẫn chọn được. */
+  ticketedCodes?: ReadonlySet<string>;
 };
 
-export function CustomerPicker({ state, onChange, submitted, serverErrors, memberOnly }: Props) {
+export function CustomerPicker({ state, onChange, submitted, serverErrors, memberOnly, ticketedCodes }: Props) {
   const ids = { q: useId(), name: useId(), phone: useId(), note: useId() };
   const [hits, setHits] = useState<MemberHit[]>([]);
   const [searched, setSearched] = useState(false);
@@ -171,6 +173,7 @@ export function CustomerPicker({ state, onChange, submitted, serverErrors, membe
                         <td className="px-3 py-2">
                           {m.name}
                           {m.is_active ? null : <span className="ml-1.5 rounded bg-blk-bad px-1.5 text-xs text-blk-bad-fg">Ngừng</span>}
+                          {ticketedCodes?.has(m.member_code) ? <span className="ml-1.5 rounded-full bg-primary-softer px-2 py-0.5 text-xs font-medium text-primary">Đã có vé</span> : null}
                           <span className="block text-xs text-muted tabular-nums">{formatPhone(m.phone)}</span>
                         </td>
                         <td className="px-3 py-2">{m.tier ?? "—"}</td>

@@ -97,7 +97,7 @@ async def member_calendar(
             if s.state == "booked" and (r.code, s.start_hour) in mine:
                 slot.mine = True
                 slot.order_code = mine[(r.code, s.start_hour)]
-            elif s.state == "booked" and (r.code, s.start_hour) in held:
+            elif s.state == "held" and (r.code, s.start_hour) in held:
                 slot.holding = True
                 slot.order_code = held[(r.code, s.start_hour)]
             if s.state == "event":

@@ -29,6 +29,9 @@ import { PendingBar } from "./pending-bar";
 import { usePendingGate } from "./pending-dialogs";
 import { payHref, usePendingOrder } from "./pending-store";
 import { getWebCalendar, requestBookingPhone, sendCheckout } from "./requests";
+import { mmss } from "./pay-parts";
+import { PendingCheckoutBanner } from "./pending-banner";
+import { ownsCell, paymentPath, rememberCreated, usePending } from "./pending-checkout";
 import { MAX_CELLS, RESTORE_KEY, type Cell, type SlotExtra, type WebCalendar } from "./types";
 
 // /dat-san – bước 1: chọn khung giờ trên lưới (nhiều ô, nhiều sân, cùng 1 ngày, tối đa 16 ô); bước 2: nhập thông tin người đặt.
@@ -93,7 +96,8 @@ type Props = {
 
 export function WebBookingFlow({ initialDate, today, venue, texts, member, initialEvent = null }: Props) {
   const router = useRouter();
-  const pending = usePendingOrder();
+  // Đơn chờ theo kho thanh nhắc (pending-store) – dùng khi lịch hội viên báo ô `holding` từ server (đặt ở máy khác vẫn nhận ra)
+  const waiting = usePendingOrder();
   // Phiên đặt trong khu hội viên lưu riêng, không lẫn với /dat-san công khai
   const storageKey = member ? `${STORAGE_KEY}:member` : STORAGE_KEY;
   const [date, setDate] = useState(initialDate);
@@ -113,6 +117,8 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   const gate = usePendingGate(Boolean(member));
   const [loading, setLoading] = useState(false);
   const [pendingDate, setPendingDate] = useState<string | null>(null);
+  // Đồng hồ cho ô đang giữ chỗ (T-075): giờ máy lúc vẽ + lệch so với giờ server của lần tải lịch gần nhất
+  const [clock, setClock] = useState({ nowMs: 0, offset: 0 });
   // Thanh tổng dưới đáy: mở rộng để xem danh sách khối đã chọn (T-028 AC7)
   const [barOpen, setBarOpen] = useState(false);
   // Hội viên bấm ô "Sân của bạn" / "Sự kiện" (T-023): hộp thoại tương ứng; `opener` để trả focus về ô khi đóng
@@ -165,6 +171,8 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
       }
       const cal = res.data;
       setCalendar(cal);
+      const now = Date.now();
+      setClock({ nowMs: now, offset: Date.parse(cal.server_now) - now });
       setLoadError("");
 
       const freeSet = new Set<string>();
@@ -247,17 +255,66 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   const total = groups.reduce((s, g) => s + g.amount, 0);
   const totalHours = cells.length;
   const selected = useMemo(() => new Set(cells.map(cellKey)), [cells]);
+  // ---- T-075: ô "đang giữ chỗ" (lượt thanh toán online đang chờ) ----
+  const pending = usePending(Boolean(member));
+  // Hạn giữ chỗ của các ô held trên lịch đang xem (giờ server)
+  const heldExpiries = useMemo(() => {
+    const out: number[] = [];
+    for (const r of calendar?.resources ?? []) for (const s of r.slots) if (s.state === "held" && s.expires_at) out.push(Date.parse(s.expires_at));
+    return out;
+  }, [calendar]);
+  // Có ô held ⇒ đếm ngược mỗi giây (nowMs là giờ máy; + clock.offset = giờ server)
+  useEffect(() => {
+    if (!heldExpiries.length) return;
+    const id = setInterval(() => setClock((c) => ({ ...c, nowMs: Date.now() })), 1000);
+    return () => clearInterval(id);
+  }, [heldExpiries]);
+  // Hết hạn + ân hạn 60 giây ⇒ khung nhả hoặc thành đã đặt: tải lại lịch khoảng hạn + 65 giây (AC2)
+  useEffect(() => {
+    if (!heldExpiries.length) return;
+    const first = Math.min(...heldExpiries);
+    const wait = Math.max(5_000, first + 65_000 - (Date.now() + clock.offset));
+    const t = setTimeout(() => void load(dateRef.current, true), wait);
+    return () => clearTimeout(t);
+  }, [heldExpiries, clock.offset, load]);
+
   // Lưới dùng chung (T-025): dữ liệu lịch khách / hội viên → hàng + ô. Hội viên: ô của mình mở thông tin + hóa đơn, ô người khác chỉ báo đã có người đặt (T-023 AC1–AC3).
   const gridRows = useMemo<GridRow[]>(
     () =>
       (calendar?.resources ?? []).map((r) => {
         const byHour = new Map(r.slots.map((s) => [s.start_hour, s as (typeof r.slots)[number] & SlotExtra]));
         const out: Record<number, GridCell> = {};
+        const serverNow = clock.nowMs + clock.offset;
         for (const h of calendar?.columns ?? []) {
           const s = byHour.get(h);
           const key = `${r.code}|${h}`;
           if (!s || s.state === "closed") out[h] = { kind: "off" };
-          else if (s.state === "booked") {
+          else if (s.state === "held") {
+            // T-075 AC1/AC2/AC7: không chọn được; của mình ⇒ "Chờ bạn thanh toán" (bấm mở lại QR), người khác ⇒ "Đang giữ chỗ"
+            const left = s.expires_at ? Math.max(0, Math.ceil((Date.parse(s.expires_at) - serverNow) / 1000)) : 0;
+            const local = pending && ownsCell(pending, calendar?.date ?? date, r.code, h) ? paymentPath(pending) : null;
+            // Hội viên: server báo ô của mình (`holding`) dù trình duyệt này không lưu lượt
+            const fromServer = member && s.holding ? (waiting && waiting.code === s.order_code ? payHref(waiting) : "") : null;
+            const mineHref = local ?? fromServer;
+            out[h] =
+              mineHref != null
+              ? {
+                  kind: "block",
+                  key: `held|mine|${s.order_code ?? pending?.token ?? key}`,
+                  tone: "unpaid",
+                  lines: ["Chờ bạn thanh toán", left > 0 ? <b key="t" className="tabular-nums">{mmss(left)}</b> : "Đang xác nhận…"],
+                  aria: `lượt đặt của bạn đang chờ thanh toán${left > 0 ? `, còn ${mmss(left)}` : ""}, mở lại mã QR`,
+                  onClick: () => (mineHref ? router.push(mineHref) : toast("Bạn đang giữ chỗ này, hãy thanh toán để hoàn tất", undefined, "info")),
+                }
+              : {
+                  kind: "block",
+                  key: `held|${s.expires_at ?? key}`,
+                  tone: "hold",
+                  lines: left > 0 ? ["Đang giữ chỗ", <b key="t" className="tabular-nums">{mmss(left)}</b>] : ["Sắp mở lại"],
+                  aria: left > 0 ? `có người đang giữ chỗ, còn ${mmss(left)}` : "sắp mở lại",
+                  onClick: () => toast("Khung này đang có người giữ chỗ, sẽ mở lại nếu họ không thanh toán", undefined, "info"),
+                };
+          } else if (s.state === "booked") {
             const orderCode = s.order_code;
             out[h] =
               member && s.mine && orderCode
@@ -272,17 +329,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
                       setCellDialog({ kind: "mine", code: orderCode });
                     },
                   }
-                : member && s.holding && orderCode
-                  ? {
-                      // Ô đang giữ chỗ của chính mình (chưa trả): không phải "Đã đặt"; bấm ⇒ màn QR
-                      kind: "block",
-                      key: `hold|${orderCode}`,
-                      tone: "mine",
-                      lines: ["Chờ thanh toán"],
-                      aria: "bạn đang giữ chỗ, chờ thanh toán",
-                      onClick: () => (pending?.code === orderCode ? router.push(payHref(pending)) : toast("Bạn đang giữ chỗ này, hãy thanh toán để hoàn tất", undefined, "info")),
-                    }
-                  : { kind: "block", key: "booked", tone: "booked", lines: ["Đã đặt"], aria: "đã có người đặt", onClick: () => toast("Khung giờ này đã có người đặt", undefined, "info") };
+                : { kind: "block", key: "booked", tone: "booked", lines: ["Đã đặt"], aria: "đã có người đặt", onClick: () => toast("Khung giờ này đã có người đặt", undefined, "info") };
           } else if (s.state === "event") {
             const eventCode = s.event_code;
             out[h] = {
@@ -303,7 +350,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
         }
         return { code: r.code, name: r.name, cells: out };
       }),
-    [calendar, member, pending, router],
+    [calendar, member, clock, pending, waiting, date, router],
   );
   const onlineOff = calendar ? !calendar.online_enabled : false;
   const holdMinutes = calendar?.hold_minutes ?? 5;
@@ -442,6 +489,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
           return;
         }
         removeKey(storageKey);
+        rememberCreated(res.data, Boolean(member)); // T-075: quay lại trang QR được nếu lỡ thoát
         router.push(member ? `/hoi-vien/thanh-toan/${token}` : `/thanh-toan/${token}`);
         return;
       }
@@ -471,6 +519,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   if (step === 2 && calendar) {
     return (
       <div className="mx-auto w-full max-w-xl space-y-5">
+        <PendingCheckoutBanner member={Boolean(member)} />
         {/* Khu hội viên trên điện thoại: lùi về chọn giờ bằng nút quay lại trên app bar (người dùng 13/11) ⇒ ẩn nút này */}
         <button type="button" onClick={() => applyStep(1)} className={cn("text-sm text-muted hover:text-foreground", member && "max-lg:hidden")}>
           ← Quay lại chọn giờ
@@ -654,12 +703,14 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   return (
     <div className={cn("space-y-4", cells.length > 0 && "pb-24 sm:pb-0")}>
       <Step1Layout
+        pending={<PendingCheckoutBanner member={Boolean(member)} />}
         dayStrip={<DayStrip date={date} today={today} onPick={onDateInput} flat />}
         dateLabel={formatLongDate(date)}
         legendItems={
           <>
             <Legend swatch="border border-border-strong bg-surface" text="Trống" />
             <Legend swatch="bg-cell-booked" text="Đã đặt" />
+            <Legend swatch="border border-dashed border-blk-hold-fg bg-surface" text="Đang giữ chỗ" />
             {member ? <Legend swatch="bg-blk-mine" text="Sân của bạn" /> : null}
             <Legend swatch="bg-blk-session" text="Sự kiện" />
             <Legend swatch="bg-cell-off" text="Không bán / Quá giờ" />
