@@ -28,7 +28,7 @@ export const STATUS_TONE: Record<PaymentStatus, string> = {
 };
 
 export function StatusBadge({ status }: { status: PaymentStatus }) {
-  return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_TONE[status]}`}>{STATUS_LABEL[status]}</span>;
+  return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${STATUS_TONE[status]}`}>{STATUS_LABEL[status]}</span>;
 }
 
 export function Kv({ rows }: { rows: [string, ReactNode][] }) {
