@@ -113,7 +113,9 @@ class WebCheckoutItem(BaseModel):
 
 class CheckoutOut(BaseModel):
     kind: Literal["court", "ticket"] = Field(description="court: đặt sân · ticket: mua vé (T-023)")
-    status: Literal["pending", "paid", "expired"]
+    status: Literal["pending", "paid", "expired", "cancelled"] = Field(
+        description="cancelled: khách tự hủy giữ chỗ"
+    )
     expires_at: dt.datetime
     server_now: dt.datetime
     amount: int

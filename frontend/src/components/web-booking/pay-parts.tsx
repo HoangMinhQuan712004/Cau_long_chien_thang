@@ -61,13 +61,21 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 /** Khối QR + Ngân hàng / Số tài khoản / Chủ tài khoản / Số tiền / Nội dung CK. `dim` = hết giữ chỗ (QR mờ). */
-export function BankBox({ bank, amount, payRef, dim = false }: { bank: Bank; amount: number; payRef: string; dim?: boolean }) {
+/** `onQrReady`: ảnh QR đã hiện (hoặc lỗi tải) – màn thanh toán chỉ bắt đầu hiện đồng hồ từ lúc này. */
+export function BankBox({ bank, amount, payRef, dim = false, onQrReady }: { bank: Bank; amount: number; payRef: string; dim?: boolean; onQrReady?: () => void }) {
   return (
     <div className="flex flex-col gap-5 sm:flex-row">
       <div className={`mx-auto shrink-0 rounded-xl border border-border bg-white p-3 sm:mx-0 ${dim ? "opacity-30" : ""}`}>
         {/* QR do SePay vẽ; referrerPolicy chặn lộ đường dẫn trang (chứa token) sang tên miền ngoài. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={bank.qr_url} alt={`Mã QR chuyển khoản ${formatVnd(amount)} nội dung ${payRef}`} width={192} height={192} referrerPolicy="no-referrer" className="size-48" />
+        <img
+          ref={(el) => {
+            if (el?.complete) onQrReady?.(); // ảnh đã có sẵn trong bộ nhớ đệm ⇒ không có sự kiện load
+          }}
+          onLoad={onQrReady}
+          onError={onQrReady}
+          src={bank.qr_url}
+          alt={`Mã QR chuyển khoản ${formatVnd(amount)} nội dung ${payRef}`} width={192} height={192} referrerPolicy="no-referrer" className="size-48" />
       </div>
       <dl className="min-w-0 flex-1 space-y-2.5 text-sm">
         <Row label="Ngân hàng" value={bank.bank_name} />

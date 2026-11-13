@@ -2,32 +2,34 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { CourtGrid, type GridCell, type GridRow } from "@/components/court-grid/court-grid";
+import { CourtGrid } from "@/components/court-grid/court-grid";
 import { MyBookingModal } from "@/components/member-area/cell-dialogs";
+import { MEMBER_BACK_EVENT } from "@/components/member-area/member-shell";
 import { getMemberCalendar } from "@/components/member-area/cell-requests";
-import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import type { Dictionary } from "@/i18n/dictionaries";
 import { otpErrorText, otpResendAt } from "@/lib/api/auth";
 import { api } from "@/lib/api/client";
 import { errorText, write } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
-import { formatLongDate, formatVnd } from "@/lib/format";
+import { formatLongDate } from "@/lib/format";
 import { TIERS } from "@/app/admin/hoi-vien/_components/member-params";
 import type { SiteBranding } from "@/lib/api/server";
-import { phoneHref } from "@/lib/site";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
+import { BookingBar } from "./booking-bar";
+import { BookingConfirm, type OtpStep } from "./booking-confirm";
+import { LegendItems, tierOrderWrong } from "./booking-parts";
+import { cellKey, pad2, summarize } from "./booking-summary";
 import { DayStrip } from "./day-strip";
+import { useGridRows, type GridClock } from "./use-grid-rows";
 import { Step1Layout } from "./step1-layouts";
 import { EventDialog } from "./event-dialog";
-import { MemberHint } from "./member-hint";
-import { clearToken, readJson, removeKey, saveToken, savedToken, useVerifiedPhone, writeJson } from "./session-store";
+import { checkoutSeedKey, clearToken, readJson, removeKey, saveToken, savedToken, useVerifiedPhone, writeJson } from "./session-store";
 import { toast } from "@/lib/feedback";
-import { BookingPhoneOtp, type VerifiedAccount } from "./phone-otp";
+import type { VerifiedAccount } from "./phone-otp";
+import { HOLD_CANCELLED_EVENT, usePendingGate } from "./pending-dialogs";
 import { getWebCalendar, requestBookingPhone, sendCheckout } from "./requests";
-import { mmss } from "./pay-parts";
-import { PendingCheckoutBanner } from "./pending-banner";
-import { ownsCell, paymentPath, rememberCreated, usePending } from "./pending-checkout";
+import { ownsCell, readPending } from "./pending-checkout";
 import { MAX_CELLS, RESTORE_KEY, type Cell, type SlotExtra, type WebCalendar } from "./types";
 
 // /dat-san – bước 1: chọn khung giờ trên lưới (nhiều ô, nhiều sân, cùng 1 ngày, tối đa 16 ô); bước 2: nhập thông tin người đặt.
@@ -36,43 +38,9 @@ import { MAX_CELLS, RESTORE_KEY, type Cell, type SlotExtra, type WebCalendar } f
 const STORAGE_KEY = "wk-booking-v1";
 type Me = { full_name: string; phone: string | null; phone_verified: boolean };
 
-type Saved = { date: string; cells: Cell[]; name: string; phone: string; note: string; step: 1 | 2; minTier?: string; maxTier?: string };
+// Thông tin đã nhập trong tab (ô đã chọn / bước không lưu: mở màn luôn là lưới trống – người dùng 13/11)
+type Saved = { date: string; name: string; phone: string; note: string; minTier?: string; maxTier?: string };
 type Restore = { date: string; items: Cell[] };
-
-const cellKey = (c: Cell) => `${c.code}|${c.hour}`;
-const pad2 = (n: number) => String(n).padStart(2, "0");
-const range = (a: number, b: number) => `${pad2(a)}:00 – ${pad2(b)}:00`;
-
-type Group = { code: string; name: string; hours: number[]; ranges: string; amount: number };
-
-/** Gom ô đã chọn theo sân (đúng thứ tự sân trên lưới), nối giờ liền nhau: "17:00 – 18:00, 19:00 – 21:00". */
-function summarize(calendar: WebCalendar, cells: Cell[], price: Map<string, number>): Group[] {
-  const out: Group[] = [];
-  for (const r of calendar.resources) {
-    const hours = cells.filter((c) => c.code === r.code).map((c) => c.hour).sort((a, b) => a - b);
-    if (!hours.length) continue;
-    const parts: string[] = [];
-    let start = hours[0];
-    let prev = hours[0];
-    for (const h of hours.slice(1)) {
-      if (h === prev + 1) {
-        prev = h;
-        continue;
-      }
-      parts.push(range(start, prev + 1));
-      start = prev = h;
-    }
-    parts.push(range(start, prev + 1));
-    out.push({
-      code: r.code,
-      name: r.name,
-      hours,
-      ranges: parts.join(", "),
-      amount: hours.reduce((s, h) => s + (price.get(`${r.code}|${h}`) ?? 0), 0),
-    });
-  }
-  return out;
-}
 
 /** Đặt trong khu hội viên (T-018 AC4): họ tên + SĐT lấy từ hồ sơ, khóa; bỏ OTP; server nhận `as_member`. */
 export type MemberIdentity = { name: string; phone: string };
@@ -107,17 +75,17 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   const [banner, setBanner] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  // Còn đơn chờ thanh toán ⇒ không cho sang bước 2 / tạo đơn mới (hộp: Thanh toán ngay / Hủy giữ chỗ)
+  const gate = usePendingGate(Boolean(member));
   const [loading, setLoading] = useState(false);
   const [pendingDate, setPendingDate] = useState<string | null>(null);
   // Đồng hồ cho ô đang giữ chỗ (T-075): giờ máy lúc vẽ + lệch so với giờ server của lần tải lịch gần nhất
-  const [clock, setClock] = useState({ nowMs: 0, offset: 0 });
-  // Thanh tổng dưới đáy: mở rộng để xem danh sách khối đã chọn (T-028 AC7)
-  const [barOpen, setBarOpen] = useState(false);
+  const [clock, setClock] = useState<GridClock>({ nowMs: 0, offset: 0 });
   // Hội viên bấm ô "Sân của bạn" / "Sự kiện" (T-023): hộp thoại tương ứng; `opener` để trả focus về ô khi đóng
   const [cellDialog, setCellDialog] = useState<{ kind: "mine" | "event"; code: string } | null>(initialEvent ? { kind: "event", code: initialEvent } : null);
   const openerRef = useRef<HTMLElement | null>(null);
   // Bước nhập OTP (đang mở khi != null); khách đăng nhập đã xác minh SĐT thì bỏ qua (AC26)
-  const [otp, setOtp] = useState<{ phone: string; resendAt: number | null; testOtp: string | null } | null>(null);
+  const [otp, setOtp] = useState<OtpStep | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [isGuest, setIsGuest] = useState(false); // /auth/me trả 401 ⇒ chưa đăng nhập (hiện gợi ý hội viên)
   const verifiedPhone = useVerifiedPhone();
@@ -137,6 +105,18 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
     stepRef.current = next;
     setStep(next);
   }, []);
+
+  // Khu hội viên: đang ở bước 2 mà bấm nút quay lại trên app bar ⇒ lùi về chọn giờ, không rời màn Đặt sân
+  useEffect(() => {
+    if (!member) return;
+    const onBack = (e: Event) => {
+      if (stepRef.current !== 2) return;
+      e.preventDefault();
+      applyStep(1);
+    };
+    window.addEventListener(MEMBER_BACK_EVENT, onBack);
+    return () => window.removeEventListener(MEMBER_BACK_EVENT, onBack);
+  }, [member, applyStep]);
 
   /** Tải lịch; bỏ các ô đang chọn vừa bị người khác đặt (AC4); áp dụng "Đặt lại" ở lần tải đầu của ngày đó. */
   const load = useCallback(
@@ -174,7 +154,16 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
       }
 
       const cur = cellsRef.current;
-      const lost = cur.filter((c) => !freeSet.has(cellKey(c)));
+      // Ô đã chọn giờ là ô chính mình đang giữ (lượt chờ thanh toán) ⇒ bỏ lặng lẽ, không báo "có người đặt"
+      const mineHeld = new Set<string>();
+      const own = readPending(Boolean(member));
+      for (const r of cal.resources) {
+        for (const s of r.slots as ((typeof r.slots)[number] & SlotExtra)[]) {
+          if (s.state === "held" && (s.holding || ownsCell(own, cal.date, r.code, s.start_hour))) mineHeld.add(`${r.code}|${s.start_hour}`);
+        }
+      }
+      const lost = cur.filter((c) => !freeSet.has(cellKey(c)) && !mineHeld.has(cellKey(c)));
+      if (!lost.length && cur.some((c) => mineHeld.has(cellKey(c)))) applyCells(cur.filter((c) => freeSet.has(cellKey(c))));
       if (lost.length) {
         const nameOf = (code: string) => cal.resources.find((r) => r.code === code)?.name ?? code;
         const kept = cur.filter((c) => freeSet.has(cellKey(c)));
@@ -186,15 +175,22 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
     [applyCells, applyStep, member],
   );
 
-  // Lần đầu: khôi phục lựa chọn đã lưu trong tab (F5 không mất – AC9) rồi tải lịch.
+  // Trang được dựng lại / hiện lại từ bộ nhớ (effect chạy lại) ⇒ lưới chọn giờ mặc định: bước 1, chưa chọn ô nào (người dùng 13/11)
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- về lưới trống mỗi lần màn được hiện */
+    applyStep(1);
+    applyCells([]);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [applyStep, applyCells]);
+
+  // Lần đầu (và mỗi lần trang được hiện lại): khôi phục thông tin đã nhập trong tab (tên, SĐT, ghi chú, khoảng hạng) rồi tải lịch.
   useEffect(() => {
     const saved = readJson<Saved>(storageKey);
     if (saved && saved.date === initialDate) {
+      // Không khôi phục ô đã chọn / bước 2: mở màn là lưới trống (người dùng 13/11); chỉ giữ thông tin đã nhập
       /* eslint-disable react-hooks/set-state-in-effect -- khôi phục từ sessionStorage sau khi hydrate */
-      applyCells(saved.cells ?? []);
       setForm({ name: member?.name ?? saved.name ?? "", phone: member?.phone ?? saved.phone ?? "", note: saved.note ?? "" });
       if (member) setTiers({ min: TIERS.some((t) => t === saved.minTier) ? (saved.minTier ?? "") : "", max: TIERS.some((t) => t === saved.maxTier) ? (saved.maxTier ?? "") : "" });
-      if (saved.step === 2 && (saved.cells?.length ?? 0) > 0) applyStep(2);
       /* eslint-enable react-hooks/set-state-in-effect */
     }
     const restore = readJson<Restore>(RESTORE_KEY);
@@ -206,11 +202,22 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
     void load(initialDate);
   }, [initialDate, applyCells, applyStep, load, storageKey, member]);
 
-  // Lưu lựa chọn + thông tin đã nhập vào sessionStorage của tab.
+  // Lưu thông tin đã nhập vào sessionStorage của tab.
   useEffect(() => {
     if (!ready.current) return;
-    writeJson(storageKey, { date, cells, name: form.name, phone: form.phone, note: form.note, step, minTier: tiers.min, maxTier: tiers.max } satisfies Saved);
-  }, [date, cells, form, step, storageKey, tiers]);
+    writeJson(storageKey, { date, name: form.name, phone: form.phone, note: form.note, minTier: tiers.min, maxTier: tiers.max } satisfies Saved);
+  }, [date, form, storageKey, tiers]);
+
+  // Vừa hủy giữ chỗ (hộp chặn đơn mới / màn QR) ⇒ tải lại ngay: ô "Chờ bạn thanh toán" trống lại
+  useEffect(() => {
+    // Hủy trong hộp chặn đơn mới (kể cả lúc đang ở màn xác nhận) ⇒ về lưới chọn giờ, giữ các ô đang chọn, tải lại lịch
+    const onCancelled = () => {
+      applyStep(1);
+      void load(dateRef.current, true);
+    };
+    window.addEventListener(HOLD_CANCELLED_EVENT, onCancelled);
+    return () => window.removeEventListener(HOLD_CANCELLED_EVENT, onCancelled);
+  }, [load, applyStep]);
 
   // Tự tải lại mỗi 30 giây khi tab đang hiển thị, và ngay khi quay lại tab.
   useEffect(() => {
@@ -235,99 +242,13 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   const total = groups.reduce((s, g) => s + g.amount, 0);
   const totalHours = cells.length;
   const selected = useMemo(() => new Set(cells.map(cellKey)), [cells]);
-  // ---- T-075: ô "đang giữ chỗ" (lượt thanh toán online đang chờ) ----
-  const pending = usePending(Boolean(member));
-  // Hạn giữ chỗ của các ô held trên lịch đang xem (giờ server)
-  const heldExpiries = useMemo(() => {
-    const out: number[] = [];
-    for (const r of calendar?.resources ?? []) for (const s of r.slots) if (s.state === "held" && s.expires_at) out.push(Date.parse(s.expires_at));
-    return out;
-  }, [calendar]);
-  // Có ô held ⇒ đếm ngược mỗi giây (nowMs là giờ máy; + clock.offset = giờ server)
-  useEffect(() => {
-    if (!heldExpiries.length) return;
-    const id = setInterval(() => setClock((c) => ({ ...c, nowMs: Date.now() })), 1000);
-    return () => clearInterval(id);
-  }, [heldExpiries]);
-  // Hết hạn + ân hạn 60 giây ⇒ khung nhả hoặc thành đã đặt: tải lại lịch khoảng hạn + 65 giây (AC2)
-  useEffect(() => {
-    if (!heldExpiries.length) return;
-    const first = Math.min(...heldExpiries);
-    const wait = Math.max(5_000, first + 65_000 - (Date.now() + clock.offset));
-    const t = setTimeout(() => void load(dateRef.current, true), wait);
-    return () => clearTimeout(t);
-  }, [heldExpiries, clock.offset, load]);
-
-  // Lưới dùng chung (T-025): dữ liệu lịch khách / hội viên → hàng + ô. Hội viên: ô của mình mở thông tin + hóa đơn, ô người khác chỉ báo đã có người đặt (T-023 AC1–AC3).
-  const gridRows = useMemo<GridRow[]>(
-    () =>
-      (calendar?.resources ?? []).map((r) => {
-        const byHour = new Map(r.slots.map((s) => [s.start_hour, s as (typeof r.slots)[number] & SlotExtra]));
-        const out: Record<number, GridCell> = {};
-        const serverNow = clock.nowMs + clock.offset;
-        for (const h of calendar?.columns ?? []) {
-          const s = byHour.get(h);
-          const key = `${r.code}|${h}`;
-          if (!s || s.state === "closed") out[h] = { kind: "off" };
-          else if (s.state === "held") {
-            // T-075 AC1/AC2/AC7: không chọn được; của mình ⇒ "Chờ bạn thanh toán" (bấm mở lại QR), người khác ⇒ "Đang giữ chỗ"
-            const left = s.expires_at ? Math.max(0, Math.ceil((Date.parse(s.expires_at) - serverNow) / 1000)) : 0;
-            const mine = pending && ownsCell(pending, calendar?.date ?? date, r.code, h) ? pending : null;
-            out[h] = mine
-              ? {
-                  kind: "block",
-                  key: `held|mine|${mine.token}`,
-                  tone: "unpaid",
-                  lines: ["Chờ bạn thanh toán", left > 0 ? <b key="t" className="tabular-nums">{mmss(left)}</b> : "Đang xác nhận…"],
-                  aria: `lượt đặt của bạn đang chờ thanh toán${left > 0 ? `, còn ${mmss(left)}` : ""}, mở lại mã QR`,
-                  onClick: () => router.push(paymentPath(mine)),
-                }
-              : {
-                  kind: "block",
-                  key: `held|${s.expires_at ?? key}`,
-                  tone: "hold",
-                  lines: left > 0 ? ["Đang giữ chỗ", <b key="t" className="tabular-nums">{mmss(left)}</b>] : ["Sắp mở lại"],
-                  aria: left > 0 ? `có người đang giữ chỗ, còn ${mmss(left)}` : "sắp mở lại",
-                  onClick: () => toast("Khung này đang có người giữ chỗ, sẽ mở lại nếu họ không thanh toán", undefined, "info"),
-                };
-          } else if (s.state === "booked") {
-            const orderCode = s.order_code;
-            out[h] =
-              member && s.mine && orderCode
-                ? {
-                    kind: "block",
-                    key: `mine|${orderCode}`,
-                    tone: "mine",
-                    lines: ["Sân của bạn"],
-                    aria: "sân của bạn, xem chi tiết",
-                    onClick: (el) => {
-                      openerRef.current = el;
-                      setCellDialog({ kind: "mine", code: orderCode });
-                    },
-                  }
-                : { kind: "block", key: "booked", tone: "booked", lines: ["Đã đặt"], aria: "đã có người đặt", onClick: () => toast("Khung giờ này đã có người đặt", undefined, "info") };
-          } else if (s.state === "event") {
-            const eventCode = s.event_code;
-            out[h] = {
-              kind: "block",
-              key: `event|${eventCode ?? key}`,
-              tone: "session",
-              lines: [s.has_ticket ? "Có vé" : "Sự kiện", <b key="n" className="text-xs">{s.taken}/{s.capacity}</b>],
-              aria: `sự kiện ${s.taken ?? 0} trên ${s.capacity ?? 0} người${s.has_ticket ? ", bạn đã có vé" : ""}${eventCode ? ", xem chi tiết" : ""}`,
-              ring: Boolean(s.has_ticket),
-              onClick: eventCode
-                ? (el) => {
-                    openerRef.current = el;
-                    setCellDialog({ kind: "event", code: eventCode });
-                  }
-                : undefined,
-            };
-          } else out[h] = { kind: "free", price: s.price ?? null };
-        }
-        return { code: r.code, name: r.name, cells: out };
-      }),
-    [calendar, member, clock, pending, date, router],
-  );
+  // Mở hộp "Sân của bạn" / "Sự kiện"; `opener` để trả focus về ô khi đóng
+  const openCell = useCallback((kind: "mine" | "event", code: string, el: HTMLElement) => {
+    openerRef.current = el;
+    setCellDialog({ kind, code });
+  }, []);
+  const reloadQuiet = useCallback(() => void load(dateRef.current, true), [load]);
+  const gridRows = useGridRows({ calendar, date, member: Boolean(member), clock, setClock, reload: reloadQuiet, onOpen: openCell });
   const onlineOff = calendar ? !calendar.online_enabled : false;
   const holdMinutes = calendar?.hold_minutes ?? 5;
 
@@ -413,7 +334,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
     note: form.note.trim().length > 200 ? "Ghi chú tối đa 200 ký tự." : "",
   };
 
-  const tierOrderError = Boolean(member && tiers.min && tiers.max && TIERS.indexOf(tiers.min as (typeof TIERS)[number]) > TIERS.indexOf(tiers.max as (typeof TIERS)[number]));
+  const tierOrderError = Boolean(member) && tierOrderWrong(tiers.min, tiers.max);
 
   const skipOtp = Boolean(member) || Boolean(me?.phone_verified && me.phone && normalizePhone(me.phone) === phone);
 
@@ -465,7 +386,10 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
           return;
         }
         removeKey(storageKey);
-        rememberCreated(res.data, Boolean(member)); // T-075: quay lại trang QR được nếu lỡ thoát
+        // Không lưu lượt chờ ở đây: lưu là thẻ "Đang giữ chỗ" hiện ngay trên màn này trước khi sang QR (nháy) – màn QR tự lưu lần tải đầu
+        // Sang ngay màn thanh toán (người dùng 13/11), đưa sẵn đơn để màn đó hiện QR không phải tải lại; KHÔNG đổi gì trên màn này
+        // (đổi ngay sẽ nháy về lưới chọn giờ) – lúc quay lại màn này luôn mở ở lưới trống
+        writeJson(checkoutSeedKey(token), res.data);
         router.push(member ? `/hoi-vien/thanh-toan/${token}` : `/thanh-toan/${token}`);
         return;
       }
@@ -479,6 +403,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
         void load(dateRef.current, true);
         return;
       }
+      if (gate.fromError(e)) return;
       if (e.code === "E-WEB-5") void load(dateRef.current, true);
       if (e.code === "E-WEB-8") clearToken(); // token hết hạn / không khớp SĐT ⇒ xác minh lại ở lần bấm kế tiếp
       setBanner(errorText(e));
@@ -487,186 +412,48 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
     }
   }
 
-  const field = "w-full rounded-lg border bg-surface px-3 py-2.5 text-sm";
-  const showErr = (k: "name" | "phone" | "note") => (submitted || touched[k]) && errors[k];
+  const showErr = (k: "name" | "phone" | "note") => Boolean(submitted || touched[k]) && errors[k];
 
   // ================= Bước 2 =================
   if (step === 2 && calendar) {
     return (
-      <div className="mx-auto w-full max-w-xl space-y-5">
-        <PendingCheckoutBanner member={Boolean(member)} />
-        <button type="button" onClick={() => applyStep(1)} className="text-sm text-muted hover:text-foreground">
-          ← Quay lại chọn giờ
-        </button>
-        <div>
-          <h2 className="text-2xl font-bold">Xác nhận đặt sân</h2>
-          <p className="text-sm text-muted">Kiểm tra lại thông tin rồi thanh toán để giữ chỗ.</p>
-        </div>
-
-        <section className="rounded-xl bg-surface p-4 shadow-card sm:p-5" aria-labelledby="venue-title">
-          <h3 id="venue-title" className="text-sm font-bold text-primary">
-            Thông tin sân
-          </h3>
-          <p className="mt-2 font-semibold">{venue.name}</p>
-          <p className="text-sm text-muted">{venue.address}</p>
-          <a href={phoneHref(venue.phone)} className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline focus-ring">
-            {venue.phone}
-          </a>
-        </section>
-
-        <section className="rounded-xl bg-surface p-4 shadow-card sm:p-5" aria-labelledby="sum-title">
-          <h3 id="sum-title" className="text-sm font-bold text-primary">
-            Thông tin lịch đặt
-          </h3>
-          <dl className="mt-3 space-y-3 text-sm">
-            {groups.map((g) => (
-              <div key={g.code} className="grid grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1">
-                <dt className="text-muted">Sân</dt>
-                <dd className="font-medium">{g.name}</dd>
-                <dt className="text-muted">Khung giờ</dt>
-                <dd className="font-medium">{g.ranges} ({g.hours.length} giờ)</dd>
-                {groups.length > 1 ? (
-                  <>
-                    <dt className="text-muted">Tiền sân</dt>
-                    <dd className="font-medium tabular-nums">{formatVnd(g.amount)}</dd>
-                  </>
-                ) : null}
-              </div>
-            ))}
-            <div className="grid grid-cols-[6.5rem_1fr] gap-x-3 border-t border-border pt-3">
-              <dt className="text-muted">Ngày</dt>
-              <dd className="font-medium">{formatLongDate(date)}</dd>
-              <dt className="text-muted">Tổng giờ</dt>
-              <dd className="font-medium">{totalHours} giờ</dd>
-            </div>
-          </dl>
-          <div className="mt-4 flex items-baseline justify-between border-t border-border pt-3">
-            <span className="text-sm text-muted">Tổng tiền</span>
-            <span className="text-xl font-bold tabular-nums">{formatVnd(total)}</span>
-          </div>
-        </section>
-
-        {member ? <TierRangeBlock min={tiers.min} max={tiers.max} onChange={setTiers} /> : null}
-
-        {isGuest && !member ? <MemberHint next={`/dat-san?ngay=${date}`} /> : null}
-
-        <section className="rounded-xl bg-surface p-4 shadow-card sm:p-5">
-          <h3 className="text-sm font-bold text-primary">Khách hàng</h3>
-          <div className="mt-3 space-y-4">
-            <div>
-              <label htmlFor={ids.name} className="mb-1 block text-sm font-medium">
-                Họ tên <span className="text-danger">*</span>
-              </label>
-              <input
-                id={ids.name}
-                value={form.name}
-                maxLength={120}
-                readOnly={otp !== null || Boolean(member)}
-                autoComplete="name"
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                onBlur={() => setTouched((t) => ({ ...t, name: true }))}
-                aria-invalid={Boolean(showErr("name")) || undefined}
-                aria-describedby={showErr("name") ? `${ids.name}-err` : undefined}
-                className={`${field} ${showErr("name") ? "border-danger" : "border-border"}`}
-              />
-              {showErr("name") ? (
-                <p id={`${ids.name}-err`} role="alert" className="mt-1 text-xs text-danger">
-                  {errors.name}
-                </p>
-              ) : null}
-            </div>
-            <div>
-              <label htmlFor={ids.phone} className="mb-1 block text-sm font-medium">
-                Số điện thoại <span className="text-danger">*</span>
-              </label>
-              <input
-                id={ids.phone}
-                value={form.phone}
-                inputMode="tel"
-                autoComplete="tel"
-                maxLength={16}
-                readOnly={otp !== null || Boolean(member)}
-                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
-                aria-invalid={Boolean(showErr("phone")) || undefined}
-                aria-describedby={`${ids.phone}-hint`}
-                className={`${field} ${showErr("phone") ? "border-danger" : "border-border"}`}
-              />
-              {showErr("phone") ? (
-                <p role="alert" className="mt-1 text-xs text-danger">
-                  {errors.phone}
-                </p>
-              ) : null}
-              <p id={`${ids.phone}-hint`} className="mt-1 text-xs text-muted">
-                Dùng số này cùng mã booking để tra cứu.
-                {isValidPhone(phone) && (skipOtp || verifiedPhone === phone) ? <b className="ml-1 font-semibold text-primary">Số điện thoại đã xác minh.</b> : null}
-              </p>
-            </div>
-            <div>
-              <label htmlFor={ids.note} className="mb-1 block text-sm font-medium">
-                Ghi chú (không bắt buộc)
-              </label>
-              <textarea
-                id={ids.note}
-                value={form.note}
-                placeholder="Ví dụ: cần mượn vợt"
-                onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                onBlur={() => setTouched((t) => ({ ...t, note: true }))}
-                aria-invalid={Boolean(showErr("note")) || undefined}
-                className={`${field} min-h-20 ${showErr("note") ? "border-danger" : "border-border"}`}
-              />
-              {showErr("note") ? <p className="mt-1 text-xs text-danger">{errors.note}</p> : null}
-            </div>
-          </div>
-
-          {banner ? (
-            <p role="alert" className="mt-4 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
-              {banner}
-            </p>
-          ) : null}
-          {otp ? (
-            <BookingPhoneOtp
-              t={texts}
-              phone={otp.phone}
-              initialResendAt={otp.resendAt}
-              initialTestOtp={otp.testOtp}
-              onChangePhone={() => setOtp(null)}
-              onVerified={(token, expiresAt, accountVerified, account) => {
-                saveToken({ phone: otp.phone, token, expiresAt });
-                // BE đã đánh dấu SĐT của tài khoản là đã xác minh ⇒ lần đặt sau bỏ OTP (AC40)
-                if (accountVerified && me?.phone && normalizePhone(me.phone) === otp.phone) setMe({ ...me, phone_verified: true });
-                afterAccountVerified(account);
-                setOtp(null);
-                void submit(token); // đã xác minh: giữ chỗ + tạo thanh toán luôn
-              }}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={busy || onlineOff}
-              className="mt-5 h-12 w-full rounded-lg bg-cta px-4 text-sm font-bold tracking-wide text-cta-fg uppercase hover:bg-cta-hover focus-ring disabled:opacity-60"
-            >
-              {busy ? "Đang xử lý…" : skipOtp || (isValidPhone(phone) && verifiedPhone === phone) ? "Xác nhận & thanh toán" : "Gửi mã xác minh"}
-            </button>
-          )}
-          <p className="mt-2 text-center text-xs text-muted">Khung giờ được giữ {holdMinutes} phút để thanh toán, bắt đầu sau khi bạn xác minh số điện thoại.</p>
-          {onlineOff ? (
-            <p className="mt-2 text-center text-xs text-danger">Đặt online đang tạm ngưng. Vui lòng gọi hotline {venue.phone}.</p>
-          ) : null}
-        </section>
-
-        <section className="rounded-xl border border-accent/50 bg-accent-soft p-4 text-sm sm:p-5" aria-labelledby="note-title">
-          <h3 id="note-title" className="text-sm font-bold text-accent-fg">
-            Lưu ý
-          </h3>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground">
-            <li>Khung giờ được giữ {holdMinutes} phút để chuyển khoản; hết thời gian mà chưa nhận được tiền thì khung giờ được mở lại.</li>
-            <li>Đặt sân online không hủy và không hoàn tiền.</li>
-            <li>Vui lòng đến trước giờ chơi và báo mã booking tại quầy.</li>
-          </ul>
-        </section>
-      </div>
+      <BookingConfirm
+        venue={venue}
+        date={date}
+        groups={groups}
+        totalHours={totalHours}
+        total={total}
+        holdMinutes={holdMinutes}
+        member={Boolean(member)}
+        isGuest={isGuest}
+        tiers={tiers}
+        setTiers={setTiers}
+        form={form}
+        setForm={setForm}
+        onTouch={(k) => setTouched((t) => ({ ...t, [k]: true }))}
+        errorOf={showErr}
+        ids={ids}
+        otp={otp}
+        texts={texts}
+        phoneVerified={isValidPhone(phone) && (skipOtp || verifiedPhone === phone)}
+        readyToPay={skipOtp || (isValidPhone(phone) && verifiedPhone === phone)}
+        busy={busy}
+        onlineOff={onlineOff}
+        banner={banner}
+        onBack={() => applyStep(1)}
+        onSubmit={() => void submit()}
+        onChangePhone={() => setOtp(null)}
+        onVerified={(token, expiresAt, accountVerified, account) => {
+          if (!otp) return;
+          saveToken({ phone: otp.phone, token, expiresAt });
+          // BE đã đánh dấu SĐT của tài khoản là đã xác minh ⇒ lần đặt sau bỏ OTP (AC40)
+          if (accountVerified && me?.phone && normalizePhone(me.phone) === otp.phone) setMe({ ...me, phone_verified: true });
+          afterAccountVerified(account);
+          setOtp(null);
+          void submit(token); // đã xác minh: giữ chỗ + tạo thanh toán luôn
+        }}
+        dialog={gate.dialog}
+      />
     );
   }
 
@@ -676,20 +463,9 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   return (
     <div className={cn("space-y-4", cells.length > 0 && "pb-24 sm:pb-0")}>
       <Step1Layout
-        pending={<PendingCheckoutBanner member={Boolean(member)} />}
         dayStrip={<DayStrip date={date} today={today} onPick={onDateInput} flat />}
         dateLabel={formatLongDate(date)}
-        legendItems={
-          <>
-            <Legend swatch="border border-border-strong bg-surface" text="Trống" />
-            <Legend swatch="bg-cell-booked" text="Đã đặt" />
-            <Legend swatch="border border-dashed border-blk-hold-fg bg-surface" text="Đang giữ chỗ" />
-            {member ? <Legend swatch="bg-blk-mine" text="Sân của bạn" /> : null}
-            <Legend swatch="bg-blk-session" text="Sự kiện" />
-            <Legend swatch="bg-cell-off" text="Không bán / Quá giờ" />
-            <Legend swatch="border-2 border-sel-edge bg-sel" text="Đang chọn" />
-          </>
-        }
+        legendItems={<LegendItems member={Boolean(member)} />}
         alert={onlineOff ? `Đặt online đang tạm ngưng. Vui lòng gọi hotline ${venue.phone}.` : null}
         grid={
           <section aria-label="Lịch sân" className="space-y-3">
@@ -730,58 +506,10 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
         }
         bar={
           cells.length > 0 ? (
-              <section
-                data-bottom-bar
-                aria-label="Bạn đang chọn"
-                className="fixed inset-x-0 bottom-0 z-40 rounded-t-[20px] bg-appbar text-surface shadow-[0_-6px_24px_rgb(0_0_0/0.25)] sm:sticky sm:bottom-3 sm:rounded-2xl sm:shadow-lg"
-              >
-                {/* Điện thoại: thanh gọn (người dùng 03/11) – đệm, chữ và nút nhỏ hơn; từ sm giữ cỡ cũ */}
-                <div className="px-4 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:py-3">
-                  <button
-                    type="button"
-                    onClick={() => setBarOpen((o) => !o)}
-                    aria-expanded={barOpen}
-                    aria-controls="bar-list"
-                    className="mx-auto mb-0.5 flex h-5 w-full items-center justify-center rounded text-surface/80 hover:text-surface focus-ring sm:mb-1 sm:h-6"
-                  >
-                    <span className="sr-only">{barOpen ? "Thu gọn danh sách khung đã chọn" : "Xem danh sách khung đã chọn"}</span>
-                    <svg aria-hidden viewBox="0 0 20 20" className={cn("size-5 transition-transform motion-reduce:transition-none", barOpen && "rotate-180")} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="m5 12.5 5-5 5 5" />
-                    </svg>
-                  </button>
-                  {barOpen ? (
-                    <ul id="bar-list" className="mb-3 max-h-40 space-y-1 overflow-y-auto rounded-xl bg-surface/10 p-3 text-sm">
-                      {groups.map((g) => (
-                        <li key={g.code} className="flex items-baseline justify-between gap-3">
-                          <span className="min-w-0">
-                            <b>{g.name}</b>: {g.ranges}
-                          </span>
-                          <span className="shrink-0 tabular-nums">{formatVnd(g.amount)}</span>
-                        </li>
-                      ))}
-                      <li className="pt-1 text-xs text-surface/80">Khung giờ được giữ {holdMinutes} phút sau khi bạn bấm thanh toán.</li>
-                    </ul>
-                  ) : null}
-                  <div className="flex items-center gap-3">
-                    <div className="min-w-0 flex-1 leading-tight">
-                      <p className="text-[11px] text-surface/80 sm:text-xs">
-                        Tổng giờ: <b className="text-surface">{totalHours}</b>
-                      </p>
-                      <p className="text-base font-bold tabular-nums sm:text-lg">
-                        <span className="text-[11px] font-normal text-surface/80 sm:text-xs">Tổng tiền: </span>
-                        {formatVnd(total)}
-                      </p>
-                    </div>
-                    <Button variant="cta" onClick={() => applyStep(2)} disabled={onlineOff || !calendar} className="h-11 min-w-28 px-4 text-xs sm:h-12 sm:min-w-36 sm:px-6 sm:text-sm">
-                      Tiếp theo
-                    </Button>
-                  </div>
-                </div>
-              </section>
+            <BookingBar groups={groups} totalHours={totalHours} total={total} holdMinutes={holdMinutes} disabled={onlineOff || !calendar} onNext={() => !gate.check() && applyStep(2)} />
           ) : null
         }
       />
-
 
       {member ? <MyBookingModal orderCode={cellDialog?.kind === "mine" ? cellDialog.code : null} onClose={closeCellDialog} /> : null}
       <EventDialog
@@ -819,66 +547,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
       >
         <p className="text-sm">Đổi ngày sẽ bỏ các khung giờ bạn đã chọn. Tiếp tục?</p>
       </Modal>
+      {gate.dialog}
     </div>
-  );
-}
-
-function Legend({ swatch, text }: { swatch: string; text: string }) {
-  return (
-    <li className="inline-flex items-center gap-1.5">
-      <span aria-hidden className={`inline-block size-4 shrink-0 rounded-[5px] ${swatch}`} />
-      {text}
-    </li>
-  );
-}
-
-/** "Khoảng hạng của phòng" (T-031 AC1): hai ô Hạng từ / đến, mặc định không giới hạn, báo ngay khi sai thứ tự. */
-function TierRangeBlock({ min, max, onChange }: { min: string; max: string; onChange: (v: { min: string; max: string }) => void }) {
-  const idMin = useId();
-  const idMax = useId();
-  const wrong = Boolean(min && max && TIERS.indexOf(min as (typeof TIERS)[number]) > TIERS.indexOf(max as (typeof TIERS)[number]));
-  const sel = "h-11 w-full rounded-lg border bg-surface px-3 text-sm focus-ring";
-  return (
-    <section className="rounded-xl bg-surface p-4 shadow-card sm:p-5" aria-labelledby="tier-title">
-      <h3 id="tier-title" className="text-sm font-bold text-primary">
-        Khoảng hạng của phòng
-      </h3>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div>
-          <label htmlFor={idMin} className="mb-1 block text-sm font-medium">
-            Hạng từ
-          </label>
-          <select id={idMin} value={min} onChange={(e) => onChange({ min: e.target.value, max })} aria-invalid={wrong || undefined} aria-describedby="tier-note" className={`${sel} ${wrong ? "border-danger" : "border-border"}`}>
-            <option value="">Không giới hạn</option>
-            {TIERS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor={idMax} className="mb-1 block text-sm font-medium">
-            Hạng đến
-          </label>
-          <select id={idMax} value={max} onChange={(e) => onChange({ min, max: e.target.value })} aria-invalid={wrong || undefined} aria-describedby="tier-note" className={`${sel} ${wrong ? "border-danger" : "border-border"}`}>
-            <option value="">Không giới hạn</option>
-            {TIERS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      {wrong ? (
-        <p role="alert" className="mt-2 text-xs text-danger">
-          Hạng “từ” phải thấp hơn hoặc bằng hạng “đến”.
-        </p>
-      ) : null}
-      <p id="tier-note" className="mt-2 text-xs text-muted">
-        Chỉ hội viên trong khoảng này mới vào được phòng của bạn. Chỉ chọn được lúc đặt, không sửa sau.
-      </p>
-    </section>
   );
 }

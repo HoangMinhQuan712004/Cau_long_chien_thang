@@ -22,7 +22,7 @@ from app.core.privacy import mask_phone
 from app.core.ratelimit import rate_limit
 from app.modules.auth import api as auth
 from app.modules.booking_engine import api as engine
-from app.modules.booking_engine.dto import CheckoutCreate, CheckoutView, CustomerSnapshot
+from app.modules.booking_engine.dto import Actor, CheckoutCreate, CheckoutView, CustomerSnapshot
 from app.modules.members import api as members
 from app.modules.payments import api as payments
 from app.modules.play_rooms import api as rooms
@@ -199,7 +199,7 @@ async def _snapshot(session: AsyncSession, full_name: str, phone: str) -> Custom
     status_code=status.HTTP_201_CREATED,
     dependencies=[
         Depends(require_origin),
-        Depends(rate_limit("web.checkout", 6, window_s=600)),
+        Depends(rate_limit("web.checkout", 30, window_s=600)),
     ],
 )
 async def create_checkout(
@@ -280,7 +280,7 @@ async def event_detail(
     status_code=status.HTTP_201_CREATED,
     dependencies=[
         Depends(require_origin),
-        Depends(rate_limit("web.checkout", 6, window_s=600)),
+        Depends(rate_limit("web.checkout", 30, window_s=600)),
     ],
 )
 async def create_event_checkout(
@@ -373,6 +373,38 @@ async def phone_verify(
 async def get_checkout(token: Annotated[str, Path(max_length=100)], session: SessionDep):
     """Trạng thái lượt thanh toán (trang hỏi mỗi 3 giây). Token sai -> 404 ``E-WEB-6``."""
     return CheckoutOut(**await _checkout_out(session, await engine.get_checkout(session, token)))
+
+
+@router.post(
+    "/checkouts/{token}/cancel",
+    response_model=CheckoutOut,
+    dependencies=[
+        Depends(require_origin),
+        Depends(rate_limit("web.checkout_cancel", 40, window_s=600)),
+        Depends(no_store),
+    ],
+)
+async def cancel_checkout(
+    token: Annotated[str, Path(max_length=100)],
+    session: SessionDep,
+    member: auth.OptionalMember,
+):
+    """Hủy giữ chỗ (sân hoặc vé) khi chưa trả đồng nào: khung / ghế trả lại ngay. Gọi lại khi đã
+    hủy -> 200 như cũ. Lượt của hội viên: phải đăng nhập đúng hội viên đó.
+
+    Lỗi: 404 E-WEB-6 (token sai / không phải lượt của mình), 409 E-WEB-12 ``reason`` = paid (đã
+    thanh toán) / partially_paid (đã ghi nhận một phần tiền) / expired (đã hết hạn).
+    """
+    refs = await members.booking_refs_of(session, member.customer_id) if member else None
+    actor = (
+        Actor(type="customer", id=member.user_id, label="Hội viên hủy giữ chỗ")
+        if member
+        else Actor(type="web", label="Khách hủy giữ chỗ")
+    )
+    view = await engine.cancel_checkout(session, token, refs, actor)
+    out = CheckoutOut(**await _checkout_out(session, view))
+    await session.commit()
+    return out
 
 
 # ------------------------------------------------------------------ tra cứu (AC25–AC27)

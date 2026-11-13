@@ -5,6 +5,7 @@ constraint của ``allocation`` (giữ chỗ và booking dùng chung): ``23P01``
 """
 
 import secrets
+import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
@@ -15,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import SYSTEM_ACTOR, audit, audit_detail
 from app.core.errors import AppError
-from app.modules.booking_engine import counter_qr, ledger, outbox, ticket_online
+from app.modules.booking_engine import checkout_pending, counter_qr, ledger, outbox, ticket_online
 from app.modules.booking_engine.audit_fields import paid_changes
 from app.modules.booking_engine.booking_service import calendar, snapshot_values
 from app.modules.booking_engine.codes import next_code
@@ -23,6 +24,7 @@ from app.modules.booking_engine.common import (
     EXCLUSION_VIOLATION,
     Ctx,
     audit_actor,
+    checkout_token,
     context,
     sqlstate,
     token_hash,
@@ -114,7 +116,7 @@ async def public_calendar(session: AsyncSession, tenant_id: int, day: date) -> P
                         event_code=b.code,
                     )
                 elif b.type == "hold":
-                    # Giữ chỗ còn chiếm khung (gồm 60 giây ân hạn): chỉ hạn thanh toán, không tên /
+                    # Giữ chỗ còn chiếm khung (tới đúng hạn): chỉ hạn thanh toán, không tên /
                     # SĐT / mã đơn / token – ai giữ thì trình duyệt của họ tự nhận ra
                     slot = PublicSlot(start_hour=h, state="held", expires_at=b.expires_at)
                 else:  # booking mọi trạng thái
@@ -202,15 +204,6 @@ async def _validatedranges_of(
     ]
 
 
-def _pending_exists() -> AppError:
-    return _web_error(
-        "E-WEB-4",
-        "Số điện thoại này đang có lượt giữ chỗ chưa thanh toán. "
-        "Vui lòng thanh toán hoặc chờ hết hạn.",
-        409,
-    )
-
-
 async def create_checkout(
     session: AsyncSession,
     tenant_id: int,
@@ -227,24 +220,18 @@ async def create_checkout(
         priced.append((r, a, b, items))
 
     await expire_holds(session)
-    pending = await session.scalar(
-        select(Checkout.id).where(
-            Checkout.tenant_id == tenant_id,
-            Checkout.customer_phone == customer.phone,
-            Checkout.status == "pending",
-        )
-    )
-    if pending is not None:
-        raise _pending_exists()
+    await checkout_pending.raise_if_pending(session, ctx, customer.phone)
 
     await lock_live_resources(session, {r.id for r, _, _, _ in priced})
     # Một mã đơn cho cả lượt; mỗi dải (sân, giờ liền nhau) mang mã con -NN (ADR-010)
     order_code = await next_code(session, tenant_id, ctx.code_prefix, data.date)
     codes = [child_code(order_code, seq) for seq in range(1, len(priced) + 1)]
-    token = secrets.token_urlsafe(32)
+    checkout_id = uuid.uuid4()
+    token = checkout_token(checkout_id)
     expires_at = ctx.now + timedelta(minutes=hold_minutes)
     total = sum(i.price for _, _, _, items in priced for i in items)
     checkout = Checkout(
+        id=checkout_id,
         tenant_id=tenant_id,
         token_hash=token_hash(token),
         order_code=order_code,
@@ -303,7 +290,7 @@ async def create_checkout(
                 conflicts=conflicts,
             ) from None
         if PENDING_PHONE_INDEX in str(e.orig):
-            raise _pending_exists() from None
+            raise await checkout_pending.pending_error(session, ctx, customer.phone) from None
         raise
 
     audit(
@@ -497,7 +484,7 @@ async def _lookup_checkout(
 ) -> LookupResult:
     view = await checkout_view(session, ctx, checkout)
     pending = checkout.status == "pending"
-    status = "pending" if pending else "expired"
+    status = checkout.status if checkout.status in ("pending", "cancelled") else "expired"
     return LookupResult(
         order_code=checkout.order_code,
         status=status,

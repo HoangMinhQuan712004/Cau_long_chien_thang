@@ -28,7 +28,7 @@ export const RESTORE_KEY = "wk-restore-v1";
 export type PayStatus = "unpaid" | "paid" | "uncollectible" | "cancelled";
 export type MemberCalendar = S["MemberCalendarOut"];
 /** Trường riêng của ô lịch hội viên + `event_code` (lịch công khai cũng có) */
-export type SlotExtra = Partial<Pick<S["MemberSlot"], "mine" | "order_code" | "has_ticket" | "event_code">>;
+export type SlotExtra = Partial<Pick<S["MemberSlot"], "mine" | "holding" | "order_code" | "has_ticket" | "event_code">>;
 export type EventDetail = S["WebEventOut"];
 export type EventReason = NonNullable<EventDetail["reason"]>;
 export type EventCheckoutBody = S["EventCheckoutIn"];

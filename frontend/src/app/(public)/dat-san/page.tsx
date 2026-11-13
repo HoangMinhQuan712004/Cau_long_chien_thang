@@ -86,5 +86,7 @@ async function FlowLoader({ searchParams }: Pick<PageProps<"/dat-san">, "searchP
   // Không cho mở ngày đã qua (kể cả qua liên kết cũ / lưu trong tab).
   const initialDate = wanted < today ? today : wanted;
   const [{ phoneVerify }, venue] = await Promise.all([getDictionary(), getBranding()]);
-  return <WebBookingFlow initialDate={initialDate} today={today} venue={venue} texts={phoneVerify} initialEvent={initialEvent} />;
+  // `r` (màn QR quay về sau khi hủy / đặt lại) đổi ⇒ dựng lại màn từ đầu, không giữ màn "Xác nhận đặt sân" cũ trong bộ nhớ
+  const reset = typeof sp.r === "string" ? sp.r : undefined;
+  return <WebBookingFlow key={reset} initialDate={initialDate} today={today} venue={venue} texts={phoneVerify} initialEvent={initialEvent} />;
 }

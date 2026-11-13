@@ -277,10 +277,12 @@ async def test_online_disabled(anon, admin, monkeypatch):
 
 
 async def test_checkout_rate_limit(anon, admin):
-    court = await new_court(admin)
-    for h in range(8, 14):
-        assert (await checkout(anon, [(court["code"], h)])).status_code == 201
-    r = await checkout(anon, [(court["code"], 15)])
+    """30 lượt tạo / 10 phút / IP (người dùng 13/11: 6 quá chặt với khách chung wifi ở sân)."""
+    courts = [await new_court(admin) for _ in range(3)]
+    for c in courts:
+        for h in range(8, 18):
+            assert (await checkout(anon, [(c["code"], h)])).status_code == 201
+    r = await checkout(anon, [(courts[0]["code"], 19)])
     assert r.status_code == 429 and r.json()["detail"]["code"] == "E-SEC-5"
 
 

@@ -1673,6 +1673,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/member-area/pending-payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pending Payment
+         * @description Đơn online đang chờ thanh toán của hội viên (theo SĐT hồ sơ – cái chặn đặt mới E-WEB-4);
+         *     không có -> null. Thẻ "Chờ thanh toán" + thanh nhắc. Chưa là hội viên -> 403 E-HV-8.
+         */
+        get: operations["pending_payment_api_v1_member_area_pending_payment_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/member-area/rooms": {
         parameters: {
             query?: never;
@@ -2982,6 +3003,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/web/booking/checkouts/{token}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Checkout
+         * @description Hủy giữ chỗ (sân hoặc vé) khi chưa trả đồng nào: khung / ghế trả lại ngay. Gọi lại khi đã
+         *     hủy -> 200 như cũ. Lượt của hội viên: phải đăng nhập đúng hội viên đó.
+         *
+         *     Lỗi: 404 E-WEB-6 (token sai / không phải lượt của mình), 409 E-WEB-12 ``reason`` = paid (đã
+         *     thanh toán) / partially_paid (đã ghi nhận một phần tiền) / expired (đã hết hạn).
+         */
+        post: operations["cancel_checkout_api_v1_web_booking_checkouts__token__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/web/booking/lookup": {
         parameters: {
             query?: never;
@@ -3765,9 +3810,10 @@ export interface components {
             kind: "court" | "ticket";
             /**
              * Status
+             * @description cancelled: khách tự hủy giữ chỗ
              * @enum {string}
              */
-            status: "pending" | "paid" | "expired";
+            status: "pending" | "paid" | "expired" | "cancelled";
             /**
              * Expires At
              * Format: date-time
@@ -3904,9 +3950,10 @@ export interface components {
             kind: "court" | "ticket";
             /**
              * Status
+             * @description cancelled: khách tự hủy giữ chỗ
              * @enum {string}
              */
-            status: "pending" | "paid" | "expired";
+            status: "pending" | "paid" | "expired" | "cancelled";
             /**
              * Expires At
              * Format: date-time
@@ -5133,7 +5180,7 @@ export interface components {
             state: "free" | "booked" | "event" | "closed" | "held";
             /**
              * Expires At
-             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ (chưa cộng 60 giây ân hạn; quá hạn mà ô còn ``held`` = đang trong ân hạn, sắp mở lại)
+             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ – quá hạn là ô trống lại ngay
              */
             expires_at?: string | null;
             /** Price */
@@ -5156,8 +5203,14 @@ export interface components {
              */
             mine: boolean;
             /**
+             * Holding
+             * @description Ô đang giữ chỗ của chính hội viên (chờ thanh toán)
+             * @default false
+             */
+            holding: boolean;
+            /**
              * Order Code
-             * @description Mã đơn – chỉ khi ``mine``
+             * @description Mã đơn – khi mine / holding
              */
             order_code?: string | null;
             /**
@@ -6126,6 +6179,66 @@ export interface components {
             bookings: components["schemas"]["BookingSummary"];
             tickets: components["schemas"]["TicketSummary"];
         };
+        /**
+         * PendingCheckout
+         * @description Đơn online đang chờ thanh toán của một SĐT (chặn đặt mới E-WEB-4, thẻ "Chờ thanh toán").
+         */
+        PendingCheckout: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "court" | "ticket";
+            /**
+             * Title
+             * @description Tên các sân (nối dấu phẩy) hoặc tên sự kiện
+             */
+            title: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start Time
+             * @description HH:MM – giờ bắt đầu sớm nhất
+             */
+            start_time: string;
+            /**
+             * End Time
+             * @description HH:MM – giờ kết thúc muộn nhất
+             */
+            end_time: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /** Amount */
+            amount: number;
+            /**
+             * Paid Amount
+             * @description > 0: đã ghi nhận một phần tiền – không hủy được
+             */
+            paid_amount: number;
+            /**
+             * Pay Token
+             * @description Token trang /thanh-toan/{token}; null với đơn tạo trước khi có tính năng này
+             */
+            pay_token: string | null;
+            /**
+             * Slots
+             * @description Từng sân · giờ theo thứ tự mã con; vé sự kiện: rỗng
+             */
+            slots?: components["schemas"]["PendingSlot"][];
+        };
         /** PendingPersonOut */
         PendingPersonOut: {
             /**
@@ -6147,6 +6260,24 @@ export interface components {
              * @description Hạng của người xin / được mời (T-031); null = chưa xếp
              */
             tier: string | null;
+        };
+        /**
+         * PendingSlot
+         * @description Một dải giờ liền nhau trên một sân của đơn chờ (cùng ngày ``play_date`` của đơn).
+         */
+        PendingSlot: {
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Start Time
+             * @description HH:MM
+             */
+            start_time: string;
+            /**
+             * End Time
+             * @description HH:MM
+             */
+            end_time: string;
         };
         /** PeriodOut */
         PeriodOut: {
@@ -6612,7 +6743,7 @@ export interface components {
             state: "free" | "booked" | "event" | "closed" | "held";
             /**
              * Expires At
-             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ (chưa cộng 60 giây ân hạn; quá hạn mà ô còn ``held`` = đang trong ân hạn, sắp mở lại)
+             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ – quá hạn là ô trống lại ngay
              */
             expires_at?: string | null;
             /** Price */
@@ -11946,6 +12077,26 @@ export interface operations {
             };
         };
     };
+    pending_payment_api_v1_member_area_pending_payment_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingCheckout"] | null;
+                };
+            };
+        };
+    };
     list_rooms_api_v1_member_area_rooms_get: {
         parameters: {
             query?: {
@@ -14203,6 +14354,37 @@ export interface operations {
         };
     };
     get_checkout_api_v1_web_booking_checkouts__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_checkout_api_v1_web_booking_checkouts__token__cancel_post: {
         parameters: {
             query?: never;
             header?: never;

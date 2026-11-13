@@ -163,6 +163,23 @@
   --animate-beam-twinkle: beam-twinkle 1.4s ease-in-out infinite alternate;
   /* Viền đứt đoạn "chạy" quanh thẻ Tiếp theo khi đang diễn ra (áp lên <rect> SVG) */
   --animate-dash-run: dash-run 0.4s linear infinite;
+  /* Mũi tên "Thanh toán" giật nhẹ 2 nhịp sang phải rồi nghỉ (tích tắc) – thẻ đang giữ chỗ */
+  --animate-nudge-x: nudge-x 1.6s ease-in-out infinite;
+
+  @keyframes nudge-x {
+    0%,
+    40%,
+    100% {
+      transform: translateX(0);
+    }
+    10%,
+    30% {
+      transform: translateX(3px);
+    }
+    20% {
+      transform: translateX(0);
+    }
+  }
 
   @keyframes dash-run {
     to {
@@ -300,6 +317,20 @@
    (người dùng 03/11, sau khi thấy hai thanh chiếm gần nửa màn hình). */
 body:has([data-bottom-bar]) [data-member-nav] {
   display: none;
+}
+
+/* Thẻ nổi "Đang giữ chỗ" (điện thoại): màn đang có thanh hành động riêng ("Bạn đang chọn") thì ẩn – thanh đó tự hiện hàng
+   nhắc gọn ở mép trên (part="inline"); còn lại chừa đáy trang để thẻ không che nội dung cuối. Từ lg thẻ là dải dưới header. */
+body:has([data-bottom-bar]) [data-pending-float] {
+  display: none;
+}
+/* Khu hội viên tự chừa bằng khối đệm cuối trang (member-shell, cùng nền) ⇒ không đệm body (tránh dải nền xám dưới footer) */
+body:has([data-pending-float]):not(:has([data-bottom-bar])):not(:has([data-member-nav])) {
+  padding-bottom: 4.5rem;
+
+  @media (min-width: 64rem) {
+    padding-bottom: 0;
+  }
 }
 
 body {

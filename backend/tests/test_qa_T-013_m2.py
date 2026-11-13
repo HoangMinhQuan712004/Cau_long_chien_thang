@@ -894,7 +894,7 @@ async def test_ac26_checkout_requires_a_valid_phone_token(anon, admin):
     r = await anon.post(f"{WEB}/checkouts", json=body_for(code, phone), headers=idem())
     assert r.status_code == 403 and err(r)["code"] == "E-WEB-8", r.text
     assert err(r)["message"] == "Vui lòng xác minh số điện thoại trước khi thanh toán."
-    # sai / đảo ngược (giới hạn 6 lần tạo / 10 phút / IP đếm cả lần bị từ chối)
+    # sai / đảo ngược (giới hạn 30 lần tạo / 10 phút / IP đếm cả lần bị từ chối)
     for bad in ("x" * 43, tok_a[::-1]):
         r = await anon.post(
             f"{WEB}/checkouts", json=body_for(code, phone, phone_token=bad), headers=idem()

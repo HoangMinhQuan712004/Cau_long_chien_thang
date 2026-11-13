@@ -24,6 +24,8 @@ export type PendingCheckout = {
   client_at: number;
   items?: PendingItem[];
   event_code?: string;
+  /** "Sân 4 · 15:00–17:00" / "Vé Giải ABC × 2 · 18:00–20:00" – thẻ nhắc lấy từ server rồi ghi lại */
+  label?: string;
 };
 
 const keyOf = (member: boolean) => (member ? "ck-pending-member-v1" : "ck-pending-web-v1");

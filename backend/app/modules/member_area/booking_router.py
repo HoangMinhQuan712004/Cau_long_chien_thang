@@ -15,7 +15,7 @@ from app.core.db import SessionDep
 from app.core.ratelimit import rate_limit
 from app.modules.auth import api as auth
 from app.modules.booking_engine import api as engine
-from app.modules.booking_engine.dto import MemberCalendarResource, MemberOrder
+from app.modules.booking_engine.dto import MemberCalendarResource, MemberOrder, PendingCheckout
 from app.modules.members import api as members
 from app.modules.payments import api as payments
 
@@ -67,3 +67,17 @@ async def my_booking(
     (hóa đơn – khối đã thanh toán). Không có / của người khác -> 404 E-NOT-FOUND (AC4)."""
     refs = await members.booking_refs_of(session, member.customer_id)
     return await engine.member_order(session, refs, order_code)
+
+
+@router.get(
+    "/pending-payment",
+    response_model=PendingCheckout | None,
+    dependencies=[Depends(rate_limit("web.checkout_status", 120)), Depends(no_store)],
+)
+async def pending_payment(member: auth.CurrentMember, session: SessionDep):
+    """Đơn online đang chờ thanh toán của hội viên (theo SĐT hồ sơ – cái chặn đặt mới E-WEB-4);
+    không có -> null. Thẻ "Chờ thanh toán" + thanh nhắc. Chưa là hội viên -> 403 E-HV-8."""
+    profile = await members.get_self_profile(session, member.customer_id)
+    if profile is None:
+        raise members.not_member()
+    return await engine.pending_checkout(session, profile.phone)

@@ -12,9 +12,12 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config import settings
 from app.modules.booking_engine import (
     booking_service,
     cancel_service,
+    checkout_cancel,
+    checkout_pending,
     config_service,
     counter_qr,
     customer_history,
@@ -68,6 +71,7 @@ from app.modules.booking_engine.dto import (
     OrderUncollectibleIn,
     OrderUncollectibleOut,
     PaidItem,
+    PendingCheckout,
     PriceTable,
     PriceTableUpdate,
     PublicCalendar,
@@ -602,6 +606,28 @@ async def get_checkout(
     return await online_service.get_checkout(session, _tid(tenant_id), token)
 
 
+async def cancel_checkout(
+    session: AsyncSession,
+    token: str,
+    member_refs: list[str] | None,
+    actor: Actor,
+    *,
+    tenant_id: int | None = None,
+) -> CheckoutView:
+    """Khách / hội viên tự hủy giữ chỗ (chưa trả đồng nào); gọi lại -> cùng kết quả. Không
+    commit. 404 E-WEB-6 (token sai / lượt của hội viên khác), 409 E-WEB-12 (``reason``)."""
+    return await checkout_cancel.cancel_checkout(
+        session, _tid(tenant_id), token, member_refs, actor
+    )
+
+
+async def pending_checkout(
+    session: AsyncSession, phone: str, *, tenant_id: int | None = None
+) -> PendingCheckout | None:
+    """Đơn online đang chờ thanh toán của SĐT (cái đang chặn đặt mới E-WEB-4) hoặc None."""
+    return await checkout_pending.pending_for_phone(session, _tid(tenant_id), phone)
+
+
 async def count_pending_checkouts(session: AsyncSession, *, tenant_id: int | None = None) -> int:
     """Số lượt đặt online đang chờ thanh toán."""
     return await online_service.count_pending_checkouts(session, _tid(tenant_id))
@@ -703,8 +729,9 @@ async def publish_outbox(session_factory: async_sessionmaker[AsyncSession]) -> i
 
 
 async def expire_holds(session: AsyncSession) -> int:
-    """Worker gọi mỗi 30 giây (không commit): giữ chỗ quá hạn -> ``expired``, trả khung."""
-    return await holds.expire_holds(session)
+    """Worker gọi mỗi 30 giây (không commit): giữ chỗ quá hạn -> ``expired``, trả khung; lượt
+    thanh toán chờ thêm ân hạn nhận tiền trễ (khung thì đã mở từ ``expires_at``)."""
+    return await holds.expire_holds(session, settings.ONLINE_HOLD_GRACE_SECONDS)
 
 
 async def rename_customer(

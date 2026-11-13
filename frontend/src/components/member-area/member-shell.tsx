@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 import { formatLongDate, vnDate, vnMinutes } from "@/lib/format";
 import type { SiteBranding } from "@/lib/api/server";
 import { Avatar } from "./avatar";
+import { PendingCheckoutBanner } from "@/components/web-booking/pending-banner";
 import { DesktopHeader } from "./desktop-header";
 import { NotificationBell } from "./notification-bell";
 import { maskPhone, type MemberMe } from "./types";
@@ -39,6 +40,9 @@ export function useMember(): Ctx {
 }
 
 export const HOME_HREF = "/hoi-vien";
+
+/** Nút quay lại trên app bar điện thoại phát sự kiện này (huỷ được) trước khi rời màn. */
+export const MEMBER_BACK_EVENT = "member:back";
 
 type NavItem = { href: string; label: string; exact?: boolean; also?: string };
 
@@ -115,15 +119,18 @@ export function MemberShell({ initial, branding, footer, children }: { initial: 
   }, []);
 
   const value = useMemo<Ctx>(() => ({ me, setMe, setDirty, leave }), [me, setDirty, leave]);
+  const home = usePathname() === HOME_HREF;
 
   return (
     <MemberCtx.Provider value={value}>
       <MemberHeader branding={branding} />
       <main className="flex-1">{children}</main>
       {/* Footer chung của web (server component, layout truyền vào) */}
-      {footer}
+      {/* Điện thoại / tablet: footer chỉ ở Tổng quan (người dùng 13/11); máy tính: mọi màn */}
+      <div className={cn(!home && "max-lg:hidden")}>{footer}</div>
       {/* Chừa chỗ cho thanh điều hướng dưới (điện thoại) sau footer – cùng nền xanh footer; màn có thanh hành động riêng chừa cao hơn */}
-      <div aria-hidden className="h-24 bg-appbar lg:hidden [body:has([data-bottom-bar])_&]:h-32" />
+      <div aria-hidden className={cn("h-24 lg:hidden [body:has([data-bottom-bar])_&]:h-32 [body:has([data-pending-float])_&]:h-40", home && "bg-appbar")} />
+      <PendingCheckoutBanner part="float" aboveNav />
       <BottomNav />
       <Modal
         open={asking}
@@ -210,6 +217,8 @@ function MemberHeader({ branding }: { branding: Pick<SiteBranding, "name" | "log
             <AccountMenu onDark />
           </>
         }
+        // Bản dải máy tính chỉ hiển thị, bản nổi điện thoại (cạnh BottomNav) hỏi server
+        below={<PendingCheckoutBanner part="strip" sync={false} />}
       />
     </>
   );
@@ -249,7 +258,11 @@ function MobileBar() {
       <div className="grid h-14 grid-cols-[3rem_1fr_3rem] items-center px-1">
         <Link
           href={screen?.back ?? HOME_HREF}
-          onClick={go(screen?.back ?? HOME_HREF)}
+          onClick={(e) => {
+            // Màn đang có bước con (vd Đặt sân bước 2) chặn sự kiện này để lùi về bước trước thay vì rời màn
+            if (!window.dispatchEvent(new Event(MEMBER_BACK_EVENT, { cancelable: true }))) return e.preventDefault();
+            go(screen?.back ?? HOME_HREF)(e);
+          }}
           aria-label="Quay lại"
           className="grid size-11 place-items-center rounded-full hover:bg-surface/15 focus-ring"
         >
