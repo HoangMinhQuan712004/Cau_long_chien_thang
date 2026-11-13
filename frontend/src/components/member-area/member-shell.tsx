@@ -14,6 +14,7 @@ import { Avatar } from "./avatar";
 import { DesktopHeader } from "./desktop-header";
 import { NotificationBell } from "./notification-bell";
 import { maskPhone, type MemberMe } from "./types";
+import { clearPending } from "@/components/web-booking/pending-checkout";
 
 // Khung khu hội viên (T-016 AC5, AC6, AC15; T-028 AC1–AC3; T-032 AC1–AC3):
 // · từ lg: header ngang 4 mục + dropdown tài khoản (Hồ sơ, Đặt sân, Lịch sử chơi, Lịch sử thanh toán, Đăng xuất);
@@ -169,6 +170,7 @@ function useGo() {
 
 async function logout() {
   await api.POST("/api/v1/auth/logout").catch(() => {});
+  clearPending(true); // T-075 AC9: quên lượt đang chờ thanh toán của khu hội viên
   window.location.replace("/");
 }
 

@@ -297,7 +297,10 @@ async def test_ac2_slot_states_free_booked_event_closed(anon, admin, sepay):
     c = await court(admin, open_time="06:00", close_time="22:00")
     co = await make_checkout(anon, slots(c["code"], 9))
     cal = (await calendar(anon)).json()
-    assert state_of(cal, c["code"], 9)["state"] == "booked", "a held slot looks booked to others"
+    # T-075: ô đang giữ chỗ hiện "held" (không còn "booked") kèm hạn thanh toán, không lộ danh tính
+    held = state_of(cal, c["code"], 9)
+    assert held["state"] == "held" and held["expires_at"], "a held slot is shown as held to others"
+    assert held["price"] is None and held["event_code"] is None
     assert state_of(cal, c["code"], 5)["state"] == "closed", "before opening -> grey"
     assert state_of(cal, c["code"], 22) is None or state_of(cal, c["code"], 22)["state"] == "closed"
     assert state_of(cal, c["code"], 12)["state"] == "free"
@@ -667,7 +670,10 @@ async def test_ac14_grace_period_then_expiry(anon, admin, sepay):
     await age_checkout(co["pay_ref"], 5 * 60 + 20)  # past expires_at but within the 60 s grace
     await run_expiry()
     assert (await get_checkout(anon, co["token"]))["status"] == "pending"
-    assert state_of((await calendar(anon)).json(), c["code"], 10)["state"] == "booked"
+    # Trong ân hạn khung vẫn bị giữ: hiện "held" (T-075), hạn thanh toán đã qua
+    in_grace = state_of((await calendar(anon)).json(), c["code"], 10)
+    assert in_grace["state"] == "held"
+    assert datetime.fromisoformat(in_grace["expires_at"]) < datetime.now().astimezone()
     await age_checkout(co["pay_ref"], 60)  # now beyond the grace
     await run_expiry()
     got = await get_checkout(anon, co["token"])

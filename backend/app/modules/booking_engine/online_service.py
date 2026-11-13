@@ -83,6 +83,9 @@ def _past_day() -> AppError:
 # ------------------------------------------------------------------ lịch cho khách (AC1–AC2)
 
 
+_RANK = {"held": 1, "booked": 2, "event": 3}
+
+
 async def public_calendar(session: AsyncSession, tenant_id: int, day: date) -> PublicCalendar:
     ctx = await context(session, tenant_id)
     if day < ctx.today:
@@ -97,20 +100,28 @@ async def public_calendar(session: AsyncSession, tenant_id: int, day: date) -> P
     schedules = await schedules_of(session, tenant_id, [r.id for r in resources.values()])
     prices = await prices_for_day(session, tenant_id, day)
 
+    # Trùng ô: sự kiện > booking > giữ chỗ (T-075) – không phụ thuộc thứ tự khối
     occupied: dict[tuple[str, int], PublicSlot] = {}
     for b in cal.blocks:
         for code in b.resource_codes:
             for h in range(b.start_hour, b.end_hour):
                 if b.type == "session":
-                    occupied[(code, h)] = PublicSlot(
+                    slot = PublicSlot(
                         start_hour=h,
                         state="event",
                         taken=b.taken,
                         capacity=b.capacity,
                         event_code=b.code,
                     )
-                else:  # booking mọi trạng thái + giữ chỗ của người khác
-                    occupied.setdefault((code, h), PublicSlot(start_hour=h, state="booked"))
+                elif b.type == "hold":
+                    # Giữ chỗ còn chiếm khung (gồm 60 giây ân hạn): chỉ hạn thanh toán, không tên /
+                    # SĐT / mã đơn / token – ai giữ thì trình duyệt của họ tự nhận ra
+                    slot = PublicSlot(start_hour=h, state="held", expires_at=b.expires_at)
+                else:  # booking mọi trạng thái
+                    slot = PublicSlot(start_hour=h, state="booked")
+                current = occupied.get((code, h))
+                if current is None or _RANK[slot.state] > _RANK[current.state]:
+                    occupied[(code, h)] = slot
 
     out: list[PublicCalendarResource] = []
     for cr in cal.resources:

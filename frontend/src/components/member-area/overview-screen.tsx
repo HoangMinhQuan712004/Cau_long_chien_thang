@@ -16,6 +16,7 @@ import { OverviewBanner, type StatItem } from "./overview-banner";
 import { RankPanel } from "./overview-rank";
 import { RecordCards } from "./overview-records";
 import { OpenRooms } from "./overview-rooms";
+import { PendingCheckoutBanner } from "@/components/web-booking/pending-banner";
 
 // /hoi-vien – Tổng quan v2 (T-036): banner + 3 thẻ số, Tiếp theo, Phòng đang trống, Sự kiện, Hạng của tôi + Top 3,
 // Kỷ lục mới (mỗi khối một file overview-*.tsx).
@@ -100,6 +101,8 @@ export function OverviewScreen() {
 
       {/* Chỉ bỏ khung lồng khung: mỗi đơn vị nội dung (lịch + phòng trống, hạng, từng sự kiện, từng kỷ lục) một thẻ */}
       <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
+        {/* T-075 AC9: lượt đặt online đang chờ thanh toán của khu hội viên ⇒ quay lại trang QR */}
+        <PendingCheckoutBanner member className="mb-4" />
         {failed && !data ? (
           <div role="alert" className="rounded-card bg-surface p-8 text-center shadow-card">
             <p className="font-semibold">Không tải được tổng quan. Vui lòng thử lại.</p>
