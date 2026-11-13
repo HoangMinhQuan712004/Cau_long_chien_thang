@@ -13,7 +13,7 @@ export async function SiteHeader() {
   const { name, phone, logo_url: logoUrl } = await getBranding();
   // pt safe-area: app cài trên iPhone vẽ dưới thanh trạng thái (black-translucent) ⇒ chừa tai thỏ, vùng đó mang màu header
   return (
-    <header className="sticky top-0 z-(--z-header) border-b border-surface/10 bg-appbar pt-[env(safe-area-inset-top)] text-surface">
+    <header data-site-header className="sticky top-0 z-(--z-header) border-b border-surface/10 bg-appbar pt-[env(safe-area-inset-top)] text-surface">
       <div className="flex h-14 w-full items-center gap-3 px-4 sm:h-16 sm:gap-6 sm:px-6">
         {/* /dat-san là trang chính (ADR-012): trỏ thẳng, không qua chuyển hướng "/" */}
         <Link href="/dat-san" className="flex min-w-0 items-center gap-2 font-bold focus-ring">
