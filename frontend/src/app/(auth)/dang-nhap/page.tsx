@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getDictionary } from "@/i18n/dictionaries";
 import { getAdminSession, readCurrentUser } from "@/lib/api/server";
-import { destination, safeNext } from "@/lib/safe-next";
+import { destination, memberHome, safeNext } from "@/lib/safe-next";
 import { AuthCard, AuthFormSkeleton } from "../_components/auth-card";
 import { LoginForm } from "./_components/login-form";
 
@@ -52,7 +52,9 @@ async function RedirectIfSignedIn({ searchParams }: Pick<PageProps<"/dang-nhap">
   const { user } = await readCurrentUser();
   if (user) {
     const isMember = (user as { is_member?: boolean }).is_member === true;
-    redirect(next ? destination("member", next) : isMember ? "/hoi-vien" : "/");
+    const target = next ? destination("member", next) : "";
+    // Hội viên không quay về trang đặt sân công khai mà vào khu hội viên
+    redirect(isMember ? memberHome(target) : target || "/");
   }
   return null;
 }

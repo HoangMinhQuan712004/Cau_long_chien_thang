@@ -10,10 +10,10 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import type { Dictionary } from "@/i18n/dictionaries";
-import { googleSignIn, otpErrorText, otpResendAt, registerRequest, registerVerify } from "@/lib/api/auth";
+import { googleSignIn, memberDestination, otpErrorText, otpResendAt, registerRequest, registerVerify } from "@/lib/api/auth";
 import { toast } from "@/lib/feedback";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
-import { destination, safeNext } from "@/lib/safe-next";
+import { destination, memberHome, safeNext } from "@/lib/safe-next";
 import { EMPTY_OTP, OtpForm } from "./otp-form";
 import { isPasswordValid, PASSWORD_MAX, PasswordRules, type PasswordRulesTexts } from "./password-rules";
 import { TestOtpNotice } from "./test-otp-notice";
@@ -88,8 +88,8 @@ export function AuthForm({
         `Chào mừng ${name}, bạn đã là hội viên ${result.member_code}`,
         result.upgraded_from_temp ? "Lịch sử đặt sân trước đây của bạn đã được giữ lại." : undefined,
       );
-      // Hội viên mới vào khu hội viên (hoặc ?next an toàn, không vào khu quản trị)
-      router.replace(destination("member", nextParam, "/hoi-vien"));
+      // Hội viên mới vào khu hội viên (hoặc ?next an toàn, không vào khu quản trị; trang đặt sân công khai ⇒ khu hội viên)
+      router.replace(memberHome(destination("member", nextParam, "/hoi-vien")));
       router.refresh();
       return;
     }
@@ -108,7 +108,8 @@ export function AuthForm({
     setError(null);
     const result = await googleSignIn(credential);
     if (result.ok) {
-      router.replace(destination("member", nextParam));
+      // Tài khoản Google đã liên kết hội viên ⇒ khu hội viên thay cho trang đặt sân công khai
+      router.replace(await memberDestination(nextParam));
       router.refresh();
       return;
     }

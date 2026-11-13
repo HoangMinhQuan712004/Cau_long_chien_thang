@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { LocalBusinessJsonLd } from "@/components/local-business-json-ld";
@@ -8,7 +10,8 @@ import { WebBookingFlow } from "@/components/web-booking/booking-flow";
 import { BOOKING_BANNER_SLOT } from "@/components/web-booking/types";
 import { getDictionary } from "@/i18n/dictionaries";
 import { todayVn } from "@/lib/format";
-import { getBranding } from "@/lib/api/server";
+import { getBranding, getCurrentUser } from "@/lib/api/server";
+import { memberHome } from "@/lib/safe-next";
 import { siteDescription } from "@/lib/site";
 
 // Trang chính của web (người dùng 04/11): "/" chuyển vĩnh viễn (308) tới đây, nên trang mang SEO của trang chủ cũ:
@@ -27,6 +30,9 @@ export default async function BookingPage({ searchParams }: PageProps<"/dat-san"
   const info = await getBranding();
   return (
     <div>
+      <Suspense fallback={null}>
+        <MemberRedirect searchParams={searchParams} />
+      </Suspense>
       <Suspense fallback={null}>
         <WithPublicPrices>{(data) => <LocalBusinessJsonLd data={data} info={info} />}</WithPublicPrices>
       </Suspense>
@@ -54,6 +60,19 @@ export default async function BookingPage({ searchParams }: PageProps<"/dat-san"
       </Suspense>
     </div>
   );
+}
+
+/** Hội viên đã đăng nhập không dùng trang công khai (người dùng 13/11) ⇒ vào khu hội viên, giữ ngày / booking. */
+async function MemberRedirect({ searchParams }: Pick<PageProps<"/dat-san">, "searchParams">) {
+  // Đọc cookie lúc chạy (trong <Suspense>) ⇒ vỏ trang vẫn prerender cho khách / SEO; không có phiên thì không gọi backend
+  const jar = await cookies();
+  if (jar.has("admin_session") || !jar.has("access_token")) return null;
+  const user = await getCurrentUser();
+  if (user?.must_change_password) redirect("/doi-mat-khau");
+  if ((user as { is_member?: boolean } | null)?.is_member !== true) return null;
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(await searchParams)) if (typeof value === "string") query.set(key, value);
+  redirect(memberHome(query.size ? `/dat-san?${query}` : "/dat-san"));
 }
 
 async function FlowLoader({ searchParams }: Pick<PageProps<"/dat-san">, "searchParams">) {
