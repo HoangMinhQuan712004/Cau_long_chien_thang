@@ -287,9 +287,10 @@ def _payment_checks() -> tuple[CheckConstraint, ...]:
 class Checkout(_CustomerSnapshot, Base):
     """Một lần khách bấm "Xác nhận & thanh toán" (ADR-007): giữ chỗ 5 phút, chung một QR.
 
-    ``pending -> paid | expired``. ``court``: mỗi dải giờ liền nhau trên một sân = một ``hold``
-    mang sẵn mã booking + giá; tiền về đủ -> mỗi hold thành một booking cùng mã. ``ticket`` (T-023):
-    một hold ``seat`` (``seats`` = số vé) trong một sự kiện; tiền về đủ -> ``seats`` vé.
+    ``pending -> paid | expired | cancelled`` (cancelled: khách tự hủy khi chưa trả đồng nào).
+    ``court``: mỗi dải giờ liền nhau trên một sân = một ``hold`` mang sẵn mã booking + giá; tiền
+    về đủ -> mỗi hold thành một booking cùng mã. ``ticket`` (T-023): một hold ``seat`` (``seats``
+    = số vé) trong một sự kiện; tiền về đủ -> ``seats`` vé.
     Token truy cập chỉ lưu SHA-256.
     """
 
@@ -297,7 +298,7 @@ class Checkout(_CustomerSnapshot, Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "pay_ref"),
         UniqueConstraint("tenant_id", "order_code", name="uq_checkout_tenant_id_order_code"),
-        CheckConstraint("status IN ('pending', 'paid', 'expired')", name="status"),
+        CheckConstraint("status IN ('pending', 'paid', 'expired', 'cancelled')", name="status"),
         CheckConstraint("kind IN ('court', 'ticket')", name="kind"),
         CheckConstraint("amount >= 0 AND paid_amount >= 0", name="amounts"),
         CheckConstraint("customer_kind IN ('member', 'temp')", name="customer_kind"),
@@ -342,7 +343,7 @@ class Hold(Base):
 
     ``court``: giữ khung sân (có allocation ``kind='hold'``); hold của checkout mang mã booking,
     giá, bảng giá chi tiết. ``seat``: giữ ``seats`` chỗ trong sự kiện (không allocation); hold seat
-    của checkout vé (T-023) mang mã đơn + tổng tiền chốt.
+    của checkout vé (T-023) mang mã đơn + tổng tiền chốt. ``released``: khách hủy giữ chỗ.
     """
 
     __tablename__ = "hold"
