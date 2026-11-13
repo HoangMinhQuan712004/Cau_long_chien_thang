@@ -471,7 +471,7 @@ function TicketDialog({
         <p className="text-sm text-muted">Đã đủ số chỗ còn trống. Bỏ bớt người để thêm người khác.</p>
       ) : (
         <div className="space-y-2">
-          <CustomerPicker key={pickerKey} state={customer} onChange={onPick} submitted={addTried} />
+          <CustomerPicker key={pickerKey} state={customer} onChange={onPick} submitted={addTried} ticketedCodes={ticketed} />
           {customer.mode === "temp" ? (
             <button type="button" onClick={() => add(customer)} disabled={busy} className={btnCls}>
               Thêm vào danh sách
