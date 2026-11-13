@@ -538,18 +538,19 @@ async def test_ac22_phone_token_of_another_phone_is_rejected_and_nothing_is_held
 
 
 async def test_ac22_rate_limit_is_shared_with_court_checkout(admin, anon):
+    # Ngưỡng 30 lượt / 10 phút / IP (người dùng 13/11), đếm chung đặt sân + mua vé
     ev = await mk_event(admin, capacity=50)
-    court = await new_court(admin)
+    courts = [await new_court(admin) for _ in range(2)]
+    slots = [(c["code"], h) for c in courts for h in range(8, 16)]
     statuses = []
-    for i in range(8):
+    for i in range(32):
         if i % 2:
             r = await buy(anon, ev["code"], 1)
         else:
-            r = await checkout(anon, [(court["code"], 5 + i)])
+            r = await checkout(anon, [slots[i // 2]])
         statuses.append((r.status_code, code_of(r) if r.status_code >= 400 else None))
-    assert statuses[:6] == [(201, None)] * 6 and all(s == (429, "E-SEC-5") for s in statuses[6:]), (
-        statuses
-    )
+    assert statuses[:30] == [(201, None)] * 30, statuses
+    assert all(s == (429, "E-SEC-5") for s in statuses[30:]), statuses
 
 
 @pytest.fixture

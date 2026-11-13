@@ -582,14 +582,13 @@ async def test_ac13_phone_freed_after_expiry(anon, admin, sepay):
     assert again.status_code == 201, again.text
 
 
-async def test_ac13_sec6_ip_rate_limit_six_per_ten_minutes(anon, admin, sepay):
-    c = await court(admin)
-    codes = []
-    for h in range(7):
-        r = await checkout(anon, slots(c["code"], h))
-        codes.append(r.status_code)
-    assert codes[:6] == [201] * 6, codes
-    err(await checkout(anon, slots(c["code"], 7)), 429, "E-SEC-5")
+async def test_ac13_sec6_ip_rate_limit_thirty_per_ten_minutes(anon, admin, sepay):
+    """Ngưỡng 30 lượt / 10 phút / IP (người dùng 13/11: 6 quá chặt với khách chung wifi ở sân)."""
+    a, b = await court(admin), await court(admin)  # sân mở 00–24 ⇒ 24 + 6 khung
+    pool = [(a["code"], h) for h in range(24)] + [(b["code"], h) for h in range(6)]
+    codes = [(await checkout(anon, slots(code, h))).status_code for code, h in pool]
+    assert codes == [201] * 30, codes
+    err(await checkout(anon, slots(b["code"], 7)), 429, "E-SEC-5")
 
 
 async def test_idempotent_checkout_replay_creates_one(anon, admin, sepay):
@@ -670,10 +669,8 @@ async def test_ac14_grace_period_then_expiry(anon, admin, sepay):
     await age_checkout(co["pay_ref"], 5 * 60 + 20)  # past expires_at but within the 60 s grace
     await run_expiry()
     assert (await get_checkout(anon, co["token"]))["status"] == "pending"
-    # Trong ân hạn khung vẫn bị giữ: hiện "held" (T-075), hạn thanh toán đã qua
-    in_grace = state_of((await calendar(anon)).json(), c["code"], 10)
-    assert in_grace["state"] == "held"
-    assert datetime.fromisoformat(in_grace["expires_at"]) < datetime.now().astimezone()
+    # Quá hạn là khung mở lại ngay (người dùng 13/11); lượt chờ tiền trễ tới hết ân hạn
+    assert state_of((await calendar(anon)).json(), c["code"], 10)["state"] == "free"
     await age_checkout(co["pay_ref"], 60)  # now beyond the grace
     await run_expiry()
     got = await get_checkout(anon, co["token"])

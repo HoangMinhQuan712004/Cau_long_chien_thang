@@ -199,7 +199,7 @@ async def _snapshot(session: AsyncSession, full_name: str, phone: str) -> Custom
     status_code=status.HTTP_201_CREATED,
     dependencies=[
         Depends(require_origin),
-        Depends(rate_limit("web.checkout", 6, window_s=600)),
+        Depends(rate_limit("web.checkout", 30, window_s=600)),
     ],
 )
 async def create_checkout(
@@ -280,7 +280,7 @@ async def event_detail(
     status_code=status.HTTP_201_CREATED,
     dependencies=[
         Depends(require_origin),
-        Depends(rate_limit("web.checkout", 6, window_s=600)),
+        Depends(rate_limit("web.checkout", 30, window_s=600)),
     ],
 )
 async def create_event_checkout(
@@ -380,7 +380,7 @@ async def get_checkout(token: Annotated[str, Path(max_length=100)], session: Ses
     response_model=CheckoutOut,
     dependencies=[
         Depends(require_origin),
-        Depends(rate_limit("web.checkout_cancel", 20, window_s=600)),
+        Depends(rate_limit("web.checkout_cancel", 40, window_s=600)),
         Depends(no_store),
     ],
 )
