@@ -27,7 +27,9 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     formatDetection: { telephone: false },
     // iPhone: "Thêm vào màn hình chính" ⇒ mở toàn màn hình như app, icon riêng (PWA – manifest ở app/manifest.ts)
-    appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "default" },
+    // black-translucent: trang vẽ dưới thanh trạng thái ⇒ thanh trạng thái mang màu header xanh, chữ trắng (header chừa
+    // env(safe-area-inset-top)); "default" luôn là thanh trắng, iOS không theo theme-color khi mở như app
+    appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "black-translucent" },
     // Có logo ⇒ favicon theo logo (URL có ?v= đổi theo ảnh); chưa có ⇒ app/favicon.ico mặc định
     icons: { ...(favicon ? { icon: favicon } : {}), apple: "/pwa-icon/180" },
   };
@@ -35,7 +37,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export const viewport: Viewport = {
   viewportFit: "cover",
-  themeColor: "#1a7354",
+  // Thanh trạng thái điện thoại (Android / trình duyệt) = xanh header #234839 (người dùng 13/11); trùng THEME ở app/manifest.ts
+  themeColor: "#234839",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

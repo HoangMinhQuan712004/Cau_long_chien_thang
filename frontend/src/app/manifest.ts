@@ -7,7 +7,9 @@ import { APP_NAME } from "@/lib/site";
 // APP_NAME; mô tả theo tên web ở Cài đặt › Thông tin web.
 // Không cần service worker để cài được (không cache dữ liệu đăng nhập).
 
-const PRIMARY = "#1a7354"; // = --primary (manifest chỉ nhận mã màu)
+// Manifest chỉ nhận mã màu: xanh header ≈ --appbar (người dùng 13/11, trùng themeColor ở app/layout.tsx). Android tô cả thanh
+// trạng thái lẫn thanh điều hướng bằng một màu này (không tách được bằng web) ⇒ màn chờ mở app cũng cùng màu
+const THEME = "#234839";
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const { name } = await getBranding();
@@ -21,8 +23,8 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: PRIMARY,
-    theme_color: PRIMARY,
+    background_color: THEME,
+    theme_color: THEME,
     icons: [
       { src: "/pwa-icon/192", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/pwa-icon/512", sizes: "512x512", type: "image/png", purpose: "any" },
