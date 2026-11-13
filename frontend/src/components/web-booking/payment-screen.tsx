@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { formatLongDate, formatVnd } from "@/lib/format";
+import { LeaveGuard } from "./leave-guard";
 import { BankBox, CopyButton, mmss, useCountdown } from "./pay-parts";
+import { clearPending, rememberCreated } from "./pending-checkout";
 import { getCheckout } from "./requests";
 import { RoomLinks } from "./room-links";
 import { RESTORE_KEY, type Checkout, type TicketInfo } from "./types";
@@ -38,10 +40,14 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
       if (res.ok) {
         setOffline(false);
         setCheckout(res.data);
+        // T-075: nhớ lượt đang chờ (kể cả khi mở thẳng link) để quay lại được; xong (paid / expired) thì quên
+        if (res.data.status === "pending") rememberCreated({ ...res.data, token }, member);
+        else clearPending(member, token);
         if (res.data.status === "pending") next(); // còn chờ tiền → hỏi tiếp; paid/expired là kết quả cuối → dừng
         return;
       }
       if (res.error.status === 404 || res.error.code === "E-WEB-6") {
+        clearPending(member, token);
         setNotFound(true);
         return;
       }
@@ -54,7 +60,7 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
       stop = true;
       if (timer) clearTimeout(timer);
     };
-  }, [token]);
+  }, [token, member]);
 
   const left = useCountdown(checkout?.expires_at ?? null, checkout?.server_now ?? null);
 
@@ -102,9 +108,18 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
 
   return (
     <Card wide banner={<PayBanner title={ticket ? "Thanh toán vé sự kiện" : "Thanh toán chuyển khoản"} left={left} expired={view === "expired"} />}>
-      {checkout.bank ? (
+      {/* T-075 AC11: còn chờ + còn giờ ⇒ hỏi trước khi rời trang (không chặn cứng) */}
+      <LeaveGuard active={view === "pending" && (left ?? 0) > 0} leftText={left == null ? "" : mmss(left)} />
+      {/* T-075 AC10: mã đơn ngay đầu trang để khách ghi lại (tra cứu từ máy khác) */}
+      <p className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-muted">Mã booking</span>
+        <b className="text-base">{checkout.order_code}</b>
+        <CopyButton text={checkout.order_code} label={`mã booking ${checkout.order_code}`} />
+      </p>
+      {/* T-075 AC13: hết giờ ⇒ ẩn hẳn QR, số tài khoản và nội dung chuyển khoản (không chỉ làm mờ) */}
+      {checkout.bank && view === "pending" ? (
         <div className="mt-5">
-          <BankBox bank={checkout.bank} amount={checkout.amount} payRef={checkout.pay_ref} dim={view === "expired"} />
+          <BankBox bank={checkout.bank} amount={checkout.amount} payRef={checkout.pay_ref} />
         </div>
       ) : null}
 
@@ -118,7 +133,7 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
           <p role="alert" className="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">
             Đã hết thời gian giữ chỗ nhưng chưa nhận được tiền. {ticket ? "Chỗ đã được nhả lại cho người khác." : "Khung giờ đã được mở lại cho người khác đặt."}
           </p>
-          <p className="text-sm text-muted">Nếu bạn đã chuyển khoản, vui lòng gọi hotline {hotline} kèm mã booking để được hỗ trợ.</p>
+          <p className="text-sm text-muted">Nếu bạn đã chuyển khoản, vui lòng liên hệ {hotline} kèm mã booking để được hỗ trợ.</p>
           <button type="button" onClick={rebook} className="h-12 rounded-lg px-6 text-sm bg-cta font-bold tracking-wide text-cta-fg uppercase hover:bg-cta-hover">
             {ticket ? "Về lịch đặt sân" : "Đặt lại"}
           </button>
