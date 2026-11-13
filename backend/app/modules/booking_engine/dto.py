@@ -684,7 +684,15 @@ class PublicPrices(BaseModel):
 
 class PublicSlot(BaseModel):
     start_hour: int
-    state: Literal["free", "booked", "event", "closed"]
+    state: Literal["free", "booked", "event", "closed", "held"] = Field(
+        description="held (T-075): đang có người giữ chỗ chờ thanh toán – không chọn được, mở lại "
+        "nếu họ không thanh toán"
+    )
+    expires_at: dt.datetime | None = Field(
+        default=None,
+        description="Chỉ khi ``held``: hạn thanh toán của lượt giữ (chưa cộng 60 giây ân hạn; "
+        "quá hạn mà ô còn ``held`` = đang trong ân hạn, sắp mở lại)",
+    )
     price: int | None = None
     band: Literal["offpeak", "partial", "peak"] | None = None
     taken: int | None = None

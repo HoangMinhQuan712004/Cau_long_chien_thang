@@ -5127,9 +5127,15 @@ export interface components {
             start_hour: number;
             /**
              * State
+             * @description held (T-075): đang có người giữ chỗ chờ thanh toán – không chọn được, mở lại nếu họ không thanh toán
              * @enum {string}
              */
-            state: "free" | "booked" | "event" | "closed";
+            state: "free" | "booked" | "event" | "closed" | "held";
+            /**
+             * Expires At
+             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ (chưa cộng 60 giây ân hạn; quá hạn mà ô còn ``held`` = đang trong ân hạn, sắp mở lại)
+             */
+            expires_at?: string | null;
             /** Price */
             price?: number | null;
             /** Band */
@@ -6600,9 +6606,15 @@ export interface components {
             start_hour: number;
             /**
              * State
+             * @description held (T-075): đang có người giữ chỗ chờ thanh toán – không chọn được, mở lại nếu họ không thanh toán
              * @enum {string}
              */
-            state: "free" | "booked" | "event" | "closed";
+            state: "free" | "booked" | "event" | "closed" | "held";
+            /**
+             * Expires At
+             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ (chưa cộng 60 giây ân hạn; quá hạn mà ô còn ``held`` = đang trong ân hạn, sắp mở lại)
+             */
+            expires_at?: string | null;
             /** Price */
             price?: number | null;
             /** Band */
