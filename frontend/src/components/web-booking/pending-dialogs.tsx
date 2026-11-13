@@ -3,17 +3,74 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 import { Modal } from "@/components/ui/modal";
 import { type ApiError, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
 import { formatLongDate } from "@/lib/format";
-import { usePendingLeft } from "./pending-bar";
-import { clearPending, payHref, pendingFromApi, pendingLabel, type PendingCheckout, type PendingOrder, readPending, savePending, secondsLeft } from "./pending-store";
+import { clearPending as forgetCheckout } from "./pending-checkout";
+import { clearPending, payHref, pendingFromApi, type PendingCheckout, type PendingOrder, readPending, savePending, secondsLeft } from "./pending-store";
 import { sendCancelCheckout } from "./requests";
 
-// Hộp thoại của luồng đơn chờ thanh toán: xác nhận hủy giữ chỗ, chặn đặt đơn mới khi còn đơn chờ, hỏi trước khi rời màn QR.
+// Hộp thoại của luồng đơn chờ thanh toán: xác nhận hủy giữ chỗ, chặn đặt đơn mới khi còn đơn chờ.
 
-const LINK_CTA = "inline-flex h-11 items-center justify-center rounded-lg bg-cta px-4 text-sm font-bold text-cta-fg hover:bg-cta-hover focus-ring";
+/** Giây còn giữ chỗ của đơn, cập nhật mỗi giây. */
+function useSecondsLeft(p: PendingOrder): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return secondsLeft(p, now);
+}
+
+/** Phát sau khi hủy giữ chỗ thành công ⇒ màn Đặt sân (kể cả đang giữ ẩn) tải lại lịch để ô "Chờ bạn thanh toán" mất ngay. */
+export const HOLD_CANCELLED_EVENT = "wk:hold-cancelled";
+
+const LINK_CTA = "inline-flex h-11 sm:h-10.5 items-center justify-center rounded-lg bg-cta px-4 text-ui font-bold text-cta-fg hover:bg-cta-hover focus-ring";
+
+/** Mã đơn · ngày · từng sân + khung giờ (đơn nhiều sân tách dòng) – dùng chung hộp chặn đơn mới và hộp hủy giữ chỗ. */
+function OrderRows({ order, left }: { order: PendingOrder; left?: string }) {
+  const ticket = order.title.startsWith("Vé ");
+  const slots = order.slots ?? [];
+  return (
+    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+      <dt className="text-muted">Mã đơn</dt>
+      <dd className="font-semibold">{order.code}</dd>
+      <dt className="text-muted">Ngày</dt>
+      <dd className="font-medium">{formatLongDate(order.date)}</dd>
+      {/* Đơn nhiều sân: mỗi sân một dòng kèm khung giờ riêng */}
+      <dt className="text-muted">{ticket ? "Vé" : "Sân"}</dt>
+      <dd>
+        {slots.length ? (
+          <ul className="space-y-1">
+            {slots.map((x) => (
+              <li key={`${x.name}|${x.start}`}>
+                <span className="font-medium">{x.name}</span>{" "}
+                <span className="whitespace-nowrap tabular-nums">
+                  <span className="text-muted">·</span> <b className="font-semibold">{x.start}–{x.end}</b>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <>
+            <span className="font-medium">{ticket ? order.title.slice(3) : order.title}</span>{" "}
+            <span className="whitespace-nowrap tabular-nums">
+              <span className="text-muted">·</span> <b className="font-semibold">{order.start}–{order.end}</b>
+            </span>
+          </>
+        )}
+      </dd>
+      {left ? (
+        <>
+          <dt className="text-muted">Giữ chỗ còn</dt>
+          <dd className="font-bold tabular-nums">{left}</dd>
+        </>
+      ) : null}
+    </dl>
+  );
+}
 
 /** Xác nhận "Hủy giữ chỗ"; xong thì quên đơn chờ, báo toast rồi gọi `onCancelled`. */
 export function CancelHoldDialog({ order, open, onClose, onCancelled }: { order: PendingOrder; open: boolean; onClose: () => void; onCancelled: () => void }) {
@@ -31,7 +88,9 @@ export function CancelHoldDialog({ order, open, onClose, onCancelled }: { order:
       return;
     }
     clearPending(order.token);
+    forgetCheckout(order.member, order.token); // banner "đang chờ thanh toán" (T-075) tắt ngay
     toast("Đã hủy giữ chỗ");
+    window.dispatchEvent(new Event(HOLD_CANCELLED_EVENT));
     onCancelled();
   }
 
@@ -39,21 +98,21 @@ export function CancelHoldDialog({ order, open, onClose, onCancelled }: { order:
     <Modal
       open={open}
       onClose={() => !busy && onClose()}
-      title={`Hủy giữ chỗ ${pendingLabel(order)} · ${formatLongDate(order.date).replace(/\/\d{4}$/, "")}?`}
+      title="Hủy giữ chỗ đơn này?"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>
+          <Button variant="secondary" block onClick={onClose} disabled={busy} className="flex-1">
             Giữ chỗ
           </Button>
-          <Button variant="danger" onClick={() => void cancel()} loading={busy}>
+          <Button variant="danger" block onClick={() => void cancel()} loading={busy} className="flex-1">
             {busy ? "Đang hủy…" : "Hủy giữ chỗ"}
           </Button>
         </>
       }
     >
+      <OrderRows order={order} />
       <div className="space-y-2 text-sm">
         <p>{order.title.startsWith("Vé ") ? "Chỗ sẽ được nhả lại cho người khác." : "Khung giờ sẽ được mở lại cho người khác đặt."}</p>
-        <p className="text-muted">Nếu bạn đã chuyển khoản, đừng hủy – hệ thống sẽ tự xác nhận trong ít phút.</p>
         {error ? (
           <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-danger">
             {error}
@@ -66,7 +125,7 @@ export function CancelHoldDialog({ order, open, onClose, onCancelled }: { order:
 
 /** "Bạn còn đơn … chưa thanh toán": chỉ có Thanh toán ngay / Hủy giữ chỗ, không có "vẫn đặt mới". */
 function PendingBlockDialog({ order, onClose }: { order: PendingOrder; onClose: () => void }) {
-  const left = usePendingLeft(order) ?? 0;
+  const left = useSecondsLeft(order);
   const [confirm, setConfirm] = useState(false);
   // Đồng hồ về 0 khi hộp đang mở ⇒ đơn cũ hết giữ chỗ: tự đóng (đang hỏi hủy thì vẫn đóng, không còn gì để hủy)
   useEffect(() => {
@@ -80,28 +139,26 @@ function PendingBlockDialog({ order, onClose }: { order: PendingOrder; onClose: 
     <>
       <Modal
         open={!confirm}
-        onClose={onClose}
+        // Mở hộp xác nhận hủy thì hộp này đóng (sự kiện close) – lúc đó không coi là người dùng tắt, không gỡ cả cụm
+        onClose={confirm ? () => {} : onClose}
         title="Bạn còn đơn chưa thanh toán"
         footer={
           <>
             {order.locked ? null : (
-              <Button variant="secondary" onClick={() => setConfirm(true)} className="h-11 sm:h-11">
+              // Cùng cỡ "Thanh toán ngay" (người dùng 13/11: nút cũ cỡ gọn bị chật), hai nút chia đều hàng
+              <Button variant="secondary" block onClick={() => setConfirm(true)} className="flex-1">
                 Hủy giữ chỗ
               </Button>
             )}
-            <Link href={payHref(order)} onClick={onClose} className={LINK_CTA}>
+            <Link href={payHref(order)} onClick={onClose} className={cn(LINK_CTA, "flex-1")}>
               Thanh toán ngay
             </Link>
           </>
         }
       >
-        <p className="text-sm">
-          Bạn còn đơn <b>{order.code}</b> · {pendingLabel(order)} chưa thanh toán (còn{" "}
-          <b className="tabular-nums">
-            {mm}:{ss}
-          </b>
-          ). Hãy thanh toán hoặc hủy đơn này để đặt đơn mới.
-        </p>
+        {/* Câu hướng dẫn trước, rồi từng dòng nhãn – giá trị (người dùng 13/11: câu liền một đoạn khó đọc) */}
+        <p className="text-sm text-muted">Hãy thanh toán hoặc hủy đơn này để đặt đơn mới.</p>
+        <OrderRows order={order} left={`${mm}:${ss}`} />
       </Modal>
       <CancelHoldDialog order={order} open={confirm} onClose={() => setConfirm(false)} onCancelled={onClose} />
     </>
@@ -153,25 +210,4 @@ export function usePendingGate(member: boolean) {
     </>
   );
   return { check, fromError, dialog };
-}
-
-/** "Khung giờ vẫn được giữ đến HH:MM. Rời trang?" khi rời màn QR chưa thanh toán. */
-export function LeaveDialog({ until, open, onStay, onLeave }: { until: string; open: boolean; onStay: () => void; onLeave: () => void }) {
-  return (
-    <Modal
-      open={open}
-      onClose={onStay}
-      title="Rời trang thanh toán?"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onLeave}>
-            Rời trang
-          </Button>
-          <Button onClick={onStay}>Ở lại thanh toán</Button>
-        </>
-      }
-    >
-      <p className="text-sm">Khung giờ vẫn được giữ đến {until}. Rời trang?</p>
-    </Modal>
-  );
 }

@@ -17,8 +17,7 @@ import { MemberHint } from "./member-hint";
 import { BookingPhoneOtp, type VerifiedAccount } from "./phone-otp";
 import { usePendingGate } from "./pending-dialogs";
 import { getEventDetail, requestBookingPhone, sendEventCheckout } from "./requests";
-import { clearToken, saveToken, savedToken, useVerifiedPhone } from "./session-store";
-import { rememberCreated } from "./pending-checkout";
+import { checkoutSeedKey, clearToken, saveToken, savedToken, useVerifiedPhone, writeJson } from "./session-store";
 import type { CheckoutCreated, EventDetail, EventReason, PayStatus } from "./types";
 
 // Popup mua vé sự kiện (T-023 AC17), dùng chung /dat-san (khách) và /hoi-vien/dat-san (hội viên điền sẵn + khóa, không OTP).
@@ -193,7 +192,9 @@ export function EventDialog({
         const created = res.data as CheckoutCreated;
         const token = created.token;
         if (!token) return setBanner("Không nhận được mã thanh toán. Vui lòng thử lại.");
-        rememberCreated(created, Boolean(member)); // T-075: quay lại trang QR được nếu lỡ thoát
+        // Lượt chờ do màn QR tự lưu lần tải đầu (lưu ở đây ⇒ thẻ "Đang giữ chỗ" nháy lên trước khi chuyển trang);
+        // đưa sẵn đơn ⇒ màn thanh toán hiện QR không phải tải lại
+        writeJson(checkoutSeedKey(token), created);
         router.push(member ? `/hoi-vien/thanh-toan/${token}` : `/thanh-toan/${token}`);
         return;
       }

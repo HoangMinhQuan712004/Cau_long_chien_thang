@@ -32,6 +32,9 @@ export function removeKey(key: string) {
   }
 }
 
+/** Đơn vừa tạo (response tạo checkout) ⇒ màn QR hiện ngay, không phải tải lại (người dùng 13/11: không nháy giữa hai màn). */
+export const checkoutSeedKey = (token: string) => `wk-checkout-seed-${token}`;
+
 /** phone_token còn dùng được (còn > 15 giây) cho đúng SĐT này, không thì null. */
 export function savedToken(forPhone: string): string | null {
   const t = readJson<PhoneToken>(PHONE_TOKEN_KEY);

@@ -22,16 +22,15 @@ import { DayStrip } from "./day-strip";
 import { Step1Layout } from "./step1-layouts";
 import { EventDialog } from "./event-dialog";
 import { MemberHint } from "./member-hint";
-import { clearToken, readJson, removeKey, saveToken, savedToken, useVerifiedPhone, writeJson } from "./session-store";
+import { checkoutSeedKey, clearToken, readJson, removeKey, saveToken, savedToken, useVerifiedPhone, writeJson } from "./session-store";
 import { toast } from "@/lib/feedback";
 import { BookingPhoneOtp, type VerifiedAccount } from "./phone-otp";
-import { PendingBar } from "./pending-bar";
-import { usePendingGate } from "./pending-dialogs";
+import { HOLD_CANCELLED_EVENT, usePendingGate } from "./pending-dialogs";
 import { payHref, usePendingOrder } from "./pending-store";
 import { getWebCalendar, requestBookingPhone, sendCheckout } from "./requests";
 import { mmss } from "./pay-parts";
 import { PendingCheckoutBanner } from "./pending-banner";
-import { ownsCell, paymentPath, rememberCreated, usePending } from "./pending-checkout";
+import { ownsCell, paymentPath, readPending, usePending } from "./pending-checkout";
 import { MAX_CELLS, RESTORE_KEY, type Cell, type SlotExtra, type WebCalendar } from "./types";
 
 // /dat-san – bước 1: chọn khung giờ trên lưới (nhiều ô, nhiều sân, cùng 1 ngày, tối đa 16 ô); bước 2: nhập thông tin người đặt.
@@ -40,7 +39,8 @@ import { MAX_CELLS, RESTORE_KEY, type Cell, type SlotExtra, type WebCalendar } f
 const STORAGE_KEY = "wk-booking-v1";
 type Me = { full_name: string; phone: string | null; phone_verified: boolean };
 
-type Saved = { date: string; cells: Cell[]; name: string; phone: string; note: string; step: 1 | 2; minTier?: string; maxTier?: string };
+// Thông tin đã nhập trong tab (ô đã chọn / bước không lưu: mở màn luôn là lưới trống – người dùng 13/11)
+type Saved = { date: string; name: string; phone: string; note: string; minTier?: string; maxTier?: string };
 type Restore = { date: string; items: Cell[] };
 
 const cellKey = (c: Cell) => `${c.code}|${c.hour}`;
@@ -194,7 +194,16 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
       }
 
       const cur = cellsRef.current;
-      const lost = cur.filter((c) => !freeSet.has(cellKey(c)));
+      // Ô đã chọn giờ là ô chính mình đang giữ (lượt chờ thanh toán) ⇒ bỏ lặng lẽ, không báo "có người đặt"
+      const mineHeld = new Set<string>();
+      const own = readPending(Boolean(member));
+      for (const r of cal.resources) {
+        for (const s of r.slots as ((typeof r.slots)[number] & SlotExtra)[]) {
+          if (s.state === "held" && (s.holding || ownsCell(own, cal.date, r.code, s.start_hour))) mineHeld.add(`${r.code}|${s.start_hour}`);
+        }
+      }
+      const lost = cur.filter((c) => !freeSet.has(cellKey(c)) && !mineHeld.has(cellKey(c)));
+      if (!lost.length && cur.some((c) => mineHeld.has(cellKey(c)))) applyCells(cur.filter((c) => freeSet.has(cellKey(c))));
       if (lost.length) {
         const nameOf = (code: string) => cal.resources.find((r) => r.code === code)?.name ?? code;
         const kept = cur.filter((c) => freeSet.has(cellKey(c)));
@@ -206,15 +215,22 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
     [applyCells, applyStep, member],
   );
 
-  // Lần đầu: khôi phục lựa chọn đã lưu trong tab (F5 không mất – AC9) rồi tải lịch.
+  // Trang được dựng lại / hiện lại từ bộ nhớ (effect chạy lại) ⇒ lưới chọn giờ mặc định: bước 1, chưa chọn ô nào (người dùng 13/11)
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- về lưới trống mỗi lần màn được hiện */
+    applyStep(1);
+    applyCells([]);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [applyStep, applyCells]);
+
+  // Lần đầu (và mỗi lần trang được hiện lại): khôi phục thông tin đã nhập trong tab (tên, SĐT, ghi chú, khoảng hạng) rồi tải lịch.
   useEffect(() => {
     const saved = readJson<Saved>(storageKey);
     if (saved && saved.date === initialDate) {
+      // Không khôi phục ô đã chọn / bước 2: mở màn là lưới trống (người dùng 13/11); chỉ giữ thông tin đã nhập
       /* eslint-disable react-hooks/set-state-in-effect -- khôi phục từ sessionStorage sau khi hydrate */
-      applyCells(saved.cells ?? []);
       setForm({ name: member?.name ?? saved.name ?? "", phone: member?.phone ?? saved.phone ?? "", note: saved.note ?? "" });
       if (member) setTiers({ min: TIERS.some((t) => t === saved.minTier) ? (saved.minTier ?? "") : "", max: TIERS.some((t) => t === saved.maxTier) ? (saved.maxTier ?? "") : "" });
-      if (saved.step === 2 && (saved.cells?.length ?? 0) > 0) applyStep(2);
       /* eslint-enable react-hooks/set-state-in-effect */
     }
     const restore = readJson<Restore>(RESTORE_KEY);
@@ -226,11 +242,22 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
     void load(initialDate);
   }, [initialDate, applyCells, applyStep, load, storageKey, member]);
 
-  // Lưu lựa chọn + thông tin đã nhập vào sessionStorage của tab.
+  // Lưu thông tin đã nhập vào sessionStorage của tab.
   useEffect(() => {
     if (!ready.current) return;
-    writeJson(storageKey, { date, cells, name: form.name, phone: form.phone, note: form.note, step, minTier: tiers.min, maxTier: tiers.max } satisfies Saved);
-  }, [date, cells, form, step, storageKey, tiers]);
+    writeJson(storageKey, { date, name: form.name, phone: form.phone, note: form.note, minTier: tiers.min, maxTier: tiers.max } satisfies Saved);
+  }, [date, form, storageKey, tiers]);
+
+  // Vừa hủy giữ chỗ (hộp chặn đơn mới / màn QR) ⇒ tải lại ngay: ô "Chờ bạn thanh toán" trống lại
+  useEffect(() => {
+    // Hủy trong hộp chặn đơn mới (kể cả lúc đang ở màn xác nhận) ⇒ về lưới chọn giờ, giữ các ô đang chọn, tải lại lịch
+    const onCancelled = () => {
+      applyStep(1);
+      void load(dateRef.current, true);
+    };
+    window.addEventListener(HOLD_CANCELLED_EVENT, onCancelled);
+    return () => window.removeEventListener(HOLD_CANCELLED_EVENT, onCancelled);
+  }, [load, applyStep]);
 
   // Tự tải lại mỗi 30 giây khi tab đang hiển thị, và ngay khi quay lại tab.
   useEffect(() => {
@@ -269,11 +296,11 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
     const id = setInterval(() => setClock((c) => ({ ...c, nowMs: Date.now() })), 1000);
     return () => clearInterval(id);
   }, [heldExpiries]);
-  // Hết hạn + ân hạn 60 giây ⇒ khung nhả hoặc thành đã đặt: tải lại lịch khoảng hạn + 65 giây (AC2)
+  // Hết hạn là khung mở lại ngay (người dùng 13/11: bỏ "Sắp mở lại") ⇒ tải lại lịch ngay sau hạn sớm nhất để lấy giá / trạng thái mới
   useEffect(() => {
     if (!heldExpiries.length) return;
     const first = Math.min(...heldExpiries);
-    const wait = Math.max(5_000, first + 65_000 - (Date.now() + clock.offset));
+    const wait = Math.max(1_000, first + 1_000 - (Date.now() + clock.offset));
     const t = setTimeout(() => void load(dateRef.current, true), wait);
     return () => clearTimeout(t);
   }, [heldExpiries, clock.offset, load]);
@@ -292,6 +319,11 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
           else if (s.state === "held") {
             // T-075 AC1/AC2/AC7: không chọn được; của mình ⇒ "Chờ bạn thanh toán" (bấm mở lại QR), người khác ⇒ "Đang giữ chỗ"
             const left = s.expires_at ? Math.max(0, Math.ceil((Date.parse(s.expires_at) - serverNow) / 1000)) : 0;
+            // Hết giờ ⇒ ô trống ngay (giá có lại sau lần tải lịch ngay sau đó)
+            if (left <= 0) {
+              out[h] = { kind: "free", price: null };
+              continue;
+            }
             const local = pending && ownsCell(pending, calendar?.date ?? date, r.code, h) ? paymentPath(pending) : null;
             // Hội viên: server báo ô của mình (`holding`) dù trình duyệt này không lưu lượt
             const fromServer = member && s.holding ? (waiting && waiting.code === s.order_code ? payHref(waiting) : "") : null;
@@ -302,16 +334,16 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
                   kind: "block",
                   key: `held|mine|${s.order_code ?? pending?.token ?? key}`,
                   tone: "unpaid",
-                  lines: ["Chờ bạn thanh toán", left > 0 ? <b key="t" className="tabular-nums">{mmss(left)}</b> : "Đang xác nhận…"],
-                  aria: `lượt đặt của bạn đang chờ thanh toán${left > 0 ? `, còn ${mmss(left)}` : ""}, mở lại mã QR`,
+                  lines: ["Chờ bạn thanh toán", <b key="t" className="tabular-nums">{mmss(left)}</b>],
+                  aria: `lượt đặt của bạn đang chờ thanh toán, còn ${mmss(left)}, mở lại mã QR`,
                   onClick: () => (mineHref ? router.push(mineHref) : toast("Bạn đang giữ chỗ này, hãy thanh toán để hoàn tất", undefined, "info")),
                 }
               : {
                   kind: "block",
                   key: `held|${s.expires_at ?? key}`,
                   tone: "hold",
-                  lines: left > 0 ? ["Đang giữ chỗ", <b key="t" className="tabular-nums">{mmss(left)}</b>] : ["Sắp mở lại"],
-                  aria: left > 0 ? `có người đang giữ chỗ, còn ${mmss(left)}` : "sắp mở lại",
+                  lines: ["Đang giữ chỗ", <b key="t" className="tabular-nums">{mmss(left)}</b>],
+                  aria: `có người đang giữ chỗ, còn ${mmss(left)}`,
                   onClick: () => toast("Khung này đang có người giữ chỗ, sẽ mở lại nếu họ không thanh toán", undefined, "info"),
                 };
           } else if (s.state === "booked") {
@@ -489,7 +521,10 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
           return;
         }
         removeKey(storageKey);
-        rememberCreated(res.data, Boolean(member)); // T-075: quay lại trang QR được nếu lỡ thoát
+        // Không lưu lượt chờ ở đây: lưu là thẻ "Đang giữ chỗ" hiện ngay trên màn này trước khi sang QR (nháy) – màn QR tự lưu lần tải đầu
+        // Sang ngay màn thanh toán (người dùng 13/11), đưa sẵn đơn để màn đó hiện QR không phải tải lại; KHÔNG đổi gì trên màn này
+        // (đổi ngay sẽ nháy về lưới chọn giờ) – lúc quay lại màn này luôn mở ở lưới trống
+        writeJson(checkoutSeedKey(token), res.data);
         router.push(member ? `/hoi-vien/thanh-toan/${token}` : `/thanh-toan/${token}`);
         return;
       }
@@ -519,7 +554,6 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   if (step === 2 && calendar) {
     return (
       <div className="mx-auto w-full max-w-xl space-y-5">
-        <PendingCheckoutBanner member={Boolean(member)} />
         {/* Khu hội viên trên điện thoại: lùi về chọn giờ bằng nút quay lại trên app bar (người dùng 13/11) ⇒ ẩn nút này */}
         <button type="button" onClick={() => applyStep(1)} className={cn("text-sm text-muted hover:text-foreground", member && "max-lg:hidden")}>
           ← Quay lại chọn giờ
@@ -703,7 +737,6 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   return (
     <div className={cn("space-y-4", cells.length > 0 && "pb-24 sm:pb-0")}>
       <Step1Layout
-        pending={<PendingCheckoutBanner member={Boolean(member)} />}
         dayStrip={<DayStrip date={date} today={today} onPick={onDateInput} flat />}
         dateLabel={formatLongDate(date)}
         legendItems={
@@ -767,8 +800,8 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
                   "sm:sticky sm:bottom-3 sm:rounded-2xl sm:shadow-lg sm:after:hidden",
                 )}
               >
-                {/* Còn đơn chờ thanh toán: hàng nhắc dính liền mép trên thanh này (thanh nổi chung bị ẩn khi có data-bottom-bar) */}
-                <PendingBar part="inline" sync={false} />
+                {/* Còn lượt chờ thanh toán: hàng nhắc dính liền mép trên thanh này (thẻ nổi chung bị ẩn khi có data-bottom-bar) */}
+                <PendingCheckoutBanner part="inline" sync={false} />
                 {/* Điện thoại: thanh gọn (người dùng 03/11) – đệm, chữ và nút nhỏ hơn; từ sm giữ cỡ cũ */}
                 <div className="px-4 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:py-3">
                   <button
@@ -860,8 +893,8 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
 
 function Legend({ swatch, text }: { swatch: string; text: string }) {
   return (
-    <li className="inline-flex items-center gap-1.5">
-      <span aria-hidden className={`inline-block size-4 shrink-0 rounded-[5px] ${swatch}`} />
+    <li className="inline-flex items-center gap-1 lg:gap-1.5">
+      <span aria-hidden className={`inline-block size-3 shrink-0 rounded-sm lg:size-4 lg:rounded-[5px] ${swatch}`} />
       {text}
     </li>
   );

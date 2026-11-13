@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import { formatLongDate, vnDate, vnMinutes } from "@/lib/format";
 import type { SiteBranding } from "@/lib/api/server";
 import { Avatar } from "./avatar";
-import { PendingBar } from "@/components/web-booking/pending-bar";
+import { PendingCheckoutBanner } from "@/components/web-booking/pending-banner";
 import { DesktopHeader } from "./desktop-header";
 import { NotificationBell } from "./notification-bell";
 import { maskPhone, type MemberMe } from "./types";
@@ -130,7 +130,7 @@ export function MemberShell({ initial, branding, footer, children }: { initial: 
       <div className={cn(!home && "max-lg:hidden")}>{footer}</div>
       {/* Chừa chỗ cho thanh điều hướng dưới (điện thoại) sau footer – cùng nền xanh footer; màn có thanh hành động riêng chừa cao hơn */}
       <div aria-hidden className={cn("h-24 lg:hidden [body:has([data-bottom-bar])_&]:h-32 [body:has([data-pending-float])_&]:h-40", home && "bg-appbar")} />
-      <PendingBar part="float" aboveNav />
+      <PendingCheckoutBanner part="float" aboveNav />
       <BottomNav />
       <Modal
         open={asking}
@@ -218,7 +218,7 @@ function MemberHeader({ branding }: { branding: Pick<SiteBranding, "name" | "log
           </>
         }
         // Bản dải máy tính chỉ hiển thị, bản nổi điện thoại (cạnh BottomNav) hỏi server
-        below={<PendingBar part="strip" sync={false} />}
+        below={<PendingCheckoutBanner part="strip" sync={false} />}
       />
     </>
   );

@@ -25,6 +25,8 @@ export type PendingOrder = {
   expired?: boolean;
   /** Đã trả một phần ⇒ không hủy được */
   locked?: boolean;
+  /** Đặt sân: từng sân · giờ (đơn nhiều sân tách dòng); vé: không có */
+  slots?: { name: string; start: string; end: string }[];
 };
 
 /** Đơn chờ do server trả (409 E-WEB-4 khi tạo đơn mới, GET đơn chờ của hội viên). */
@@ -89,7 +91,8 @@ export function pendingFromCheckout(c: Checkout, token: string, member: boolean)
   const starts = c.items.map((i) => hhmm(i.start_time)).sort();
   const ends = c.items.map((i) => hhmm(i.end_time)).sort();
   const title = [...new Set(c.items.map((i) => i.resource_name))].join(", ");
-  return { ...base, title, date: c.items[0].play_date, start: starts[0], end: ends[ends.length - 1] };
+  const slots = c.items.map((i) => ({ name: i.resource_name, start: hhmm(i.start_time), end: hhmm(i.end_time) }));
+  return { ...base, title, date: c.items[0].play_date, start: starts[0], end: ends[ends.length - 1], slots };
 }
 
 /** Đơn chờ từ server; không có `pay_token` (đơn rất cũ) ⇒ null vì không dẫn được tới màn QR. */
@@ -106,6 +109,7 @@ export function pendingFromApi(pc: PendingCheckout, member: boolean): PendingOrd
     offset: Date.parse(pc.server_now) - Date.now(),
     member,
     locked: pc.paid_amount > 0,
+    slots: pc.slots?.map((x) => ({ name: x.resource_name, start: hhmm(x.start_time), end: hhmm(x.end_time) })),
   };
 }
 

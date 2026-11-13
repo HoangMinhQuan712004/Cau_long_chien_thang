@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { formatLongDate, formatTime, formatVnd } from "@/lib/format";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { formatLongDate, formatVnd } from "@/lib/format";
+import { LeaveGuard } from "./leave-guard";
 import { BankBox, CopyButton, mmss, useCountdown } from "./pay-parts";
 import { clearPending as forgetCheckout, rememberCreated } from "./pending-checkout";
-import { CancelHoldDialog, LeaveDialog } from "./pending-dialogs";
+import { CancelHoldDialog } from "./pending-dialogs";
 import { clearPending, pendingFromCheckout, savePending } from "./pending-store";
 import { getCheckout } from "./requests";
+import { checkoutSeedKey, readJson, removeKey } from "./session-store";
 import { RoomLinks } from "./room-links";
 import { RESTORE_KEY, type Checkout, type TicketInfo } from "./types";
-import { useLeaveGuard } from "./use-leave-guard";
 
 // /thanh-toan/{token}: QR + đếm ngược theo giờ server, hỏi trạng thái mỗi 3 giây (10 giây khi tab ẩn) → Thành công | Hết thời gian giữ chỗ (T-008 AC15–AC18).
 
@@ -26,9 +27,13 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
   const router = useRouter();
   // Trong khu hội viên (T-018): đặt lại / đặt thêm quay về /hoi-vien/dat-san, đặt xong có nút Vào phòng
   const bookPath = member ? "/hoi-vien/dat-san" : "/dat-san";
-  const [checkout, setCheckout] = useState<Checkout | null>(null);
+  // Vừa đặt xong: đơn được màn trước đưa sẵn ⇒ QR hiện ngay (chuyển trang phía client, không qua render server)
+  const [checkout, setCheckout] = useState<Checkout | null>(() => (typeof window === "undefined" ? null : readJson<Checkout>(checkoutSeedKey(token))));
+  useEffect(() => removeKey(checkoutSeedKey(token)), [token]);
   const [notFound, setNotFound] = useState(false);
   const [offline, setOffline] = useState(false);
+  // Vừa hủy giữ chỗ, đang chuyển về Đặt sân ⇒ bỏ qua kết quả hỏi server
+  const leavingRef = useRef(false);
 
   useEffect(() => {
     let stop = false;
@@ -38,7 +43,7 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
     };
     const run = async () => {
       const res = await getCheckout(token);
-      if (stop) return;
+      if (stop || leavingRef.current) return;
       if (res.ok) {
         setOffline(false);
         setCheckout(res.data);
@@ -69,8 +74,10 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
   }, [token, member]);
 
   const left = useCountdown(checkout?.expires_at ?? null, checkout?.server_now ?? null);
-  // Còn chờ tiền ⇒ rời màn (link trong web, nút ‹ app bar, đóng tab) phải hỏi trước; "Hủy giữ chỗ" mở hộp xác nhận
-  const guard = useLeaveGuard(checkout?.status === "pending" && left !== 0);
+  // Đồng hồ chỉ hiện khi QR đã hiện (người dùng 13/11); vẫn đếm theo hạn của server – không tự đếm lại từ 5:00 (lệch hạn thật)
+  const [qrReady, setQrReady] = useState(false);
+  const onQrReady = useCallback(() => setQrReady(true), []);
+  // "Hủy giữ chỗ" mở hộp xác nhận (chỉ đơn chưa trả đồng nào)
   const [cancelOpen, setCancelOpen] = useState(false);
 
   if (notFound) {
@@ -120,9 +127,15 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
 
   const ticket = ticketOf(checkout);
   const date = ticket?.play_date ?? checkout.items[0]?.play_date;
-  function rebook() {
-    if (!date) return router.push(bookPath);
-    if (ticket) return router.push(`${bookPath}?ngay=${date}`); // vé: về lịch ngày đó, bấm lại ô sự kiện
+  /** Về lưới chọn giờ ngày đó; `reselect`: chọn lại sẵn các khung của đơn ("Đặt lại" sau hết giờ). Hủy giữ chỗ ⇒ lưới trống. */
+  function rebook(replace = false, reselect = true) {
+    // `r` mới ⇒ trang Đặt sân dựng lại (không dùng lại bản cũ đang ở màn xác nhận)
+    const go = (url: string) => {
+      const next = `${url}${url.includes("?") ? "&" : "?"}r=${Date.now().toString(36)}`;
+      return replace ? router.replace(next) : router.push(next);
+    };
+    if (!date) return go(bookPath);
+    if (ticket || !reselect) return go(`${bookPath}?ngay=${date}`); // vé: về lịch ngày đó, bấm lại ô sự kiện
     try {
       const items = checkout!.items.flatMap((it) => {
         return Array.from({ length: it.hours }, (_, i) => ({ code: it.resource_code, hour: it.start_hour + i }));
@@ -131,21 +144,26 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
     } catch {
       /* không lưu được thì chỉ chuyển trang */
     }
-    router.push(`${bookPath}?ngay=${date}`);
+    go(`${bookPath}?ngay=${date}`);
   }
 
   return (
-    <Card wide banner={<PayBanner title={ticket ? "Thanh toán vé sự kiện" : "Thanh toán chuyển khoản"} left={left} expired={view === "expired"} />}>
-      {/* T-075 AC10: mã đơn ngay đầu trang để khách ghi lại (tra cứu từ máy khác) */}
-      <p className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-muted">Mã booking</span>
-        <b className="text-base">{checkout.order_code}</b>
-        <CopyButton text={checkout.order_code} label={`mã booking ${checkout.order_code}`} />
-      </p>
+    <Card wide banner={<PayBanner title={ticket ? "Thanh toán vé sự kiện" : "Thanh toán chuyển khoản"} left={qrReady || !checkout.bank ? left : null} expired={view === "expired"} />}>
+      {/* T-075 AC11: còn chờ + còn giờ ⇒ hỏi trước khi rời trang (không chặn cứng) */}
+      <LeaveGuard active={view === "pending" && (left ?? 0) > 0} leftText={left == null ? "" : mmss(left)} />
+      {/* T-075 AC10: mã đơn ngay đầu trang để khách ghi lại (tra cứu từ máy khác); máy tính: "Hủy giữ chỗ" cùng hàng */}
+      <div className="flex items-center justify-between gap-3">
+        <p className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">Mã booking</span>
+          <b className="text-base">{checkout.order_code}</b>
+          <CopyButton text={checkout.order_code} label={`mã booking ${checkout.order_code}`} />
+        </p>
+        {cancelBtn("-my-2 hidden sm:inline-block")}
+      </div>
       {/* T-075 AC13: hết giờ ⇒ ẩn hẳn QR, số tài khoản và nội dung chuyển khoản (không chỉ làm mờ) */}
       {checkout.bank && view === "pending" ? (
         <div className="mt-5">
-          <BankBox bank={checkout.bank} amount={checkout.amount} payRef={checkout.pay_ref} />
+          <BankBox bank={checkout.bank} amount={checkout.amount} payRef={checkout.pay_ref} onQrReady={onQrReady} />
         </div>
       ) : null}
 
@@ -160,7 +178,7 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
             Đã hết thời gian giữ chỗ nhưng chưa nhận được tiền. {ticket ? "Chỗ đã được nhả lại cho người khác." : "Khung giờ đã được mở lại cho người khác đặt."}
           </p>
           <p className="text-sm text-muted">Nếu bạn đã chuyển khoản, vui lòng liên hệ {hotline} kèm mã booking để được hỗ trợ.</p>
-          <button type="button" onClick={rebook} className="h-12 rounded-lg px-6 text-sm bg-cta font-bold tracking-wide text-cta-fg uppercase hover:bg-cta-hover">
+          <button type="button" onClick={() => rebook()} className="h-12 rounded-lg px-6 text-sm bg-cta font-bold tracking-wide text-cta-fg uppercase hover:bg-cta-hover">
             {ticket ? "Về lịch đặt sân" : "Đặt lại"}
           </button>
         </div>
@@ -173,12 +191,7 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
       ) : null}
 
       <div className="mt-5 space-y-1.5 border-t border-border pt-4 text-sm">
-        {/* Khách chỉ thấy MÃ ĐƠN (trùng nội dung chuyển khoản); mã khối không hiện (T-019 AC2) */}
-        <div className="flex items-center justify-between gap-3">
-          <p className="font-semibold">Mã booking {checkout.order_code}</p>
-          {/* Máy tính: cạnh dòng mã booking; điện thoại: dòng chữ cuối màn */}
-          {cancelBtn("-my-2 hidden sm:inline-block")}
-        </div>
+        {/* Khách chỉ thấy MÃ ĐƠN (đầu trang, trùng nội dung chuyển khoản); mã khối không hiện (T-019 AC2) */}
         {ticket ? (
           <p className="font-medium">
             Vé sự kiện {ticket.name} × {ticket.seats} · {formatLongDate(ticket.play_date)} · {hhmm(ticket.start_time)} – {hhmm(ticket.end_time)}
@@ -198,15 +211,13 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
       </div>
       {cancelBtn("mt-3 w-full sm:hidden")}
       {order ? (
-        <>
           <CancelHoldDialog order={order} open={cancelOpen} onClose={() => setCancelOpen(false)} onCancelled={() => {
-              // Đóng hộp + đánh dấu đã hủy trước khi chuyển (trang cũ có thể được giữ ẩn, không để hộp mở / chặn rời trang)
+              // Về NGAY lưới chọn giờ (người dùng 13/11): không hiện màn "đã hủy giữ chỗ" ở giữa; ngừng hỏi server để màn này
+              // không tự đổi sang trạng thái đã hủy trong lúc chuyển trang. Lưới trống, chưa chọn ô nào (người dùng 13/11)
+              leavingRef.current = true;
               setCancelOpen(false);
-              setCheckout({ ...checkout, status: "cancelled" });
-              router.replace(`${bookPath}?date=${order.date}`);
+              rebook(true, false);
             }} />
-          <LeaveDialog until={formatTime(checkout.expires_at)} open={guard.asking} onStay={guard.stay} onLeave={guard.leave} />
-        </>
       ) : null}
     </Card>
   );
@@ -347,7 +358,7 @@ function PayBanner({ title, left, expired }: { title: string; left: number | nul
           <p role="timer" aria-live="off" className="mt-1 text-5xl font-bold tracking-tight text-accent-soft tabular-nums">
             {left == null ? "--:--" : mmss(left)}
           </p>
-          <p className="mt-1 text-xs text-surface/80">Thời gian giữ chỗ còn lại để chuyển khoản</p>
+          <p className="mt-1 text-xs text-surface/80">{left == null ? "Đang tải mã QR…" : "Thời gian giữ chỗ còn lại để chuyển khoản"}</p>
         </>
       )}
     </div>

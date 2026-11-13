@@ -15,8 +15,6 @@ export type Step1Parts = {
   /** Lưu ý quan trọng (vd đặt online tạm ngưng); null ⇒ không hiện. */
   alert: string | null;
   grid: React.ReactNode;
-  /** T-075: banner "lượt đang chờ thanh toán" – nằm TRONG thẻ lịch (trên lưới) để không bị thẻ trồi lên banner đè. */
-  pending?: React.ReactNode;
   notice: React.ReactNode;
   /** Thanh tóm tắt dính đáy; null khi chưa chọn ô. */
   bar: React.ReactNode;
@@ -41,8 +39,10 @@ export function Step1Layout(p: Step1Parts) {
       <InBanner>
         {/* Điện thoại / tablet (kiểu app đặt sân, người dùng 12/11): bộ chọn ngày trong ô xanh đậm hơn, chú thích chữ trắng
             ngay dưới trên nền xanh; máy tính giữ như cũ */}
-        <div className="max-lg:rounded-2xl max-lg:bg-black/15 max-lg:p-3">{p.dayStrip}</div>
-        <ul aria-label="Chú thích màu" className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm lg:hidden">
+        {/* Điện thoại: khung chọn ngày nền xanh đặc ≈ #234839 (appbar pha 2% trắng – người dùng 13/11), không trong suốt */}
+        <div className="max-lg:rounded-2xl max-lg:bg-[color-mix(in_srgb,var(--appbar)_98%,white)] max-lg:p-3">{p.dayStrip}</div>
+        {/* Điện thoại: chữ + ô màu nhỏ, khoảng cách hẹp ⇒ 7 mục gọn trong 2 dòng từ 360px (người dùng 13/11) */}
+        <ul aria-label="Chú thích màu" className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-xs lg:hidden">
           {p.legendItems}
         </ul>
       </InBanner>
@@ -57,7 +57,6 @@ export function Step1Layout(p: Step1Parts) {
             {p.legendItems}
           </ul>
         </div>
-        {p.pending ? <div className="px-4 pt-3 empty:hidden lg:px-4 lg:pt-4">{p.pending}</div> : null}
         {p.alert ? (
           <p role="status" className="px-4 py-3 text-sm text-danger lg:hidden">
             <b className="font-semibold">Lưu ý:</b> {p.alert}

@@ -163,7 +163,7 @@
   --animate-beam-twinkle: beam-twinkle 1.4s ease-in-out infinite alternate;
   /* Viền đứt đoạn "chạy" quanh thẻ Tiếp theo khi đang diễn ra (áp lên <rect> SVG) */
   --animate-dash-run: dash-run 0.4s linear infinite;
-  /* Mũi tên "Thanh toán" giật nhẹ 2 nhịp sang phải rồi nghỉ (tích tắc) – thanh nhắc giữ chỗ */
+  /* Mũi tên "Thanh toán" giật nhẹ 2 nhịp sang phải rồi nghỉ (tích tắc) – thẻ đang giữ chỗ */
   --animate-nudge-x: nudge-x 1.6s ease-in-out infinite;
 
   @keyframes nudge-x {
@@ -180,6 +180,7 @@
       transform: translateX(0);
     }
   }
+
   @keyframes dash-run {
     to {
       stroke-dashoffset: -6;
@@ -318,9 +319,8 @@ body:has([data-bottom-bar]) [data-member-nav] {
   display: none;
 }
 
-/* Thanh nổi "Đang giữ chỗ" (điện thoại): màn đang có thanh hành động riêng ("Bạn đang chọn") thì ẩn – thanh đó tự hiện hàng
-   nhắc gọn ở mép trên (PendingBar part="inline"); còn lại chừa đáy trang để thanh không che nội dung cuối.
-   Mobile-first: từ lg thanh là dải trong header, bỏ phần chừa. */
+/* Thẻ nổi "Đang giữ chỗ" (điện thoại): màn đang có thanh hành động riêng ("Bạn đang chọn") thì ẩn – thanh đó tự hiện hàng
+   nhắc gọn ở mép trên (part="inline"); còn lại chừa đáy trang để thẻ không che nội dung cuối. Từ lg thẻ là dải dưới header. */
 body:has([data-bottom-bar]) [data-pending-float] {
   display: none;
 }

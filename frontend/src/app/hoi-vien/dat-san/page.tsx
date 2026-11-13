@@ -26,5 +26,7 @@ async function Loader({ searchParams }: Pick<PageProps<"/hoi-vien/dat-san">, "se
   const wanted = typeof rawDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : today;
   const initialEvent = typeof sp.event === "string" && /^BK-\d{8}-\d{3}$/.test(sp.event) ? sp.event : null;
   const [{ phoneVerify }, venue] = await Promise.all([getDictionary(), getBranding()]);
-  return <MemberBooking initialDate={wanted < today ? today : wanted} today={today} venue={venue} texts={phoneVerify} initialEvent={initialEvent} />;
+  // `r` (màn QR quay về sau khi hủy / đặt lại) đổi ⇒ dựng lại màn từ đầu, không giữ màn "Xác nhận đặt sân" cũ trong bộ nhớ
+  const reset = typeof sp.r === "string" ? sp.r : undefined;
+  return <MemberBooking key={reset} initialDate={wanted < today ? today : wanted} today={today} venue={venue} texts={phoneVerify} initialEvent={initialEvent} />;
 }
