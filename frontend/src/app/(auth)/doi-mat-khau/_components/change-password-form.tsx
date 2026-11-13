@@ -12,7 +12,7 @@ import type { Dictionary } from "@/i18n/dictionaries";
 import { INITIAL_PASSWORD_EXPIRED } from "@/lib/api/auth";
 import { changeInitialPassword } from "@/lib/api/password-change";
 import { cn } from "@/lib/cn";
-import { destination, safeNext } from "@/lib/safe-next";
+import { destination, memberHome, safeNext } from "@/lib/safe-next";
 
 // Đợi tick vẽ xong rồi mới chuyển trang
 const REDIRECT_DELAY_MS = 1200;
@@ -48,7 +48,7 @@ export function ChangePasswordForm({
     if (result.ok) {
       setIsDone(true);
       // Điều hướng cứng: tải lại trang khách với phiên mới, không giữ trang bị chặn cũ
-      setTimeout(() => window.location.replace(destination("member", next, "/hoi-vien")), REDIRECT_DELAY_MS);
+      setTimeout(() => window.location.replace(memberHome(destination("member", next, "/hoi-vien"))), REDIRECT_DELAY_MS);
       return;
     }
     setIsPending(false);
