@@ -36,3 +36,9 @@ export function SiteNav({ mobile = false }: { mobile?: boolean }) {
     </nav>
   );
 }
+
+/** Khung đăng nhập dùng chung nhiều màn: chỉ hiện `children` (header web) ở các đường dẫn `paths` (vd /dang-nhap, /dang-ky). */
+export function ShowOnPaths({ paths, children }: { paths: string[]; children: React.ReactNode }) {
+  const pathname = usePathname();
+  return paths.includes(pathname) ? children : null;
+}
