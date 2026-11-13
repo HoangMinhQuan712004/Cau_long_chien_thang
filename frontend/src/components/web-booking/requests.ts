@@ -48,3 +48,11 @@ export const getEventDetail = (code: string) =>
 /** Gọi qua `write((key) => sendEventCheckout(key, body))`; response như CheckoutCreatedOut (có `token`). */
 export const sendEventCheckout = (key: string, body: EventCheckoutBody) =>
   api.POST("/api/v1/web/booking/event-checkouts", { body, headers: { "Idempotency-Key": key } });
+
+/** Hủy giữ chỗ (sân hoặc vé): 200 CheckoutOut status "cancelled"; 409 E-WEB-12 (đã có tiền / hết giờ); 404 E-WEB-6. Gọi qua `write()`. */
+export const sendCancelCheckout = (key: string, token: string) =>
+  api.POST("/api/v1/web/booking/checkouts/{token}/cancel", { params: { path: { token } }, headers: { "Idempotency-Key": key } });
+
+/** Đơn chờ thanh toán của hội viên đang đăng nhập (null = không có). */
+export const getMemberPending = () =>
+  read<components["schemas"]["PendingCheckout"] | null>(() => api.GET("/api/v1/member-area/pending-payment"));

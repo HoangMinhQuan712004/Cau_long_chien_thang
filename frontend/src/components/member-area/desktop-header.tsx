@@ -15,9 +15,11 @@ type Props = {
   nav: HeaderNav[];
   /** Chuông + menu tài khoản (kiểu nền tối). */
   actions: React.ReactNode;
+  /** Dải dưới hàng menu, dính theo header (vd thanh nhắc đơn chờ thanh toán). */
+  below?: React.ReactNode;
 };
 
-export function DesktopHeader({ branding, homeHref, onHome, nav, actions }: Props) {
+export function DesktopHeader({ branding, homeHref, onHome, nav, actions, below }: Props) {
   return (
     <header className="sticky top-0 z-(--z-header) hidden border-b border-surface/10 bg-appbar text-surface lg:block">
       <div className="flex h-16 w-full items-center gap-4 px-6 xl:gap-8">
@@ -43,6 +45,7 @@ export function DesktopHeader({ branding, homeHref, onHome, nav, actions }: Prop
         </nav>
         <div className="ml-auto flex items-center gap-2">{actions}</div>
       </div>
+      {below}
     </header>
   );
 }

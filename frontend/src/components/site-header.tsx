@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { HeaderAccount } from "@/components/header-account";
 import { SiteLogo } from "@/components/site-logo";
 import { SiteNav } from "@/components/site-nav";
+import { PendingBar } from "@/components/web-booking/pending-bar";
 import { getBranding } from "@/lib/api/server";
 import { phoneHref } from "@/lib/site";
 
@@ -39,6 +40,10 @@ export async function SiteHeader() {
           <HeaderAccount />
         </Suspense>
       </div>
+      {/* Đơn chờ thanh toán: dải dưới header (máy tính) + thanh nổi đáy (điện thoại) */}
+      <Suspense fallback={null}>
+        <PendingBar part="both" />
+      </Suspense>
     </header>
   );
 }

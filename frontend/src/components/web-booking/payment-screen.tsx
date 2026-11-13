@@ -3,15 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { formatLongDate, formatVnd } from "@/lib/format";
+import { formatLongDate, formatTime, formatVnd } from "@/lib/format";
 import { BankBox, CopyButton, mmss, useCountdown } from "./pay-parts";
+import { CancelHoldDialog, LeaveDialog } from "./pending-dialogs";
+import { clearPending, pendingFromCheckout, savePending } from "./pending-store";
 import { getCheckout } from "./requests";
 import { RoomLinks } from "./room-links";
 import { RESTORE_KEY, type Checkout, type TicketInfo } from "./types";
+import { useLeaveGuard } from "./use-leave-guard";
 
 // /thanh-toan/{token}: QR + đếm ngược theo giờ server, hỏi trạng thái mỗi 3 giây (10 giây khi tab ẩn) → Thành công | Hết thời gian giữ chỗ (T-008 AC15–AC18).
 
-type View = "pending" | "paid" | "expired";
+type View = "pending" | "paid" | "expired" | "cancelled";
 
 // T-023: checkout vé sự kiện (`kind='ticket'`) – không có danh sách sân/giờ đặt sân, thay bằng khối `event`.
 const ticketOf = (c: Checkout): TicketInfo | null => (c.kind === "ticket" ? c.event : null);
@@ -38,11 +41,16 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
       if (res.ok) {
         setOffline(false);
         setCheckout(res.data);
+        // Nhớ đơn chờ cho thanh nhắc / chặn đơn mới; xong (trả / hết hạn / hủy) thì quên
+        const pending = pendingFromCheckout(res.data, token, member);
+        if (pending) savePending(pending);
+        else clearPending(token);
         if (res.data.status === "pending") next(); // còn chờ tiền → hỏi tiếp; paid/expired là kết quả cuối → dừng
         return;
       }
       if (res.error.status === 404 || res.error.code === "E-WEB-6") {
         setNotFound(true);
+        clearPending(token);
         return;
       }
       // Chỉ lỗi thật (mạng / 5xx) mới báo mất kết nối, rồi thử lại.
@@ -54,9 +62,12 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
       stop = true;
       if (timer) clearTimeout(timer);
     };
-  }, [token]);
+  }, [token, member]);
 
   const left = useCountdown(checkout?.expires_at ?? null, checkout?.server_now ?? null);
+  // Còn chờ tiền ⇒ rời màn (link trong web, nút ‹ app bar, đóng tab) phải hỏi trước; "Hủy giữ chỗ" mở hộp xác nhận
+  const guard = useLeaveGuard(checkout?.status === "pending" && left !== 0);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   if (notFound) {
     return (
@@ -80,9 +91,28 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
   }
 
   // Đếm ngược về 0 nhưng server chưa báo expired (ân hạn nhận tiền báo trễ) → hiện màn hết hạn, vẫn hỏi tiếp tới khi server trả kết quả cuối.
-  const view: View = checkout.status === "paid" ? "paid" : checkout.status === "expired" || left === 0 ? "expired" : "pending";
+  const view: View =
+    checkout.status === "paid" || checkout.status === "cancelled" ? checkout.status : checkout.status === "expired" || left === 0 ? "expired" : "pending";
 
   if (view === "paid") return <PaidView checkout={checkout} member={member} bookPath={bookPath} />;
+  if (view === "cancelled") {
+    return (
+      <Card>
+        <h1 className="text-xl font-bold">Đơn {checkout.order_code} đã hủy giữ chỗ.</h1>
+        <p className="mt-2 text-sm text-muted">Khung giờ đã được mở lại. Bạn có thể đặt đơn mới.</p>
+        <Link href={bookPath} className="mt-4 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white">
+          Đặt sân
+        </Link>
+      </Card>
+    );
+  }
+  const order = view === "pending" ? pendingFromCheckout(checkout, token, member) : null;
+  const cancelBtn = (cls: string) =>
+    order ? (
+      <button type="button" onClick={() => setCancelOpen(true)} className={`min-h-11 rounded-lg px-2 text-sm font-medium text-muted underline-offset-4 hover:text-danger hover:underline focus-ring ${cls}`}>
+        Hủy giữ chỗ
+      </button>
+    ) : null;
 
   const ticket = ticketOf(checkout);
   const date = ticket?.play_date ?? checkout.items[0]?.play_date;
@@ -133,7 +163,11 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
 
       <div className="mt-5 space-y-1.5 border-t border-border pt-4 text-sm">
         {/* Khách chỉ thấy MÃ ĐƠN (trùng nội dung chuyển khoản); mã khối không hiện (T-019 AC2) */}
-        <p className="font-semibold">Mã booking {checkout.order_code}</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="font-semibold">Mã booking {checkout.order_code}</p>
+          {/* Máy tính: cạnh dòng mã booking; điện thoại: dòng chữ cuối màn */}
+          {cancelBtn("-my-2 hidden sm:inline-block")}
+        </div>
         {ticket ? (
           <p className="font-medium">
             Vé sự kiện {ticket.name} × {ticket.seats} · {formatLongDate(ticket.play_date)} · {hhmm(ticket.start_time)} – {hhmm(ticket.end_time)}
@@ -151,6 +185,18 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
           </p>
         ) : null}
       </div>
+      {cancelBtn("mt-3 w-full sm:hidden")}
+      {order ? (
+        <>
+          <CancelHoldDialog order={order} open={cancelOpen} onClose={() => setCancelOpen(false)} onCancelled={() => {
+              // Đóng hộp + đánh dấu đã hủy trước khi chuyển (trang cũ có thể được giữ ẩn, không để hộp mở / chặn rời trang)
+              setCancelOpen(false);
+              setCheckout({ ...checkout, status: "cancelled" });
+              router.replace(`${bookPath}?date=${order.date}`);
+            }} />
+          <LeaveDialog until={formatTime(checkout.expires_at)} open={guard.asking} onStay={guard.stay} onLeave={guard.leave} />
+        </>
+      ) : null}
     </Card>
   );
 }

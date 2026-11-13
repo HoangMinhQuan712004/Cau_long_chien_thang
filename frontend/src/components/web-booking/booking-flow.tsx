@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { CourtGrid, type GridCell, type GridRow } from "@/components/court-grid/court-grid";
 import { MyBookingModal } from "@/components/member-area/cell-dialogs";
+import { MEMBER_BACK_EVENT } from "@/components/member-area/member-shell";
 import { getMemberCalendar } from "@/components/member-area/cell-requests";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -24,6 +25,9 @@ import { MemberHint } from "./member-hint";
 import { clearToken, readJson, removeKey, saveToken, savedToken, useVerifiedPhone, writeJson } from "./session-store";
 import { toast } from "@/lib/feedback";
 import { BookingPhoneOtp, type VerifiedAccount } from "./phone-otp";
+import { PendingBar } from "./pending-bar";
+import { usePendingGate } from "./pending-dialogs";
+import { payHref, usePendingOrder } from "./pending-store";
 import { getWebCalendar, requestBookingPhone, sendCheckout } from "./requests";
 import { MAX_CELLS, RESTORE_KEY, type Cell, type SlotExtra, type WebCalendar } from "./types";
 
@@ -89,6 +93,7 @@ type Props = {
 
 export function WebBookingFlow({ initialDate, today, venue, texts, member, initialEvent = null }: Props) {
   const router = useRouter();
+  const pending = usePendingOrder();
   // Phiên đặt trong khu hội viên lưu riêng, không lẫn với /dat-san công khai
   const storageKey = member ? `${STORAGE_KEY}:member` : STORAGE_KEY;
   const [date, setDate] = useState(initialDate);
@@ -104,6 +109,8 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   const [banner, setBanner] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  // Còn đơn chờ thanh toán ⇒ không cho sang bước 2 / tạo đơn mới (hộp: Thanh toán ngay / Hủy giữ chỗ)
+  const gate = usePendingGate(Boolean(member));
   const [loading, setLoading] = useState(false);
   const [pendingDate, setPendingDate] = useState<string | null>(null);
   // Thanh tổng dưới đáy: mở rộng để xem danh sách khối đã chọn (T-028 AC7)
@@ -132,6 +139,18 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
     stepRef.current = next;
     setStep(next);
   }, []);
+
+  // Khu hội viên: đang ở bước 2 mà bấm nút quay lại trên app bar ⇒ lùi về chọn giờ, không rời màn Đặt sân
+  useEffect(() => {
+    if (!member) return;
+    const onBack = (e: Event) => {
+      if (stepRef.current !== 2) return;
+      e.preventDefault();
+      applyStep(1);
+    };
+    window.addEventListener(MEMBER_BACK_EVENT, onBack);
+    return () => window.removeEventListener(MEMBER_BACK_EVENT, onBack);
+  }, [member, applyStep]);
 
   /** Tải lịch; bỏ các ô đang chọn vừa bị người khác đặt (AC4); áp dụng "Đặt lại" ở lần tải đầu của ngày đó. */
   const load = useCallback(
@@ -253,7 +272,17 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
                       setCellDialog({ kind: "mine", code: orderCode });
                     },
                   }
-                : { kind: "block", key: "booked", tone: "booked", lines: ["Đã đặt"], aria: "đã có người đặt", onClick: () => toast("Khung giờ này đã có người đặt", undefined, "info") };
+                : member && s.holding && orderCode
+                  ? {
+                      // Ô đang giữ chỗ của chính mình (chưa trả): không phải "Đã đặt"; bấm ⇒ màn QR
+                      kind: "block",
+                      key: `hold|${orderCode}`,
+                      tone: "mine",
+                      lines: ["Chờ thanh toán"],
+                      aria: "bạn đang giữ chỗ, chờ thanh toán",
+                      onClick: () => (pending?.code === orderCode ? router.push(payHref(pending)) : toast("Bạn đang giữ chỗ này, hãy thanh toán để hoàn tất", undefined, "info")),
+                    }
+                  : { kind: "block", key: "booked", tone: "booked", lines: ["Đã đặt"], aria: "đã có người đặt", onClick: () => toast("Khung giờ này đã có người đặt", undefined, "info") };
           } else if (s.state === "event") {
             const eventCode = s.event_code;
             out[h] = {
@@ -274,7 +303,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
         }
         return { code: r.code, name: r.name, cells: out };
       }),
-    [calendar, member],
+    [calendar, member, pending, router],
   );
   const onlineOff = calendar ? !calendar.online_enabled : false;
   const holdMinutes = calendar?.hold_minutes ?? 5;
@@ -426,6 +455,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
         void load(dateRef.current, true);
         return;
       }
+      if (gate.fromError(e)) return;
       if (e.code === "E-WEB-5") void load(dateRef.current, true);
       if (e.code === "E-WEB-8") clearToken(); // token hết hạn / không khớp SĐT ⇒ xác minh lại ở lần bấm kế tiếp
       setBanner(errorText(e));
@@ -441,7 +471,8 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   if (step === 2 && calendar) {
     return (
       <div className="mx-auto w-full max-w-xl space-y-5">
-        <button type="button" onClick={() => applyStep(1)} className="text-sm text-muted hover:text-foreground">
+        {/* Khu hội viên trên điện thoại: lùi về chọn giờ bằng nút quay lại trên app bar (người dùng 13/11) ⇒ ẩn nút này */}
+        <button type="button" onClick={() => applyStep(1)} className={cn("text-sm text-muted hover:text-foreground", member && "max-lg:hidden")}>
           ← Quay lại chọn giờ
         </button>
         <div>
@@ -608,10 +639,11 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
           </h3>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground">
             <li>Khung giờ được giữ {holdMinutes} phút để chuyển khoản; hết thời gian mà chưa nhận được tiền thì khung giờ được mở lại.</li>
-            <li>Đặt sân online không hủy và không hoàn tiền.</li>
+            <li>Đơn đã thanh toán không hủy và không hoàn tiền. Đơn chưa thanh toán có thể hủy giữ chỗ trước khi hết thời gian.</li>
             <li>Vui lòng đến trước giờ chơi và báo mã booking tại quầy.</li>
           </ul>
         </section>
+        {gate.dialog}
       </div>
     );
   }
@@ -677,8 +709,15 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
               <section
                 data-bottom-bar
                 aria-label="Bạn đang chọn"
-                className="fixed inset-x-0 bottom-0 z-40 rounded-t-[20px] bg-appbar text-surface shadow-[0_-6px_24px_rgb(0_0_0/0.25)] sm:sticky sm:bottom-3 sm:rounded-2xl sm:shadow-lg"
+                // Điện thoại: nền xanh kéo dài xuống dưới đáy (after:) ⇒ không lộ dải trắng dưới thanh khi thanh công cụ trình duyệt co / giãn
+                className={cn(
+                  "fixed inset-x-0 bottom-0 z-40 rounded-t-[20px] bg-appbar text-surface shadow-[0_-6px_24px_rgb(0_0_0/0.25)]",
+                  "after:absolute after:inset-x-0 after:top-full after:h-screen after:bg-appbar",
+                  "sm:sticky sm:bottom-3 sm:rounded-2xl sm:shadow-lg sm:after:hidden",
+                )}
               >
+                {/* Còn đơn chờ thanh toán: hàng nhắc dính liền mép trên thanh này (thanh nổi chung bị ẩn khi có data-bottom-bar) */}
+                <PendingBar part="inline" sync={false} />
                 {/* Điện thoại: thanh gọn (người dùng 03/11) – đệm, chữ và nút nhỏ hơn; từ sm giữ cỡ cũ */}
                 <div className="px-4 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:py-3">
                   <button
@@ -716,7 +755,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
                         {formatVnd(total)}
                       </p>
                     </div>
-                    <Button variant="cta" onClick={() => applyStep(2)} disabled={onlineOff || !calendar} className="h-11 min-w-28 px-4 text-xs sm:h-12 sm:min-w-36 sm:px-6 sm:text-sm">
+                    <Button variant="cta" onClick={() => !gate.check() && applyStep(2)} disabled={onlineOff || !calendar} className="h-11 min-w-28 px-4 text-xs sm:h-12 sm:min-w-36 sm:px-6 sm:text-sm">
                       Tiếp theo
                     </Button>
                   </div>
@@ -763,6 +802,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
       >
         <p className="text-sm">Đổi ngày sẽ bỏ các khung giờ bạn đã chọn. Tiếp tục?</p>
       </Modal>
+      {gate.dialog}
     </div>
   );
 }

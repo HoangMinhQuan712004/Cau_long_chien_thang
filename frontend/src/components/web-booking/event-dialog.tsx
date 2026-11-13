@@ -15,6 +15,7 @@ import { isValidPhone, normalizePhone } from "@/lib/phone";
 import type { BookingVenue } from "./booking-flow";
 import { MemberHint } from "./member-hint";
 import { BookingPhoneOtp, type VerifiedAccount } from "./phone-otp";
+import { usePendingGate } from "./pending-dialogs";
 import { getEventDetail, requestBookingPhone, sendEventCheckout } from "./requests";
 import { clearToken, saveToken, savedToken, useVerifiedPhone } from "./session-store";
 import type { EventDetail, EventReason, PayStatus } from "./types";
@@ -66,6 +67,8 @@ export function EventDialog({
   const [form, setForm] = useState({ name: member?.name ?? "", phone: member?.phone ?? "" });
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Còn đơn chờ thanh toán ⇒ không cho mua vé mới (hộp: Thanh toán ngay / Hủy giữ chỗ)
+  const gate = usePendingGate(Boolean(member));
   const [banner, setBanner] = useState("");
   const [otp, setOtp] = useState<{ phone: string; resendAt: number | null; testOtp: string | null } | null>(null);
   const verifiedPhone = useVerifiedPhone();
@@ -158,6 +161,7 @@ export function EventDialog({
       document.getElementById(errors.name ? ids.name : ids.phone)?.focus();
       return;
     }
+    if (gate.check()) return;
     const phoneToken = skipOtp ? null : (tokenOverride ?? savedToken(phone));
     setBusy(true);
     try {
@@ -191,6 +195,7 @@ export function EventDialog({
         return;
       }
       const e = res.error;
+      if (gate.fromError(e)) return;
       if (e.code === "E-WEB-8") clearToken(); // token hết hạn / không khớp SĐT ⇒ xác minh lại ở lần bấm kế tiếp
       setBanner(errorText(e));
       // Hết chỗ / đã bắt đầu / đã xóa: số liệu cũ ⇒ tải lại popup và lưới
@@ -430,6 +435,7 @@ export function EventDialog({
           Đang tải…
         </p>
       )}
+      {gate.dialog}
     </Modal>
   );
 }
