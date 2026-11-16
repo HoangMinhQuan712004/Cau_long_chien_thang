@@ -241,7 +241,7 @@ Mục này dùng để biết ai đăng nhập bằng gì, cấu hình biến m�
 | Khách | SĐT hoặc tên đăng nhập + mật khẩu, hoặc Google. Tự đăng ký tại `/dang-ky` (từ T-021: phải xác minh SĐT bằng OTP và đăng ký xong là hội viên) | `/dang-nhap` → `/tai-khoan` (hội viên: `/hoi-vien`) |
 
 - Chỉ có **một** trang `/dang-nhap` với một ô "Số điện thoại hoặc tên đăng nhập".
-- Sai mật khẩu 5 lần liên tiếp → khóa 15 phút. Phiên Admin/nhân viên tồn tại tối đa 12 giờ, rồi phải đăng nhập lại.
+- Sai mật khẩu 5 lần liên tiếp → khóa 15 phút. Phiên Admin/nhân viên **trượt 30 ngày** (T-077): hết hạn sau 30 ngày không dùng, đang dùng thì tự gia hạn; không có hạn tuyệt đối. Đổi mật khẩu, khóa tài khoản, thu hồi hoặc đăng xuất vẫn kết thúc phiên ngay.
 - Nhân viên có quyền như "Tài khoản tại máy" trước đây (đặt sân tại quầy, thu tiền, xem lịch). Không tạo/xóa sự kiện, không xem Lịch sử giao dịch, không vào Nhân viên và Cài đặt thanh toán.
 - Đặt tại quầy **không** cần OTP. OTP chỉ dùng khi khách **đặt online**, khi **quên mật khẩu**, khi **xác minh SĐT** trong `/tai-khoan` và (từ T-021) khi **đăng ký tài khoản**.
 
@@ -265,6 +265,8 @@ Khai báo ở `backend/.env` (máy dev) và `.env` trên server. Danh sách đ�
 | `FIRST_ADMIN_PHONE` | SĐT Admin đầu tiên (thay `FIRST_ADMIN_EMAIL`) | Link dev: `0912345678`. **Production: SĐT thật, phải có trong `.env` trước khi deploy** (thiếu → migration dừng, API không lên) |
 | `FIRST_ADMIN_PASSWORD` | Mật khẩu Admin đầu tiên (mẫu `Admin@12345`) | Chỉ dùng khi **chưa có Admin**; không bao giờ ghi đè mật khẩu đã có. Production từ chối mật khẩu mẫu hoặc yếu. **Secret** |
 | `OTP_TEST_MODE` | Hiện mã OTP trên màn hình khi chưa có Zalo | Chỉ máy dev và link dev. `true` + `ENV=production` → API không khởi động |
+| `ADMIN_SESSION_IDLE_DAYS` (T-077) | `30` | Phiên Admin/nhân viên hết hạn sau N ngày không dùng. **Thay `ADMIN_SESSION_HOURS`** (đã bỏ khỏi code; còn trong `.env` thì bị bỏ qua, nên xóa đi) |
+| `REFRESH_TOKEN_DAYS` (T-077) | `30` | Hạn refresh token của khách (trước đây 14). Đang đặt 14 trong `.env` thì đổi hoặc xóa dòng đó |
 | `ZALO_APP_ID`, `ZALO_SECRET_KEY`, `ZALO_REFRESH_TOKEN`, `ZALO_TEMPLATE_OTP` | Gửi OTP qua Zalo | **Chưa dùng được** (làm sau). Secret |
 | `GOOGLE_CLIENT_ID` | Đăng nhập Google (backend) | Để trống thì nút Google hiện "đang được cấu hình" |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Nút Google (frontend) | Client ID là thông tin công khai. Deploy lấy từ biến repo `GOOGLE_CLIENT_ID` (Settings → Secrets and variables → Variables), build vào image web |
@@ -571,10 +573,10 @@ Khi cần tách service chỉ cần thay `app/core/events.py` bằng message bro
 **Bảo mật nền tảng (ADR-004).** Chống CSRF bằng kiểm `Origin`, rate limit bằng Redis, `Idempotency-Key` cho mọi lệnh ghi,
 nhật ký thao tác chỉ thêm (không sửa), quyền khai báo tập trung ở `app/core/permissions.py`, SĐT che ở API khách và hội viên (riêng màn quản trị có quyền thì hiện đầy đủ).
 
-**Auth.** JWT trong cookie httpOnly (access 30 phút, refresh 14 ngày, path `/api/v1/auth`).
+**Auth.** JWT trong cookie httpOnly (access 30 phút, refresh **30 ngày** từ T-077, mỗi lần làm mới cấp token mới; cookie refresh `Path=/` để proxy của Next đọc được, trước đó `/api/v1/auth`).
 Trình duyệt gọi `/api/v1/*` cùng domain, Next rewrite sang FastAPI → không cần CORS.
 Client tự gọi `/auth/refresh` khi gặp 401; trang đăng nhập tự khôi phục phiên nếu refresh còn hạn.
-**Từ T-013 (ADR-008):** JWT chỉ còn cho **khách** (thêm `token_version`: đổi mật khẩu thì JWT cũ hết hiệu lực). Admin và nhân viên dùng **phiên phía server** (cookie `admin_session`, 12 giờ cứng, thu hồi được, đăng xuất từ xa). OTP chỉ bắt buộc ở đặt online; đặt tại quầy không cần.
+**Từ T-013 (ADR-008):** JWT chỉ còn cho **khách** (thêm `token_version`: đổi mật khẩu thì JWT cũ hết hiệu lực). Admin và nhân viên dùng **phiên phía server** (cookie `admin_session`, **trượt 30 ngày** từ T-077, thu hồi được, đăng xuất từ xa). OTP chỉ bắt buộc ở đặt online; đặt tại quầy không cần.
 
 **SEO.** Trang public prerender tĩnh, dữ liệu qua `'use cache'` + `cacheLife` (tự làm mới).
 Mỗi trang tự khai báo `alternates.canonical`; JSON-LD `SportsActivityLocation` (trang chủ),

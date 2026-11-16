@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-063, T-064, T-065, T-066, T-068, T-069, T-070, T-071, T-072, T-075, T-076)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-063, T-064, T-065, T-066, T-068, T-069, T-070, T-071, T-072, T-075, T-076, T-077)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -569,6 +569,7 @@ Khai báo trong `backend/app/core/config.py`, mẫu ở `backend/.env.example`.
 | `PAYMENTS_SIMULATE` | `false` | Bật `POST /payments/dev/simulate` (giả lập tiền về). `ENV=production` mà bật → API **không khởi động** |
 | `FIRST_ADMIN_PHONE` **(T-013)** | `0912345678` | Thay `FIRST_ADMIN_EMAIL`. SĐT Admin đầu tiên. Migration T-013 cũng dùng biến này để gán SĐT cho Admin cũ chưa có; **thiếu hoặc sai → migration dừng**. Production: SĐT thật, phải có trong `.env` **trước** khi deploy |
 | `FIRST_ADMIN_PASSWORD` | `Admin@12345` (mẫu, `.env.example`) | Chỉ dùng khi **chưa có Admin**; không bao giờ ghi đè mật khẩu Admin đã có. Production từ chối mật khẩu mẫu hoặc yếu |
+| `REFRESH_TOKEN_DAYS` **(T-077)** | `30` | Hạn refresh token của khách (trước đây 14); mỗi lần làm mới cấp token mới nên chỉ đăng xuất khi 30 ngày không mở. Cookie `refresh_token` nay `Path=/` |
 | `ADMIN_SESSION_IDLE_DAYS` **(T-077)** | `30` | Phiên Admin/nhân viên hết hạn sau N ngày không dùng; đang dùng tự gia hạn (tối đa 1 lần/giờ). Thay `ADMIN_SESSION_HOURS` (12 giờ cứng, T-013) |
 | `LOGIN_MAX_ATTEMPTS` · `LOGIN_LOCK_MINUTES` | `5` · `15` | Số lần sai liên tiếp và thời gian khóa tài khoản |
 | `LOGIN_IP_MAX_ATTEMPTS` · `LOGIN_IP_WINDOW_MINUTES` | `20` · `15` | Giới hạn lần sai theo IP |
@@ -1001,6 +1002,15 @@ Lỗi dạng `{detail:{code,message,…}}`. Mọi POST cần `Origin` hợp lệ
 `UserOut` = `{id, phone, phone_verified, username, full_name, google_email, role, is_active, must_change_password}` (**không còn `email`**; `role` là `member` với khách; T-016 thêm `is_member`, mục 12.6). `phone` là SĐT đầy đủ vì API chỉ trả cho chính chủ. `/auth/register/verify` (T-021; trước đó `/auth/register`) đăng nhập luôn (cookie JWT). `/auth/me` chỉ dành cho khách: phiên Admin/nhân viên gọi vào → 401.
 
 **Origin.** Mọi `POST` auth thiếu hoặc sai `Origin` → 403 `E-SEC-1`, kể cả khi chưa có cookie. `GET` (như `/auth/me`, `/admin/auth/me`) không cần `Origin`.
+
+**Phiên và hạn đăng nhập (T-077, đã vào `dev`; không migration, không endpoint mới).**
+
+- **Admin và nhân viên (`admin_session`): phiên trượt 30 ngày** (`ADMIN_SESSION_IDLE_DAYS`, thay 12 giờ cứng của T-013). Đăng nhập: `expires_at = now + 30 ngày`, cookie `Max-Age = 2592000`. **Không có hạn tuyệt đối.** Hết hạn, đổi mật khẩu, khóa tài khoản, thu hồi, đăng xuất giữ nguyên như cũ (lý do `expired`, `password_changed`, `account_disabled`).
+- **Gia hạn:** mỗi request quản trị có phiên hợp lệ, nếu lần gia hạn trước (`expires_at − 30 ngày`) đã **hơn 1 giờ** thì đặt `expires_at = now + 30 ngày` bằng một câu `UPDATE … WHERE id AND expires_at < now + 30 ngày − 1 giờ AND chưa thu hồi` (trên phiên DB của request, không mở phiên lồng; nhiều request cùng lúc chỉ một câu thắng). Mọi request quản trị có phiên hợp lệ còn gửi lại `Set-Cookie: admin_session=…; Max-Age=<hạn còn lại trong DB>; HttpOnly; SameSite=Lax`; response tự đặt hoặc xóa cookie này (đăng nhập, đăng xuất) thì không bị chen: **đăng xuất luôn thắng**. Phiên 12 giờ còn hạn lúc triển khai được gia hạn ngay ở request đầu. `GET /admin/auth/me` → `expires_at` khoảng 30 ngày sau.
+- **Proxy `/admin` (frontend):** gia hạn tối đa mỗi giờ từ `proxy.ts`, để cookie được kéo dài cả khi người dùng chỉ mở trang render phía server. Proxy hoặc RSC gọi API thay trình duyệt thì phải chuyển tiếp `Set-Cookie`; không chuyển thì phiên DB vẫn được gia hạn nhưng cookie trình duyệt hết sau 30 ngày kể từ lần nhận gần nhất.
+- **Khách (JWT):** `REFRESH_TOKEN_DAYS = 30` (trước 14); access vẫn 30 phút. Cookie `refresh_token` nay **`Path=/`** (vẫn `HttpOnly`, `SameSite=Lax`, `Secure` theo `COOKIE_SECURE`) để proxy của Next đọc được. Mỗi lần đặt cookie (đăng nhập, refresh) và khi đăng xuất đều **xóa bản cũ ở `Path=/api/v1/auth`**, nên phản hồi có **hai `Set-Cookie` cho `refresh_token`** (bản mới path `/`, bản xóa path cũ). `POST /auth/refresh` vẫn nhận cookie ở path cũ. Refresh thất bại → 401 `E-AUTH-1` lý do `expired`.
+- **Không có cửa sổ ân hạn 30 giây khi xoay vòng.** Refresh token là **JWT không trạng thái**: cấp token mới không vô hiệu token cũ; token chỉ hết hiệu lực khi hết hạn hoặc `token_version` tăng (đổi mật khẩu, đặt lại, khóa). Nên proxy và trình duyệt cùng làm mới bằng một token thì **cả hai đều 200** (có test). **Rủi ro đã ghi nhận (ARCHITECT, backlog bảo mật):** refresh token sống 30 ngày và không dùng một lần, token bị lộ còn dùng được tới khi hết hạn hoặc đổi mật khẩu; dùng một lần kèm phát hiện dùng lại cần bảng mới, sẽ làm khi người dùng muốn.
+- **Khi lên:** xóa `ADMIN_SESSION_HOURS` khỏi `.env` (bị bỏ qua), đổi `REFRESH_TOKEN_DAYS` nếu đang đặt 14. Đối chiếu code `be/T-077-giu-dang-nhap` @ `12f70a5` và các sửa sau (`89a6186`, `40a0216`). Test QA `test_qa_T-013::test_ac4_admin_cookie_attributes_and_hashed_token` phải theo quy tắc mới (12 giờ → 30 ngày).
 
 **Khóa tài khoản.** Sai mật khẩu 5 lần liên tiếp → khóa 15 phút (`E-AUTH-11`, 423, có `retry_after`). Hết khóa thì đếm lại từ 0; đăng nhập đúng đưa về 0. Tài khoản không tồn tại và tài khoản sai mật khẩu trả **cùng** `E-AUTH-10`. Theo IP: từ 20 lần sai trong 15 phút → `E-AUTH-12` (429, `retry_after`), tính cả lần Google token sai.
 
@@ -1840,7 +1850,10 @@ Payload không có tên hay SĐT (trừ chỗ đã có từ trước).
 ### 14.4 Worker và cấu hình
 
 - Job mới: `push_test`, `push_member_notification`, `push_staff`, `send_play_reminders`. Handler chỉ **xếp job** (`job_id` chống trùng của ARQ), không gửi trực tiếp: **push lỗi không ảnh hưởng đặt sân, thu tiền hay webhook**.
-- **Nhắc giờ:** cron `send_play_reminders` chạy mỗi 5 phút (phút chia hết cho 5, giây 0, `unique`). Điều kiện: `start − 60' ≤ now`, `start − now > 15'`, `created_at ≤ start − 60'`. Bỏ khối hoặc vé đã hủy, sự kiện đã xóa, khách không có tài khoản hội viên. Chống trùng bằng `notify_once("booking.reminder", mã khối hoặc mã vé)`: mỗi khối hoặc vé chỉ nhắc **một lần**. Buổi đặt sau mốc 60 phút trước giờ chơi thì không nhắc; worker dừng rồi chạy lại vẫn nhắc bù nếu còn hơn 15 phút.
+- **Nhắc giờ:** cron `send_play_reminders` chạy mỗi 5 phút (phút chia hết cho 5, giây 0, `unique`). Bỏ khối hoặc vé đã hủy, sự kiện đã xóa, khách không có tài khoản hội viên. Chống trùng bằng `notify_once("booking.reminder", mã khối hoặc mã vé)`: mỗi khối hoặc vé chỉ nhắc **một lần**. `created_at` = lúc tạo khối hoặc vé (đặt online: lúc tiền về). Áp cho cả vé sự kiện. **Hai quy tắc (T-077 thêm quy tắc thứ hai):**
+  - **Thường** (`created_at ≤ start − 60'`): nhắc khi `start − 60' ≤ now` và `start − now > 15'` (nhắc khoảng 60 phút trước; worker dừng rồi chạy lại vẫn nhắc bù nếu còn hơn 15 phút, ít hơn thì bỏ).
+  - **Đặt sát giờ** (`created_at > start − 60'`) **và còn hơn 20 phút** (`start − created_at > 20'`): nhắc khi `start − 15' ≤ now` và `start − now > 5'` (nhắc khoảng 15 phút trước; quá `start − 5'` thì bỏ).
+  - **Đặt khi còn ≤ 20 phút: không nhắc.** Câu chữ như cũ, vẫn vào hộp thông báo dù chưa có push.
 - **Biến môi trường** (không có mặc định thật; thiếu `VAPID_PUBLIC_KEY` hoặc `VAPID_PRIVATE_KEY` thì tắt push):
 
 | Biến | Ghi chú |
