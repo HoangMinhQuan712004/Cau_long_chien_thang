@@ -698,6 +698,15 @@ async def apply_online_payment(
     )
     for booking in created:
         await emit_created(session, tenant_id, order, booking)
+    names = dict(
+        (
+            await session.execute(
+                select(Resource.id, Resource.name).where(
+                    Resource.id.in_({b.resource_id for b in created})
+                )
+            )
+        ).all()
+    )
     outbox.add_event(
         session,
         tenant_id,
@@ -705,6 +714,18 @@ async def apply_online_payment(
         {
             "order_code": order.code,
             "codes": codes,
+            # T-076: thông báo "Đặt online mới" / "Đã ghi nhận thanh toán"
+            "amount": checkout.amount,
+            "play_date": checkout.play_date.isoformat(),
+            "items": [
+                {
+                    "code": b.code,
+                    "resource_name": names.get(b.resource_id, ""),
+                    "start_at": b.start_at.isoformat(),
+                    "end_at": b.end_at.isoformat(),
+                }
+                for b in created
+            ],
             "customer_kind": checkout.customer_kind,
             "full_name": checkout.customer_name,
             "phone": checkout.customer_phone,

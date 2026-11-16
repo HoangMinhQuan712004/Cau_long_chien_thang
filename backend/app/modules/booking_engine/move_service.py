@@ -183,6 +183,13 @@ async def move(
             "resource_code": target.code,
             "resource_name": target.name,
             "resource_type_name": type_name,
+            # T-076: sân / giờ cũ -> mới cho thông báo "Buổi chơi đã được đổi"
+            "from_resource_code": source.code,
+            "from_resource_name": source.name,
+            "from_start_at": b.start_at.isoformat(),
+            "from_end_at": b.end_at.isoformat(),
+            "start_at": b.start_at.isoformat(),
+            "end_at": b.end_at.isoformat(),
         },
     )
     return await view_of(session, ctx, b)
