@@ -13,7 +13,6 @@ import asyncio
 import importlib
 from datetime import UTC, datetime, timedelta
 
-import pytest
 from sqlalchemy import select, update
 
 from app.core.config import settings
@@ -123,11 +122,6 @@ async def test_ac7_eight_parallel_requests_on_a_stale_session_renew_exactly_once
     await _parallel_on_stale_session(admin, 8, "QA Phiên Song Song 8")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="T-77-1: gia hạn mở thêm một phiên DB trong lúc request giữ phiên của nó -> với >= 16 request song song "
-    "trên phiên cũ, pool (5 + 10) cạn, tất cả TimeoutError sau 30 giây (20 request phiên mới thì 0,2 giây)",
-)
 async def test_ac7_twenty_parallel_requests_on_a_stale_session_do_not_starve_the_db_pool(admin):
     await _parallel_on_stale_session(admin, 20, "QA Phiên Song Song 20")
 
