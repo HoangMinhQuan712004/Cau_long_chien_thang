@@ -296,3 +296,43 @@ async def create_demo_account(
 
 async def purge_demo(session: AsyncSession) -> int:
     return await demo.purge_demo(session)
+
+
+# ---------------------------------------------------------- người nhận thông báo đẩy (T-076)
+
+
+async def active_user_ids(session: AsyncSession, user_ids: set[int]) -> set[int]:
+    """Tài khoản (trong ``user_ids``) đang hoạt động – tài khoản khóa / ngừng không nhận push."""
+    if not user_ids:
+        return set()
+    rows = await session.scalars(
+        select(User.id).where(User.id.in_(sorted(user_ids)), User.is_active.is_(True))
+    )
+    return set(rows)
+
+
+async def member_user_id(session: AsyncSession, phone: str) -> int | None:
+    """Tài khoản hội viên hoạt động, xem được thẻ hội viên, của SĐT này – như ``linked_phones``."""
+    user = await session.scalar(
+        select(User).where(User.phone == phone, User.role == Role.MEMBER, User.is_active.is_(True))
+    )
+    return user.id if user is not None and member_accounts.can_view_member_card(user) else None
+
+
+async def staff_user_ids_with(session: AsyncSession, perm: str) -> set[int]:
+    """Admin / NV đang hoạt động có quyền ``perm`` **lúc này** (Admin: mọi quyền; NV: theo tab
+    Phân quyền, trừ quyền chỉ Admin)."""
+    from app.core.permissions import ADMIN_ONLY, Perm
+    from app.modules.auth.models import RolePermission
+
+    roles = [Role.ADMIN]
+    if Perm(perm) not in ADMIN_ONLY and await session.scalar(
+        select(RolePermission.perm).where(
+            RolePermission.role == Role.STAFF.value, RolePermission.perm == perm
+        )
+    ):
+        roles.append(Role.STAFF)
+    rows = await session.scalars(
+        select(User.id).where(User.role.in_(roles), User.is_active.is_(True))
+    )
+    return set(rows)

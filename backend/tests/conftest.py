@@ -58,7 +58,8 @@ from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
 from app.modules.auth.models import OtpCode, Role, User  # noqa: E402
 from app.modules.auth.utils import normalize_phone  # noqa: E402
-from app.scripts import seed  # noqa: E402
+from app.modules.web_push import testing as push_testing  # noqa: E402
+from app.scripts import seed, vapid_keys  # noqa: E402
 from tests.db_guard import reset_refusal  # noqa: E402
 
 API = settings.API_PREFIX
@@ -103,6 +104,9 @@ async def _record_job(job: str, args: tuple) -> None:
 
 
 queue.set_sink(_record_job)
+# Web Push (T-076): khóa VAPID thử + dịch vụ push giả – test / CI không bao giờ gửi ra mạng
+settings.VAPID_PUBLIC_KEY, settings.VAPID_PRIVATE_KEY = vapid_keys.generate()
+PUSH = push_testing.install()
 
 
 def _alembic_upgrade_head() -> None:
@@ -139,6 +143,7 @@ async def setup_db() -> AsyncIterator[None]:
         # Xóa sạch (gồm bảng legacy_* và enum của luồng cũ – không còn trong metadata)
         await conn.execute(text("DROP SCHEMA IF EXISTS booking CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS payments CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS push CASCADE"))
         await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(text("CREATE SCHEMA public"))
         await fake_clock.install_now(conn)
