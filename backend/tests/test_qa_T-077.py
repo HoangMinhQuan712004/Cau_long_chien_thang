@@ -11,12 +11,14 @@ vé sự kiện sát giờ, hộp thông báo vẫn có khi chưa có thiết b�
 
 import asyncio
 import importlib
+import re
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import event, select, update
 
 from app.core.config import settings
-from app.core.db import SessionLocal
+from app.core.db import SessionLocal, engine
 from app.modules.auth.models import AdminSession, User
 from app.modules.booking_engine.models import EventSession, Ticket
 from app.modules.member_area import handlers as member_area
@@ -39,6 +41,34 @@ def admin_cookie(r):
     return next(
         (v for v in r.headers.get_list("set-cookie") if v.startswith("admin_session=")), None
     )
+
+
+def cookie_max_age(r) -> int | None:
+    cookie = admin_cookie(r)
+    match = re.search(r"max-age=(\d+)", cookie.lower()) if cookie else None
+    return int(match.group(1)) if match else None
+
+
+def renewals(updates: list[str]) -> int:
+    """Số lần GHI THẬT hạn phiên: câu UPDATE không điều kiện (ghi lại ``expires_at`` đã gia hạn). Câu UPDATE có điều kiện
+    ``expires_at < …`` mà thua cuộc đua thì không đổi dòng nào nên không tính."""
+    return sum("expires_at <" not in u for u in updates)
+
+
+@contextmanager
+def admin_session_updates():
+    """Ghi lại các câu UPDATE bảng admin_sessions đã gửi lên DB trong khối."""
+    seen: list[str] = []
+
+    def before(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("UPDATE") and "admin_sessions" in statement:
+            seen.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", before)
+    try:
+        yield seen
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", before)
 
 
 async def session_row(user_id: int) -> AdminSession:
@@ -96,14 +126,22 @@ async def test_ac7_renewal_threshold_59m59s_is_not_written_1h01s_is(admin):
         full = timedelta(days=IDLE_DAYS)
         under = datetime.now(UTC) + full - timedelta(minutes=59, seconds=59)
         await set_expiry(row.id, under)
-        r = await c.get(f"{API}/admin/auth/me")
-        assert r.status_code == 200 and admin_cookie(r) is None, "chưa đủ 1 giờ: không gia hạn"
-        assert (await session_row(nv["id"])).expires_at == under
+        with admin_session_updates() as updates:
+            r = await c.get(f"{API}/admin/auth/me")
+        assert r.status_code == 200 and updates == [], "chưa đủ 1 giờ: không ghi DB"
+        assert (await session_row(nv["id"])).expires_at == under, "expires_at không đổi"
+        remaining = (under - datetime.now(UTC)).total_seconds()
+        age = cookie_max_age(r)  # mọi request đều gửi lại cookie, nhưng không bao giờ dài hơn DB
+        assert age is not None and 0 < age <= remaining and age >= remaining - 5, (age, remaining)
         over = datetime.now(UTC) + full - timedelta(hours=1, seconds=1)
         await set_expiry(row.id, over)
-        r = await c.get(f"{API}/admin/auth/me")
-        assert r.status_code == 200 and admin_cookie(r) is not None
-        assert (await session_row(nv["id"])).expires_at > over + timedelta(minutes=59)
+        with admin_session_updates() as updates:
+            r = await c.get(f"{API}/admin/auth/me")
+        assert r.status_code == 200 and renewals(updates) == 1, "quá 1 giờ: gia hạn đúng một lần"
+        renewed = (await session_row(nv["id"])).expires_at
+        assert renewed > over + timedelta(minutes=59)
+        age = cookie_max_age(r)
+        assert age is not None and age <= (renewed - datetime.now(UTC)).total_seconds() + 1
 
 
 async def _parallel_on_stale_session(admin, n: int, name: str) -> None:
@@ -111,11 +149,21 @@ async def _parallel_on_stale_session(admin, n: int, name: str) -> None:
     async with _client() as c:
         await sign_in(c, nv["username"], PASSWORD)
         row = await session_row(nv["id"])
-        await set_expiry(row.id, datetime.now(UTC) + timedelta(days=3))
-        rs = await asyncio.gather(*(c.get(f"{API}/admin/auth/me") for _ in range(n)))
+        old = datetime.now(UTC) + timedelta(days=3)
+        await set_expiry(row.id, old)
+        with admin_session_updates() as updates:
+            rs = await asyncio.gather(*(c.get(f"{API}/admin/auth/me") for _ in range(n)))
         assert {r.status_code for r in rs} == {200}
-        assert sum(admin_cookie(r) is not None for r in rs) == 1, "chỉ một request thắng gia hạn"
-        assert (await session_row(nv["id"])).expires_at > datetime.now(UTC) + timedelta(days=29)
+        assert renewals(updates) == 1, (
+            f"{n} request song song chỉ được gia hạn một lần ({len(updates)} câu UPDATE)"
+        )
+        renewed = (await session_row(nv["id"])).expires_at
+        assert renewed > datetime.now(UTC) + timedelta(days=29), "gia hạn tới ~30 ngày"
+        for r in rs:  # mỗi cookie gửi lại không bao giờ dài hơn hạn thật trong DB
+            age = cookie_max_age(r)
+            assert (
+                age is not None and 0 < age <= (renewed - datetime.now(UTC)).total_seconds() + 5
+            ), age
 
 
 async def test_ac7_eight_parallel_requests_on_a_stale_session_renew_exactly_once(admin):

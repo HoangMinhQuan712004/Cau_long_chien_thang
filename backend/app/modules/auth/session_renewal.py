@@ -1,9 +1,13 @@
-"""Gửi lại cookie ``admin_session`` khi phiên vừa được gia hạn (T-077).
+"""Gửi lại cookie ``admin_session`` theo hạn của phiên trong DB (T-077).
 
-``deps.get_auth_state`` gia hạn phiên trong DB và ghi token vào ``request.state``; middleware này
-thêm ``Set-Cookie`` (max-age = hạn trượt) vào response – kể cả khi route tự trả ``Response``.
-Response đã tự đặt / xóa cookie ``admin_session`` (đăng nhập, đăng xuất) thì không chen vào.
+``deps.get_auth_state`` (gia hạn DB nếu đến hạn) ghi token + ``expires_at`` vào ``request.state``;
+middleware này thêm ``Set-Cookie`` (max-age = thời gian còn tới ``expires_at``, không bao giờ dài
+hơn DB) vào response – kể cả khi route tự trả ``Response``. Response đã tự đặt / xóa cookie
+``admin_session`` (đăng nhập, đăng xuất) thì không chen vào.
 """
+
+import math
+from datetime import UTC, datetime
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -24,14 +28,18 @@ class AdminSessionRenewalMiddleware:
 
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
-                token = scope.get("state", {}).get("renewed_admin_session")
+                current = scope.get("state", {}).get("admin_session_cookie")
                 headers = list(message.get("headers", []))
                 touched = any(
                     k.lower() == b"set-cookie" and v.startswith(_PREFIX) for k, v in headers
                 )
-                if token and not touched:
-                    headers.append((b"set-cookie", admin_cookie_header(token)))
-                    message["headers"] = headers
+                if current and not touched:
+                    token, expires_at = current
+                    # Làm tròn xuống: cookie không bao giờ sống lâu hơn phiên trong DB
+                    left = math.floor((expires_at - datetime.now(UTC)).total_seconds())
+                    if left > 0:
+                        headers.append((b"set-cookie", admin_cookie_header(token, left)))
+                        message["headers"] = headers
             await send(message)
 
         await self.app(scope, receive, send_wrapper)
