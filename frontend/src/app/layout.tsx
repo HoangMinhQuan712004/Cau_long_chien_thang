@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro } from "next/font/google";
 import { getBranding } from "@/lib/api/server";
-import { APP_NAME, site, siteDescription } from "@/lib/site";
+import { APP_SHORT_NAME, site, siteDescription } from "@/lib/site";
 import "./globals.css";
 
 const font = Be_Vietnam_Pro({
@@ -29,7 +29,7 @@ export async function generateMetadata(): Promise<Metadata> {
     // iPhone: "Thêm vào màn hình chính" ⇒ mở toàn màn hình như app, icon riêng (PWA – manifest ở app/manifest.ts)
     // black-translucent: trang vẽ dưới thanh trạng thái ⇒ thanh trạng thái mang màu header xanh, chữ trắng (header chừa
     // env(safe-area-inset-top)); "default" luôn là thanh trắng, iOS không theo theme-color khi mở như app
-    appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "black-translucent" },
+    appleWebApp: { capable: true, title: APP_SHORT_NAME, statusBarStyle: "black-translucent" },
     // Có logo ⇒ favicon theo logo (URL có ?v= đổi theo ảnh); chưa có ⇒ app/favicon.ico mặc định
     icons: { ...(favicon ? { icon: favicon } : {}), apple: "/pwa-icon/180" },
   };
