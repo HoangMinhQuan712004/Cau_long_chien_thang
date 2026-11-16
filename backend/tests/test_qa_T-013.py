@@ -291,8 +291,8 @@ async def test_ac4_admin_cookie_attributes_and_hashed_token(anon):
     line = next(c for c in cookie_lines(r) if c.startswith("admin_session="))
     low = line.lower()
     assert "httponly" in low and "samesite=lax" in low and "path=/" in low
-    assert f"max-age={settings.ADMIN_SESSION_HOURS * 3600}" in low
-    assert settings.ADMIN_SESSION_HOURS == 12
+    assert settings.ADMIN_SESSION_IDLE_DAYS == 30  # T-077: phiên trượt, 30 ngày không dùng
+    assert f"max-age={settings.ADMIN_SESSION_IDLE_DAYS * 86400}" in low
     token = line.split(";")[0].split("=", 1)[1]
     assert len(token) >= 43
     digest = hashlib.sha256(token.encode()).hexdigest()
@@ -301,8 +301,8 @@ async def test_ac4_admin_cookie_attributes_and_hashed_token(anon):
         h=digest,
     )
     assert len(rows) == 1, "DB stores SHA-256 of the cookie token"
-    hours = (rows[0]["expires_at"] - rows[0]["created_at"]).total_seconds() / 3600
-    assert 11.9 < hours < 12.1, hours
+    days = (rows[0]["expires_at"] - rows[0]["created_at"]).total_seconds() / 86400
+    assert 29.99 < days < 30.01, days
     assert not await q("SELECT 1 FROM admin_sessions WHERE token_hash=:t", t=token), "no raw token"
     leaked = await q("SELECT 1 FROM audit_log WHERE detail::text LIKE :p", p=f"%{token}%")
     assert not leaked, "token must never appear in audit"
@@ -310,7 +310,8 @@ async def test_ac4_admin_cookie_attributes_and_hashed_token(anon):
     assert me.status_code == 200 and me.json()["account"]["kind"] == "admin"
 
 
-async def test_ac4_hard_expiry_is_not_extended_by_use(anon):
+async def test_ac4_expiry_is_not_rewritten_by_use_within_the_hour(anon):
+    """T-077 AC7: gia hạn tối đa mỗi giờ một lần, dùng trong giờ không ghi lại."""
     await sign_in(anon, ADMIN_LOGIN, ADMIN_PW)
     first = (await anon.get(f"{API}/admin/auth/me")).json()["expires_at"]
     for _ in range(3):

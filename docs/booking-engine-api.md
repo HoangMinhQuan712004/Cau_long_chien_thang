@@ -18,7 +18,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 
 | Quy tắc | Chi tiết |
 |---|---|
-| Xác thực | Cookie. **(T-013)** `/auth/login` đã bị gỡ: Admin/nhân viên dùng cookie `admin_session` (phiên phía server, 12 giờ), khách dùng JWT; cả hai đăng nhập qua `POST /api/v1/auth/sign-in` – mục 11 |
+| Xác thực | Cookie. **(T-013)** `/auth/login` đã bị gỡ: Admin/nhân viên dùng cookie `admin_session` (phiên phía server, trượt 30 ngày – T-077), khách dùng JWT; cả hai đăng nhập qua `POST /api/v1/auth/sign-in` – mục 11 |
 | `Origin` | Request `POST/PUT/PATCH/DELETE` mang cookie phải có `Origin` (hoặc `Referer`) thuộc `ALLOWED_ORIGINS`, nếu không → 403 `E-SEC-1`. Thiếu cả hai cũng bị chặn. Trình duyệt tự gửi; code phía server Next gọi API phải tự thêm header `Origin` |
 | Body | JSON, tối đa 64 KB (`MAX_BODY_BYTES`) → quá thì 413 `E-SEC-6`. Trường lạ bị từ chối (422): server tự tính giá, tiền, mã, trạng thái thanh toán, tên khách, người thao tác, nên **đừng gửi** `amount`, `price`, `code`, `payment_status`, `customer_name`, `created_by` |
 | `Idempotency-Key` | Bắt buộc cho mọi `POST/PUT/PATCH/DELETE` của booking engine và `/front-desk/**`, **trừ `POST /booking/quote`** |
@@ -569,7 +569,7 @@ Khai báo trong `backend/app/core/config.py`, mẫu ở `backend/.env.example`.
 | `PAYMENTS_SIMULATE` | `false` | Bật `POST /payments/dev/simulate` (giả lập tiền về). `ENV=production` mà bật → API **không khởi động** |
 | `FIRST_ADMIN_PHONE` **(T-013)** | `0912345678` | Thay `FIRST_ADMIN_EMAIL`. SĐT Admin đầu tiên. Migration T-013 cũng dùng biến này để gán SĐT cho Admin cũ chưa có; **thiếu hoặc sai → migration dừng**. Production: SĐT thật, phải có trong `.env` **trước** khi deploy |
 | `FIRST_ADMIN_PASSWORD` | `Admin@12345` (mẫu, `.env.example`) | Chỉ dùng khi **chưa có Admin**; không bao giờ ghi đè mật khẩu Admin đã có. Production từ chối mật khẩu mẫu hoặc yếu |
-| `ADMIN_SESSION_HOURS` **(T-013)** | `12` | Hạn cứng của phiên Admin/nhân viên |
+| `ADMIN_SESSION_IDLE_DAYS` **(T-077)** | `30` | Phiên Admin/nhân viên hết hạn sau N ngày không dùng; đang dùng tự gia hạn (tối đa 1 lần/giờ). Thay `ADMIN_SESSION_HOURS` (12 giờ cứng, T-013) |
 | `LOGIN_MAX_ATTEMPTS` · `LOGIN_LOCK_MINUTES` | `5` · `15` | Số lần sai liên tiếp và thời gian khóa tài khoản |
 | `LOGIN_IP_MAX_ATTEMPTS` · `LOGIN_IP_WINDOW_MINUTES` | `20` · `15` | Giới hạn lần sai theo IP |
 | `REGISTER_IP_MAX_PER_HOUR` | `10` | Đăng ký tài khoản khách theo IP |
@@ -969,7 +969,7 @@ Công khai (khách) hoặc đã đăng nhập (hội viên); cần `Origin`; gi�
 
 | Vai | Đăng nhập bằng | Phiên | Vào |
 |---|---|---|---|
-| Admin (chủ sân) | Số điện thoại + mật khẩu | `admin_session` (server, 12 giờ cứng, thu hồi được) | `/admin` |
+| Admin (chủ sân) | Số điện thoại + mật khẩu | `admin_session` (server, trượt 30 ngày không dùng – T-077, thu hồi được) | `/admin` |
 | Nhân viên | Tên đăng nhập + mật khẩu (mỗi người một tài khoản, mã `NV001`…) | như Admin | `/admin` |
 | Khách | SĐT hoặc tên đăng nhập + mật khẩu, hoặc Google | JWT cookie (như cũ) + `token_version` | `/tai-khoan` |
 

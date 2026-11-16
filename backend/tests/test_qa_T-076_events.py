@@ -118,7 +118,9 @@ async def test_ac8_ac10_reminder_boundaries_to_the_second_and_parallel_cron_send
     hv = await people("QA Hội Viên Nhắc Biên")
     ep = await device(hv.client)
     exact = await member_block(staff, admin, hv, hour=18)  # created_at đúng start − 60'
-    after = await member_block(staff, admin, hv, hour=18)  # created_at trễ 1 giây → không nhắc
+    after = await member_block(
+        staff, admin, hv, hour=18
+    )  # created_at trễ 1 giây → ca sát giờ (T-077): nhắc ở start − 15'
     edge = await member_block(staff, admin, hv, hour=18)  # biên 15 phút
     start = await start_of(exact["code"])
     await _backdate(exact["code"], start - timedelta(minutes=60))
@@ -144,13 +146,20 @@ async def test_ac8_ac10_reminder_boundaries_to_the_second_and_parallel_cron_send
     assert len(bodies_for(exact["order_code"])) == 1, (
         "đúng mốc created_at = start − 60' phải nhắc, một lần"
     )
-    assert bodies_for(after["order_code"]) == [], "đặt trễ 1 giây sau mốc thì không nhắc (AC10)"
+    assert bodies_for(after["order_code"]) == [], (
+        "ca sát giờ chưa tới start − 15' thì chưa nhắc (T-077)"
+    )
     n_edge = len(bodies_for(edge["order_code"]))
     assert n_edge == 1
     # Biên 15 phút: còn đúng 15:00 → bỏ; vừa quá một giây (15:01) → đã nhắc từ trước, không thêm
     await run(start - timedelta(minutes=15))
     await run(start - timedelta(minutes=15, seconds=1))
     assert len(bodies_for(exact["order_code"])) == 1 and len(bodies_for(edge["order_code"])) == 1
+    # T-077: đặt sau mốc 60' nhưng còn > 20' tới giờ chơi → nhắc đúng một lần ở start − 15' (cửa sổ start−15' … start−5')
+    assert len(bodies_for(after["order_code"])) == 1
+    await run(start - timedelta(minutes=10))
+    await run(start - timedelta(minutes=5, seconds=1))
+    assert len(bodies_for(after["order_code"])) == 1, "cron chạy lại trong cửa sổ không nhắc thêm"
     assert_no_identity(PUSH.sent, hv.phone, "QA Hội Viên Nhắc Biên")
 
 

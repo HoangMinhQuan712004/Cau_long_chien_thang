@@ -46,6 +46,9 @@ async def get_auth_state(
             admin_session, user = await sessions.resolve(session, admin_token)
         except sessions.SessionError as e:
             return AuthState(None, None, e.reason)
+        # Phiên trượt (T-077): gia hạn tối đa một lần / giờ; middleware gửi lại cookie
+        if await sessions.renew_if_due(session, admin_session):
+            request.state.renewed_admin_session = admin_token
         return AuthState(user, admin_session)
 
     token = request.cookies.get(ACCESS_COOKIE) or (creds.credentials if creds else None)
