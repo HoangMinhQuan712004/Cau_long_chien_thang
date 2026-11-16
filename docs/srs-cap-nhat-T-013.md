@@ -10,7 +10,7 @@ Tài liệu này liệt kê chỗ SRS v0.2 (26/10/2026) phải sửa khi T-013 (
 | Vai Admin | Chủ sân, làm mọi thao tác | Thêm: **quản lý nhân viên** (thêm, sửa tên, khóa/mở khóa, đặt lại mật khẩu, xem và đăng xuất từ xa các phiên đang mở) |
 | Nhãn người thao tác | "Tài khoản tại máy" | `NV007 · Nguyễn Văn An`. Bản ghi cũ giữ nhãn "Tài khoản tại máy" |
 | Đăng nhập | (chưa chi tiết / email + mật khẩu ở bản cũ) | Admin bằng **số điện thoại**, nhân viên bằng **tên đăng nhập**, khách bằng SĐT hoặc tên đăng nhập hoặc **Google**. Một trang `/dang-nhap` |
-| Phiên | JWT | Admin/nhân viên: phiên phía server, **12 giờ cứng**, thu hồi được (đổi mật khẩu, khóa tài khoản, đăng xuất từ xa). Khách: JWT, đổi mật khẩu thì JWT cũ hết hiệu lực |
+| Phiên | JWT | Admin/nhân viên: phiên phía server, **12 giờ cứng** *(đổi ở T-077: trượt 30 ngày không dùng)*, thu hồi được (đổi mật khẩu, khóa tài khoản, đăng xuất từ xa). Khách: JWT, đổi mật khẩu thì JWT cũ hết hiệu lực |
 | Bảo vệ tài khoản | – | Sai mật khẩu 5 lần liên tiếp → khóa 15 phút; từ một IP sai 20 lần/15 phút → tạm chặn IP |
 | Mật khẩu | – | ≥ 8 ký tự, có 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt (mật khẩu cũ yếu vẫn đăng nhập được) |
 | Quên mật khẩu | – | Qua **OTP** gửi vào số điện thoại; mã 6 số, hạn 5 phút, sai 5 lần thì hủy, gửi lại sau 60 giây. Tạm ngưng trên production cho tới khi có Zalo |

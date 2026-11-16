@@ -9,7 +9,7 @@ Tài liệu này dùng để bật thông báo của web Sân cầu lông Chiế
 | Người | Thông báo |
 |---|---|
 | Admin, nhân viên (tùy quyền) | **Đặt online mới** · **Đã nhận tiền QR** tại quầy · **Tiền về cần xử lý** (chuyển thiếu, thừa hoặc không khớp mã) |
-| Hội viên có tài khoản | **Sắp đến giờ chơi** (khoảng 1 giờ trước) · buổi chơi **được đổi** hoặc **bị hủy** · **đã ghi nhận thanh toán** · có người xin vào phòng chơi, yêu cầu của mình được duyệt hay bị từ chối |
+| Hội viên có tài khoản | **Sắp đến giờ chơi** (thường khoảng 1 giờ trước; đặt sát giờ thì nhắc khoảng 15 phút trước; đặt khi chỉ còn 20 phút trở xuống thì không nhắc) · buổi chơi **được đổi** hoặc **bị hủy** · **đã ghi nhận thanh toán** · có người xin vào phòng chơi, yêu cầu của mình được duyệt hay bị từ chối |
 
 - Nhân viên nhận loại nào **tùy quyền** Admin cấp ở tab Phân quyền (đặt online: xem lịch; tiền QR: thu tiền; tiền về cần xử lý: xem Lịch sử giao dịch). Tài khoản bị khóa không nhận gì.
 - Thu **tiền mặt** không gửi thông báo cho nhân viên.
