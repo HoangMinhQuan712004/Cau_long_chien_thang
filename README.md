@@ -420,6 +420,7 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 - **Bảng xếp hạng theo từng cú đập (T-053, đã vào `dev`):** mỗi **cú đập** một hạng, không còn mỗi hội viên một dòng: một người đạt cả top 3 thì vẫn hiện cả ba bậc. Bằng km/h thì cú đo sớm hơn xếp trên; không đồng hạng. Mỗi dòng ghi sân của cú đó, và API trả thêm tổng số cú trong kỳ. Người ẩn danh vẫn ẩn tên ở mọi bậc. Không đổi DB.
 - **Video & kỷ lục thành dòng thời gian phá kỷ lục (T-048, đã vào `dev`):** API `GET /member-area/record-breaks` trả các lần phá kỷ lục của cả cụm, mới nhất trước, kèm số km/h hơn kỷ lục trước, số ngày giữ kỷ lục và video (nếu có). Nhãn "Kỷ lục ngày dd/mm" lấy theo **ngày dán link video**, không phải ngày đo. Màn này hiện **họ tên thật** kèm biệt danh của người đã bật "Hiện trên Video & kỷ lục" (hoặc của chính mình); Tổng quan và Bảng xếp hạng vẫn chỉ hiện biệt danh. Người ẩn danh hiện "Hội viên ẩn danh". Cần chạy migration `a4c91e7d2f58` (thêm cột `video_set_at`).
 - **Bảng xếp hạng bấm xem video (T-049, đã vào `dev`):** mỗi dòng top 10 và dòng "Hạng của tôi" kèm video của đúng số đo xếp hạng trong kỳ; không có video thì không có gì để bấm. Người ẩn danh vẫn có video, tên vẫn ẩn. Không đổi DB.
+- **Thay đổi ngoài nhóm từ nhánh `fix/ui-ux` (đã vào `dev`, không có spec):** (1) **Ngày sinh hội viên** (`birth_date`): quầy thêm hoặc sửa ở màn Hội viên (hồ sơ tạm không có), hội viên tự nhập ở hồ sơ; từ 1900 đến hôm nay. (2) **Lịch sử chơi chọn khoảng ngày** (`?from&to`, tối đa 1 năm) và ô tìm sân (lọc trên máy). (3) **Thẻ kỷ lục có thắng/thua** (`play_stats` ở `record-breaks`): tổng trận thắng/thua mọi thời gian của người phá kỷ lục, `null` nếu ẩn danh. Có 3 migration nối liền (`b34da28b29f8`, `8eb2eb8e8727`, `a3d9cdb7c461`; hai cái sau bù nhau). Chi tiết: `docs/booking-engine-api.md` mục 12.3, 12.6, 13.4, 13.5, 13.8.
 - **Theo dõi sân (T-069, backend xong, chưa vào `dev`):** trang quản trị `/admin/theo-doi-san` (menu "Theo dõi sân"), **chỉ xem**. Mỗi sân một hàng, trong hàng là các phòng chơi của ngày đang xem: giờ, trạng thái (Sắp tới, Đang chơi, Đã kết thúc, Booking đã hủy), Host, số người, thể thức, khoảng hạng, trận đang đánh hoặc trận gần nhất kèm tỉ số. Bấm phòng xem thành viên, mọi trận và bảng xếp hạng phòng. Hôm nay tự tải lại mỗi 10 giây; có thể xem ngày khác (trong ±1 năm). Người xem thấy **tên thật, biệt danh, mã HV, kể cả hội viên đã ẩn danh; không có SĐT**. Quyền mới `play_rooms.monitor`: Admin có, Nhân viên mặc định **không**, Admin bật ở tab Phân quyền. API: `GET /api/v1/play-rooms/admin/day` và `/admin/rooms/{room_id}`.
 - Chi tiết: `docs/booking-engine-api.md` mục 13.5, 13.6, 13.7, 13.8 và 13.9.
 
@@ -446,6 +447,22 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 - Không có biến môi trường hay gói mới.
 
 API, mã lỗi `E-MEM-*`, `E-HV-*`, `E-AUTH-25…32`: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 12 và 11.2.
+
+## Cài web như một app (PWA, đã vào `dev`)
+
+Khách và hội viên cài trang web lên điện thoại thành app riêng, mở toàn màn hình. Không cần cửa hàng ứng dụng.
+
+| Việc | Cách làm |
+|---|---|
+| Android (Chrome, Edge) | Mở trang → menu → **Cài đặt ứng dụng** (hoặc "Thêm vào màn hình chính"). App có trong ngăn ứng dụng, mở không có thanh địa chỉ |
+| iPhone (Safari) | Mở trang → nút **Chia sẻ** → **Thêm vào Màn hình chính** |
+
+- Manifest do `frontend/src/app/manifest.ts` sinh (kiểm: `<site>/manifest.webmanifest`): tên **"Đặt sân Chiến Thắng"**, tên dưới icon **"Chiến Thắng"**, `display: standalone`, dọc, màu thanh trạng thái và màn chờ `#234839` (xanh header).
+- Icon sinh bằng code ở `/pwa-icon/{180,192,512,192-maskable,512-maskable}` (quả cầu lông trắng trên nền xanh), không có file ảnh trong repo.
+- iPhone: thanh trạng thái `black-translucent`, trang vẽ dưới thanh trạng thái nên header chừa `env(safe-area-inset-top)`.
+- **Chưa có service worker** (không cache dữ liệu đăng nhập, không chạy offline); cài được vẫn đủ điều kiện nhờ manifest. T-076 (Web Push) sẽ thêm service worker.
+- Màn đăng nhập, đăng ký **ghim header web** nhưng **ẩn khi mở bằng app**.
+- Chưa kiểm trên máy thật; chỉ đối chiếu code.
 
 ## Lệnh thường dùng
 
@@ -521,6 +538,8 @@ Khi cần có thể tách thành service riêng. Chi tiết: [docs/booking-engin
 Từ T-051 Admin còn hủy được booking, vé hoặc đơn (thành **Đã hủy**, trạng thái cuối): khoản **đã thu** hủy được mọi lúc (T-052, đã vào `dev`), khoản chưa thu chỉ trước giờ bắt đầu. Chỗ trống lại ngay, khoản đã thu được trừ khỏi doanh thu nhưng **hệ thống không tự hoàn tiền**, Admin tự trả khách. Chi tiết: `docs/booking-engine-api.md` mục 5.2. Tại quầy chơi trước, trả sau; hiện chỉ thu tiền mặt (chuyển khoản QR tại quầy là T-007).
 Khách đặt online (T-008) trả trước: giữ chỗ 5 phút, booking chỉ được tạo khi SePay báo tiền về, xem mục "Đặt online và SePay".
 Giá được server tính và chốt lúc đặt.
+
+**Giữ chỗ online (T-075 và PR ngoài nhóm, đã vào `dev`).** Giữ chỗ 5 phút; **hết hạn là khung mở lại ngay** (ân hạn 60 giây chỉ để nhận tiền báo trễ). Lịch khách và hội viên hiện ô **Đang giữ chỗ** (`state = held`, không lộ người giữ). Khách tự **hủy giữ chỗ** khi chưa trả đồng nào; SĐT còn đơn chờ thì đặt mới bị `E-WEB-4` kèm đơn cũ để thanh toán hoặc hủy. Migration `f1c4b7e2a9d3`. Popup QR tại quầy gửi `since` và nhận `qr_paid` (T-072). Chi tiết: `docs/booking-engine-api.md` mục 10.9 và 5.3.
 
 **Sổ tiền vào và doanh thu (T-057, T-058, đã vào `dev`).** Mỗi lần nhận hoặc hoàn tiền là một dòng trong sổ `payment_entry`. **Lịch sử giao dịch** chỉ hiện tiền vào (tiền mặt và chuyển khoản), mỗi dòng một lần nhận tiền; hoàn tiền là dòng âm ở ngày hủy; màn chỉ xem; từ T-061 hiện SĐT **đầy đủ** cho ai có quyền `booking.transactions.view` (Admin, và Nhân viên mặc định; ngoại lệ có chủ đích của ADR-004 S12, chỉ màn này). **Báo cáo doanh thu tính theo ngày tiền về** (hoàn tiền trừ ngày hủy, ngày có thể âm); lượt đặt và công suất vẫn theo ngày chơi. Thu cả đơn tại quầy có popup QR (nội dung chuyển khoản = mã đơn bỏ gạch, chỉ nhận **đúng** số tiền; lệch thì ra "cần hoàn") kèm nút tiền mặt. Popup chờ **5 phút** (hết giờ thì "Tạo lại mã QR"), nhưng tiền về muộn vẫn được nhận nếu đúng số. Từ T-065 và T-068 có thể thu bằng QR **từng buổi** (nội dung = mã con bỏ gạch) và **từng vé quầy** (nội dung = mã vé bỏ gạch); webhook ưu tiên mã vé, rồi mã con, rồi mã đơn, vì SePay tự cắt mã theo mẫu "BK + 11 số" (**không cần đổi cấu hình SePay**). Quyền mở QR là `booking.collect`. **Không thu được cả đơn** (T-064): đánh dấu mọi buổi chưa thanh toán đã tới giờ một lượt. Màn Đơn đặt sân có **Còn phải thu** (`unpaid_amount`, T-066) bằng đúng số QR cả đơn và Thu cả đơn thu. Migration `e3a17c9b5d24` có backfill (một giao dịch SePay = một dòng sổ): **backup production và thử trên bản sao dữ liệu thật trước khi lên**. Chi tiết: `docs/booking-engine-api.md` mục 5.3.
 
