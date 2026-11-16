@@ -1088,16 +1088,17 @@ Lệnh ghi cần `Origin` đúng. **(T-020)** `POST /members` và `POST /members
 - Trả `{items[], total, page, size, counts:{all, member, temp}, can:{edit_status, manage_rackets}}`. `counts` áp **mọi bộ lọc trừ `kind`**; `total` theo `kind`. `can` cho giao diện khóa ô theo quyền.
 - Mỗi `items[]`: `{ref, kind, member_code, full_name, phone, gender: "male"|"female"|null, tier, racket, is_active, bookings, created_at, version}` (**T-021** thêm `source`: `counter` \| `self_register`). Hồ sơ tạm: `member_code`, `tier`, `racket` là `null`.
 
-**Chi tiết** `GET /members/{ref}`: như một dòng, thêm `note`, `total_minutes` (tổng **phút** đã đặt), `recent_bookings[]` (5 booking gần nhất theo giờ chơi: `{code, play_date, start_time, end_time, resource_name, amount}`) và `can`. Không tìm thấy → 404 `E-NOT-FOUND`.
+**Chi tiết** `GET /members/{ref}`: như một dòng, thêm `birth_date` (`null` = chưa nhập), `note`, `total_minutes` (tổng **phút** đã đặt), `recent_bookings[]` (5 booking gần nhất theo giờ chơi: `{code, play_date, start_time, end_time, resource_name, amount}`) và `can`. Không tìm thấy → 404 `E-NOT-FOUND`.
 
-**Thêm** `POST /members` body `{full_name, phone, gender?, tier?, racket?}` (trường lạ → 422; T-020 gỡ `upgrade_temp`):
+**Thêm** `POST /members` body `{full_name, phone, gender?, tier?, birth_date?, racket?}` (trường lạ → 422; T-020 gỡ `upgrade_temp`):
 
 - `tier` bỏ trống = chưa xếp hạng. `racket` là tên vợt.
+- **`birth_date` (ngày sinh, đã vào `dev`, PR ngoài nhóm `fix/ui-ux`)**: `YYYY-MM-DD`, tùy chọn; `null` hoặc bỏ trống = chưa nhập. Phải từ `1900-01-01` đến hôm nay (giờ VN), sai → 422 `E-001` "Ngày sinh không hợp lệ.". Hồ sơ tạm (`POST /members/temp`) **không có** ngày sinh.
 - Hội viên mới ở trạng thái Hoạt động; **tạo luôn tài khoản web** cho SĐT đó nếu chưa có (12.5).
 - SĐT đã thuộc hội viên → 409 `E-018`.
 - SĐT đang là hồ sơ tạm → 409 `E-MEM-1` "Số điện thoại đã có hồ sơ tạm: {Họ tên} (tạo dd/mm/yyyy)" (kèm `ref`, `full_name`). **Không** nâng hồ sơ tạm, không tạo hội viên (người dùng chốt 31/10; T-020 gỡ `upgrade_temp` và nhật ký `member.promote`).
 
-**Sửa** `PATCH /members/{ref}`: **bắt buộc `version`** (lấy từ danh sách hoặc chi tiết); chỉ gửi thêm ô muốn đổi, trong `full_name, gender, tier, racket, is_active`. **Không đổi được SĐT.** `tier: null` = bỏ xếp hạng. Hồ sơ tạm chỉ nhận `full_name`, `gender` (ô khác → 422 `E-MEM-6`). Đổi `is_active` khi không có `member.status` → 403 `E-AUTH-2`. Hội viên Ngừng → khóa tài khoản web; Hoạt động lại → mở.
+**Sửa** `PATCH /members/{ref}`: **bắt buộc `version`** (lấy từ danh sách hoặc chi tiết); chỉ gửi thêm ô muốn đổi, trong `full_name, gender, birth_date, tier, racket, is_active`. **Không đổi được SĐT.** `birth_date: null` = xóa ngày sinh; không gửi = giữ nguyên; sai → 422 `E-001`. `tier: null` = bỏ xếp hạng. Hồ sơ tạm chỉ nhận `full_name`, `gender` (ô khác, kể cả `birth_date` → 422 `E-MEM-6`). Đổi `is_active` khi không có `member.status` → 403 `E-AUTH-2`. Hội viên Ngừng → khóa tài khoản web; Hoạt động lại → mở.
 Khóa lạc quan (T-020): `version` lệch → 409 `E-MEM-9` "Hội viên này vừa được cập nhật ở máy khác. Tải lại để xem bản mới nhất.", không ghi đè. Có ô đổi thì `version + 1`; không đổi gì thì giữ nguyên. Hội viên tự sửa ở khu hội viên (12.6) cũng dùng chính `version` này, nên hai bên chặn lẫn nhau.
 
 **Hồ sơ tạm** `POST /members/temp` body `{full_name, phone, gender?}`. SĐT trùng hội viên → 409 `E-018`; trùng hồ sơ tạm → 409 `E-MEM-1`. Cần `Idempotency-Key`.
@@ -1147,12 +1148,12 @@ Dành cho khách đã đăng nhập **và là hội viên**: hồ sơ của tài
 | DELETE | `/member-area/me/avatar` → 204 | Chưa có ảnh vẫn 204 |
 | GET | `/member-area/avatars/{customer_id}?v=` | Ảnh, công khai. `image/webp`, `ETag`, `Cache-Control: public, max-age=31536000, immutable`, `nosniff`, CSP `default-src 'none'; sandbox`; 304 theo `If-None-Match` |
 
-`GET /member-area/me` → `{member_code, full_name, short_name, nickname, email, phone, joined_at, tier, racket, show_on_records, avatar_url, record_kmh, version}`:
+`GET /member-area/me` → `{member_code, full_name, short_name, nickname, email, phone, joined_at, tier, birth_date, racket, show_on_records, avatar_url, record_kmh, version}`:
 
 - `phone` và `email` đầy đủ (chỉ chính chủ thấy). `short_name` = từ cuối của Họ tên. `joined_at` = ngày tạo hồ sơ hội viên (giờ VN).
 - `tier`: một trong 8 bậc hoặc `null` (chưa xếp hạng). `racket`: tên vợt hoặc `null`. `avatar_url` đã có `?v=`, `null` nếu chưa có ảnh. `record_kmh` luôn `null` ở đợt 1; **T-030 (đã vào `dev`)** trả kỷ lục thật, xem mục 13.6.
 
-`PUT /member-area/me` body `{full_name, nickname, email, tier, racket, show_on_records, version}` (chuỗi rỗng = `null`; trường lạ → 422):
+`PUT /member-area/me` body `{full_name, nickname, email, tier, birth_date?, racket, show_on_records, version}` (chuỗi rỗng = `null`; trường lạ → 422):
 
 | Ô | Quy tắc |
 |---|---|
@@ -1160,11 +1161,12 @@ Dành cho khách đã đăng nhập **và là hội viên**: hồ sơ của tài
 | `nickname` | ≤ 20 ký tự (E-HV-1). Được trùng người khác |
 | `email` | Tùy chọn, đúng định dạng (E-HV-10), không trùng hội viên khác, không phân biệt hoa thường (E-HV-11). Chỉ để liên hệ: **không** dùng để đăng nhập, quên mật khẩu hay khớp Google; không gửi mail xác minh |
 | `tier` | Bắt buộc là một trong 8 bậc (E-HV-1). Đang `null` thì được gửi `null` để giữ; đã có hạng thì **không** đổi về `null` |
+| `birth_date` | **(đã vào `dev`, PR ngoài nhóm `fix/ui-ux`)** Ngày sinh `YYYY-MM-DD`, từ 1900 đến hôm nay (giờ VN). **Không gửi = giữ nguyên; gửi `null` = xóa.** Sai → `fields` có `birth_date` mã `E-HV-1` "Ngày sinh không hợp lệ." |
 | `racket` | Tên vợt; chưa có trong danh mục thì tự thêm; rỗng = bỏ chọn. Lỗi tên vợt nằm trong `fields` |
 | `show_on_records` | Mặc định `false` với hội viên mới |
 | `version` | Lấy từ GET, gửi lại. Hồ sơ đã được sửa nơi khác → 409 `E-HV-12`, không ghi đè |
 
-Lỗi nhiều ô cùng lúc → 422 với `detail.fields[{field, code, message}]` (`field` ∈ `full_name | nickname | email | tier | racket`); có lỗi thì **không lưu ô nào**. Không đổi gì → trả hồ sơ, không ghi, không tăng `version`.
+Lỗi nhiều ô cùng lúc → 422 với `detail.fields[{field, code, message}]` (`field` ∈ `full_name | nickname | email | tier | birth_date | racket`); có lỗi thì **không lưu ô nào**. Không đổi gì → trả hồ sơ, không ghi, không tăng `version`.
 `version` tăng cả khi hội viên tự sửa lẫn khi quầy sửa (12.3, từ T-020): quầy sửa xong thì hội viên đang mở bản cũ nhận `E-HV-12`, và ngược lại quầy nhận `E-MEM-9`.
 
 Đổi **Họ tên** còn: cập nhật `users.full_name`, và đổi tên khách trên booking, vé, lượt thanh toán của hồ sơ (kể cả booking cũ); snapshot hạng lúc đặt giữ nguyên.
@@ -1425,16 +1427,19 @@ Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no
 
 - Migration `0cbf30ad5193` (nối sau `9738bbfe2eb7`): 4 bảng phòng chơi (gồm bảng trận) và `member_notification`. Không backfill trong migration. T-018 không có migration.
 - Không biến môi trường hay gói mới.
+- **Migration của nhóm `fix/ui-ux` (11/11, trên `dev`, nối sau `d2886c61ed25`):** `b34da28b29f8` (thêm `customer.birth_date date NULL`, check `birth_date IS NULL OR birth_date >= '1900-01-01'`) → `8eb2eb8e8727` (thêm `speed_record.wins`, `losses` và check) → `a3d9cdb7c461` (**bỏ lại** hai cột và check đó). Hai migration `8eb2eb8e8727` và `a3d9cdb7c461` bù nhau nên **schema cuối không đổi**; khi lên production cả hai **chạy liên tiếp**. Downgrade của `a3d9cdb7c461` dựng lại hai cột và check, **không khôi phục dữ liệu** của hai cột đã bỏ. Head tiếp theo trên dev: `f1c4b7e2a9d3`.
 - **Worker production phải chạy bản mới** để có hai job `play_rooms_tick` và `purge_member_notifications`. Thiếu job thì phòng chỉ tạo qua sự kiện outbox, không đóng đúng giờ và không backfill.
 
 ### 13.5 Lịch sử chơi (T-029, đã vào `dev`)
 
 > Đối chiếu với code backend `be/T-029-lich-su-choi` @ `5a0f584` (nay đã vào `dev`). Giao diện chưa kiểm. Không migration, không quyền mới, không cấu hình mới: chỉ đọc dữ liệu phòng chơi T-017.
 
-**`GET /member-area/play-history?month=YYYY-MM`** (điều kiện chung của mục 13). `month` bỏ trống = tháng này theo giờ VN.
+**`GET /member-area/play-history?month=YYYY-MM`** hoặc **`?from=YYYY-MM-DD&to=YYYY-MM-DD`** (điều kiện chung của mục 13). `month` bỏ trống = tháng này theo giờ VN.
+
+> **Khoảng ngày** (đã vào `dev`, PR ngoài nhóm `fix/ui-ux`, commit `6fa1587`): gửi cả `from` và `to` (gồm cả hai đầu, giờ VN) thì **bỏ qua `month`**. Thiếu một đầu → 422 `E-001` "Vui lòng chọn cả Từ ngày và Đến ngày."; `from` sau `to` → "Từ ngày phải trước hoặc bằng Đến ngày."; quá 1 năm (`to − from ≥ 366` ngày) → "Khoảng ngày tối đa 1 năm.". Khoảng bắt đầu ở tương lai → 200 rỗng. Phản hồi có thêm `start` và `end` (ngày đầu, ngày cuối khoảng đang xem, gồm cả ngày cuối); `month` là tháng của ngày đầu. **Ô tìm sân của giao diện lọc ngay trên máy** theo tên sân, loại sân và ngày trong các buổi đã tải; API **không** có tham số tìm.
 
 ```json
-{ "month": "2026-11",
+{ "month": "2026-11", "start": "2026-11-01", "end": "2026-11-30",
   "summary": { "sessions": 3, "matches": 9, "wins": 5 },
   "items": [ { "room_id": 12, "date": "2026-11-01", "resource_name": "Sân 2",
                "resource_type_name": "Sân thảm", "start_at": "…", "end_at": "…",
@@ -1592,7 +1597,8 @@ Giới hạn gửi: tối đa **5 lượt hợp lệ mỗi 24 giờ** (cửa s�
                "measured_at": "…", "label_date": "2026-11-04",
                "display_name": "Phạm Quang Minh", "nickname": "Minh", "tier": "…",
                "avatar_url": "…", "racket": "…", "resource_name": "Sân 2",
-               "is_me": false, "video": { "kind": "youtube", "url": "…", "embed_url": "…", "thumbnail_url": "…" } } ] }
+               "is_me": false, "play_stats": { "matches": 40, "wins": 25, "losses": 15 },
+               "video": { "kind": "youtube", "url": "…", "embed_url": "…", "thumbnail_url": "…" } } ] }
 ```
 
 - `items` mới nhất trước, **không phân trang** (km/h là số nguyên 50 đến 500 và chuỗi tăng ngặt nên tối đa 451 dòng). `start` và `end` là `null` khi `all`.
@@ -1604,6 +1610,8 @@ Giới hạn gửi: tối đa **5 lượt hợp lệ mỗi 24 giờ** (cửa s�
 - `held_days`: số ngày theo ngày giờ VN, lần sau trừ lần này; đang giữ kỷ lục thì hôm nay trừ lần này. Không âm (số đo được lệch tương lai tới 1 phút). `0` = dưới 1 ngày.
 - **`label_date`:** ngày giờ VN của `video_set_at` (lần **dán link** mới nhất, không phải ngày đo). Chưa có video thì lấy ngày đo. Giao diện ghi "Kỷ lục ngày dd/mm" cho lần cũ.
 - `racket` là vợt **hiện tại** trong hồ sơ, không phải vợt lúc đo.
+- **`play_stats` (thẻ kỷ lục có thắng/thua; đã vào `dev`, PR ngoài nhóm `fix/ui-ux`):** `{matches, wins, losses}` = **tổng mọi thời gian** các trận `finished` mà người đó ở đội A hoặc B, cùng cách đếm Lịch sử chơi (mục 13.5; 2 vs 2 cả hai người đội thắng đều được tính; gồm cả phòng đã rời hoặc buổi bị hủy sau đó). `losses = matches − wins`. **`null`** khi người đó đang ẩn danh (cùng quy tắc tên và ảnh) hoặc chưa có trận nào đã lưu. Đây là số **tính lúc đọc**, **không** phải thành tích tại thời điểm phá kỷ lục và không gắn với sân hay buổi của lần đo.
+- **Đã bỏ nhập tay:** bản đầu (`b8e2066`) cho hội viên nhập số trận thắng/thua khi gửi và sửa số đo (`wins`, `losses`, mã `E-REC-9`) rồi thêm cột `speed_record.wins/losses`; bản sau (PR #70, `53841d3`) **gỡ hết** và dùng tổng ở trên. Không còn trường `wins`/`losses` trong body số đo, không còn `E-REC-9`; `play_stats` cũng không còn `start_at`/`end_at`.
 - `video`: khối như mục 13.7; `null` khi chưa có video (giao diện ghi "Chưa có video"; dòng vẫn có mặt để chuỗi không đứt). Video vẫn phát khi người đó ẩn danh.
 
 **Tên: khác các API hội viên khác.** Theo quyết định của người dùng ngày 06/11, chỉ API này:
