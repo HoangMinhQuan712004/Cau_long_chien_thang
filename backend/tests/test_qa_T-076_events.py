@@ -212,7 +212,7 @@ async def test_ac12_guest_block_and_rejected_moves_send_nothing_two_blocks_two_p
     for b in (first, second):
         r = await admin.post(
             f"{BK}/items/{b['code']}/move",
-            json={"resource_code": target["code"], "reason": "QA đổi sân", "version": b["version"]},
+            json={"resource_code": target["code"], "reason": "Ngừng sân", "version": b["version"]},
             headers=idem(),
         )
         assert r.status_code == 200, r.text
@@ -227,7 +227,7 @@ async def test_ac12_guest_block_and_rejected_moves_send_nothing_two_blocks_two_p
         f"{BK}/items/{g['code']}/move",
         json={
             "resource_code": (await new_court(admin))["code"],
-            "reason": "QA",
+            "reason": "Ngừng sân",
             "version": g["version"],
         },
         headers=idem(),
@@ -238,7 +238,11 @@ async def test_ac12_guest_block_and_rejected_moves_send_nothing_two_blocks_two_p
     # Đổi bị từ chối (sai phiên bản) không được push
     r = await admin.post(
         f"{BK}/items/{first['code']}/move",
-        json={"resource_code": (await new_court(admin))["code"], "reason": "QA", "version": 0},
+        json={
+            "resource_code": (await new_court(admin))["code"],
+            "reason": "Ngừng sân",
+            "version": 0,
+        },
         headers=idem(),
     )
     assert r.status_code >= 400
@@ -256,7 +260,9 @@ async def test_ac14_two_collect_transactions_two_pushes_with_correct_totals(admi
     await flush()
     PUSH.clear()
     r = await staff.post(
-        f"{BK}/items/{blocks[0]['code']}/collect", json={"method": "cash"}, headers=idem()
+        f"{BK}/items/{blocks[0]['code']}/collect",
+        json={"method": "cash", "version": blocks[0]["version"]},
+        headers=idem(),
     )
     assert r.status_code == 200, r.text
     await flush()
@@ -345,19 +351,28 @@ async def test_ac18_qr_received_needs_collect_permission_and_cash_never_notifies
 async def test_ac19_all_three_review_outcomes_pushed_and_applied_is_silent(admin, staff, anon):
     admin_ep = await device(admin)
     court = await new_court(admin)
-    for hour, delta in ((10, -5_000), (11, +5_000)):  # thiếu tiền, thừa tiền
-        co = (
-            await checkout(
-                anon, [(court["code"], hour)], phone=f"08677000{hour}", name="QA Khách TV"
-            )
-        ).json()
-        PUSH.clear()
-        outcome = await simulate(admin, co["pay_ref"], co["amount"] + delta)
-        await flush()
-        assert outcome in ("partial", "refund_needed"), outcome
-        [sent] = [s for s in to(admin_ep) if s.title == "Tiền về cần xử lý"]
-        assert sent.body == f"{vnd(co['amount'] + delta)} đ · {messages.REVIEW_LABELS[outcome]}"
-        assert sent.url == messages.MONEY_REVIEW_URL
+    # Thiếu tiền: một lần trả thiếu
+    co = (
+        await checkout(anon, [(court["code"], 10)], phone="0867700010", name="QA Khách Thiếu")
+    ).json()
+    PUSH.clear()
+    assert await simulate(admin, co["pay_ref"], co["amount"] - 5_000) == "partial"
+    await flush()
+    [sent] = [s for s in to(admin_ep) if s.title == "Tiền về cần xử lý"]
+    assert sent.body == f"{vnd(co['amount'] - 5_000)} đ · Thiếu tiền"
+    assert sent.url == messages.MONEY_REVIEW_URL
+    # Cần hoàn: trả đủ rồi chuyển khoản thêm lần nữa (tiền thừa) -> lần đủ im lặng, lần thừa báo "Cần hoàn"
+    co = (
+        await checkout(anon, [(court["code"], 11)], phone="0867700011", name="QA Khách Thừa")
+    ).json()
+    PUSH.clear()
+    assert await simulate(admin, co["pay_ref"], co["amount"]) == "applied"
+    await flush()
+    assert not [s for s in to(admin_ep) if s.title == "Tiền về cần xử lý"]
+    assert await simulate(admin, co["pay_ref"], co["amount"]) == "refund_needed"
+    await flush()
+    [sent] = [s for s in to(admin_ep) if s.title == "Tiền về cần xử lý"]
+    assert sent.body == f"{vnd(co['amount'])} đ · Cần hoàn"
     PUSH.clear()
     assert await simulate(admin, "BK77777777777", 99_000) == "unmatched"
     await flush()
@@ -459,7 +474,7 @@ async def test_ac23_push_failures_and_a_raising_sender_never_break_the_main_flow
     await flush()  # không được ném ngoại lệ
     async with SessionLocal() as s:
         codes = list(
-            await s.scalars(select(Booking.code).where(Booking.order_code == co2["order_code"]))
+            await s.scalars(select(Booking.code).where(Booking.code.like(f"{co2['order_code']}-%")))
         )
     assert codes, "booking vẫn được tạo khi tiền về"
 
