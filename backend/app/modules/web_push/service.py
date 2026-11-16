@@ -106,7 +106,19 @@ async def deliver(session: AsyncSession, user_ids: set[int], message: Message) -
             .order_by(PushSubscription.id)
         )
     )
+    # Kiểm lại danh sách host ngay trước khi gửi (dòng bị sửa tay / dữ liệu cũ): không hợp lệ ->
+    # không gửi, xóa dòng – server không bao giờ gọi ra host ngoài danh sách
+    bad = [s for s in subs if endpoints.host_of(s.endpoint) is None]
+    for s in bad:
+        logger.warning(
+            "Push subscription %s dropped: endpoint host not allowed (%s)",
+            s.id,
+            endpoints.raw_host(s.endpoint),
+        )
+        await session.execute(delete(PushSubscription).where(PushSubscription.id == s.id))
+    subs = [s for s in subs if s not in bad]
     if not subs:
+        await session.commit()
         return 0
     sender = get_sender()
     targets = [_target(s) for s in subs]

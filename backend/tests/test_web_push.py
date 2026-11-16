@@ -290,3 +290,30 @@ async def test_push_routes_need_no_idempotency_key(customer):
         f"{API}/subscriptions", json=body(endpoint), headers={"Idempotency-Key": "abc-123"}
     )
     assert r.status_code == 201, r.text
+
+
+async def test_foreign_host_row_is_dropped_before_sending():
+    """Dòng bị sửa tay sang host lạ: lúc gửi không thử gửi, xóa dòng (QA AC7 phòng thủ)."""
+    async with new_customer() as c:
+        good, evil_row = await subscribe(c), await subscribe(c)
+        user_id = (await sub_row(good)).user_id
+    evil = "https://evil.example.com/steal"
+    async with SessionLocal() as s:
+        await s.execute(
+            update(PushSubscription)
+            .where(PushSubscription.endpoint == evil_row)
+            .values(endpoint=evil)
+        )
+        await s.commit()
+    PUSH.clear()
+    async with SessionLocal() as s:
+        assert await service.deliver(s, {user_id}, Message("t", "b", "/hoi-vien")) == 1
+    assert evil not in PUSH.attempts and [x.endpoint for x in PUSH.sent] == [good]
+    assert await sub_row(evil) is None and await sub_row(good) is not None
+
+
+async def test_too_long_endpoint_is_e_push_1(customer):
+    endpoint = "https://fcm.googleapis.com/" + "a" * 1000
+    r = await customer.post(f"{API}/subscriptions", json=body(endpoint))
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "E-PUSH-1", r.text[:200]
+    assert await sub_row(endpoint) is None
