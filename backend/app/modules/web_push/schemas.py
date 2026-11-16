@@ -16,7 +16,8 @@ class SubscriptionKeys(BaseModel):
 class SubscriptionIn(BaseModel):
     """``PushSubscription.toJSON()`` của trình duyệt (bỏ ``expirationTime``) + nhãn máy tùy chọn."""
 
-    endpoint: str = Field(min_length=1, max_length=1000)
+    # ≤ 1000 ký tự: kiểm ở ``endpoints.check`` -> 422 E-PUSH-1 (cùng mã với host sai)
+    endpoint: str = Field(min_length=1, description="URL dịch vụ push, https, ≤ 1000 ký tự")
     keys: SubscriptionKeys
     device_label: str | None = Field(default=None, max_length=100)
 
