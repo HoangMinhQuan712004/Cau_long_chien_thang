@@ -12,6 +12,7 @@ from app.modules.members.models import Customer, CustomerAvatar, Racket
 from app.modules.payments.models import BankTransaction
 from app.modules.play_rooms.models import PlayMatch, PlayRoom, PlayRoomMember, PlayRoomRequest
 from app.modules.records.models import SpeedRecord
+from app.modules.web_push.models import PushSubscription
 
 __all__ = [
     "AdminSession",
@@ -31,6 +32,7 @@ __all__ = [
     "PlayRoomMember",
     "PlayRoomRequest",
     "Post",
+    "PushSubscription",
     "SiteLogo",
     "SpeedRecord",
     "User",
