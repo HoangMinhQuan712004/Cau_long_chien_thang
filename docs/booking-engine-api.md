@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-063, T-064, T-065, T-066, T-068, T-069, T-072, T-075)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-063, T-064, T-065, T-066, T-068, T-069, T-071, T-072, T-075)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -91,7 +91,7 @@ vẫn là 422 mặc định của FastAPI, khi đó `detail` là **mảng**.
 | E-020 | 422 | Khoảng ngày quá 92 ngày |
 | E-021 | 404 | Không thấy mã khi tìm |
 | E-023 | 409 | Xóa buổi nhưng đã có vé hoặc chỗ đang giữ |
-| E-024 | 409 | Sự kiện đã đủ chỗ |
+| E-024 | 409 | Sự kiện đã đủ chỗ. **(T-071)** Đăng ký nhiều vé: "Chỉ còn n chỗ." kèm `detail.remaining = n` (hết sạch: "Sự kiện đã đủ chỗ.", `remaining = 0`) |
 | E-BOOK-1 | 422 | Ngày sau "hết tháng sau" – **T-008 bỏ giới hạn này** (người dùng chốt 28/10): backend không còn trả mã này |
 | E-BOOK-2 | 422 | Sân của sự kiện không liền nhau |
 | E-BOOK-3 | 404 | **(T-019)** "Không tìm thấy mã đặt." (thu cả đơn với mã đơn không có) |
@@ -120,7 +120,7 @@ Quyền khai báo tập trung ở `backend/app/core/permissions.py`. Router dùn
 | `booking.calendar.view` | ✔ | ✔ | `GET /booking/calendar` |
 | `booking.search` | ✔ | ✔ | `GET /booking/search` |
 | `booking.counter.create` | ✔ | ✔ | `POST /front-desk/bookings` |
-| `booking.ticket.create` | ✔ | ✔ | `POST /front-desk/sessions/{code}/tickets` |
+| `booking.ticket.create` | ✔ | ✔ | `POST /front-desk/sessions/{code}/tickets`, `…/tickets/batch` (T-071) |
 | `booking.item.view` | ✔ | ✔ | `GET /booking/items/{code}` |
 | `booking.session.view` | ✔ | ✔ | `GET /booking/sessions/{code}` |
 | `booking.session.manage` | ✔ | | Tạo và xóa sự kiện |
@@ -196,6 +196,7 @@ Quyền theo bảng mục 3. "Hôm nay" tính theo `Asia/Ho_Chi_Minh`.
 | GET | `/api/v1/booking/sessions/{code}` | Chi tiết sự kiện → `SessionOut` |
 | DELETE | `/api/v1/booking/sessions/{code}` | Xóa sự kiện (Admin). Body `{version}` → 200 `SessionOut` với `status: "deleted"` |
 | POST | `/api/v1/front-desk/sessions/{code}/tickets` → 201 | Đăng ký vé tại quầy. Body `{customer}` → `ItemOut` (`kind: "ticket"`) |
+| POST | `/api/v1/front-desk/sessions/{code}/tickets/batch` **(T-071)** → 201 | Đăng ký vé cho nhiều người một lần (xem dưới bảng) |
 | POST | `/api/v1/booking/items/{code}/collect` | Thu tiền. Body `{method: "cash", version}` → `ItemOut`; `"transfer"` → 422 `E-PAY-0` |
 | POST | `/api/v1/booking/orders/{order_code}/collect` **(T-019)** | Thu cả đơn bằng tiền mặt (xem 5.1) |
 | POST | `/api/v1/booking/items/{code}/uncollectible` | Không thu được. Body `{reason, version}` (lý do 1–200 ký tự) → `ItemOut` |
@@ -238,6 +239,12 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 `{code, name, play_date, start_time, end_time, resources[], ticket_price, capacity, taken, is_full, status, created_by, created_at, version, tickets[], active_holds[], can}`:
 
 - `tickets[]` (mới nhất trước): `{code, customer_name, phone, source, payment_status, amount, created_at}`. Mã vé `{mã sự kiện}-Vnn`.
+- **Đăng ký vé cho nhiều người (T-071, đã vào `dev`)** `POST /front-desk/sessions/{code}/tickets/batch`: quyền `booking.ticket.create` (Admin và nhân viên), cần `Idempotency-Key`. Body `{customers: CustomerIn[] (1..50), note?: str (≤ 200)}`; `CustomerIn` giống `customer` của endpoint một vé: `{member_code}` hoặc `{temp: {full_name, phone, note?}}` (hội viên và hồ sơ tạm lẫn nhau). Ghi chú riêng của hồ sơ tạm được ưu tiên hơn `note` chung. Trả 201 `{tickets: ItemOut[]}` theo thứ tự gửi, **số vé liên tiếp**; mỗi vé một dòng audit `ticket.create` và một outbox `ticket.created`; giá và trạng thái Chưa thanh toán như một vé.
+  - **Tất cả hoặc không ai:** một transaction, khóa dòng sự kiện, đếm chỗ **một lần** (gồm ghế đang giữ online). Thiếu chỗ → không tạo vé nào. Hai máy đăng ký sát số chỗ: một bên 201, bên kia 409; gửi lại cùng `Idempotency-Key` → replay, không tạo thêm.
+  - Lỗi: 409 `E-024` "Chỉ còn n chỗ." kèm `detail.remaining` (hết sạch: "Sự kiện đã đủ chỗ.", `remaining = 0`); 422 `E-004` như một vé (đã qua, chưa tới ngày, đã kết thúc); 422 `E-001` khi danh sách rỗng ("Vui lòng chọn ít nhất một người."), quá 50 người ("Mỗi lần đăng ký tối đa 50 người."), **cùng một người hai lần** ("{tên} có hai lần trong danh sách."; so theo hồ sơ nên hai hồ sơ tạm cùng SĐT cũng là trùng) hoặc hồ sơ tạm thiếu tên / SĐT.
+  - Endpoint một vé `POST …/tickets` **giữ nguyên** (cùng body, cùng lỗi, không có `remaining`); hai endpoint dùng chung lõi.
+  - **Nhãn "Đã có vé":** mỗi dòng `tickets[]` của `GET /booking/sessions/{code}` thêm `customer_kind` (`member` | `temp`) và `member_code` (mã HV khi là hội viên, `null` với hồ sơ tạm). Giao diện so hội viên theo `member_code`, hồ sơ tạm theo `phone` có sẵn; không thêm SĐT mới. Người đã có vé **không bị chặn**, chỉ cảnh báo.
+  - Đối chiếu code backend `be/T-071-batch-tickets` @ `1d2ac8d`; không migration. Giao diện chưa kiểm.
 - `taken` = số vé (mọi trạng thái) + chỗ giữ online còn hạn. Đăng ký vé khóa dòng sự kiện nên 20 request tranh chỗ cuối chỉ 1 thành công, còn lại `E-024`.
 - `active_holds[]`: `{seats, expires_at}`. `can`: `{register, delete}`.
 - **(T-023, đã vào `dev`) Vé bán online:** mỗi lượt mua giữ **một Hold `seat`** (`seats = n`, mã = mã đơn, tiền chốt = n × giá vé) gắn với `checkout` có `kind = 'ticket'`. Ghế của lượt còn `pending` tính vào `taken` **cho tới khi `expire_holds` nhả**, kể cả trong ân hạn 60 giây; nhờ vậy tiền về hợp lệ luôn còn ghế. Đăng ký vé tại quầy gọi `expire_holds` trước và không lấy được ghế đang giữ (`E-024`). Vé sinh ra khi tiền về mang `source = online`, `payment_method = online_transfer`, đã thanh toán, và cột `ticket.checkout_id`. Xem mục 10.8.
