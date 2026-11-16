@@ -49,26 +49,26 @@ def cookie_max_age(r) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def renewals(updates: list[str]) -> int:
-    """Số lần GHI THẬT hạn phiên: câu UPDATE không điều kiện (ghi lại ``expires_at`` đã gia hạn). Câu UPDATE có điều kiện
-    ``expires_at < …`` mà thua cuộc đua thì không đổi dòng nào nên không tính."""
-    return sum("expires_at <" not in u for u in updates)
+def renewals(updates: list[tuple[str, int]]) -> int:
+    """Số câu UPDATE thật sự đổi dòng (``rowcount`` ≥ 1). Câu UPDATE có điều kiện mà thua cuộc đua không đổi dòng nào
+    nên không tính: một lượt gia hạn phải đúng **một** câu ghi (T-77-2)."""
+    return sum(1 for _stmt, rows in updates if rows >= 1)
 
 
 @contextmanager
 def admin_session_updates():
-    """Ghi lại các câu UPDATE bảng admin_sessions đã gửi lên DB trong khối."""
-    seen: list[str] = []
+    """Ghi lại ``(câu, số dòng đổi)`` của các câu UPDATE bảng admin_sessions gửi lên DB trong khối."""
+    seen: list[tuple[str, int]] = []
 
-    def before(conn, cursor, statement, parameters, context, executemany):
+    def after(conn, cursor, statement, parameters, context, executemany):
         if statement.lstrip().upper().startswith("UPDATE") and "admin_sessions" in statement:
-            seen.append(statement)
+            seen.append((statement, cursor.rowcount))
 
-    event.listen(engine.sync_engine, "before_cursor_execute", before)
+    event.listen(engine.sync_engine, "after_cursor_execute", after)
     try:
         yield seen
     finally:
-        event.remove(engine.sync_engine, "before_cursor_execute", before)
+        event.remove(engine.sync_engine, "after_cursor_execute", after)
 
 
 async def session_row(user_id: int) -> AdminSession:
