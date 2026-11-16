@@ -133,6 +133,7 @@ async def collect(
     item, _ = await lock_item(session, tenant_id, code)
     _check_fresh(item, data.version)
     mark_paid(session, ctx, tenant_id, actor, item)
+    outbox.order_collected(session, tenant_id, [item], "cash")
     await ledger.record_in(
         session, tenant_id, [item], method="cash", occurred_at=ctx.now, actor=actor
     )

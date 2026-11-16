@@ -31,6 +31,7 @@ from app.modules.booking_engine import (
     payment_service,
     recurring,
     recurring_list,
+    reminders,
     report_figures,
     resource_delete,
     rooms_feed,
@@ -874,3 +875,15 @@ async def purge_demo(
 ) -> dict[str, int]:
     """Xóa booking / đơn / lượt thanh toán / vé của khách mẫu + sự kiện "[Mẫu]". Không commit."""
     return await demo.purge_demo(session, _tid(tenant_id), phones)
+
+
+# ------------------------------------------------------------------ nhắc giờ chơi (T-076)
+
+DueReminder = reminders.DueReminder
+
+
+async def due_reminders(
+    session: AsyncSession, now: dt.datetime, *, tenant_id: int | None = None
+) -> list[DueReminder]:
+    """Khối / vé tới hạn nhắc (60' trước giờ chơi, còn > 15', đặt trước mốc nhắc). Chỉ đọc."""
+    return await reminders.due(session, _tid(tenant_id), now)

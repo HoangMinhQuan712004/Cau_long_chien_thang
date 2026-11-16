@@ -241,6 +241,7 @@ async def _paid_one(
 ) -> OnlinePaymentResult:
     """Một khối / vé đã khóa dòng -> Đã thanh toán qua QR: sổ ``counter_qr`` + nhật ký Hệ thống."""
     _mark_paid_by_transfer(session, tenant_id, item, data)
+    outbox.order_collected(session, tenant_id, [item], "transfer")
     await ledger.record_in(
         session,
         tenant_id,
@@ -287,6 +288,7 @@ async def apply_order_payment(
     actor = ledger.GATEWAY_ACTOR
     for b in unpaid:
         _mark_paid_by_transfer(session, tenant_id, b, data)
+    outbox.order_collected(session, tenant_id, unpaid, "transfer")
     await ledger.record_in(
         session,
         tenant_id,
