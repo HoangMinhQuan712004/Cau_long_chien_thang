@@ -24,3 +24,6 @@ export const adminBrand = (template: string, name: string) => template.replace("
 
 /** Tên app cài từ web (PWA / iPhone) – cố định, ngắn gọn (người dùng chốt), không theo tên web ở Cài đặt. */
 export const APP_NAME = "Đặt sân Chiến Thắng";
+
+/** Tên dưới icon ở màn hình chính (iPhone chỉ hiện ~12 ký tự, người dùng chốt 16/11). */
+export const APP_SHORT_NAME = "Chiến Thắng";
