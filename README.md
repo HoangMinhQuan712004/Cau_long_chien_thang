@@ -448,6 +448,22 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 
 API, mã lỗi `E-MEM-*`, `E-HV-*`, `E-AUTH-25…32`: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 12 và 11.2.
 
+## Cài web như một app (PWA, đã vào `dev`)
+
+Khách và hội viên cài trang web lên điện thoại thành app riêng, mở toàn màn hình. Không cần cửa hàng ứng dụng.
+
+| Việc | Cách làm |
+|---|---|
+| Android (Chrome, Edge) | Mở trang → menu → **Cài đặt ứng dụng** (hoặc "Thêm vào màn hình chính"). App có trong ngăn ứng dụng, mở không có thanh địa chỉ |
+| iPhone (Safari) | Mở trang → nút **Chia sẻ** → **Thêm vào Màn hình chính** |
+
+- Manifest do `frontend/src/app/manifest.ts` sinh (kiểm: `<site>/manifest.webmanifest`): tên **"Đặt sân Chiến Thắng"**, tên dưới icon **"Chiến Thắng"**, `display: standalone`, dọc, màu thanh trạng thái và màn chờ `#234839` (xanh header).
+- Icon sinh bằng code ở `/pwa-icon/{180,192,512,192-maskable,512-maskable}` (quả cầu lông trắng trên nền xanh), không có file ảnh trong repo.
+- iPhone: thanh trạng thái `black-translucent`, trang vẽ dưới thanh trạng thái nên header chừa `env(safe-area-inset-top)`.
+- **Chưa có service worker** (không cache dữ liệu đăng nhập, không chạy offline); cài được vẫn đủ điều kiện nhờ manifest. T-076 (Web Push) sẽ thêm service worker.
+- Màn đăng nhập, đăng ký **ghim header web** nhưng **ẩn khi mở bằng app**.
+- Chưa kiểm trên máy thật; chỉ đối chiếu code.
+
 ## Lệnh thường dùng
 
 | Việc | Lệnh |
