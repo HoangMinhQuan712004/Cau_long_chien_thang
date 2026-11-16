@@ -100,7 +100,8 @@ class AdminSession(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # cứng, không gia hạn
+    # Trượt (T-077): now + ADMIN_SESSION_IDLE_DAYS, gia hạn tối đa một lần / giờ khi đang dùng
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_reason: Mapped[SessionEndReason | None] = mapped_column(
         Enum(
