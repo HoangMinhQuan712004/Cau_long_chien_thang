@@ -22,6 +22,7 @@ from app.modules.booking_engine import api as booking_engine
 from app.modules.member_inbox import api as member_inbox
 from app.modules.notifications import zalo
 from app.modules.play_rooms import lifecycle as play_rooms
+from app.modules.web_push import jobs as web_push
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -79,6 +80,9 @@ async def purge_member_notifications(ctx) -> int:
         return await member_inbox.purge_old(session)
 
 
+push_test = web_push.push_test
+
+
 class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     functions = [
@@ -90,6 +94,7 @@ class WorkerSettings:
         purge_otp_codes,
         play_rooms_tick,
         purge_member_notifications,
+        push_test,
     ]
     cron_jobs = [
         cron(publish_booking_outbox, second=set(range(0, 60, 2)), unique=True),  # mỗi 2 giây

@@ -27,6 +27,8 @@ dependencies = [
     "pillow>=11",  # ảnh đại diện hội viên: giải mã + mã hóa lại (T-016, ADR-009 §5)
     "python-multipart>=0.0.9",  # FastAPI nhận tệp tải lên (multipart/form-data)
     "httpx>=0.27",  # đọc link Google Maps (auth/site_map.py); trước đây chỉ dùng trong test
+    # Web Push (T-076): mã hóa aes128gcm + ký VAPID; gửi bằng httpx (không theo chuyển hướng)
+    "pywebpush>=2.0",
 ]
 
 [project.optional-dependencies]
