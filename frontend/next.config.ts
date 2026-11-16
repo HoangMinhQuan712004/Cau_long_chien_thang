@@ -44,6 +44,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },
+      // Service worker thông báo đẩy (T-076): trình duyệt luôn lấy bản mới, không giữ bản cũ sau khi deploy
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
       // Trang thanh toán chứa token lượt giữ chỗ: không cache, không index (T-008 AC29, SEC9).
       {
         source: "/thanh-toan/:path*",
