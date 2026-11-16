@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-063, T-064, T-065, T-066, T-068, T-069)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-063, T-064, T-065, T-066, T-068, T-069, T-070, T-071, T-072, T-075)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -25,6 +25,7 @@ Nếu code và tài liệu lệch nhau, code đúng – báo DOCS-STEWARD sửa.
 | Rate limit | Toàn API `RATE_LIMIT_PER_MINUTE` (mặc định 120) lượt/phút/IP. Riêng 60 lượt/phút/người cho `POST /booking/quote`, `GET /booking/search`, `GET /members/search`. Vượt → 429 `E-SEC-5` + header `Retry-After` (giây) |
 | Nhật ký | Mọi lệnh ghi thành công ghi đúng 1 dòng `audit_log` (chỉ thêm, không sửa; xóa chỉ dòng quá 12 tháng). Ngoại lệ: đặt quầy kèm hồ sơ tạm **mới** ghi 2 dòng (`member.temp.create` và `booking.counter.create`). Thao tác bị chặn không ghi |
 | Dữ liệu cá nhân | Không response nào trả `id` nội bộ hay `customer_ref`. API quản trị/nhân viên (lịch, chi tiết đơn, vé, giao dịch, hội viên) trả SĐT **đầy đủ** (`phone`) cho cả Admin lẫn nhân viên. Trang khách (`/web/booking/**`) vẫn che dạng `0987 xxx 321` (`phone_masked`); log và Zalo luôn che |
+| Id số trong đường dẫn (T-070) | Mọi tham số đường dẫn là id số (40 route, theo handoff BACKEND T-070) phải nằm trong `1 … 2^63−1` (`SMALLINT` thì `1 … 32767`). **Ngoài khoảng, kể cả 0, âm hoặc quá lớn, trả 404 giống bản ghi không tồn tại** (mã `E-NOT-FOUND` hoặc lỗi 404 riêng của module), **không** 422 và không 500: không lộ khác biệt giữa "không có" và "không hợp lệ" (T-054, SEC6). Trước đây id vượt int64 gây 500 ở 21 route. Kiểm id chạy **trước** kiểm quyền và body: người chưa đăng nhập gửi id ngoài khoảng nhận 404 thay vì 401. Ví dụ đổi hành vi: `GET /member-area/avatars/0` trước trả 422, nay 404. Helper chung `app/core/params.path_id`; `tests/test_path_ids.py` quét mọi route |
 
 ### Idempotency-Key
 
@@ -91,7 +92,7 @@ vẫn là 422 mặc định của FastAPI, khi đó `detail` là **mảng**.
 | E-020 | 422 | Khoảng ngày quá 92 ngày |
 | E-021 | 404 | Không thấy mã khi tìm |
 | E-023 | 409 | Xóa buổi nhưng đã có vé hoặc chỗ đang giữ |
-| E-024 | 409 | Sự kiện đã đủ chỗ |
+| E-024 | 409 | Sự kiện đã đủ chỗ. **(T-071)** Đăng ký nhiều vé: "Chỉ còn n chỗ." kèm `detail.remaining = n` (hết sạch: "Sự kiện đã đủ chỗ.", `remaining = 0`) |
 | E-BOOK-1 | 422 | Ngày sau "hết tháng sau" – **T-008 bỏ giới hạn này** (người dùng chốt 28/10): backend không còn trả mã này |
 | E-BOOK-2 | 422 | Sân của sự kiện không liền nhau |
 | E-BOOK-3 | 404 | **(T-019)** "Không tìm thấy mã đặt." (thu cả đơn với mã đơn không có) |
@@ -120,7 +121,7 @@ Quyền khai báo tập trung ở `backend/app/core/permissions.py`. Router dùn
 | `booking.calendar.view` | ✔ | ✔ | `GET /booking/calendar` |
 | `booking.search` | ✔ | ✔ | `GET /booking/search` |
 | `booking.counter.create` | ✔ | ✔ | `POST /front-desk/bookings` |
-| `booking.ticket.create` | ✔ | ✔ | `POST /front-desk/sessions/{code}/tickets` |
+| `booking.ticket.create` | ✔ | ✔ | `POST /front-desk/sessions/{code}/tickets`, `…/tickets/batch` (T-071) |
 | `booking.item.view` | ✔ | ✔ | `GET /booking/items/{code}` |
 | `booking.session.view` | ✔ | ✔ | `GET /booking/sessions/{code}` |
 | `booking.session.manage` | ✔ | | Tạo và xóa sự kiện |
@@ -196,6 +197,7 @@ Quyền theo bảng mục 3. "Hôm nay" tính theo `Asia/Ho_Chi_Minh`.
 | GET | `/api/v1/booking/sessions/{code}` | Chi tiết sự kiện → `SessionOut` |
 | DELETE | `/api/v1/booking/sessions/{code}` | Xóa sự kiện (Admin). Body `{version}` → 200 `SessionOut` với `status: "deleted"` |
 | POST | `/api/v1/front-desk/sessions/{code}/tickets` → 201 | Đăng ký vé tại quầy. Body `{customer}` → `ItemOut` (`kind: "ticket"`) |
+| POST | `/api/v1/front-desk/sessions/{code}/tickets/batch` **(T-071)** → 201 | Đăng ký vé cho nhiều người một lần (xem dưới bảng) |
 | POST | `/api/v1/booking/items/{code}/collect` | Thu tiền. Body `{method: "cash", version}` → `ItemOut`; `"transfer"` → 422 `E-PAY-0` |
 | POST | `/api/v1/booking/orders/{order_code}/collect` **(T-019)** | Thu cả đơn bằng tiền mặt (xem 5.1) |
 | POST | `/api/v1/booking/items/{code}/uncollectible` | Không thu được. Body `{reason, version}` (lý do 1–200 ký tự) → `ItemOut` |
@@ -238,6 +240,12 @@ Client chỉ gửi **một** trong hai dạng; snapshot tên/SĐT do server dự
 `{code, name, play_date, start_time, end_time, resources[], ticket_price, capacity, taken, is_full, status, created_by, created_at, version, tickets[], active_holds[], can}`:
 
 - `tickets[]` (mới nhất trước): `{code, customer_name, phone, source, payment_status, amount, created_at}`. Mã vé `{mã sự kiện}-Vnn`.
+- **Đăng ký vé cho nhiều người (T-071, đã vào `dev`)** `POST /front-desk/sessions/{code}/tickets/batch`: quyền `booking.ticket.create` (Admin và nhân viên), cần `Idempotency-Key`. Body `{customers: CustomerIn[] (1..50), note?: str (≤ 200)}`; `CustomerIn` giống `customer` của endpoint một vé: `{member_code}` hoặc `{temp: {full_name, phone, note?}}` (hội viên và hồ sơ tạm lẫn nhau). Ghi chú riêng của hồ sơ tạm được ưu tiên hơn `note` chung. Trả 201 `{tickets: ItemOut[]}` theo thứ tự gửi, **số vé liên tiếp**; mỗi vé một dòng audit `ticket.create` và một outbox `ticket.created`; giá và trạng thái Chưa thanh toán như một vé.
+  - **Tất cả hoặc không ai:** một transaction, khóa dòng sự kiện, đếm chỗ **một lần** (gồm ghế đang giữ online). Thiếu chỗ → không tạo vé nào. Hai máy đăng ký sát số chỗ: một bên 201, bên kia 409; gửi lại cùng `Idempotency-Key` → replay, không tạo thêm.
+  - Lỗi: 409 `E-024` "Chỉ còn n chỗ." kèm `detail.remaining` (hết sạch: "Sự kiện đã đủ chỗ.", `remaining = 0`); 422 `E-004` như một vé (đã qua, chưa tới ngày, đã kết thúc); 422 `E-001` khi danh sách rỗng ("Vui lòng chọn ít nhất một người."), quá 50 người ("Mỗi lần đăng ký tối đa 50 người."), **cùng một người hai lần** ("{tên} có hai lần trong danh sách."; so theo hồ sơ nên hai hồ sơ tạm cùng SĐT cũng là trùng) hoặc hồ sơ tạm thiếu tên / SĐT.
+  - Endpoint một vé `POST …/tickets` **giữ nguyên** (cùng body, cùng lỗi, không có `remaining`); hai endpoint dùng chung lõi.
+  - **Nhãn "Đã có vé":** mỗi dòng `tickets[]` của `GET /booking/sessions/{code}` thêm `customer_kind` (`member` | `temp`) và `member_code` (mã HV khi là hội viên, `null` với hồ sơ tạm). Giao diện so hội viên theo `member_code`, hồ sơ tạm theo `phone` có sẵn; không thêm SĐT mới. Người đã có vé **không bị chặn**, chỉ cảnh báo.
+  - Đối chiếu code backend `be/T-071-batch-tickets` @ `1d2ac8d`; không migration. Giao diện chưa kiểm.
 - `taken` = số vé (mọi trạng thái) + chỗ giữ online còn hạn. Đăng ký vé khóa dòng sự kiện nên 20 request tranh chỗ cuối chỉ 1 thành công, còn lại `E-024`.
 - `active_holds[]`: `{seats, expires_at}`. `can`: `{register, delete}`.
 - **(T-023, đã vào `dev`) Vé bán online:** mỗi lượt mua giữ **một Hold `seat`** (`seats = n`, mã = mã đơn, tiền chốt = n × giá vé) gắn với `checkout` có `kind = 'ticket'`. Ghế của lượt còn `pending` tính vào `taken` **cho tới khi `expire_holds` nhả**, kể cả trong ân hạn 60 giây; nhờ vậy tiền về hợp lệ luôn còn ghế. Đăng ký vé tại quầy gọi `expire_holds` trước và không lấy được ghế đang giữ (`E-024`). Vé sinh ra khi tiền về mang `source = online`, `payment_method = online_transfer`, đã thanh toán, và cột `ticket.checkout_id`. Xem mục 10.8.
@@ -452,6 +460,11 @@ Quyền: **`booking.collect`** (Admin và nhân viên có quyền thu tiền; g�
 | `closed` | Hết khối chưa thu nhưng có khối Không thu được, hoặc không có khối nào Đã thanh toán (hủy hết). Hiểu là đã xử lý ở máy khác, **không có tiền về**; popup không báo nhận tiền |
 
 - Hết khối chưa thu: `amount = 0`, `blocks = 0`.
+- **`since` và `qr_paid` (T-072, đã vào `dev`).** Lỗi cũ: đơn đã có khối Không thu được, mở QR cả đơn cho phần còn lại, tiền về đúng số thì tiền được áp đúng nhưng `status = closed` nên popup báo "xử lý ở máy khác". Cách sửa, **áp cho cả QR đơn lẫn QR buổi / vé** (`GET …/collect-qr?since=<ISO>`):
+  - `since` = lúc mở popup, ISO 8601 **có múi giờ** (`2026-11-12T03:00:00Z` hoặc `…+07:00`). **Nhớ URL-encode dấu `+` (`%2B`)**, nếu không `+` thành khoảng trắng và bị coi là sai. Sai định dạng hoặc thiếu múi giờ → 422 `E-001`. "Tạo lại mã QR" giữ nguyên mốc đầu. Không gửi `since` → `qr_paid = false`.
+  - Response thêm `qr_paid: bool` (mặc định `false`): **QR buổi / vé:** có dòng sổ `counter_qr` (tiền QR) chứa đúng khối hoặc vé đó với `occurred_at ≥ since`. **QR cả đơn:** **không còn khối chưa thu** và có dòng sổ `counter_qr` cho khối của đơn với `occurred_at ≥ since` (để một buổi trả bằng QR từng buổi, đơn còn buổi chưa thu, không làm popup cả đơn báo đã nhận tiền).
+  - `status` **giữ nguyên nghĩa**, không đổi phá vỡ. Giao diện: `qr_paid = true` → "Đã nhận tiền chuyển khoản" (ưu tiên hơn `status`); `paid` hoặc `closed` mà `qr_paid = false` → "Đơn đã được xử lý ở máy khác" (`paid` mà không có tiền QR nghĩa là máy khác thu tiền mặt).
+  - Đối chiếu code backend `be/T-072-qr-paid-since` @ `cf5ae1b`; không migration. Giao diện chưa kiểm.
 - **Đã bỏ 409 `E-BOOK-4`** của QR đơn (đơn hủy hết nay trả 200 `closed`). Đơn có cả khối Đã thanh toán lẫn Không thu được → `closed` (ARCHITECT chốt).
 - **Popup (T-058 sửa 10/11, chỉ giao diện, không đổi máy chủ):** chờ **5 phút**, đếm ngược "Còn m:ss"; hết giờ thì QR mờ, có nút "Tạo lại mã QR" (chờ thêm 5 phút) và kiểm lần cuối ngay lúc hết giờ. Bỏ dòng ghi chú "Chuyển thiếu hoặc thừa…". **Tiền về sau 5 phút vẫn được nhận nếu đúng số** và khối còn Chưa thanh toán: 5 phút chỉ là thời gian popup chờ, không có `expires_at`.
 
@@ -552,7 +565,7 @@ Khai báo trong `backend/app/core/config.py`, mẫu ở `backend/.env.example`.
 | `SEPAY_WEBHOOK_SECRET` | trống | Khóa ký webhook (HMAC). **Secret – không ghi vào repo, board hay tin nhắn** |
 | `SEPAY_TIMESTAMP_TOLERANCE_SECONDS` | `0` | `0` = không chặn theo tuổi của timestamp; `> 0` = lệch quá số giây này → 401 |
 | `ONLINE_HOLD_MINUTES` | `5` | Thời gian giữ chỗ online |
-| `ONLINE_HOLD_GRACE_SECONDS` | `60` | Ân hạn nhận tiền báo trễ sau khi hết giữ chỗ (khung vẫn bị chiếm trong lúc này) |
+| `ONLINE_HOLD_GRACE_SECONDS` | `60` | Ân hạn **chỉ để nhận tiền báo trễ** sau khi hết giữ chỗ. **Từ 13/11 khung mở lại ngay tại `expires_at`**, không còn bị chiếm trong ân hạn (mục 10.9) |
 | `PAYMENTS_SIMULATE` | `false` | Bật `POST /payments/dev/simulate` (giả lập tiền về). `ENV=production` mà bật → API **không khởi động** |
 | `FIRST_ADMIN_PHONE` **(T-013)** | `0912345678` | Thay `FIRST_ADMIN_EMAIL`. SĐT Admin đầu tiên. Migration T-013 cũng dùng biến này để gán SĐT cho Admin cũ chưa có; **thiếu hoặc sai → migration dừng**. Production: SĐT thật, phải có trong `.env` **trước** khi deploy |
 | `FIRST_ADMIN_PASSWORD` | `Admin@12345` (mẫu, `.env.example`) | Chỉ dùng khi **chưa có Admin**; không bao giờ ghi đè mật khẩu Admin đã có. Production từ chối mật khẩu mẫu hoặc yếu |
@@ -585,7 +598,7 @@ Chạy bằng `arq app.workers.worker.WorkerSettings`.
 | Job | Chu kỳ | Việc |
 |---|---|---|
 | `publish_booking_outbox` | mỗi 2 giây | Đọc outbox của engine, phát sự kiện nội bộ (vd. `booking.created`) |
-| `expire_holds` | mỗi 30 giây | Giữ chỗ quá `expires_at` → hết hạn, nhả khung. Giữ chỗ quá hạn không hiện trên lịch và không chặn đặt dù job chưa chạy. Từ T-008 cũng đóng lượt thanh toán online `pending` quá `expires_at` + ân hạn (→ `expired`) và phát `checkout.expired` nếu lượt đó đã nhận một phần tiền |
+| `expire_holds` | mỗi 30 giây | Giữ chỗ quá `expires_at` → hết hạn, nhả khung. Giữ chỗ quá hạn không hiện trên lịch và không chặn đặt dù job chưa chạy. Từ T-008 cũng đóng lượt thanh toán online `pending` quá `expires_at` + ân hạn (→ `expired`; **thao tác đặt mới đóng ngay lượt đã quá `expires_at`, không chờ ân hạn**, mục 10.9) và phát `checkout.expired` nếu lượt đó đã nhận một phần tiền |
 | `purge_audit_log` | hằng ngày 03:15 | Xóa dòng nhật ký quá 12 tháng |
 | `purge_idempotency_keys` | mỗi giờ (phút 5) | Xóa key quá 24 giờ |
 | `purge_otp_codes` (T-013) | mỗi giờ (phút 35) | Xóa mã OTP quá 24 giờ |
@@ -628,7 +641,7 @@ Migration quay lui được (`alembic downgrade`), không xóa dữ liệu bản
 2. Chọn ô, nhập họ tên + SĐT. **(T-013)** Khách bấm "Gửi mã" (`POST /web/booking/phone/request`), nhập OTP (`POST /web/booking/phone/verify` → `phone_token`); khách đã đăng nhập với SĐT đã xác minh thì bỏ qua bước này. Rồi `POST /web/booking/checkouts` → server giữ chỗ **5 phút**, cấp **một mã đơn** `BK-YYYYMMDD-NNN` (T-019; trước đó mỗi dải giờ liền nhau của từng sân một mã) và mã con `{mã đơn}-NN` cho từng dải giờ liền nhau của từng sân, trả `token` (chỉ trả **một lần**) và thông tin chuyển khoản.
 3. Khách quét QR, chuyển khoản với **nội dung = `pay_ref`**. Trang hỏi `GET /web/booking/checkouts/{token}` (mỗi 3 giây).
 4. SePay báo tiền về qua webhook → server đủ tiền thì **trong cùng transaction** tạo booking (`source=online`, cùng mã đã cấp, gắn vào đơn, `payment_status=paid`, `payment_method=online_transfer`) và đóng lượt thanh toán `paid`.
-5. Quá `expires_at` + 60 giây mà chưa đủ tiền → worker đóng lượt `expired`, nhả khung. Tiền về sau đó **không** tạo booking: giao dịch ghi `outcome = refund_needed` vào `payments.bank_transaction`; không có màn xử lý, chủ sân đối soát và hoàn tiền ngoài hệ thống (SePay hoặc ngân hàng).
+5. Quá `expires_at` mà chưa đủ tiền → **khung mở lại ngay** (từ 13/11, mục 10.9); worker đóng lượt `expired` sau `expires_at` + 60 giây (ân hạn chỉ để nhận tiền báo trễ). Tiền về sau đó **không** tạo booking: giao dịch ghi `outcome = refund_needed` vào `payments.bank_transaction`; không có màn xử lý, chủ sân đối soát và hoàn tiền ngoài hệ thống (SePay hoặc ngân hàng).
 
 `pay_ref` = **mã đơn** bỏ gạch (`BK-20261020-023` → `BK20261020023`; T-019, trước đó là mã booking đầu tiên). Booking online hiện trên lịch quầy như T-006 (Đỏ, nguồn Online).
 
@@ -671,7 +684,7 @@ Trường không dùng có giá trị `null`. Response **không** chứa tên, S
 - Tối đa **16** ô/lần, trong **một ngày**, nhiều sân được. Không giới hạn số ngày đặt trước. `note` ≤ 200 ký tự, họ tên 1–100 ký tự.
 - SĐT chuẩn hóa như quầy (bỏ khoảng trắng/chấm/gạch, `+84` → `0`), phải là `0` + 9 chữ số.
 - **Không gửi giá hay tổng tiền**: server tự tính từ bảng giá hiện hành và chốt lúc đặt.
-- Một SĐT chỉ có **1 lượt đang chờ** thanh toán (lượt thứ hai → 409 `E-WEB-4`).
+- Một SĐT chỉ có **1 lượt đang chờ** thanh toán (lượt thứ hai → 409 `E-WEB-4`, kèm đơn cũ để thanh toán hoặc hủy: mục 10.9).
 - **(T-013) Phải xác minh SĐT bằng OTP trước khi giữ chỗ.** Body thêm `phone_token`, lấy từ `POST /phone/verify`. Thiếu, sai, hết hạn (30 phút) hoặc khác SĐT trong body → 403 `E-WEB-8`. Một `phone_token` dùng được cho nhiều lượt checkout của **cùng SĐT** trong hạn. **Ngoại lệ:** khách đã đăng nhập, SĐT đã xác minh và trùng body thì không cần `phone_token`. `/tra-cuu` (mã + SĐT) và đặt tại quầy **không** cần OTP.
 - Trùng khung do exclusion constraint → 409 `E-WEB-3`, không tạo gì. Hai máy bấm cùng lúc: đúng một bên thành công.
 
@@ -714,7 +727,8 @@ Sai mã, mã con không thuộc SĐT, **hay** sai SĐT đều trả cùng 404 `E
 | E-WEB-1 | 422 | Theo trường: "Vui lòng nhập họ tên." · "Số điện thoại không hợp lệ — cần đủ 10 số." · "Ghi chú tối đa 200 ký tự." · "Chọn ít nhất 1 khung giờ." · "Mỗi lần đặt tối đa 16 khung giờ." |
 | E-WEB-2 | 422 | "Không đặt được ngày đã qua." hoặc khung đã qua, ngoài giờ mở cửa, sân ngừng hoạt động |
 | E-WEB-3 | 409 | "Khung giờ vừa có người đặt. Vui lòng chọn khung khác." Kèm `detail.conflicts: [{resource_code, start_hour}]` |
-| E-WEB-4 | 409 | SĐT này đang có lượt giữ chỗ chưa thanh toán (**T-023:** chung cho đặt sân và mua vé, ràng buộc `uq_checkout_pending_phone`) |
+| E-WEB-4 | 409 | "Bạn còn đơn chưa thanh toán. Hãy thanh toán hoặc hủy đơn đó để đặt đơn mới." (**T-023:** chung cho đặt sân và mua vé, ràng buộc `uq_checkout_pending_phone`). Kèm `detail.pending` (mục 10.9) |
+| E-WEB-12 | 409 | **(PR ngoài nhóm, mục 10.9)** Không hủy được giữ chỗ: `detail.reason` = `paid` / `partially_paid` / `expired` |
 | E-WEB-5 | 503 | Đặt online đang tạm ngưng (chưa đủ cấu hình SePay; từ T-013 còn thiếu cả kênh OTP). Gọi hotline |
 | E-WEB-6 | 404 | "Không tìm thấy lượt thanh toán." (token sai hoặc không có) |
 | E-WEB-7 | 404 | "Không tìm thấy booking. Kiểm tra lại mã và số điện thoại." |
@@ -883,6 +897,67 @@ Khóa dòng `session` `FOR UPDATE` khi giữ ghế và khi tiền về, nên hai
 | GET | `/member-area/bookings/{order_code}` | Đơn của mình: `{order_code, play_date, source: online hoặc counter, pay_status, amount, items:[{code, resource_name, start_time, end_time, hours, amount, pay_status}]}`. Không có SĐT. `items[].code` là mã con, dùng gọi `GET /member-area/payments/{code}` lấy hóa đơn khi đã thanh toán. Không có hoặc của người khác → 404 `E-NOT-FOUND` |
 
 Endpoint công khai `/web/booking/calendar` **không bao giờ** trả `order_code` của ai. Không có `/member-area/events/...`: hội viên xem sự kiện và mua vé qua `/web/booking/events/{code}` và `/web/booking/event-checkouts` với `as_member`.
+
+### 10.9 Ô đang giữ trên lịch (T-075), hủy giữ chỗ và đơn chờ thanh toán (PR ngoài nhóm, đã vào `dev`)
+
+> Đã vào `dev`. **Phần hủy giữ chỗ và đơn chờ không có spec hay handoff** (commit ngoài nhóm `51f0080`, `b3b0771`, `32f7eee`, `b8808ae`, ngày 13/11); tôi ghi theo code `dev` và các docstring trong `checkout_cancel.py`, `checkout_pending.py`, `holds.py`. Phần lịch `held` theo spec `board/tasks/T-075-giu-cho-ro-rang-quay-lai-qr.md` và handoff `be/T-075-held-slot` @ `102a7e6`, **nhưng một quy tắc đã đổi sau đó** (xem "Khung mở lại ngay"). Giao diện chưa kiểm.
+
+#### Lịch công khai và lịch hội viên: ô `held` (T-075, đổi phá vỡ)
+
+`GET /api/v1/web/booking/calendar` và `GET /api/v1/member-area/booking-calendar` (`MemberSlot` kế thừa `PublicSlot`):
+
+- `state` thêm giá trị **`held`**: khung đang có người giữ chỗ chờ thanh toán. FE cũ không biết `held` nên **BE và FE phải lên cùng lượt**.
+- `expires_at` (mới, `datetime | null`): **chỉ có khi `state = held`**, bằng `Hold.expires_at` (hạn thanh toán, không cộng ân hạn). Các ô khác `null`.
+- Ô `held` có `price`, `band`, `taken`, `capacity`, `event_code` = `null`. **Không** có tên, SĐT, mã đơn, `pay_ref` hay token. Lịch hội viên: ô `held` luôn `mine = false`, `order_code = null` (server không biết lượt nào của trình duyệt nào). `server_now` có sẵn để đếm ngược. Lịch admin không đổi.
+- Trùng ô: sự kiện > booking > held (hạng rõ ràng, không phụ thuộc thứ tự khối). Lượt đã thanh toán → ô thành `booked`.
+- **Khung mở lại ngay (người dùng 13/11, thay quy tắc ân hạn của bản T-075 đầu):** ô `held` chỉ còn tới đúng `expires_at`; hết hạn là ô **trống ngay**, bỏ trạng thái "Sắp mở lại". Vì vậy `expires_at` của ô `held` luôn ở tương lai. **Ân hạn 60 giây chỉ còn để nhận tiền báo trễ** (webhook), không giữ khung. Tiền về trong ân hạn mà khung đã bị người khác lấy → lượt đã `expired` → `refund_needed` như tiền về trễ (mục 10.4).
+- Thao tác đặt mới gặp lượt đã quá `expires_at` mà worker chưa đóng → **đóng ngay** (như worker: lượt + hold → `expired`, tắt allocation) rồi cho đặt.
+
+#### Một SĐT một đơn chờ: `E-WEB-4` kèm đơn cũ
+
+Ràng buộc `uq_checkout_pending_phone` (một lượt `pending` mỗi SĐT, chung sân và vé) giữ nguyên. Khác trước: **409 `E-WEB-4` kèm `detail.pending`** để khách thanh toán hoặc hủy đơn đó thay vì kẹt tới khi hết giờ. `detail.pending` là `PendingCheckout` (`null` nếu lượt vừa hết hạn):
+
+```json
+{ "order_code": "BK-20261113-004", "kind": "court", "title": "Sân 1, Sân 2",
+  "play_date": "2026-11-13", "start_time": "18:00", "end_time": "20:00",
+  "expires_at": "…", "server_now": "…", "amount": 360000, "paid_amount": 0,
+  "pay_token": "…", "slots": [ { "resource_name": "Sân 1", "start_time": "18:00", "end_time": "19:00" } ] }
+```
+
+- `kind` = `court` hoặc `ticket`; `title` = tên các sân nối dấu phẩy hoặc tên sự kiện; `start_time` / `end_time` = giờ sớm nhất / muộn nhất (HH:MM, giờ VN); `slots[]` theo thứ tự mã con, **rỗng với vé**.
+- `paid_amount > 0` nghĩa là đã ghi nhận một phần tiền: **không hủy được**.
+- **`pay_token`** = token trang `/thanh-toan/{token}`. Token nay **tính lại được** (`HMAC(SECRET_KEY, id lượt)`, DB vẫn chỉ lưu `token_hash`) để trả cho chủ đơn; lượt tạo trước tính năng này, hoặc sau khi đổi `SECRET_KEY`, thì `pay_token = null`. **Đổi `SECRET_KEY` làm các lượt đang chờ mất đường quay lại bằng token** (vẫn tra cứu được bằng mã đơn + SĐT).
+- Lượt chỉ tính là đang chờ khi `expires_at > now`; quá hạn không còn chặn.
+
+#### `POST /api/v1/web/booking/checkouts/{token}/cancel` – hủy giữ chỗ
+
+Công khai (khách) hoặc đã đăng nhập (hội viên); cần `Origin`; giới hạn **40 lượt / 10 phút** / IP; `no-store`. Hủy lượt **chưa trả đồng nào**, cả đặt sân lẫn mua vé. Trả `CheckoutOut` (`status = "cancelled"`).
+
+- Một transaction, khóa dòng checkout (như lúc nhận tiền hoặc hết hạn, nên không đua với webhook hay worker): lượt → `cancelled`, mọi hold `active` → `released`, tắt allocation (**khung mở lại ngay**; ghế sự kiện không còn được đếm). Audit `checkout.cancel` (người làm "Khách hủy giữ chỗ" hoặc "Hội viên hủy giữ chỗ"), outbox `checkout.cancelled {pay_ref, order_code, kind}`.
+- **Gọi lại khi đã hủy → 200 như cũ.** Hết hạn mà worker chưa đóng vẫn hủy được.
+- Lượt của hội viên: phải đăng nhập **đúng hội viên đó**; người khác nhận 404 như token sai.
+- Tiền về sau khi hủy đi đường của lượt đã đóng: `refund_needed`, lượt **không sống lại** (theo docstring `checkout_cancel.py`).
+
+| Mã lỗi | HTTP | Khi nào |
+|---|---|---|
+| `E-WEB-6` | 404 | Token sai, không phải lượt của mình |
+| `E-WEB-12` | 409 | `reason = paid` "Đơn đã thanh toán, không thể hủy." · `partially_paid` "Đơn đã ghi nhận tiền chuyển khoản, không thể hủy. Vui lòng liên hệ sân." · `expired` "Đơn đã hết hạn giữ chỗ." |
+
+- `GET /web/booking/checkouts/{token}` và các `CheckoutOut` khác: `status` thêm giá trị **`cancelled`** (`pending | paid | expired | cancelled`). Lượt hủy không có `bank`.
+- **Giới hạn tạo đơn nâng lên 30 lượt / 10 phút** (`POST /web/booking/checkouts` và `/event-checkouts`).
+
+#### `GET /api/v1/member-area/pending-payment` – đơn chờ của hội viên
+
+Điều kiện chung của mục 13, chưa là hội viên → 403 `E-HV-8`. Giới hạn 120 / phút, `no-store`. Trả `PendingCheckout | null`: đơn online đang chờ của hội viên (theo SĐT hồ sơ, đúng cái chặn đặt mới `E-WEB-4`), `null` nếu không có. Dùng cho thẻ "Chờ thanh toán" và thanh nhắc ở khu hội viên.
+
+#### Migration `f1c4b7e2a9d3` (nối sau `a3d9cdb7c461`, **production phải chạy**)
+
+Đổi check `ck_checkout_status` của `booking.checkout` thành `status IN ('pending','paid','expired','cancelled')`. **Downgrade** đổi mọi dòng `cancelled` thành `expired` rồi trả check cũ (mất phân biệt hủy tay và hết hạn). Không biến cấu hình mới.
+
+#### Điểm lệch spec T-075 (ghi cho ARCHITECT)
+
+- Spec T-075 nói "token chỉ lưu hash nên server không trả lại token được" và chọn nhận "ô của tôi" bằng `localStorage` ở FE; code nay trả `pay_token` tính lại được ở `E-WEB-4` và `pending-payment`, và có thêm nút hủy giữ chỗ. Đây là thay đổi ngoài spec (ngoài nhóm, có "ADR-013 riêng" như spec nhắc nhưng **chưa có trong `board/decisions/ADR-013-huy-thanh-toan.md`**, file đó chỉ nói về hủy booking và vé).
+
 
 ## 11. Đăng nhập, nhân viên, OTP, tài khoản khách (T-013)
 
@@ -1088,16 +1163,17 @@ Lệnh ghi cần `Origin` đúng. **(T-020)** `POST /members` và `POST /members
 - Trả `{items[], total, page, size, counts:{all, member, temp}, can:{edit_status, manage_rackets}}`. `counts` áp **mọi bộ lọc trừ `kind`**; `total` theo `kind`. `can` cho giao diện khóa ô theo quyền.
 - Mỗi `items[]`: `{ref, kind, member_code, full_name, phone, gender: "male"|"female"|null, tier, racket, is_active, bookings, created_at, version}` (**T-021** thêm `source`: `counter` \| `self_register`). Hồ sơ tạm: `member_code`, `tier`, `racket` là `null`.
 
-**Chi tiết** `GET /members/{ref}`: như một dòng, thêm `note`, `total_minutes` (tổng **phút** đã đặt), `recent_bookings[]` (5 booking gần nhất theo giờ chơi: `{code, play_date, start_time, end_time, resource_name, amount}`) và `can`. Không tìm thấy → 404 `E-NOT-FOUND`.
+**Chi tiết** `GET /members/{ref}`: như một dòng, thêm `birth_date` (`null` = chưa nhập), `note`, `total_minutes` (tổng **phút** đã đặt), `recent_bookings[]` (5 booking gần nhất theo giờ chơi: `{code, play_date, start_time, end_time, resource_name, amount}`) và `can`. Không tìm thấy → 404 `E-NOT-FOUND`.
 
-**Thêm** `POST /members` body `{full_name, phone, gender?, tier?, racket?}` (trường lạ → 422; T-020 gỡ `upgrade_temp`):
+**Thêm** `POST /members` body `{full_name, phone, gender?, tier?, birth_date?, racket?}` (trường lạ → 422; T-020 gỡ `upgrade_temp`):
 
 - `tier` bỏ trống = chưa xếp hạng. `racket` là tên vợt.
+- **`birth_date` (ngày sinh, đã vào `dev`, PR ngoài nhóm `fix/ui-ux`)**: `YYYY-MM-DD`, **tùy chọn**; **thông tin riêng tư như SĐT**: chỉ chính hội viên (`GET/PUT /member-area/me`) và người có `member.manage` (`GET /members/{ref}`, `POST/PATCH /members`) xem hoặc sửa; **không** có ở danh sách hội viên, trang công khai, phòng chơi, kỷ lục, lịch. **Chưa có** tuổi tối thiểu, hạng theo tuổi hay thông báo sinh nhật (chưa phải quy tắc). Nhật ký thao tác ghi ô "Ngày sinh" (`dd/mm/yyyy`) khi đổi, như các ô hồ sơ khác. Mã lỗi **khác nhau theo API, đúng như từng API vốn báo lỗi**: quầy `/members` → 422 `E-001`; hội viên `PUT /member-area/me` → `fields[].code = E-HV-1`; `null` hoặc bỏ trống = chưa nhập. Phải từ `1900-01-01` đến hôm nay (giờ VN), sai → 422 `E-001` "Ngày sinh không hợp lệ.". Hồ sơ tạm (`POST /members/temp`) **không có** ngày sinh.
 - Hội viên mới ở trạng thái Hoạt động; **tạo luôn tài khoản web** cho SĐT đó nếu chưa có (12.5).
 - SĐT đã thuộc hội viên → 409 `E-018`.
 - SĐT đang là hồ sơ tạm → 409 `E-MEM-1` "Số điện thoại đã có hồ sơ tạm: {Họ tên} (tạo dd/mm/yyyy)" (kèm `ref`, `full_name`). **Không** nâng hồ sơ tạm, không tạo hội viên (người dùng chốt 31/10; T-020 gỡ `upgrade_temp` và nhật ký `member.promote`).
 
-**Sửa** `PATCH /members/{ref}`: **bắt buộc `version`** (lấy từ danh sách hoặc chi tiết); chỉ gửi thêm ô muốn đổi, trong `full_name, gender, tier, racket, is_active`. **Không đổi được SĐT.** `tier: null` = bỏ xếp hạng. Hồ sơ tạm chỉ nhận `full_name`, `gender` (ô khác → 422 `E-MEM-6`). Đổi `is_active` khi không có `member.status` → 403 `E-AUTH-2`. Hội viên Ngừng → khóa tài khoản web; Hoạt động lại → mở.
+**Sửa** `PATCH /members/{ref}`: **bắt buộc `version`** (lấy từ danh sách hoặc chi tiết); chỉ gửi thêm ô muốn đổi, trong `full_name, gender, birth_date, tier, racket, is_active`. **Không đổi được SĐT.** `birth_date: null` = xóa ngày sinh; không gửi = giữ nguyên; sai → 422 `E-001`. `tier: null` = bỏ xếp hạng. Hồ sơ tạm chỉ nhận `full_name`, `gender` (ô khác, kể cả `birth_date` → 422 `E-MEM-6`). Đổi `is_active` khi không có `member.status` → 403 `E-AUTH-2`. Hội viên Ngừng → khóa tài khoản web; Hoạt động lại → mở.
 Khóa lạc quan (T-020): `version` lệch → 409 `E-MEM-9` "Hội viên này vừa được cập nhật ở máy khác. Tải lại để xem bản mới nhất.", không ghi đè. Có ô đổi thì `version + 1`; không đổi gì thì giữ nguyên. Hội viên tự sửa ở khu hội viên (12.6) cũng dùng chính `version` này, nên hai bên chặn lẫn nhau.
 
 **Hồ sơ tạm** `POST /members/temp` body `{full_name, phone, gender?}`. SĐT trùng hội viên → 409 `E-018`; trùng hồ sơ tạm → 409 `E-MEM-1`. Cần `Idempotency-Key`.
@@ -1147,12 +1223,12 @@ Dành cho khách đã đăng nhập **và là hội viên**: hồ sơ của tài
 | DELETE | `/member-area/me/avatar` → 204 | Chưa có ảnh vẫn 204 |
 | GET | `/member-area/avatars/{customer_id}?v=` | Ảnh, công khai. `image/webp`, `ETag`, `Cache-Control: public, max-age=31536000, immutable`, `nosniff`, CSP `default-src 'none'; sandbox`; 304 theo `If-None-Match` |
 
-`GET /member-area/me` → `{member_code, full_name, short_name, nickname, email, phone, joined_at, tier, racket, show_on_records, avatar_url, record_kmh, version}`:
+`GET /member-area/me` → `{member_code, full_name, short_name, nickname, email, phone, joined_at, tier, birth_date, racket, show_on_records, avatar_url, record_kmh, version}`:
 
 - `phone` và `email` đầy đủ (chỉ chính chủ thấy). `short_name` = từ cuối của Họ tên. `joined_at` = ngày tạo hồ sơ hội viên (giờ VN).
 - `tier`: một trong 8 bậc hoặc `null` (chưa xếp hạng). `racket`: tên vợt hoặc `null`. `avatar_url` đã có `?v=`, `null` nếu chưa có ảnh. `record_kmh` luôn `null` ở đợt 1; **T-030 (đã vào `dev`)** trả kỷ lục thật, xem mục 13.6.
 
-`PUT /member-area/me` body `{full_name, nickname, email, tier, racket, show_on_records, version}` (chuỗi rỗng = `null`; trường lạ → 422):
+`PUT /member-area/me` body `{full_name, nickname, email, tier, birth_date?, racket, show_on_records, version}` (chuỗi rỗng = `null`; trường lạ → 422):
 
 | Ô | Quy tắc |
 |---|---|
@@ -1160,11 +1236,12 @@ Dành cho khách đã đăng nhập **và là hội viên**: hồ sơ của tài
 | `nickname` | ≤ 20 ký tự (E-HV-1). Được trùng người khác |
 | `email` | Tùy chọn, đúng định dạng (E-HV-10), không trùng hội viên khác, không phân biệt hoa thường (E-HV-11). Chỉ để liên hệ: **không** dùng để đăng nhập, quên mật khẩu hay khớp Google; không gửi mail xác minh |
 | `tier` | Bắt buộc là một trong 8 bậc (E-HV-1). Đang `null` thì được gửi `null` để giữ; đã có hạng thì **không** đổi về `null` |
+| `birth_date` | **(đã vào `dev`, PR ngoài nhóm `fix/ui-ux`)** Ngày sinh `YYYY-MM-DD`, từ 1900 đến hôm nay (giờ VN). **Không gửi = giữ nguyên; gửi `null` = xóa.** Sai → `fields` có `birth_date` mã `E-HV-1` "Ngày sinh không hợp lệ." |
 | `racket` | Tên vợt; chưa có trong danh mục thì tự thêm; rỗng = bỏ chọn. Lỗi tên vợt nằm trong `fields` |
 | `show_on_records` | Mặc định `false` với hội viên mới |
 | `version` | Lấy từ GET, gửi lại. Hồ sơ đã được sửa nơi khác → 409 `E-HV-12`, không ghi đè |
 
-Lỗi nhiều ô cùng lúc → 422 với `detail.fields[{field, code, message}]` (`field` ∈ `full_name | nickname | email | tier | racket`); có lỗi thì **không lưu ô nào**. Không đổi gì → trả hồ sơ, không ghi, không tăng `version`.
+Lỗi nhiều ô cùng lúc → 422 với `detail.fields[{field, code, message}]` (`field` ∈ `full_name | nickname | email | tier | birth_date | racket`); có lỗi thì **không lưu ô nào**. Không đổi gì → trả hồ sơ, không ghi, không tăng `version`.
 `version` tăng cả khi hội viên tự sửa lẫn khi quầy sửa (12.3, từ T-020): quầy sửa xong thì hội viên đang mở bản cũ nhận `E-HV-12`, và ngược lại quầy nhận `E-MEM-9`.
 
 Đổi **Họ tên** còn: cập nhật `users.full_name`, và đổi tên khách trên booking, vé, lượt thanh toán của hồ sơ (kể cả booking cũ); snapshot hạng lúc đặt giữ nguyên.
@@ -1425,16 +1502,19 @@ Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no
 
 - Migration `0cbf30ad5193` (nối sau `9738bbfe2eb7`): 4 bảng phòng chơi (gồm bảng trận) và `member_notification`. Không backfill trong migration. T-018 không có migration.
 - Không biến môi trường hay gói mới.
+- **Migration của nhóm `fix/ui-ux` (11/11, trên `dev`, nối sau `d2886c61ed25`):** `b34da28b29f8` (thêm `customer.birth_date date NULL`, check `birth_date IS NULL OR birth_date >= '1900-01-01'`) → `8eb2eb8e8727` (thêm `speed_record.wins`, `losses` và check) → `a3d9cdb7c461` (**bỏ lại** hai cột và check đó). Hai migration `8eb2eb8e8727` và `a3d9cdb7c461` bù nhau nên **schema cuối không đổi**; khi lên production cả hai **chạy liên tiếp**. Downgrade của `a3d9cdb7c461` dựng lại hai cột và check, **không khôi phục dữ liệu** của hai cột đã bỏ. Head tiếp theo trên dev: `f1c4b7e2a9d3`.
 - **Worker production phải chạy bản mới** để có hai job `play_rooms_tick` và `purge_member_notifications`. Thiếu job thì phòng chỉ tạo qua sự kiện outbox, không đóng đúng giờ và không backfill.
 
 ### 13.5 Lịch sử chơi (T-029, đã vào `dev`)
 
 > Đối chiếu với code backend `be/T-029-lich-su-choi` @ `5a0f584` (nay đã vào `dev`). Giao diện chưa kiểm. Không migration, không quyền mới, không cấu hình mới: chỉ đọc dữ liệu phòng chơi T-017.
 
-**`GET /member-area/play-history?month=YYYY-MM`** (điều kiện chung của mục 13). `month` bỏ trống = tháng này theo giờ VN.
+**`GET /member-area/play-history?month=YYYY-MM`** hoặc **`?from=YYYY-MM-DD&to=YYYY-MM-DD`** (điều kiện chung của mục 13). `month` bỏ trống = tháng này theo giờ VN.
+
+> **Khoảng ngày** (đã vào `dev`, PR ngoài nhóm `fix/ui-ux`, commit `6fa1587`): gửi cả `from` và `to` (gồm cả hai đầu, giờ VN) thì **bỏ qua `month`**. Thiếu một đầu → 422 `E-001` "Vui lòng chọn cả Từ ngày và Đến ngày."; `from` sau `to` → "Từ ngày phải trước hoặc bằng Đến ngày."; quá dài (`to − from ≥ 366` ngày) → "Khoảng ngày tối đa 1 năm.". Nói rõ: được phép khi `to − from ≤ 365` ngày, tức **tối đa 366 ngày lịch gồm cả hai đầu**. Khoảng bắt đầu ở tương lai → 200 rỗng. Phản hồi có thêm `start` và `end` (ngày đầu, ngày cuối khoảng đang xem, gồm cả ngày cuối); `month` là tháng của ngày đầu. **Ô tìm sân của giao diện lọc ngay trên máy** theo tên sân, loại sân và ngày trong các buổi đã tải; API **không** có tham số tìm.
 
 ```json
-{ "month": "2026-11",
+{ "month": "2026-11", "start": "2026-11-01", "end": "2026-11-30",
   "summary": { "sessions": 3, "matches": 9, "wins": 5 },
   "items": [ { "room_id": 12, "date": "2026-11-01", "resource_name": "Sân 2",
                "resource_type_name": "Sân thảm", "start_at": "…", "end_at": "…",
@@ -1592,7 +1672,8 @@ Giới hạn gửi: tối đa **5 lượt hợp lệ mỗi 24 giờ** (cửa s�
                "measured_at": "…", "label_date": "2026-11-04",
                "display_name": "Phạm Quang Minh", "nickname": "Minh", "tier": "…",
                "avatar_url": "…", "racket": "…", "resource_name": "Sân 2",
-               "is_me": false, "video": { "kind": "youtube", "url": "…", "embed_url": "…", "thumbnail_url": "…" } } ] }
+               "is_me": false, "play_stats": { "matches": 40, "wins": 25, "losses": 15 },
+               "video": { "kind": "youtube", "url": "…", "embed_url": "…", "thumbnail_url": "…" } } ] }
 ```
 
 - `items` mới nhất trước, **không phân trang** (km/h là số nguyên 50 đến 500 và chuỗi tăng ngặt nên tối đa 451 dòng). `start` và `end` là `null` khi `all`.
@@ -1604,6 +1685,8 @@ Giới hạn gửi: tối đa **5 lượt hợp lệ mỗi 24 giờ** (cửa s�
 - `held_days`: số ngày theo ngày giờ VN, lần sau trừ lần này; đang giữ kỷ lục thì hôm nay trừ lần này. Không âm (số đo được lệch tương lai tới 1 phút). `0` = dưới 1 ngày.
 - **`label_date`:** ngày giờ VN của `video_set_at` (lần **dán link** mới nhất, không phải ngày đo). Chưa có video thì lấy ngày đo. Giao diện ghi "Kỷ lục ngày dd/mm" cho lần cũ.
 - `racket` là vợt **hiện tại** trong hồ sơ, không phải vợt lúc đo.
+- **`play_stats` (thẻ kỷ lục có thắng/thua; đã vào `dev`, PR ngoài nhóm `fix/ui-ux`):** `{matches, wins, losses}` = **tổng mọi thời gian** các trận `finished` mà người đó ở đội A hoặc B, cùng cách đếm Lịch sử chơi (mục 13.5; 2 vs 2 cả hai người đội thắng đều được tính; gồm cả phòng đã rời hoặc buổi bị hủy sau đó). `losses = matches − wins`. **`null`** khi người đó đang ẩn danh (cùng quy tắc tên và ảnh) hoặc chưa có trận nào đã lưu. Đây là số **tính lúc đọc**, **không** phải thành tích của buổi phá kỷ lục và không gắn với sân hay buổi của lần đo (đúng ý người dùng ở PR #88: thẻ hiện số thắng / tổng trận; nhãn trên giao diện ghi "trong Lịch sử chơi").
+- **Đã bỏ nhập tay:** bản đầu (`b8e2066`) cho hội viên nhập số trận thắng/thua khi gửi và sửa số đo (`wins`, `losses`, mã `E-REC-9`) rồi thêm cột `speed_record.wins/losses`; bản sau (PR #70, `53841d3`) **gỡ hết** và dùng tổng ở trên. Không còn trường `wins`/`losses` trong body số đo, không còn `E-REC-9`; `play_stats` cũng không còn `start_at`/`end_at`.
 - `video`: khối như mục 13.7; `null` khi chưa có video (giao diện ghi "Chưa có video"; dòng vẫn có mặt để chuỗi không đứt). Video vẫn phát khi người đó ẩn danh.
 
 **Tên: khác các API hội viên khác.** Theo quyết định của người dùng ngày 06/11, chỉ API này:
