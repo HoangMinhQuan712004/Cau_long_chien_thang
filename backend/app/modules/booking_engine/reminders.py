@@ -1,20 +1,39 @@
-"""Khối / vé tới hạn nhắc giờ chơi (T-076 Q2, AC8–AC10). Chỉ đọc.
+"""Khối / vé tới hạn nhắc giờ chơi (T-076 Q2, T-077 C). Chỉ đọc.
 
-Nhắc khi đủ cả ba: ``start_at − 60' ≤ now`` · ``start_at − now > 15'`` (còn đúng 15' thì bỏ) ·
-``created_at ≤ start_at − 60'`` (đặt sau mốc nhắc thì không nhắc). Bỏ khối / vé đã hủy và vé
-của sự kiện đã hủy. Chống trùng ở lớp gọi (``notify_once`` theo mã khối / mã vé).
+- **Thường** – ``created_at ≤ start − 60'``: nhắc khi ``start − 60' ≤ now`` và
+  ``start − now > 15'`` (còn đúng 15' thì bỏ).
+- **Sát giờ** – ``created_at > start − 60'`` và ``start − created_at > 20'``: nhắc khi
+  ``start − 15' ≤ now`` và ``start − now > 5'`` (quá ``start − 5'`` thì bỏ).
+- Đặt khi còn ≤ 20 phút: không nhắc. ``created_at`` = lúc tạo khối / vé (online: lúc tiền về).
+
+Bỏ khối / vé đã hủy và vé của sự kiện đã xóa. Mỗi khối / vé một lần: chống trùng ở lớp gọi
+(``notify_once`` theo mã khối / mã vé) – hai quy tắc không bao giờ cùng nhắc một khối.
 """
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.booking_engine.models import Booking, EventSession, Resource, Ticket
 
 LEAD = timedelta(minutes=60)
 CUTOFF = timedelta(minutes=15)
+LATE_LEAD = timedelta(minutes=15)  # đặt sát giờ: nhắc 15' trước
+LATE_CUTOFF = timedelta(minutes=5)
+LATE_MIN_NOTICE = timedelta(minutes=20)  # đặt khi còn ≤ 20' thì không nhắc
+
+
+def _due_window(start, created, now: datetime):
+    normal = and_(created <= start - LEAD, start > now + CUTOFF, start <= now + LEAD)
+    late = and_(
+        created > start - LEAD,
+        start - created > LATE_MIN_NOTICE,
+        start > now + LATE_CUTOFF,
+        start <= now + LATE_LEAD,
+    )
+    return or_(normal, late)
 
 
 @dataclass(frozen=True)
@@ -29,16 +48,13 @@ class DueReminder:
 
 
 async def due(session: AsyncSession, tenant_id: int, now: datetime) -> list[DueReminder]:
-    lo, hi = now + CUTOFF, now + LEAD  # lo < start_at <= hi
     bookings = await session.execute(
         select(Booking, Resource.name)
         .join(Resource, Resource.id == Booking.resource_id)
         .where(
             Booking.tenant_id == tenant_id,
             Booking.payment_status != "cancelled",
-            Booking.start_at > lo,
-            Booking.start_at <= hi,
-            Booking.created_at <= Booking.start_at - LEAD,
+            _due_window(Booking.start_at, Booking.created_at, now),
         )
         .order_by(Booking.start_at, Booking.code)
     )
@@ -55,9 +71,7 @@ async def due(session: AsyncSession, tenant_id: int, now: datetime) -> list[DueR
             Ticket.tenant_id == tenant_id,
             Ticket.payment_status != "cancelled",
             EventSession.status == "active",
-            EventSession.start_at > lo,
-            EventSession.start_at <= hi,
-            Ticket.created_at <= EventSession.start_at - LEAD,
+            _due_window(EventSession.start_at, Ticket.created_at, now),
         )
         .order_by(EventSession.start_at, Ticket.code)
     )

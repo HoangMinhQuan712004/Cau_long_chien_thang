@@ -18,6 +18,7 @@ from app.core.ratelimit import RateLimitMiddleware
 from app.modules.audit_log import router as audit_log
 from app.modules.auth import account_router, menu, roles, site_info, site_logo
 from app.modules.auth import router as auth
+from app.modules.auth.session_renewal import AdminSessionRenewalMiddleware
 from app.modules.booking_engine import router as booking_engine
 from app.modules.content import router as content
 from app.modules.front_desk import router as front_desk
@@ -58,6 +59,7 @@ app.add_middleware(
 )
 app.add_middleware(OriginCheckMiddleware)
 app.add_middleware(BodyLimitMiddleware)
+app.add_middleware(AdminSessionRenewalMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(RequestContextMiddleware)
 

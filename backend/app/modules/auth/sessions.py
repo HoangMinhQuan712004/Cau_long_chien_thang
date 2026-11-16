@@ -1,4 +1,8 @@
-"""Phiên khu quản trị phía server (ADR-008 §3): cookie ``admin_session``, hạn cứng, thu hồi được."""
+"""Phiên khu quản trị phía server (ADR-008 §3): cookie ``admin_session``, thu hồi được.
+
+T-077: hạn **trượt** ``ADMIN_SESSION_IDLE_DAYS`` ngày – đang dùng thì tự gia hạn (ghi DB tối đa
+một lần mỗi giờ mỗi phiên), không có hạn tuyệt đối.
+"""
 
 import hashlib
 import secrets
@@ -10,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import SYSTEM_ACTOR, Value, audit, audit_change, audit_detail
 from app.core.config import settings
+from app.core.db import SessionLocal
 from app.modules.auth.models import AdminSession, Role, SessionEndReason, User, UserAvatar
 from app.modules.auth.schemas import AdminAccountOut
 
@@ -75,13 +80,46 @@ async def create_session(
     row = AdminSession(
         user_id=user.id,
         token_hash=hash_token(token),
-        expires_at=datetime.now(UTC) + timedelta(hours=settings.ADMIN_SESSION_HOURS),
+        expires_at=datetime.now(UTC) + idle_lifetime(),
         user_agent=(user_agent or "")[:255] or None,
         ip=ip,
     )
     session.add(row)
     await session.flush()
     return row, token
+
+
+RENEW_EVERY = timedelta(hours=1)
+
+
+def idle_lifetime() -> timedelta:
+    return timedelta(days=settings.ADMIN_SESSION_IDLE_DAYS)
+
+
+async def renew_if_due(admin_session: AdminSession, now: datetime | None = None) -> bool:
+    """Gia hạn phiên đang dùng: lần gia hạn trước (suy từ ``expires_at − hạn``) đã hơn 1 giờ ->
+    ``expires_at = now + hạn``. Ghi bằng session riêng (không đụng transaction của request), có
+    điều kiện ``expires_at`` cũ: nhiều request cùng lúc chỉ một câu ghi thắng (AC7)."""
+    now = now or datetime.now(UTC)
+    old = admin_session.expires_at
+    if old - idle_lifetime() + RENEW_EVERY > now:
+        return False
+    new = now + idle_lifetime()
+    async with SessionLocal() as s:
+        result = await s.execute(
+            update(AdminSession)
+            .where(
+                AdminSession.id == admin_session.id,
+                AdminSession.expires_at == old,
+                AdminSession.revoked_at.is_(None),
+            )
+            .values(expires_at=new)
+        )
+        await s.commit()
+    if not result.rowcount:
+        return False  # request khác vừa gia hạn / phiên vừa bị thu hồi
+    admin_session.expires_at = new
+    return True
 
 
 async def resolve(session: AsyncSession, token: str | None) -> tuple[AdminSession, User]:

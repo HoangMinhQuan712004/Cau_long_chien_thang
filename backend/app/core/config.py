@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     # Auth
     SECRET_KEY: str = "change-me"
     ACCESS_TOKEN_MINUTES: int = 30
-    REFRESH_TOKEN_DAYS: int = 14
+    # Mỗi lần refresh cấp token mới -> chỉ đăng xuất khi 30 ngày không mở (T-077)
+    REFRESH_TOKEN_DAYS: int = 30
     COOKIE_DOMAIN: str | None = None
     COOKIE_SECURE: bool = False
 
@@ -80,7 +81,9 @@ class Settings(BaseSettings):
     PAYMENTS_ENCRYPTION_KEY: str | None = None
 
     # Đăng nhập, phiên, OTP (T-013, ADR-008)
-    ADMIN_SESSION_HOURS: int = 12  # phiên Admin / nhân viên hết hạn cứng, không gia hạn
+    # Phiên Admin / nhân viên trượt (T-077): hết hạn sau N ngày không dùng, tự gia hạn tối đa
+    # một lần mỗi giờ; không có hạn tuyệt đối (đăng xuất / đổi MK / khóa / thu hồi vẫn đá phiên)
+    ADMIN_SESSION_IDLE_DAYS: int = 30
     LOGIN_MAX_ATTEMPTS: int = 5  # sai liên tiếp N lần -> tạm khóa tài khoản
     LOGIN_LOCK_MINUTES: int = 15
     # Login không tồn tại: nhớ chuỗi lần sai bấy lâu (tài khoản thật đếm "liên tiếp" không hạn)
