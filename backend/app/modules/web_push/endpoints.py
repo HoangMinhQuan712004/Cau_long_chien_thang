@@ -50,6 +50,14 @@ def host_of(endpoint: str) -> str | None:
     return host if _allowed_host(host) else None
 
 
+def raw_host(endpoint: str) -> str:
+    """Host để ghi log (không bao giờ ghi cả URL); không đọc được -> ``?``."""
+    try:
+        return (urlsplit(endpoint).hostname or "?")[:100]
+    except ValueError:
+        return "?"
+
+
 def check(endpoint: str) -> str:
     """Host của endpoint hợp lệ; sai -> 422 E-PUSH-1."""
     host = host_of(endpoint)

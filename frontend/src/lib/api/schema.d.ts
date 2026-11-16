@@ -8727,7 +8727,10 @@ export interface components {
          * @description ``PushSubscription.toJSON()`` của trình duyệt (bỏ ``expirationTime``) + nhãn máy tùy chọn.
          */
         SubscriptionIn: {
-            /** Endpoint */
+            /**
+             * Endpoint
+             * @description URL dịch vụ push, https, ≤ 1000 ký tự
+             */
             endpoint: string;
             keys: components["schemas"]["SubscriptionKeys"];
             /** Device Label */
