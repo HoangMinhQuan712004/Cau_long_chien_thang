@@ -67,7 +67,7 @@ async def account_out(session: AsyncSession, user: User) -> UserOut:
 async def sign_in(data: SignInIn, request: Request, response: Response, session: SessionDep):
     """Một ô "SĐT hoặc tên đăng nhập" + mật khẩu.
 
-    Khách -> JWT (cookie); Admin / NV -> phiên quản trị (cookie ``admin_session``, 12 giờ cứng).
+    Khách -> JWT (cookie); Admin / NV -> phiên quản trị (cookie ``admin_session``, trượt 30 ngày).
     Lỗi: 401 E-AUTH-10 · 423 E-AUTH-11 (khóa 15 phút, ``retry_after``) · 429 E-AUTH-12 (theo IP).
     """
     user, admin = await login.sign_in(
