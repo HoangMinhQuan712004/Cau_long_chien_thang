@@ -448,6 +448,27 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 
 API, mã lỗi `E-MEM-*`, `E-HV-*`, `E-AUTH-25…32`: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 12 và 11.2.
 
+## Thông báo đẩy Web Push (T-076, chưa vào `dev`)
+
+Gửi thông báo lên màn hình khóa điện thoại: hội viên (sắp tới giờ chơi, buổi bị đổi hoặc hủy, đã ghi nhận thanh toán, phòng chơi) và nhân viên theo quyền (đặt online mới, đã nhận tiền QR, tiền về cần xử lý). Chỉ tới người **đã đăng nhập và bật thông báo trên máy đó**. Chi tiết API, sự kiện, payload: `docs/booking-engine-api.md` mục 14. Quyết định: ADR-015.
+
+**Bật trên server (một lần, người cài server làm):**
+
+| Bước | Lệnh / việc |
+|---|---|
+| 1. Sinh khóa VAPID, ghi thẳng vào `.env` (không in ra màn hình, không dán vào chat hay board) | Trong container backend: `python -m app.scripts.vapid_keys >> .env` |
+| 2. Kiểm biến | Có hai dòng `VAPID_PUBLIC_KEY=` và `VAPID_PRIVATE_KEY=`. `VAPID_SUBJECT` tùy chọn (`mailto:…` hoặc URL web; trống thì lấy origin `https` đầu tiên trong `ALLOWED_ORIGINS`) |
+| 3. Build lại image, **khởi động lại api và worker** | Image cần `pywebpush`; worker cần để nhận job và cron nhắc giờ mới. Chạy migration `1a4340b669f8` (tạo schema `push`) |
+| 4. Kiểm | `GET /api/v1/push/config` trả `{"enabled": true, ...}`; đăng nhập, bấm **Bật thông báo trên máy này** rồi **Gửi thử** |
+
+- Thiếu `VAPID_PUBLIC_KEY` hoặc `VAPID_PRIVATE_KEY` → `enabled = false`, **giao diện không hiện nút bật** (không lỗi).
+- `VAPID_PRIVATE_KEY` là **secret**. **Đổi khóa thì mọi thiết bị phải bật lại.**
+- Máy dev: đặt hai khóa trong `backend/.env`; test dùng khóa thử có sẵn trong `tests/conftest.py`.
+- Nhắc giờ do cron `send_play_reminders` (mỗi 5 phút) chạy trong **worker**. Worker dừng thì không nhắc.
+- Service worker `/sw.js` chỉ xử lý push, không cache; Caddy/Next phải trả `Cache-Control: no-cache, no-store, must-revalidate` và `Service-Worker-Allowed: /` cho `/sw.js` (RELEASE kiểm).
+- **Hướng dẫn cho chủ sân và nhân viên (iPhone iOS 16.4+, Android):** [docs/huong-dan-bat-thong-bao.md](docs/huong-dan-bat-thong-bao.md).
+- Chưa kiểm trên máy thật (iPhone, Android); chưa có thử nghiệm Safari. Khách không có tài khoản chưa nhận được gì (chờ Zalo, T-073).
+
 ## Cài web như một app (PWA, đã vào `dev`)
 
 Khách và hội viên cài trang web lên điện thoại thành app riêng, mở toàn màn hình. Không cần cửa hàng ứng dụng.
