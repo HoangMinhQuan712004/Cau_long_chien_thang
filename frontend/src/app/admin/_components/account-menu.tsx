@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
+import { PushControl } from "@/components/push/push-control";
 import { ConfirmDialog } from "@/components/play-rooms/confirm-dialog";
 import { AvatarImage } from "@/components/ui/avatar";
 import { adminLogout } from "@/lib/api/auth";
@@ -100,7 +101,7 @@ export function AccountMenu({ perms, name, avatarUrl, roleLabel, t }: Props) {
         <div
           id={menuId}
           className={cn(`
-            absolute top-full right-0 z-30 mt-2 w-56 origin-top-right animate-scale-in rounded-lg
+            absolute top-full right-0 z-30 mt-2 w-64 origin-top-right animate-scale-in rounded-lg
             border bg-surface p-1 text-foreground shadow-card
           `)}
         >
@@ -142,6 +143,10 @@ export function AccountMenu({ perms, name, avatarUrl, roleLabel, t }: Props) {
               {t.settings}
             </Link>
           ) : null}
+          {/* T-076 AC1: thông báo đẩy trên máy này (đặt online mới, tiền QR, tiền về cần xử lý) */}
+          <div className="mt-1 border-t">
+            <PushControl variant="menu" audience="staff" />
+          </div>
           {/* Đăng xuất: đóng menu, hỏi xác nhận trước (chỉ menu admin; LogoutButton dùng chung giữ nguyên) */}
           <button
             type="button"

@@ -31,8 +31,11 @@ def set_sink(sink: Callable[[str, tuple[Any, ...]], Awaitable[None]] | None) -> 
     _sink = sink
 
 
-async def enqueue(job: str, *args: Any) -> None:
-    """Redis lỗi -> chỉ log tên job (không log tham số – có thể chứa OTP), không hỏng request."""
+async def enqueue(job: str, *args: Any, job_id: str | None = None) -> None:
+    """Redis lỗi -> chỉ log tên job (không log tham số – có thể chứa OTP), không hỏng request.
+
+    ``job_id``: ARQ bỏ qua job trùng id còn trong hàng đợi / còn giữ kết quả (chống gửi trùng khi
+    outbox giao lại)."""
     global _pool
     if _sink is not None:
         await _sink(job, args)
@@ -42,6 +45,6 @@ async def enqueue(job: str, *args: Any) -> None:
             redis = RedisSettings.from_dsn(settings.REDIS_URL)
             redis.conn_retries = 0  # Redis chết thì trả ngay
             _pool = await create_pool(redis)
-        await _pool.enqueue_job(job, *args)
+        await _pool.enqueue_job(job, *args, _job_id=job_id)
     except Exception:
         logger.exception("Không đẩy được job %s sang worker", job)

@@ -4,6 +4,7 @@
 ``member.notification_created`` **sau commit** (``publish_created``) – chỗ nối Zalo ZNS sau này.
 """
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -30,7 +31,10 @@ def notify(
     link: str | None = None,
     **payload: Any,
 ) -> MemberNotification:
-    """Thêm thông báo (không commit). ``payload`` không được chứa SĐT."""
+    """Thêm thông báo (không commit). ``payload`` không được chứa SĐT.
+
+    ``push_text`` (T-076): câu cho màn hình khóa khi ``text`` có tên người – push không bao giờ
+    hiện tên ai."""
     row = MemberNotification(
         customer_id=customer_id, kind=kind, payload={"text": text, **payload}, link=link
     )
@@ -69,6 +73,25 @@ async def publish_created(session: AsyncSession) -> None:
         await events.publish(
             CREATED, {"id": row.id, "customer_id": row.customer_id, "kind": row.kind}
         )
+
+
+@dataclass(frozen=True)
+class PushView:
+    """Thông báo cho kênh đẩy (T-076): ``text`` = ``push_text`` (không tên người) nếu có."""
+
+    id: int
+    customer_id: int
+    kind: str
+    text: str
+    link: str | None
+
+
+async def push_view(session: AsyncSession, notification_id: int) -> PushView | None:
+    row = await session.get(MemberNotification, notification_id)
+    if row is None:
+        return None
+    text = row.payload.get("push_text") or row.payload.get("text") or ""
+    return PushView(row.id, row.customer_id, row.kind, str(text), row.link)
 
 
 def discard_pending(session: AsyncSession) -> None:

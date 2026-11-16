@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { roomsApi } from "@/components/play-rooms/requests";
 import type { RoomCard } from "@/components/play-rooms/types";
+import { PushControl } from "@/components/push/push-control";
 import { Button } from "@/components/ui/button";
 import { usePolling } from "@/hooks/use-polling";
 import { api } from "@/lib/api/client";
@@ -100,6 +101,8 @@ export function OverviewScreen() {
 
       {/* Chỉ bỏ khung lồng khung: mỗi đơn vị nội dung (lịch + phòng trống, hạng, từng sự kiện, từng kỷ lục) một thẻ */}
       <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
+        {/* T-076 AC1: bật thông báo đẩy trên máy này (ẩn khi hệ thống chưa bật push) */}
+        <PushControl variant="card" audience="member" className="mb-4" />
         {failed && !data ? (
           <div role="alert" className="rounded-card bg-surface p-8 text-center shadow-card">
             <p className="font-semibold">Không tải được tổng quan. Vui lòng thử lại.</p>

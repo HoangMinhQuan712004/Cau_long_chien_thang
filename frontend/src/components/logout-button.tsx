@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { adminLogout } from "@/lib/api/auth";
 import { api } from "@/lib/api/client";
 import { clearPending } from "@/components/web-booking/pending-checkout";
+import { forgetPushDevice } from "@/lib/push";
 
 // Đăng xuất rồi tải lại: hội viên về trang chủ, Admin/NV về /dang-nhap (điều hướng cứng: bỏ các trang Next đang giữ ẩn, Back không quay lại)
 export function LogoutButton({
@@ -34,6 +35,7 @@ export function LogoutButton({
         setIsPending(true);
         if (area === "admin") await adminLogout();
         else {
+          await forgetPushDevice(); // T-076 AC5: máy này thôi nhận thông báo của tài khoản
           await api.POST("/api/v1/auth/logout").catch(() => {});
           clearPending(true); // T-075 AC9: quên lượt đang chờ thanh toán của khu hội viên
         }

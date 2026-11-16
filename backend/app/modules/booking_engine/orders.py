@@ -174,6 +174,7 @@ async def collect_order(
         raise AppError("E-BOOK-4", "Đơn không còn khối nào chưa thanh toán.", 409)
     for b in unpaid:
         mark_paid(session, ctx, tenant_id, actor, b)
+    outbox.order_collected(session, tenant_id, unpaid, "cash")  # một thông báo cho cả lần thu
     # Một lần thu = một dòng sổ, dù nhiều khối (T-057 AC2)
     await ledger.record_in(
         session, tenant_id, unpaid, method="cash", occurred_at=ctx.now, actor=actor

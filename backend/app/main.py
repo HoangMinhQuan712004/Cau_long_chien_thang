@@ -9,6 +9,7 @@ import app.modules.members.handlers  # noqa: F401  (đăng ký event handler)
 import app.modules.notifications.handlers  # noqa: F401  (đăng ký event handler)
 import app.modules.payments.handlers  # noqa: F401  (đăng ký event handler)
 import app.modules.play_rooms.handlers  # noqa: F401  (đăng ký event handler)
+import app.modules.web_push.handlers  # noqa: F401  (đăng ký event handler)
 from app.core.config import settings
 from app.core.context import RequestContextMiddleware, setup_logging
 from app.core.db import engine
@@ -34,6 +35,7 @@ from app.modules.records import admin_router as records_admin
 from app.modules.records import router as records
 from app.modules.reports import router as reports
 from app.modules.web_booking import router as web_booking
+from app.modules.web_push import router as web_push
 
 setup_logging()
 
@@ -91,6 +93,7 @@ for r in (
     payments.router,
     audit_log.router,
     reports.router,
+    web_push.router,
 ):
     app.include_router(r, prefix=settings.API_PREFIX)
 

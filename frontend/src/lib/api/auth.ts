@@ -4,6 +4,7 @@ import { formatCountdown } from "@/lib/format";
 import { destination, isPublicBooking, memberHome } from "@/lib/safe-next";
 import { api, errorDetail, errorMessage } from "./client";
 import type { operations } from "./schema";
+import { forgetPushDevice } from "@/lib/push";
 
 // --- Đăng nhập / đăng xuất (T-013) ---
 
@@ -72,8 +73,9 @@ export async function googleSignIn(credential: string): Promise<LoginResult> {
   }
 }
 
-// Thu hồi phiên quản trị trên máy này
+// Thu hồi phiên quản trị trên máy này (gỡ thông báo đẩy của máy này trước, khi còn phiên – T-076 AC5)
 export async function adminLogout(): Promise<void> {
+  await forgetPushDevice();
   await api.POST("/api/v1/admin/auth/logout").catch(() => {});
 }
 

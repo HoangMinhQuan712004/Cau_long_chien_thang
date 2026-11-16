@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-063, T-064, T-065, T-066, T-068, T-069, T-070, T-071, T-072, T-075)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-063, T-064, T-065, T-066, T-068, T-069, T-070, T-071, T-072, T-075, T-076)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -599,6 +599,7 @@ Chạy bằng `arq app.workers.worker.WorkerSettings`.
 |---|---|---|
 | `publish_booking_outbox` | mỗi 2 giây | Đọc outbox của engine, phát sự kiện nội bộ (vd. `booking.created`) |
 | `expire_holds` | mỗi 30 giây | Giữ chỗ quá `expires_at` → hết hạn, nhả khung. Giữ chỗ quá hạn không hiện trên lịch và không chặn đặt dù job chưa chạy. Từ T-008 cũng đóng lượt thanh toán online `pending` quá `expires_at` + ân hạn (→ `expired`; **thao tác đặt mới đóng ngay lượt đã quá `expires_at`, không chờ ân hạn**, mục 10.9) và phát `checkout.expired` nếu lượt đó đã nhận một phần tiền |
+| `send_play_reminders` **(T-076)** | mỗi 5 phút (giây 0) | Nhắc "Sắp đến giờ chơi" cho hội viên có tài khoản: hộp thông báo và Web Push, mỗi khối hoặc vé một lần (mục 14.4). Cùng `push_test`, `push_member_notification`, `push_staff` là job xếp từ handler |
 | `purge_audit_log` | hằng ngày 03:15 | Xóa dòng nhật ký quá 12 tháng |
 | `purge_idempotency_keys` | mỗi giờ (phút 5) | Xóa key quá 24 giờ |
 | `purge_otp_codes` (T-013) | mỗi giờ (phút 35) | Xóa mã OTP quá 24 giờ |
@@ -1494,8 +1495,8 @@ Audit `room.lineup_set` (người làm: khách là Host): `detail` có `match_no
 | GET | `/notifications?unread=` | `{items, unread_count}`: 30 ngày gần nhất, tối đa 50, mới nhất trước, `no-store`. Mỗi item: `{id, kind, text, link, created_at, read}` |
 | POST | `/notifications/read-all` · `/notifications/{id}/read` | 204. Cần `Origin`, **không** cần `Idempotency-Key`. Thông báo của người khác → 404 |
 
-- `kind`: `room.invited`, `room.join_requested`, `room.join_approved`, `room.join_rejected`, `room.kicked`, `room.host_assigned`. `link` = `/hoi-vien/phong/{id}`.
-- Thông báo tạo cùng transaction với hành động. Sau commit phát `member.notification_created` `{id, customer_id, kind}` (không có SĐT); handler hiện chỉ ghi log, là chỗ nối Zalo sau này. Rollback thì không phát.
+- `kind`: `room.invited`, `room.join_requested`, `room.join_approved`, `room.join_rejected`, `room.kicked`, `room.host_assigned`, `room.cancelled`, `booking.cancelled`, và **(T-076, chưa vào `dev`)** `booking.reminder`, `booking.moved`, `booking.paid`. `link` = `/hoi-vien/phong/{id}` cho các `kind` phòng (riêng `room.cancelled` không có `link`); `/hoi-vien/lich-su-choi` cho `booking.reminder`, `booking.moved`, `booking.paid` và (từ T-076) `booking.cancelled`. Các `kind` này cũng được **gửi thành thông báo đẩy** (mục 14).
+- Thông báo tạo cùng transaction với hành động. Sau commit phát `member.notification_created` `{id, customer_id, kind}` (không có SĐT); từ T-076 handler này **xếp job gửi Web Push** cho các `kind` được phép (mục 14); vẫn là chỗ nối Zalo sau này. Rollback thì không phát.
 - Job `purge_member_notifications` xóa thông báo quá 90 ngày (mục 7).
 
 ### 13.4 Migration và vận hành
@@ -1756,3 +1757,106 @@ Cả hai endpoint có `ETag` (yếu, theo nội dung) và `Cache-Control: no-cac
 - Quyền `play_rooms.monitor`: Admin có (Admin có mọi quyền). Nhân viên **mặc định không có**; tab Phân quyền có nhóm mới **"Theo dõi sân"** ("Theo dõi phòng chơi, người chơi, tỉ số"; ghi chú "Thấy tên thật, biệt danh, mã HV (không có SĐT); xem cả phòng đã kết thúc"). Không thuộc nhóm chỉ Admin.
 - **Không cần migration dữ liệu:** quyền của Nhân viên đọc từ `role_permission`, không có dòng nghĩa là không có quyền; Admin bật thì thêm dòng như các quyền khác.
 - Menu quản trị thêm khóa **`theoDoiSan`** ("Theo dõi sân"), mặc định ngay sau `donDatSan`. Admin đã lưu thứ tự menu thì mục mới được nối vào **cuối**, như các mục mới trước đây.
+
+## 14. Thông báo đẩy, Web Push (T-076, ADR-015, chưa vào `dev`)
+
+> Đối chiếu code backend `be/T-076-web-push` @ `3910a0c` (cục bộ, từ `dev` `22f26c0`) và handoff BACKEND, FRONTEND. BACKEND chạy 28 + 11 test push cùng các nhóm test liên quan (xanh), **chưa chạy cả bộ** (máy thiếu RAM, nhờ CI). Giao diện và service worker **chưa kiểm trên máy thật** (FE chưa `npm run build`, chưa thử iPhone). Quyết định: `board/decisions/ADR-015-web-push.md`; spec: `board/tasks/T-076-thong-bao-day-web-push.md`.
+
+**Là gì.** Gửi thông báo lên màn hình khóa điện thoại khi sắp tới giờ chơi hoặc đơn có thay đổi, cho người **đã đăng nhập và đã bật thông báo trên thiết bị đó**. Miễn phí (khác Zalo ZNS, T-073). **Push là kênh thứ hai của hộp thông báo hội viên** (`member_inbox`, mục 13.3): việc cần báo cho hội viên thì tạo thông báo trong hộp, module push nghe `member.notification_created` và chỉ gửi các `kind` trong danh sách bên dưới. Thông báo cho nhân viên đi đường riêng. Module `app/modules/web_push/`, schema Postgres `push`.
+
+**Giới hạn.** Khách không có tài khoản (hồ sơ tạm) **chưa nhận được gì** (chờ Zalo). **Màn hình khóa không hiện SĐT và họ tên khách**, chỉ mã đơn, sân, giờ, số tiền. Không có giờ yên lặng (chế độ không làm phiền của điện thoại lo việc này). Service worker chỉ dùng cho push: không bắt `fetch`, không cache.
+
+### 14.1 API `/api/v1/push`
+
+Dùng được cả phiên hội viên (JWT) lẫn phiên Admin / nhân viên. **Không** bắt `Idempotency-Key` (gửi kèm thì bỏ qua); route ghi cần `Origin` cùng site.
+
+| Route | Quyền | Kết quả |
+|---|---|---|
+| `GET /push/config` | công khai | `{enabled, public_key}`. `enabled = false` (và `public_key = null`) khi server thiếu VAPID: giao diện **không hiện nút bật ở đâu cả** |
+| `POST /push/subscriptions` | đã đăng nhập | Body `{endpoint (≤ 1000), keys: {p256dh (≤ 200), auth (≤ 100)}, device_label? (≤ 100)}` (là `PushSubscription.toJSON()` bỏ `expirationTime`). **201 `{id}`** khi mới; **200 `{id}`** khi endpoint đã có (chuyển sang tài khoản đang đăng nhập). 401 · 422 `E-PUSH-1` · 503 `E-PUSH-2`. `no-store` |
+| `DELETE /push/subscriptions` | đã đăng nhập | Body `{endpoint}` → **204** kể cả khi không có hoặc là thiết bị của tài khoản khác (**không** xóa của người khác) |
+| `POST /push/test` | đã đăng nhập | **202 `{devices}`** (số thiết bị của chính tài khoản sẽ nhận). 401 · 503 `E-PUSH-2` · 429 `E-SEC-5` (**5 lần / 10 phút / tài khoản**) |
+
+| Mã lỗi | HTTP | Khi nào |
+|---|---|---|
+| `E-PUSH-1` | 422 | "Thiết bị này không hỗ trợ nhận thông báo." Endpoint không hợp lệ (SSRF, bên dưới) |
+| `E-PUSH-2` | 503 | "Hệ thống chưa bật thông báo." Thiếu `VAPID_PUBLIC_KEY` hoặc `VAPID_PRIVATE_KEY` |
+
+- **Chống SSRF** (server không bao giờ gửi tới host lạ): chỉ `https`, cổng 443 hoặc không ghi cổng, không userinfo, không IP, không nhãn rỗng hoặc dấu chấm cuối. Host phải thuộc dịch vụ push: `fcm.googleapis.com` và `updates.push.services.mozilla.com` **khớp chính xác**; `*.push.apple.com` và `*.notify.windows.com` chỉ khớp tên miền con. Kiểm lại ngay trước khi gửi. Gửi bằng `httpx` với `follow_redirects=False`, timeout 10 giây.
+- **Tối đa 10 thiết bị / tài khoản**; thêm thiết bị thứ 11 thì xóa thiết bị có `last_seen_at` cũ nhất.
+- **Kết quả gửi:** 404 hoặc 410 → xóa dòng; 3xx, 5xx, timeout, lỗi mạng → `fail_count + 1`, đủ **5** thì xóa; thành công → `fail_count = 0`, ghi `last_success_at`. Log chỉ có host và id, **không** có endpoint đầy đủ hay khóa.
+- Bảng `push.subscription`; migration `1a4340b669f8` (mục 14.5).
+
+### 14.2 Payload service worker nhận
+
+JSON `{title, body, url, tag?}`. `url` luôn là **đường dẫn cùng domain bắt đầu bằng `/`**. TTL 3600 giây (gửi thử 600 giây). `tag`: hội viên `{kind}:{id thông báo}`; nhân viên `{loại}:{khóa}`; gửi thử `push.test`.
+
+**Hội viên** (câu chữ lấy từ hộp thông báo, nên cùng nội dung ở màn khóa và trong hộp):
+
+| `kind` | Tiêu đề | `url` |
+|---|---|---|
+| `booking.reminder` (mới) | Sắp đến giờ chơi | `/hoi-vien/lich-su-choi` |
+| `booking.moved` (mới) | Buổi chơi đã được đổi | `/hoi-vien/lich-su-choi` |
+| `booking.cancelled` (nay có `link`) | Buổi chơi đã bị hủy | `/hoi-vien/lich-su-choi` |
+| `booking.paid` (mới) | Đã ghi nhận thanh toán | `/hoi-vien/lich-su-choi` |
+| `room.join_requested` | Có người xin vào phòng | `/hoi-vien/phong/{id}` |
+| `room.join_approved` / `room.join_rejected` | Yêu cầu vào phòng được duyệt / bị từ chối | `/hoi-vien/phong/{id}` |
+
+Chỉ bảy `kind` trên được push; các `kind` khác (`room.invited`, `room.kicked`, `room.host_assigned`, thành tích mới, sự kiện mới) **chỉ hiện trong hộp**. Hộp thông báo hội viên (mục 13.3) có thêm ba `kind` mới `booking.reminder`, `booking.moved`, `booking.paid`, đều `link = /hoi-vien/lich-su-choi`.
+
+- Nhắc giờ: `Sân 1 · 18h–19h hôm nay · BK-20261116-003`; vé: `{tên sự kiện} · 18h–20h hôm nay · {mã vé}`; khác ngày thì thay "hôm nay" bằng `dd/mm`.
+- Đổi sân: `BK-… : Sân 1 18h–19h 16/11 → Sân 3 18h–19h 16/11` (engine hiện chỉ đổi sân, không đổi giờ; payload event có sẵn giờ cũ và mới).
+- Thanh toán: `BK-… · 400.000 đ · tiền mặt` hoặc `chuyển khoản`. **Một lần thu nhiều khối của một đơn = một thông báo**, tổng tiền.
+- `room.join_requested`: push dùng câu "Có người xin vào phòng của bạn (Sân 1 · 18h–19h)." (không có tên); hộp thông báo vẫn giữ câu có tên.
+
+**Nhân viên** (người nhận tính **theo quyền tại lúc gửi**, không theo vai cứng):
+
+| Loại | Quyền để nhận | Tiêu đề, nội dung | `url` |
+|---|---|---|---|
+| `staff.online_booking` | `booking.calendar.view` | Đặt online mới: `BK-… · Sân 1 15h–16h 17/11 (+1 khung) · 300.000 đ`; vé: `{sự kiện} · n vé · số tiền` | `/admin/dat-san?date=YYYY-MM-DD` |
+| `staff.qr_received` | `booking.collect` | Đã nhận tiền QR: `BK-… · 200.000 đ` | `/admin/dat-san?date=YYYY-MM-DD` |
+| `staff.money_review` | `booking.transactions.view` | Tiền về cần xử lý: `200.000 đ · Thiếu tiền \| Cần hoàn \| Không khớp mã` | `/admin/lich-su-giao-dich` |
+
+- **Tiền mặt không gửi push cho nhân viên.**
+- Mục "Tiền về cần xử lý" **không có màn xử lý riêng** (T-024 đã bỏ): `url` trỏ tới Lịch sử giao dịch. Spec T-076 (AC19) ghi "mở màn Tiền về cần xử lý", **lệch với hệ thống hiện tại**; FE muốn đường khác thì báo BACKEND.
+- **Người nhận lọc tại lúc gửi:** hội viên có tài khoản liên kết **đang hoạt động**; Admin, hoặc nhân viên đang hoạt động có quyền (tab Phân quyền). Tài khoản bị khóa hoặc ngừng không nhận gì; Admin gỡ quyền của nhân viên thì nhân viên không nhận nữa, kể cả thiết bị đã bật.
+- Gửi thử: tiêu đề "Chiến Thắng", nội dung "Thông báo đã được bật trên thiết bị này"; `url` = `/hoi-vien` (hội viên) hoặc `/admin` (Admin, nhân viên).
+
+### 14.3 Sự kiện outbox mới và đổi
+
+Payload không có tên hay SĐT (trừ chỗ đã có từ trước).
+
+| Sự kiện | Thay đổi |
+|---|---|
+| **Mọi sự kiện outbox** | Khi phát có thêm `event_id` (id dòng outbox). Test cũ so payload phải tính thêm trường này |
+| `booking.moved` | Thêm `from_resource_code`, `from_resource_name`, `from_start_at`, `from_end_at`, `start_at`, `end_at` (ISO, có múi giờ). Khóa thông báo `{mã khối}@{event_id}`: **đổi hai lần = hai thông báo**, giao lại cùng sự kiện thì không trùng |
+| `payment.order_collected` (**mới**) | `{order_code, batch_id, method: cash \| transfer, amount, codes[], kind: booking \| ticket, play_date}`. **Một sự kiện cho mỗi đơn trong mỗi transaction thu**: tiền mặt từng khối, cả đơn, QR từng buổi / vé / cả đơn. Vé: `order_code` là mã vé. Khóa thông báo `{order_code}@{batch_id}`. `payment.collected` từng khối **vẫn giữ** |
+| `booking.online_paid` | Thêm `amount`, `play_date`, `items[{code, resource_name, start_at, end_at}]` |
+| `ticket.online_paid` | Thêm `amount`, `play_date`, `session_name`, `start_at`, `end_at` |
+| `payment.review_needed` (**mới**) | `{transaction_id, outcome: partial \| refund_needed \| unmatched, amount}`. Module `payments` phát **sau commit, trong tiến trình**, khi webhook hoặc giả lập ghi ra một trong ba kết quả này, kể cả khi `partial` thành `refund_needed` (lượt hết hạn hoặc đóng) |
+
+`booking.online_paid` và `ticket.online_paid` khóa thông báo theo mã đơn.
+
+### 14.4 Worker và cấu hình
+
+- Job mới: `push_test`, `push_member_notification`, `push_staff`, `send_play_reminders`. Handler chỉ **xếp job** (`job_id` chống trùng của ARQ), không gửi trực tiếp: **push lỗi không ảnh hưởng đặt sân, thu tiền hay webhook**.
+- **Nhắc giờ:** cron `send_play_reminders` chạy mỗi 5 phút (phút chia hết cho 5, giây 0, `unique`). Điều kiện: `start − 60' ≤ now`, `start − now > 15'`, `created_at ≤ start − 60'`. Bỏ khối hoặc vé đã hủy, sự kiện đã xóa, khách không có tài khoản hội viên. Chống trùng bằng `notify_once("booking.reminder", mã khối hoặc mã vé)`: mỗi khối hoặc vé chỉ nhắc **một lần**. Buổi đặt sau mốc 60 phút trước giờ chơi thì không nhắc; worker dừng rồi chạy lại vẫn nhắc bù nếu còn hơn 15 phút.
+- **Biến môi trường** (không có mặc định thật; thiếu `VAPID_PUBLIC_KEY` hoặc `VAPID_PRIVATE_KEY` thì tắt push):
+
+| Biến | Ghi chú |
+|---|---|
+| `VAPID_PUBLIC_KEY` | Khóa công khai (base64url, 65 byte). Là `applicationServerKey` trả ở `GET /push/config` |
+| `VAPID_PRIVATE_KEY` | **Secret.** Khóa riêng (base64url, 32 byte). Không ghi vào repo, board, chat |
+| `VAPID_SUBJECT` | Tùy chọn, `mailto:…` hoặc URL web. Trống → origin `https` đầu tiên trong `ALLOWED_ORIGINS` (không có thì `https://chienthang.superbai.vip`) |
+
+- **Sinh khóa trên server, ghi thẳng, không in:** `python -m app.scripts.vapid_keys >> .env` (trong container backend; ghi hai dòng `VAPID_PUBLIC_KEY=` và `VAPID_PRIVATE_KEY=`). **Đổi khóa thì mọi thiết bị phải bật lại.**
+- **Worker phải khởi động lại** để nhận job và cron mới. Image phải build lại để cài `pywebpush>=2.0` (Dockerfile dùng `pip install -e .`, không phải sửa).
+- Giao diện đặt `/sw.js` với `Cache-Control: no-cache, no-store, must-revalidate` và `Service-Worker-Allowed: /` (`next.config.ts`); **RELEASE kiểm header thật qua Caddy**.
+
+### 14.5 Migration `1a4340b669f8` (nối sau `f1c4b7e2a9d3`, **production phải chạy**)
+
+Tạo schema `push` và bảng `push.subscription`. Đảo ngược được: downgrade xóa bảng và schema. Không backfill.
+
+### 14.6 Cho người viết test
+
+Bản giả `app/modules/web_push/testing.py`, đã cài sẵn trong `tests/conftest.py` cùng khóa VAPID thử: `PUSH.sent` (các `Sent(user_id, subscription_id, endpoint, title, body, url, tag, ttl)`), `PUSH.attempts`, `PUSH.fail(endpoint, 404 | 410 | 500 | 301 | "timeout" | None)`, `await push_testing.drain(ENQUEUED_JOBS)`. Phát outbox: `while await booking_engine.api.publish_outbox(SessionLocal): pass`. Nhắc giờ: `await member_area.handlers.send_reminders(now)`. Test BE: `tests/test_web_push.py`, `tests/test_web_push_events.py`.

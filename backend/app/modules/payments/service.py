@@ -17,6 +17,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import events
 from app.core.config import settings
 from app.modules.booking_engine import api as engine
 from app.modules.booking_engine.dto import OnlinePaymentIn
@@ -25,6 +26,31 @@ from app.modules.payments.models import BankTransaction, PaymentSettings
 from app.modules.payments.schemas import BankInfo, BankTransactionOut
 
 logger = logging.getLogger(__name__)
+
+# T-076: tiền về cần nhân viên xử lý -> sự kiện phát **sau commit** (``publish_reviews``)
+REVIEW_NEEDED = "payment.review_needed"
+REVIEW_OUTCOMES = frozenset({"partial", "refund_needed", "unmatched"})
+_PENDING_REVIEWS = "payments.review_needed"
+
+
+def _flag_review(session: AsyncSession, txn_id: int, outcome: str, amount: int) -> None:
+    if outcome in REVIEW_OUTCOMES:
+        session.info.setdefault(_PENDING_REVIEWS, []).append(
+            {"transaction_id": txn_id, "outcome": outcome, "amount": amount}
+        )
+
+
+async def publish_reviews(session: AsyncSession) -> None:
+    """Gọi **sau commit**: ``payment.review_needed {transaction_id, outcome, amount}`` cho giao
+    dịch vừa thành ``partial`` / ``refund_needed`` / ``unmatched`` (kể cả ``partial`` ->
+    ``refund_needed`` khi lượt thanh toán hết hạn)."""
+    for payload in session.info.pop(_PENDING_REVIEWS, []):
+        await events.publish(REVIEW_NEEDED, payload)
+
+
+def discard_reviews(session: AsyncSession) -> None:
+    session.info.pop(_PENDING_REVIEWS, None)
+
 
 PROVIDER = "sepay"
 # Mã đơn ``BK`` + 11 số; mã con (QR từng buổi, T-065) ``BK`` + 13 số. Không có số theo sau: mã con
@@ -179,6 +205,7 @@ async def process_transaction(session: AsyncSession, payload: Any, provider: str
     code = extract_code(data)
     txn.code = code
     if code is None:
+        _flag_review(session, txn.id, txn.outcome, txn.amount)
         return txn.outcome  # unmatched
     result = await engine.apply_online_payment(
         session,
@@ -194,6 +221,7 @@ async def process_transaction(session: AsyncSession, payload: Any, provider: str
     txn.booking_codes = result.booking_codes
     txn.pay_ref = code if result.outcome != "unmatched" else None
     await session.flush()
+    _flag_review(session, txn.id, txn.outcome, txn.amount)
     if result.checkout_closed_unpaid:
         # Lượt thanh toán không thể hoàn tất: các lần trả thiếu trước đó cũng cần hoàn
         # (idempotent – mỗi giao dịch chỉ chuyển partial -> refund_needed một lần)
@@ -240,12 +268,17 @@ async def mark_webhook_seen(session: AsyncSession) -> None:
 
 async def mark_expired_partials(session: AsyncSession, pay_ref: str) -> int:
     """Lượt thanh toán hết hạn khi mới nhận một phần tiền -> các giao dịch đó cần hoàn."""
-    result = await session.execute(
-        update(BankTransaction)
-        .where(BankTransaction.pay_ref == pay_ref, BankTransaction.outcome == "partial")
-        .values(outcome="refund_needed", refund_amount=BankTransaction.amount)
-    )
-    return result.rowcount or 0
+    rows = (
+        await session.execute(
+            update(BankTransaction)
+            .where(BankTransaction.pay_ref == pay_ref, BankTransaction.outcome == "partial")
+            .values(outcome="refund_needed", refund_amount=BankTransaction.amount)
+            .returning(BankTransaction.id, BankTransaction.amount)
+        )
+    ).all()
+    for txn_id, amount in rows:
+        _flag_review(session, txn_id, "refund_needed", amount)
+    return len(rows)
 
 
 def _out(t: BankTransaction) -> BankTransactionOut:
