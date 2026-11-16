@@ -8,12 +8,16 @@ import { type NextRequest, NextResponse } from "next/server";
 //   · backend trả 401 (hết hạn / bị thu hồi / đổi mật khẩu / khóa) ⇒ xóa cookie; trang cần đăng nhập về /dang-nhap?next=…;
 //   · lỗi mạng / 5xx ⇒ KHÔNG xóa cookie (lỗi tạm), để lần sau thử lại.
 // Trang public chạy qua proxy chỉ để làm mới như trên (không bao giờ chuyển hướng): không có refresh_token thì đi thẳng, không đổi gì.
+// Phiên Admin/NV (cookie `admin_session`, BE trượt 30 ngày): mỗi giờ tối đa một lần proxy gọi GET /admin/auth/me để BE gửi lại cookie với hạn mới
+// (trang render ở server không đặt được cookie nên không dựa vào đó), đánh dấu bằng cookie `admin_renewed` (mốc thời gian).
 // Quyền thật luôn kiểm ở server / backend.
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 const ACCESS = "access_token";
 const REFRESH = "refresh_token";
 const ADMIN = "admin_session";
+const ADMIN_MARK = "admin_renewed"; // mốc (ms) lần gia hạn phiên admin gần nhất từ proxy
+const ADMIN_RENEW_MS = 60 * 60 * 1000; // tối đa một lần mỗi giờ
 const REFRESH_AHEAD_SECONDS = 120; // JWT còn dưới 2 phút ⇒ làm mới trước
 const LEGACY_REFRESH_PATH = "/api/v1/auth"; // cookie refresh cũ (trước T-077) nằm ở path này
 
@@ -47,9 +51,9 @@ type Refreshed =
   | { kind: "rejected"; setCookies: string[] } // refresh token không dùng được ⇒ cookie xóa
   | { kind: "error" }; // lỗi tạm
 
-async function callBackend(path: string, headers: Record<string, string>): Promise<Response | null> {
+async function callBackend(path: string, headers: Record<string, string>, method = "POST"): Promise<Response | null> {
   try {
-    return await fetch(`${BACKEND_URL}${path}`, { method: "POST", headers, signal: AbortSignal.timeout(5000), cache: "no-store" });
+    return await fetch(`${BACKEND_URL}${path}`, { method, headers, signal: AbortSignal.timeout(5000), cache: "no-store" });
   } catch {
     return null;
   }
@@ -93,6 +97,35 @@ function refreshShared(refreshToken: string, origin: string, forwardedFor: strin
   return result;
 }
 
+type AdminRenewal = { kind: "renewed"; setCookies: string[] } | { kind: "rejected" } | { kind: "error" };
+
+// Nhiều request cùng lúc (tải trang + RSC) chỉ gọi BE một lần cho cùng một phiên.
+const adminShared = new Map<string, { at: number; result: Promise<AdminRenewal> }>();
+
+async function renewAdminOnce(adminToken: string, forwardedFor: string | null): Promise<AdminRenewal> {
+  const headers: Record<string, string> = { cookie: `${ADMIN}=${adminToken}` };
+  if (forwardedFor) headers["x-forwarded-for"] = forwardedFor;
+  const res = await callBackend("/api/v1/admin/auth/me", headers, "GET");
+  if (!res) return { kind: "error" };
+  await res.body?.cancel().catch(() => {});
+  if (res.ok) return { kind: "renewed", setCookies: res.headers.getSetCookie() };
+  if (res.status === 401) return { kind: "rejected" }; // hết phiên: trang tự xử lý (về /dang-nhap kèm lý do)
+  return { kind: "error" };
+}
+
+function renewAdmin(adminToken: string, forwardedFor: string | null): Promise<AdminRenewal> {
+  const now = Date.now();
+  for (const [key, entry] of adminShared) if (now - entry.at > SHARE_MS) adminShared.delete(key);
+  const hit = adminShared.get(adminToken);
+  if (hit) return hit.result;
+  const result = renewAdminOnce(adminToken, forwardedFor).then((r) => {
+    if (r.kind === "error") adminShared.delete(adminToken);
+    return r;
+  });
+  adminShared.set(adminToken, { at: now, result });
+  return result;
+}
+
 /** Ghi / xóa cookie (theo tên) trong chuỗi header `Cookie` của request. Giá trị rỗng ⇒ xóa. */
 function withCookies(cookieHeader: string, updates: Map<string, string>): string {
   const kept = cookieHeader
@@ -111,7 +144,7 @@ function cookieUpdates(setCookies: string[]): Map<string, string> {
     const eq = pair.indexOf("=");
     if (eq <= 0) continue;
     const name = pair.slice(0, eq).trim();
-    if (name !== ACCESS && name !== REFRESH) continue;
+    if (name !== ACCESS && name !== REFRESH && name !== ADMIN) continue;
     const expired = attrs.some((a) => /^\s*max-age\s*=\s*0\s*$/i.test(a));
     // Backend vừa cấp refresh token mới (path "/") vừa xóa bản cũ (path cũ) cùng tên: lệnh xóa không được đè giá trị mới
     if (expired && updates.get(name)) continue;
@@ -128,7 +161,23 @@ export async function proxy(request: NextRequest) {
   let setCookies: string[] = [];
   let cookieHeader: string | null = null; // chỉ đặt khi cần đổi cookie của request
 
-  // Khu quản trị dùng phiên `admin_session` (BE tự gia hạn); khách / hội viên dùng JWT: làm mới nếu cần
+  // Khu quản trị: gia hạn phiên `admin_session` tối đa mỗi giờ một lần
+  const adminToken = request.cookies.get(ADMIN)?.value;
+  if (isAdmin && adminToken) {
+    const last = Number(request.cookies.get(ADMIN_MARK)?.value ?? 0);
+    if (!(Date.now() - last < ADMIN_RENEW_MS)) {
+      const result = await renewAdmin(adminToken, request.headers.get("x-forwarded-for"));
+      if (result.kind !== "error") {
+        const mark = `${ADMIN_MARK}=${Date.now()}; Path=/; Max-Age=${30 * 86400}; HttpOnly; SameSite=Lax${request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https" ? "; Secure" : ""}`;
+        setCookies = [...(result.kind === "renewed" ? result.setCookies : []), mark];
+        const updates = cookieUpdates(setCookies);
+        updates.set(ADMIN_MARK, String(Date.now()));
+        cookieHeader = withCookies(request.headers.get("cookie") ?? "", updates);
+      }
+    }
+  }
+
+  // Khách / hội viên dùng JWT: làm mới nếu cần (phiên admin không đụng tới)
   if (!isAdmin && !request.cookies.has(ADMIN)) {
     const refreshToken = request.cookies.get(REFRESH)?.value;
     if (refreshToken && secondsLeft(request.cookies.get(ACCESS)?.value) < REFRESH_AHEAD_SECONDS) {
