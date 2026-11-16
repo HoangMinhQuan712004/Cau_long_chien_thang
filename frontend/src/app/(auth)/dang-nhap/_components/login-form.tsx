@@ -49,8 +49,11 @@ export function LoginForm({ t, canRestore }: { t: Dictionary["login"]; canRestor
 
   // Khách còn refresh token ⇒ khôi phục phiên, quay lại trang cũ
   // Chỉ thử một lần mỗi 30 giây: nếu trang đích lại đẩy về đây (phiên không dùng được) thì không lặp vô hạn.
+  // T-077 (giai đoạn chuyển tiếp): máy đang đăng nhập từ trước còn refresh token ở path cũ /api/v1/auth, máy chủ không đọc được
+  // nên `canRestore` = false. Có `next` (vừa bị đẩy về từ một trang cần đăng nhập) thì vẫn thử một lần: lệnh refresh gửi kèm cookie cũ,
+  // thành công thì cookie mới (path "/") thay thế và vào thẳng trang cũ; thất bại thì hiện form như thường.
   useEffect(() => {
-    if (!canRestore) return;
+    if (!canRestore && !next) return;
     try {
       const last = Number(sessionStorage.getItem(REFRESH_TRIED_KEY) ?? 0);
       if (Date.now() - last < 30_000) return;
