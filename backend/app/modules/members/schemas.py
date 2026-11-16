@@ -1,0 +1,249 @@
+import datetime as dt
+from dataclasses import dataclass
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.core.schemas import StrictIn
+
+
+class MemberSearchItem(BaseModel):
+    """Một dòng kết quả tìm hội viên – SĐT đầy đủ (màn quản trị), không lộ id nội bộ."""
+
+    ref: str = Field(description="Mã tham chiếu để chọn hội viên (= mã hội viên)")
+    member_code: str
+    name: str
+    phone: str
+    tier: str | None
+    is_active: bool
+
+
+class TempCustomerIn(StrictIn):
+    # Độ dài / định dạng kiểm ở service để trả mã lỗi SRS (E-001, E-002)
+    full_name: str = Field(default="", max_length=200)
+    phone: str = Field(default="", max_length=20)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class CustomerIn(StrictIn):
+    """Khách của lượt đặt: đúng một trong hai – hội viên (theo mã) hoặc hồ sơ tạm."""
+
+    member_code: str | None = Field(default=None, max_length=10)
+    temp: TempCustomerIn | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> "CustomerIn":
+        if (self.member_code is None) == (self.temp is None):
+            raise ValueError("Chọn đúng một: member_code hoặc temp.")
+        return self
+
+
+@dataclass(frozen=True)
+class CustomerProfile:
+    """Hồ sơ đã xác định – lớp gọi (front_desk) dùng để dựng snapshot cho booking engine."""
+
+    ref: str  # id nội bộ dạng chuỗi – chỉ lưu trong DB, không trả ra API
+    kind: str  # member | temp
+    full_name: str
+    phone: str
+    member_code: str | None
+    tier: str | None
+    created: bool  # vừa tạo hồ sơ tạm mới
+    is_active: bool = True
+
+
+# ---------------------------------------------------------------- màn Hội viên (T-014)
+
+Kind = Literal["member", "temp"]
+# Trình độ chơi, thấp -> cao (khớp ``models.TIERS``)
+Tier = Literal[
+    "Yếu",
+    "Trung bình yếu",
+    "Trung bình -",
+    "Trung bình",
+    "Trung bình +",
+    "Khá",
+    "Bán chuyên",
+    "Chuyên nghiệp",
+]
+Gender = Literal["male", "female"]
+Source = Literal["counter", "self_register"]
+
+
+class MemberRow(BaseModel):
+    """Một dòng danh sách – SĐT đầy đủ; ``ref`` = mã HV hoặc mã tham chiếu hồ sơ tạm."""
+
+    ref: str
+    kind: Kind
+    member_code: str | None
+    full_name: str
+    phone: str
+    gender: Gender | None
+    tier: Tier | None
+    racket: str | None
+    is_active: bool
+    bookings: int
+    created_at: dt.datetime
+    version: int = Field(description="Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4")
+    source: Source = Field(
+        description="Người tạo: ``counter`` = quầy / Admin, ``self_register`` = Tự đăng ký online "
+        "(T-021; hồ sơ tạm luôn ``counter``)"
+    )
+    avatar_url: str | None = Field(description="Đã gồm ?v={etag}; null -> hiện chữ cái")
+
+
+class MemberCreatedOut(MemberRow):
+    """Thêm hội viên (T-026): kèm thông tin tài khoản đăng nhập – **không** có mật khẩu."""
+
+    account_created: bool = Field(
+        description="True: SĐT chưa có tài khoản -> vừa tạo, mật khẩu ban đầu = SĐT, phải đổi "
+        "trước ``initial_password_expires_at``. False: SĐT đã có tài khoản – giữ mật khẩu hiện có"
+    )
+    initial_password_expires_at: dt.datetime | None = Field(
+        description="Hạn đổi mật khẩu ban đầu (chỉ khi ``account_created``); quá hạn -> E-AUTH-30, "
+        "dùng Quên mật khẩu"
+    )
+
+
+class MemberCounts(BaseModel):
+    all: int
+    member: int
+    temp: int
+
+
+class MemberCan(BaseModel):
+    """Quyền của người xem – FE khóa ô Trạng thái khi ``edit_status = False``."""
+
+    edit_status: bool
+    manage_rackets: bool = Field(description="Thấy nút Danh mục vợt (thêm / sửa / ẩn)")
+
+
+class MemberListOut(BaseModel):
+    items: list[MemberRow]
+    total: int
+    page: int
+    size: int
+    counts: MemberCounts = Field(description="Đếm theo loại (theo q/status/tier, bỏ qua kind)")
+    can: MemberCan
+
+
+class MemberBooking(BaseModel):
+    code: str = Field(description="Mã con của khối (quản trị)")
+    order_code: str = Field(description="Mã đơn – khách / khu hội viên chỉ hiện mã này")
+    play_date: dt.date
+    start_time: str
+    end_time: str
+    resource_name: str
+    amount: int
+    is_cancelled: bool = Field(default=False, description="Nhãn “Đã hủy” (T-051)")
+
+
+class MemberDetail(MemberRow):
+    """Chi tiết hồ sơ (form Sửa), mỗi lần xem ghi nhật ký ``member.view``."""
+
+    note: str | None
+    nickname: str | None = Field(description="Biệt danh hội viên tự nhập ở khu hội viên (chỉ xem)")
+    email: str | None = Field(description="Email hội viên tự nhập ở khu hội viên (chỉ xem)")
+    birth_date: dt.date | None = Field(description="Ngày sinh; null = chưa nhập")
+    total_minutes: int
+    recent_bookings: list[MemberBooking] = Field(description="5 lượt đặt gần nhất")
+    can: MemberCan
+
+
+class NextCodeOut(BaseModel):
+    member_code: str = Field(description="Chỉ để hiển thị – mã thật cấp lúc lưu")
+
+
+class MemberCreateIn(StrictIn):
+    """Thêm hội viên. Độ dài, định dạng kiểm ở service (mã lỗi SRS)."""
+
+    full_name: str = Field(max_length=200)
+    phone: str = Field(max_length=20)
+    gender: Gender | None = None
+    tier: Tier | None = Field(default=None, description="Trình độ; bỏ trống = chưa xếp hạng")
+    birth_date: dt.date | None = Field(
+        default=None, description="Ngày sinh (1900 → hôm nay, sai -> E-001); null = bỏ trống"
+    )
+    racket: str | None = Field(
+        default=None,
+        max_length=300,
+        description="Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null",
+    )
+
+
+class MemberUpdateIn(StrictIn):
+    """Chỉ gửi trường muốn đổi; không đổi SĐT. Hồ sơ tạm: chỉ ``full_name``, ``gender``
+    (không có ngày sinh).
+
+    ``tier: null`` = bỏ xếp hạng; trạng thái: chỉ Admin.
+    """
+
+    full_name: str | None = Field(default=None, max_length=200)
+    gender: Gender | None = None
+    birth_date: dt.date | None = Field(
+        default=None, description="Ngày sinh (1900 → hôm nay, sai -> E-001); null = bỏ trống"
+    )
+    tier: Tier | None = None
+    racket: str | None = Field(
+        default=None,
+        max_length=300,
+        description="Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null",
+    )
+    is_active: bool | None = None
+    version: int = Field(description="``version`` lúc mở hộp Sửa; lệch -> 409 E-MEM-9")
+
+
+class TempCreateIn(StrictIn):
+    full_name: str = Field(max_length=200)
+    phone: str = Field(max_length=20)
+    gender: Gender | None = None
+
+
+# ---------------------------------------------------------------- danh mục vợt
+
+
+class RacketOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    is_active: bool
+    sort_order: int
+    member_count: int = Field(description="Số hồ sơ đang ghi vợt này (khớp tên chuẩn hóa)")
+
+
+class RacketCreateIn(StrictIn):
+    name: str = Field(max_length=200)
+    sort_order: int = Field(default=0, ge=0, le=10_000)
+
+
+class RacketUpdateIn(StrictIn):
+    """Chỉ gửi trường muốn đổi; ẩn vợt không làm đổi hồ sơ hội viên đang dùng tên đó."""
+
+    name: str | None = Field(default=None, max_length=200)
+    is_active: bool | None = None
+    sort_order: int | None = Field(default=None, ge=0, le=10_000)
+
+
+# ---------------------------------------------------------------- hội viên của chính khách (T-015)
+
+
+class MyMemberOut(BaseModel):
+    """Thẻ Hội viên ở /tai-khoan – chỉ hồ sơ khớp SĐT của chính người đăng nhập."""
+
+    member_code: str
+    full_name: str
+    tier: Tier | None
+    is_active: bool
+    gender: Gender | None
+    racket: str | None
+    created_at: dt.datetime
+    bookings: int
+    total_minutes: int
+
+
+class MyBookingsOut(BaseModel):
+    items: list[MemberBooking]
+    total: int
+    page: int
+    size: int

@@ -17,19 +17,24 @@ dependencies = [
     "alembic>=1.13",
     "pydantic[email]>=2.8",
     "pydantic-settings>=2.4",
-    "pyjwt>=2.9",
+    "pyjwt[crypto]>=2.9",
     "pwdlib[argon2]>=0.2",
     "arq>=0.26",
     "redis>=5.0",
     "python-slugify>=8.0",
     "tzdata>=2024.1",  # Windows không có sẵn IANA tz database
+    "cryptography>=44",  # mã hóa khóa webhook SePay lưu trong DB (T-012, Fernet)
+    "pillow>=11",  # ảnh đại diện hội viên: giải mã + mã hóa lại (T-016, ADR-009 §5)
+    "python-multipart>=0.0.9",  # FastAPI nhận tệp tải lên (multipart/form-data)
+    "httpx>=0.27",  # đọc link Google Maps (auth/site_map.py); trước đây chỉ dùng trong test
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
-    "httpx>=0.27",
+    "pytest-xdist>=3.6",
+    "time-machine>=2.16",  # giờ giả cho cả bộ: TEST_FAKE_NOW=... pytest (T-067)  # chạy song song: pytest -n auto (T-059), mỗi worker một DB
     "ruff>=0.6",
 ]
 
@@ -52,6 +57,9 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
+# Chạy song song (``-n auto``): mỗi file test ở trọn một worker – test trong file có thể dựa vào
+# fixture cấp module / thứ tự; không có ``-n`` thì không ảnh hưởng (T-059)
+addopts = "--dist=loadfile"
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Query", "fastapi.Depends"]

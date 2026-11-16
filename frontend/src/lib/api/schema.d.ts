@@ -4,6 +4,97 @@
  */
 
 export interface paths {
+    "/api/v1/auth/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign In
+         * @description Một ô "SĐT hoặc tên đăng nhập" + mật khẩu.
+         *
+         *     Khách -> JWT (cookie); Admin / NV -> phiên quản trị (cookie ``admin_session``, 12 giờ cứng).
+         *     Lỗi: 401 E-AUTH-10 · 423 E-AUTH-11 (khóa 15 phút, ``retry_after``) · 429 E-AUTH-12 (theo IP).
+         */
+        post: operations["sign_in_api_v1_auth_sign_in_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Google Sign In
+         * @description Đăng nhập khách bằng ID token Google; lần đầu tạo tài khoản (không mật khẩu, không SĐT).
+         *
+         *     Lỗi: 401 E-AUTH-20 · 404 E-AUTH-19 (chưa bật) · 429 E-AUTH-12 (IP) · 503 E-AUTH-21.
+         */
+        post: operations["google_sign_in_api_v1_auth_google_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/register/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Request
+         * @description Đăng ký bước 1 (T-021): gửi OTP; **chưa** tạo tài khoản. Mọi SĐT nhận cùng một trả lời.
+         *
+         *     Lỗi: 422 (quy tắc mật khẩu) / E-AUTH-26 (mật khẩu = SĐT) · 429 E-SEC-5 (> 10 lần / giờ / IP)
+         *     / E-AUTH-13 (gửi mã quá nhiều) · 503 E-AUTH-23 (không có kênh gửi OTP).
+         */
+        post: operations["register_request_api_v1_auth_register_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/register/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Verify
+         * @description Đăng ký bước 2: mã đúng -> tạo tài khoản + hội viên (R1), đăng nhập luôn (cookie).
+         *
+         *     Lỗi: 400 E-AUTH-14 (``attempts_left``) / E-AUTH-15 · 409 E-AUTH-22 (SĐT đã có tài khoản –
+         *     chỉ báo sau khi nhập đúng mã, kèm ``phone``) · 403 E-AUTH-31 (hội viên đang Ngừng).
+         */
+        post: operations["register_verify_api_v1_auth_register_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -13,25 +104,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register */
-        post: operations["register_api_v1_auth_register_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Login */
-        post: operations["login_api_v1_auth_login_post"];
+        /**
+         * Register Closed
+         * @deprecated
+         * @description Đăng ký không OTP đã đóng (T-021 SEC1) – dùng ``/auth/register/request`` + ``/verify``.
+         */
+        post: operations["register_closed_api_v1_auth_register_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -79,7 +157,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Me */
+        /**
+         * Me
+         * @description Không chặn khi còn phải đổi mật khẩu: trả ``must_change_password`` để FE chuyển trang.
+         */
         get: operations["me_api_v1_auth_me_get"];
         put?: never;
         post?: never;
@@ -89,164 +170,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Users */
-        get: operations["list_users_api_v1_admin_users_get"];
-        put?: never;
-        /** Create Staff */
-        post: operations["create_staff_api_v1_admin_users_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/venue/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Venue Config */
-        get: operations["venue_config_api_v1_venue_config_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/courts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Courts */
-        get: operations["list_courts_api_v1_courts_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/price-rules": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Price Rules */
-        get: operations["list_price_rules_api_v1_price_rules_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/courts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin List Courts */
-        get: operations["admin_list_courts_api_v1_admin_courts_get"];
-        put?: never;
-        /** Create Court */
-        post: operations["create_court_api_v1_admin_courts_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/courts/{court_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Court */
-        put: operations["update_court_api_v1_admin_courts__court_id__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/price-rules": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin List Price Rules */
-        get: operations["admin_list_price_rules_api_v1_admin_price_rules_get"];
-        put?: never;
-        /** Create Price Rule */
-        post: operations["create_price_rule_api_v1_admin_price_rules_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/price-rules/{rule_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Price Rule */
-        put: operations["update_price_rule_api_v1_admin_price_rules__rule_id__put"];
-        post?: never;
-        /** Delete Price Rule */
-        delete: operations["delete_price_rule_api_v1_admin_price_rules__rule_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bookings/availability": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Availability */
-        get: operations["availability_api_v1_bookings_availability_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bookings/quote": {
+    "/api/v1/auth/password-reset/request": {
         parameters: {
             query?: never;
             header?: never;
@@ -255,15 +179,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Quote */
-        post: operations["quote_api_v1_bookings_quote_post"];
+        /**
+         * Password Reset Request
+         * @description Gửi mã (SĐT không có tài khoản cũng trả y hệt). 429 E-AUTH-13 · 503 E-AUTH-23.
+         */
+        post: operations["password_reset_request_api_v1_auth_password_reset_request_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/bookings": {
+    "/api/v1/auth/password-reset/verify": {
         parameters: {
             query?: never;
             header?: never;
@@ -272,23 +199,161 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Booking */
-        post: operations["create_booking_api_v1_bookings_post"];
+        /**
+         * Password Reset Verify
+         * @description Mã đúng -> ``reset_token`` (10 phút). 400 E-AUTH-14 (``attempts_left``) / E-AUTH-15.
+         */
+        post: operations["password_reset_verify_api_v1_auth_password_reset_verify_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/bookings/me": {
+    "/api/v1/auth/password-reset/confirm": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** My Bookings */
-        get: operations["my_bookings_api_v1_bookings_me_get"];
+        get?: never;
+        put?: never;
+        /**
+         * Password Reset Confirm
+         * @description Đặt mật khẩu mới; JWT / phiên cũ hết hiệu lực. 400 E-AUTH-16.
+         */
+        post: operations["password_reset_confirm_api_v1_auth_password_reset_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Verify Request
+         * @description Gửi mã xác minh SĐT. 409 E-AUTH-17 · 429 E-AUTH-13 · 503 E-AUTH-24 (không có kênh gửi).
+         */
+        post: operations["phone_verify_request_api_v1_auth_phone_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Verify
+         * @description Mã đúng -> gắn SĐT; SĐT đã có chủ là khách -> gộp tài khoản Google vào đó (JWT mới).
+         *     Xác minh xong là hội viên (T-021 R1): ``became_member``, ``member_code``.
+         *
+         *     Lỗi: 400 E-AUTH-14 / E-AUTH-15 · 409 E-AUTH-17 / E-AUTH-18 · 403 E-AUTH-31 (hội viên Ngừng).
+         */
+        post: operations["phone_verify_api_v1_auth_phone_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Password
+         * @description Đổi mật khẩu; đang bắt đổi lần đầu thì không cần ``current_password``.
+         *
+         *     Xong: bỏ cờ, JWT cũ hết hiệu lực, cấp cookie mới ngay. Lỗi: 400 E-AUTH-28 (mật khẩu hiện tại
+         *     sai) · 422 ``weak_password`` / E-AUTH-26 (trùng SĐT).
+         */
+        post: operations["change_password_api_v1_auth_password_change_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Profile
+         * @description Hồ sơ của tôi: chỉ cần phiên quản trị (Admin hoặc NV), không cần quyền riêng.
+         */
+        get: operations["admin_profile_api_v1_admin_account_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Admin Rename
+         * @description Chỉ Admin tự sửa họ tên (NV -> 403 E-AUTH-2). Tên rỗng / quá 50 ký tự -> 422.
+         */
+        patch: operations["admin_rename_api_v1_admin_account_patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/account/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Change Password
+         * @description Tự đổi mật khẩu: thu hồi mọi phiên quản trị khác (``password_changed``), giữ phiên này.
+         *
+         *     Lỗi: 400 E-AUTH-28 (mật khẩu hiện tại sai) · 422 ``weak_password`` · 429 E-SEC-5.
+         */
+        post: operations["admin_change_password_api_v1_admin_account_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/account/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Sessions
+         * @description Nơi đang đăng nhập: thiết bị, hệ điều hành, trình duyệt, giờ đăng nhập (không trả IP).
+         */
+        get: operations["my_sessions_api_v1_admin_account_sessions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -297,15 +362,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/bookings/{booking_id}": {
+    "/api/v1/admin/account/sessions/revoke-others": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Booking */
-        get: operations["get_booking_api_v1_bookings__booking_id__get"];
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Other Sessions
+         * @description Đăng xuất mọi phiên khác của chính mình, giữ phiên này.
+         */
+        post: operations["revoke_other_sessions_api_v1_admin_account_sessions_revoke_others_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/account/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke My Session
+         * @description Đăng xuất một phiên khác. 400 E-AUTH-33 (phiên đang dùng) · 404 E-STAFF-2.
+         */
+        delete: operations["revoke_my_session_api_v1_admin_account_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Me
+         * @description Thẻ tài khoản + quyền (đọc từ bảng Phân quyền ở mỗi request).
+         */
+        get: operations["admin_me_api_v1_admin_auth_me_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -314,7 +422,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/bookings/{booking_id}/cancel": {
+    "/api/v1/admin/auth/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload My Avatar
+         * @description Tự đổi ảnh đại diện: cắt vuông theo khung (pixel ảnh gốc, sau khi xoay theo EXIF), lưu ngay.
+         *
+         *     422 / 413 E-HV-13 (định dạng / dung lượng / vùng cắt) · 429 E-SEC-5.
+         */
+        put: operations["upload_my_avatar_api_v1_admin_auth_me_avatar_put"];
+        post?: never;
+        /**
+         * Delete My Avatar
+         * @description Tự xóa ảnh -> về chữ cái. Chưa có ảnh -> vẫn 204.
+         */
+        delete: operations["delete_my_avatar_api_v1_admin_auth_me_avatar_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/avatars/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Avatar
+         * @description Ảnh đại diện tài khoản quản trị – chỉ phiên quản trị xem được. ``v`` = etag để phá cache.
+         */
+        get: operations["admin_avatar_api_v1_admin_auth_avatars__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/logout": {
         parameters: {
             query?: never;
             header?: never;
@@ -323,33 +477,62 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel Booking */
-        post: operations["cancel_booking_api_v1_bookings__booking_id__cancel_post"];
+        /**
+         * Admin Logout
+         * @description Kết thúc phiên trên máy này (không ảnh hưởng phiên ở máy khác).
+         */
+        post: operations["admin_logout_api_v1_admin_auth_logout_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/bookings": {
+    "/api/v1/admin/staff": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Admin List Bookings */
-        get: operations["admin_list_bookings_api_v1_admin_bookings_get"];
+        /**
+         * List Staff
+         * @description Mã, họ tên, tên đăng nhập, trạng thái, lần đăng nhập gần nhất, số phiên đang mở.
+         */
+        get: operations["list_staff_api_v1_admin_staff_get"];
         put?: never;
-        /** Create Counter Booking */
-        post: operations["create_counter_booking_api_v1_admin_bookings_post"];
+        /**
+         * Create Staff
+         * @description Chỉ họ tên + mật khẩu; mã ``NV…`` + tên đăng nhập tự sinh.
+         */
+        post: operations["create_staff_api_v1_admin_staff_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/bookings/{booking_id}/confirm": {
+    "/api/v1/admin/staff/next-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Next Staff Code
+         * @description Mã NV dự kiến (không tiêu thụ sequence; tạo đồng thời có thể lệch).
+         */
+        get: operations["next_staff_code_api_v1_admin_staff_next_code_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -358,26 +541,289 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Confirm Booking */
-        post: operations["confirm_booking_api_v1_admin_bookings__booking_id__confirm_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Staff
+         * @description Sửa họ tên; khóa (thu hồi mọi phiên – ``account_disabled``) / mở khóa. 404 E-STAFF-1.
+         */
+        patch: operations["update_staff_api_v1_admin_staff__staff_id__patch"];
         trace?: never;
     };
-    "/api/v1/admin/bookings/{booking_id}/payments": {
+    "/api/v1/admin/staff/{staff_id}/password": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Payments */
-        get: operations["list_payments_api_v1_admin_bookings__booking_id__payments_get"];
+        get?: never;
         put?: never;
-        /** Record Payment */
-        post: operations["record_payment_api_v1_admin_bookings__booking_id__payments_post"];
+        /**
+         * Reset Staff Password
+         * @description Đặt lại mật khẩu: thu hồi mọi phiên (``password_changed``), gỡ khóa do nhập sai.
+         */
+        post: operations["reset_staff_password_api_v1_admin_staff__staff_id__password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Staff Sessions
+         * @description Thiết bị đang đăng nhập (loại máy / HĐH / trình duyệt), không trả IP. 404 E-STAFF-1.
+         */
+        get: operations["list_staff_sessions_api_v1_admin_staff__staff_id__sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}/sessions/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Staff Session History
+         * @description Lịch sử đăng nhập: phiên đang mở + đã kết thúc, mới nhất trước; không IP. 404 E-STAFF-1.
+         */
+        get: operations["staff_session_history_api_v1_admin_staff__staff_id__sessions_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{staff_id}/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Staff Session
+         * @description Đăng xuất từ xa một phiên (``revoked_by_admin``). 404 E-STAFF-1 / E-STAFF-2.
+         */
+        delete: operations["revoke_staff_session_api_v1_admin_staff__staff_id__sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Roles
+         * @description Quyền của Nhân viên theo nhóm (không có roles.manage, payments.simulate).
+         */
+        get: operations["read_roles_api_v1_admin_roles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/roles/{role}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Role
+         * @description Đặt lại quyền của Nhân viên; có hiệu lực ngay. 422 E-ROLE-1 (quyền lạ) / vai khác staff.
+         */
+        put: operations["update_role_api_v1_admin_roles__role__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/menu-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Menu Order
+         * @description Lưu thứ tự chung. Thiếu / trùng mục ⇒ 422 E-MENU-1; key lạ ⇒ 422.
+         */
+        put: operations["put_menu_order_api_v1_admin_menu_order_put"];
+        post?: never;
+        /**
+         * Reset Menu Order
+         * @description Về mặc định (xóa thứ tự đã lưu).
+         */
+        delete: operations["reset_menu_order_api_v1_admin_menu_order_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/site/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload Logo
+         * @description Đổi logo (chỉ Admin): cắt vuông theo khung, giữ nền trong suốt, sinh kèm favicon PNG.
+         *
+         *     422 / 413 E-HV-13 (định dạng / dung lượng / vùng cắt) · 429 E-SEC-5.
+         */
+        put: operations["upload_logo_api_v1_admin_site_logo_put"];
+        post?: never;
+        /**
+         * Remove Logo
+         * @description Xóa logo (chỉ Admin) -> về icon mặc định. Chưa có logo -> vẫn 200.
+         */
+        delete: operations["remove_logo_api_v1_admin_site_logo_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/site/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Site Logo
+         * @description Ảnh logo WebP (công khai). ``v`` = etag: đúng thì cache 1 năm, không thì cache ngắn.
+         */
+        get: operations["site_logo_api_v1_site_logo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/site/favicon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Site Favicon
+         * @description Favicon PNG 64 px (công khai). ``v`` như ``/site/logo``.
+         */
+        get: operations["site_favicon_api_v1_site_favicon_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/site/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Site Info
+         * @description Thông tin web cho form Cài đặt (chỉ Admin), kèm ``version``.
+         */
+        get: operations["get_site_info_api_v1_admin_site_info_get"];
+        /**
+         * Put Site Info
+         * @description Lưu thông tin web (chỉ Admin). 422 E-001 (thiếu / sai định dạng) · 409 E-012 (máy khác vừa
+         *     lưu). Bỏ bản đồ: không gửi / null cả ``map_url``, ``lat``, ``lng``.
+         */
+        put: operations["put_site_info_api_v1_admin_site_info_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/site/map/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Site Map
+         * @description Đọc link Google Maps để xem trước, không ghi gì (chỉ Admin). Link không có tọa độ: giữ
+         *     ``map_url``, ``lat`` / ``lng`` null.
+         *
+         *     422 E-001: "Link Google Maps không hợp lệ." · "Chưa đọc được link, hãy thử lại." (Google lỗi).
+         */
+        post: operations["resolve_site_map_api_v1_admin_site_map_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/site/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Site Branding
+         * @description Thông tin web + link logo, favicon (null khi chưa có logo). Không cần đăng nhập.
+         */
+        get: operations["site_branding_api_v1_site_branding_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -453,6 +899,2289 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Resources
+         * @description Danh sách sân + lịch đang áp dụng + lịch chờ áp dụng (``pending_schedule``).
+         */
+        get: operations["list_resources_api_v1_booking_resources_get"];
+        put?: never;
+        /**
+         * Create Resource
+         * @description Thêm sân – mã ``S01…`` do hệ thống cấp; giờ hoạt động áp dụng ngay hôm nay.
+         */
+        post: operations["create_resource_api_v1_booking_resources_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/resources/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Resource
+         * @description Xóa sân: ẩn khỏi mọi màn vận hành, giữ lịch sử; mã không dùng lại.
+         *
+         *     409 ``E-CFG-11`` (còn lịch chưa kết thúc, kèm ``count``) · 404 (không có / đã xóa).
+         */
+        delete: operations["delete_resource_api_v1_booking_resources__code__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Resource
+         * @description Sửa tên / loại / trạng thái / giờ.
+         *
+         *     Giờ & cao điểm áp dụng từ ngày mai (D4); ``version`` bắt buộc.
+         */
+        patch: operations["update_resource_api_v1_booking_resources__code__patch"];
+        trace?: never;
+    };
+    "/api/v1/booking/prices/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Prices
+         * @description Bảng giá công khai cho trang chủ – **không cần đăng nhập**, cache 5 phút.
+         *
+         *     Chỉ loại sân có sân đang hoạt động; giờ mở cửa / cao điểm theo lịch hôm nay;
+         *     Lễ/Tết từ hôm nay tới hết năm.
+         */
+        get: operations["public_prices_api_v1_booking_prices_public_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Prices */
+        get: operations["get_prices_api_v1_booking_prices_get"];
+        /**
+         * Put Prices
+         * @description Lưu cả bảng giá một lần (đủ mọi ô); ``version`` khác bản hiện tại -> 409 ``E-CFG-7``.
+         */
+        put: operations["put_prices_api_v1_booking_prices_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/special-days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Special Days */
+        get: operations["list_special_days_api_v1_booking_special_days_get"];
+        put?: never;
+        /** Create Special Day */
+        post: operations["create_special_day_api_v1_booking_special_days_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/special-days/{special_day_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Special Day */
+        delete: operations["delete_special_day_api_v1_booking_special_days__special_day_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Special Day
+         * @description Sửa ngày Lễ/Tết (T-063): kiểm chồng bỏ qua chính nó; giá booking / vé đã có không đổi.
+         */
+        patch: operations["update_special_day_api_v1_booking_special_days__special_day_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/booking/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote
+         * @description Giá từng khung 1 giờ + tổng (không ghi dữ liệu) – dùng cho popup Đặt sân.
+         */
+        post: operations["quote_api_v1_booking_quote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Calendar
+         * @description Lịch 1 ngày: hàng = sân, cột = khung 1 giờ, khối booking / sự kiện / giữ chỗ (BR-001…004).
+         */
+        get: operations["calendar_api_v1_booking_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search
+         * @description Tìm đúng mã booking / sự kiện / vé (bỏ khoảng trắng, không phân biệt hoa thường).
+         */
+        get: operations["search_api_v1_booking_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/items/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Item
+         * @description Thông tin booking hoặc vé: khách, lịch đặt, thanh toán, ``actions`` được phép lúc này.
+         */
+        get: operations["get_item_api_v1_booking_items__code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Session
+         * @description Đặt sự kiện (chỉ Admin): sân liền nhau × khung liền nhau, hôm nay → hết tháng sau.
+         *
+         *     Lỗi: E-001 (trống tên / số chỗ / giá vé), E-009, E-013, E-004, E-CFG-10, E-BOOK-2, E-010.
+         */
+        post: operations["create_session_api_v1_booking_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/sessions/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Session
+         * @description Popup Sự kiện: số chỗ, vé (mới nhất trước), chỗ đang giữ, ``can{register, delete}``.
+         */
+        get: operations["get_session_api_v1_booking_sessions__code__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Session
+         * @description Xóa buổi (chỉ Admin, chưa có vé và chỗ giữ): khung trống lại, mã không dùng lại (E-023).
+         */
+        delete: operations["delete_session_api_v1_booking_sessions__code__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/items/{code}/collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Collect
+         * @description Thu tiền mặt (``method="cash"``; ``transfer`` -> 422 ``E-PAY-0`` cho tới T-007).
+         *
+         *     Đã đổi trạng thái / ``version`` cũ -> 409 ``E-012``; đã hủy -> 409 ``E-PAY-6``.
+         */
+        post: operations["collect_api_v1_booking_items__code__collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/orders/{order_code}/collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Collect Order
+         * @description Thu cả đơn (T-019): mọi khối **Chưa thanh toán** của đơn -> tiền mặt, người thu = người
+         *     thao tác. Khối đã thu / Không thu được giữ nguyên. 404 ``E-BOOK-3`` · 409 ``E-BOOK-4``
+         *     (không còn khối chưa thu) · 422 ``E-PAY-0`` (``transfer``).
+         */
+        post: operations["collect_order_api_v1_booking_orders__order_code__collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/orders/{order_code}/uncollectible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Uncollectible Order
+         * @description Không thu được cả đơn (T-064): mọi khối **Chưa thanh toán đã tới giờ** -> Không thu được
+         *     (lý do không bắt buộc, ≤ 200); khối chưa tới giờ giữ nguyên (``remaining_unpaid``). 404
+         *     ``E-BOOK-3`` · 409 ``E-BOOK-4`` · 422 ``E-PAY-1`` (đơn online / chưa buổi nào tới giờ).
+         */
+        post: operations["uncollectible_order_api_v1_booking_orders__order_code__uncollectible_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/items/{code}/uncollectible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Uncollectible
+         * @description Không thu được: lý do 1–200 (E-001); chỉ tại quầy + đã tới giờ chơi (E-PAY-1); E-012.
+         */
+        post: operations["mark_uncollectible_api_v1_booking_items__code__uncollectible_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/items/{code}/move-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Move Targets
+         * @description Sân đổi sang được cho booking (cùng ngày, cùng giờ): đang hoạt động, mở cửa đủ khung, còn
+         *     trống – theo thứ tự danh mục, mọi loại sân. 409 E-BOOK-6 · 404.
+         */
+        get: operations["move_targets_api_v1_booking_items__code__move_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/items/{code}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move Booking
+         * @description Đổi sân một booking: giữ mã, giá đã chốt, tiền đã thu (kể cả đổi khác loại sân).
+         *
+         *     409 ``E-BOOK-6`` (vé / sự kiện / giữ chỗ, đã hủy, Không thu được, đã kết thúc, cùng sân) ·
+         *     409 ``E-BOOK-8`` (sân đích đã có lịch) · 422 ``E-BOOK-7`` (sân đích ngừng / đóng cửa khung
+         *     đó) · 404 (mã / sân không có) · 409 ``E-012`` (``version`` cũ).
+         */
+        post: operations["move_booking_api_v1_booking_items__code__move_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Transactions
+         * @description Lịch sử giao dịch = sổ tiền vào (T-057): mỗi dòng một lần nhận / hoàn tiền, lọc theo ngày
+         *     tiền về (giờ VN, mặc định 7 ngày), 8 dòng / trang. Chỉ xem.
+         *
+         *     Thẻ ``cards`` theo bộ lọc ngày + sân. Lỗi: E-016 (từ > đến), E-020 (> 92 ngày).
+         */
+        get: operations["list_transactions_api_v1_booking_transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/resources/{code}/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resource Detail View
+         * @description Thông tin sân + giá của loại sân (chỉ xem) + tối đa 20 booking / sự kiện sắp tới.
+         */
+        get: operations["resource_detail_view_api_v1_booking_resources__code__detail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking/resources/{code}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resource Stats
+         * @description Thống kê sân theo tuần / tháng / năm chứa ``date`` (mặc định hôm nay), tính tới hôm nay;
+         *     kèm kỳ trước cùng số ngày. Cách tính như màn Báo cáo.
+         */
+        get: operations["resource_stats_api_v1_booking_resources__code__stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/members/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Members
+         * @description Tìm hội viên theo mã / tên / SĐT (≥ 3 chữ số) – tối đa 20 dòng, SĐT đầy đủ.
+         */
+        get: operations["search_members_api_v1_members_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Members
+         * @description Hội viên + hồ sơ tạm: lọc (q, kind, status, tier, racket), phân trang, đếm theo loại.
+         *
+         *     SĐT đầy đủ, không lộ id. ``counts`` áp mọi bộ lọc trừ ``kind``.
+         */
+        get: operations["list_members_api_v1_members_get"];
+        put?: never;
+        /**
+         * Create Member
+         * @description Thêm hội viên. Cần ``Idempotency-Key``: gửi lại cùng key -> trả đúng kết quả cũ (201 cùng
+         *     mã HV, không báo trùng SĐT với chính hồ sơ vừa tạo – T-020 AC3).
+         *
+         *     Lỗi: E-001/E-002 · 409 E-018 (SĐT của hội viên) · 409 E-MEM-1 "Số điện thoại đã có hồ sơ
+         *     tạm: {Họ tên} (tạo dd/mm/yyyy)" (SRS E-004 – không nâng hồ sơ tạm, T-020 AC1).
+         *     Response kèm ``account_created`` / ``initial_password_expires_at`` (T-026, không có mật
+         *     khẩu); gửi lại cùng key trả đúng như lần đầu.
+         */
+        post: operations["create_member_api_v1_members_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/members/next-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Next Code
+         * @description Mã HV tiếp theo – chỉ hiển thị trong ô khóa; mã thật cấp lúc lưu. 409 E-MEM-4 (hết mã).
+         */
+        get: operations["next_code_api_v1_members_next_code_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/members/temp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Temp
+         * @description Tạo hồ sơ tạm. Cần ``Idempotency-Key`` (gửi lại -> kết quả cũ, T-020 AC3).
+         *
+         *     Lỗi: E-001/E-002 · 409 E-018 / E-MEM-1 (đã có hồ sơ tạm).
+         */
+        post: operations["create_temp_api_v1_members_temp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/members/{ref}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Member
+         * @description Chi tiết, số lượt, tổng phút, 5 lượt gần nhất (ghi nhật ký). 404 E-NOT-FOUND.
+         */
+        get: operations["get_member_api_v1_members__ref__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Member
+         * @description Sửa hội viên (mã HV) hoặc hồ sơ tạm (``ref``; chỉ họ tên, giới tính – khác ⇒ 422 E-MEM-6).
+         *
+         *     Gửi kèm ``version`` (từ danh sách / chi tiết): lệch -> 409 E-MEM-9 (máy khác hoặc hội viên tự
+         *     sửa ở khu hội viên vừa lưu – T-020 AC4). 403 E-AUTH-2: NV đổi trạng thái. 404 E-NOT-FOUND.
+         */
+        patch: operations["update_member_api_v1_members__ref__patch"];
+        trace?: never;
+    };
+    "/api/v1/member-area/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Me
+         * @description Hồ sơ của tôi (mỗi lần mở đọc bản mới nhất). 401 E-AUTH-1 · 403 E-HV-8 (chưa là hội viên).
+         */
+        get: operations["get_me_api_v1_member_area_me_get"];
+        /**
+         * Update Me
+         * @description Lưu thay đổi: kiểm mọi ô một lần (422 ``fields``: full_name / nickname / email / tier /
+         *     gender / birth_date / racket), 409 E-HV-12 (vừa được sửa ở nơi khác). Không đổi gì -> trả hồ
+         *     sơ, không ghi.
+         *     Hạng hội viên tự chọn (T-042); đổi hạng ghi audit ``member.tier_self_change``.
+         */
+        put: operations["update_me_api_v1_member_area_me_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload Avatar
+         * @description Cắt vuông theo khung (pixel ảnh gốc, sau khi xoay theo EXIF), lưu ngay – không đổi
+         *     ``version`` của form. 422 E-HV-13 (định dạng / dung lượng / vùng cắt).
+         */
+        put: operations["upload_avatar_api_v1_member_area_me_avatar_put"];
+        post?: never;
+        /**
+         * Delete Avatar
+         * @description Xóa ảnh -> về chữ cái. Chưa có ảnh -> vẫn 204.
+         */
+        delete: operations["delete_avatar_api_v1_member_area_me_avatar_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/avatars/{customer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Avatar
+         * @description Ảnh đại diện (công khai). ``v`` = etag để phá cache; trả cache 1 năm, ``nosniff``.
+         */
+        get: operations["get_avatar_api_v1_member_area_avatars__customer_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Overview
+         * @description Trang Tổng quan v2 (T-018 + T-036): chào, lịch hôm nay / sắp tới, thông báo chưa đọc, số
+         *     liệu tháng, kỷ lục, phòng đang trống, hạng tháng, kỷ lục mới của cụm. ETag / 304.
+         *     403 E-HV-8 (chưa là hội viên).
+         */
+        get: operations["overview_api_v1_member_area_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Upcoming Events
+         * @description Sự kiện sắp tới (T-045): chưa bắt đầu, ngày diễn ra từ hôm nay tới hôm nay + ``days``, sắp
+         *     theo giờ bắt đầu. Có số chỗ (tính cả ghế đang giữ), ``can_buy`` + ``reason``, số vé của mình;
+         *     không có danh sách người mua. Đặt vé: luồng T-023 (``/web/booking/event-checkouts``).
+         */
+        get: operations["upcoming_events_api_v1_member_area_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payments
+         * @description Các khoản **đã thanh toán** (booking + vé) theo tháng thanh toán, giờ VN (AC7–AC10).
+         */
+        get: operations["payments_api_v1_member_area_payments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/payments/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payment
+         * @description Chi tiết một khoản đã thanh toán của mình; khác -> 404 E-NOT-FOUND.
+         */
+        get: operations["payment_api_v1_member_area_payments__code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/booking-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Booking Calendar
+         * @description Lịch /hoi-vien/dat-san (AC1, AC6). Ngày đã qua -> 422 E-WEB-2; chưa là hội viên -> 403.
+         */
+        get: operations["booking_calendar_api_v1_member_area_booking_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/bookings/{order_code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Booking
+         * @description Đơn đặt sân của chính mình (AC2). ``items[].code`` dùng gọi ``/member-area/payments/{code}``
+         *     (hóa đơn – khối đã thanh toán). Không có / của người khác -> 404 E-NOT-FOUND (AC4).
+         */
+        get: operations["my_booking_api_v1_member_area_bookings__order_code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/pending-payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pending Payment
+         * @description Đơn online đang chờ thanh toán của hội viên (theo SĐT hồ sơ – cái chặn đặt mới E-WEB-4);
+         *     không có -> null. Thẻ "Chờ thanh toán" + thanh nhắc. Chưa là hội viên -> 403 E-HV-8.
+         */
+        get: operations["pending_payment_api_v1_member_area_pending_payment_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rooms
+         * @description Danh sách sân hôm nay còn mở + số liệu banner (AC4–AC6). 403 E-HV-8 (chưa là hội viên).
+         */
+        get: operations["list_rooms_api_v1_member_area_rooms_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/by-booking/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Room By Booking
+         * @description Phòng của booking vừa đặt (nút "Vào phòng" ở trang thành công, T-018 AC5).
+         *
+         *     Phòng do worker tạo sau khi tiền về (~2 giây): 404 khi chưa có hoặc mình không ở trong phòng
+         *     -> FE thử lại mỗi 2 giây, tối đa ~20 giây.
+         */
+        get: operations["room_by_booking_api_v1_member_area_rooms_by_booking__code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Room
+         * @description Chi tiết phòng. 404 nếu không có / Host không đủ điều kiện / phòng đã kết thúc mà mình không
+         *     phải người trong phòng (T-054); người trong phòng xem được, chỉ đọc.
+         */
+        get: operations["get_room_api_v1_member_area_rooms__room_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/join-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Join
+         * @description Xin vào (AC8). 409 E-ROOM-1/2/4/6 · 429 E-SEC-5 (> 10 lần / ngày).
+         */
+        post: operations["request_join_api_v1_member_area_rooms__room_id__join_requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/join-requests/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cancel Join
+         * @description Hủy "Xin vào" của mình (không cần ``version``; chưa xin -> không đổi gì).
+         */
+        delete: operations["cancel_join_api_v1_member_area_rooms__room_id__join_requests_mine_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/join-requests/{request_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Join
+         * @description Host duyệt. 403 E-ROOM-7 · 409 E-ROOM-1/2/6.
+         */
+        post: operations["approve_join_api_v1_member_area_rooms__room_id__join_requests__request_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/join-requests/{request_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Join
+         * @description Host từ chối. 403 E-ROOM-7 · 409 E-ROOM-1/6.
+         */
+        post: operations["reject_join_api_v1_member_area_rooms__room_id__join_requests__request_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite
+         * @description Host mời bằng SĐT đầy đủ (AC9). 422 E-ROOM-3 (một câu cho mọi lý do) · 409 E-ROOM-2/4/6 ·
+         *     403 E-ROOM-7 · 429 E-SEC-5 (> 20 lần / giờ, tính cả lần lỗi).
+         */
+        post: operations["invite_api_v1_member_area_rooms__room_id__invites_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/invites/{invite_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Invite
+         * @description Nhận lời mời -> vào phòng. 404 (không phải lời mời của mình) · 409 E-ROOM-1/2/6.
+         */
+        post: operations["accept_invite_api_v1_member_area_invites__invite_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/invites/{invite_id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decline Invite
+         * @description Từ chối lời mời. 404 · 409 E-ROOM-1/6.
+         */
+        post: operations["decline_invite_api_v1_member_area_invites__invite_id__decline_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Leave
+         * @description Rời phòng (AC11). 409 E-ROOM-5 (đang trong trận) / E-ROOM-1 / E-ROOM-6.
+         */
+        post: operations["leave_api_v1_member_area_rooms__room_id__leave_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/members/{member_id}/kick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kick
+         * @description Host mời ra (AC12). 403 E-ROOM-7 · 404 · 409 E-ROOM-1/5/6.
+         */
+        post: operations["kick_api_v1_member_area_rooms__room_id__members__member_id__kick_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/members/{member_id}/transfer-host": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transfer Host
+         * @description Host chuyển quyền (AC12). 403 E-ROOM-7 · 404 · 409 E-ROOM-1/6.
+         */
+        post: operations["transfer_host_api_v1_member_area_rooms__room_id__members__member_id__transfer_host_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/format": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Format
+         * @description Đổi thể thức 2 vs 2 / 1 vs 1 (Host). Đã bốc -> xóa kết quả bốc. 409 E-ROOM-11 (đang chơi).
+         */
+        put: operations["set_format_api_v1_member_area_rooms__room_id__format_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/draw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Draw
+         * @description Bốc ngẫu nhiên / Bốc lại từ Hàng chờ (Host, AC15). 409 E-ROOM-8 (chưa đủ) / E-ROOM-11.
+         */
+        post: operations["draw_api_v1_member_area_rooms__room_id__draw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/lineup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Lineup
+         * @description Host tự xếp đội hình (T-027) -> trận ``drawn`` như kết quả bốc; ``team_a`` / ``team_b`` =
+         *     id dòng thành viên phòng (``members[].id``). Lỗi: 422 E-ROOM-12 (không ở phòng, trùng, sai
+         *     số người) · 403 E-ROOM-7 · 409 E-ROOM-11 (đang chơi) / E-ROOM-6 (version cũ) / E-ROOM-1.
+         */
+        put: operations["set_lineup_api_v1_member_area_rooms__room_id__lineup_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start
+         * @description Bắt đầu trận vừa bốc (Host, AC16). 409 E-ROOM-10 (sớm hơn 15 phút) / E-ROOM-8 (chưa bốc).
+         */
+        post: operations["start_api_v1_member_area_rooms__room_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/matches/{no}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Result
+         * @description Lưu tỉ số (Host, một lần, không sửa – AC17). 422 E-ROOM-9 · 409 E-ROOM-6 (đã lưu / cũ).
+         */
+        post: operations["save_result_api_v1_member_area_rooms__room_id__matches__no__result_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Match List
+         * @description Lịch sử trận đấu (AC19): đã lưu, mới nhất trên cùng; số đếm tính mọi thể thức.
+         */
+        get: operations["match_list_api_v1_member_area_rooms__room_id__matches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/play-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Play History
+         * @description Lịch sử chơi của mình theo ngày chơi, giờ VN (T-029): buổi = phòng có ≥ 1 trận đã lưu mà
+         *     mình ở đội A/B, kể cả phòng đã rời. Khoảng ``from``–``to`` (tối đa 1 năm) hoặc tháng; sai ->
+         *     422 E-001; tương lai -> rỗng.
+         */
+        get: operations["play_history_api_v1_member_area_play_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/rooms/{room_id}/ranking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ranking
+         * @description Xếp hạng trong phòng (AC20).
+         */
+        get: operations["ranking_api_v1_member_area_rooms__room_id__ranking_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/play-rooms/admin/day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monitor Day
+         * @description Mỗi sân một hàng, các phòng của ngày theo giờ: trạng thái, Host, số người, trận đang đánh /
+         *     trận gần nhất kèm tỉ số. Tên thật + biệt danh + mã HV (không SĐT; ẩn danh không áp). 422 E-001
+         *     (ngày sai / ngoài ±1 năm) · 403.
+         */
+        get: operations["monitor_day_api_v1_play_rooms_admin_day_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/play-rooms/admin/rooms/{room_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monitor Room
+         * @description Chi tiết phòng chỉ đọc: thành viên, mọi trận, bảng xếp hạng. Xem được mọi phòng, kể cả đã
+         *     kết thúc / booking đã hủy (quy tắc T-054 không áp). 404 E-NOT-FOUND · 403.
+         */
+        get: operations["monitor_room_api_v1_play_rooms_admin_rooms__room_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Notifications
+         * @description Thông báo 30 ngày gần nhất (tối đa 50, mới nhất trước) + số chưa đọc. 403 E-HV-8.
+         */
+        get: operations["list_notifications_api_v1_member_area_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read All
+         * @description Đã đọc hết (gửi lại vô hại – không cần Idempotency-Key).
+         */
+        post: operations["read_all_api_v1_member_area_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read One
+         * @description Đánh dấu đã đọc. Thông báo không phải của mình -> 404 E-NOT-FOUND (SEC6).
+         */
+        post: operations["read_one_api_v1_member_area_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/speed-ranking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Speed Ranking
+         * @description Top 10 cú đập nhanh nhất trong kỳ (tuần T2→CN / tháng / năm, giờ VN) + hạng của tôi.
+         *
+         *     Xếp theo từng cú (T-053): một người chiếm được nhiều bậc; bằng km/h thì cú đạt trước xếp trên.
+         *     Hạng của tôi là hạng cú tốt nhất của mình. Chỉ hội viên Hoạt động có tài khoản liên kết. Tắt
+         *     "Hiện trên kỷ lục" -> "Hội viên ẩn danh" (mình luôn thấy tên mình). Không trả id của người
+         *     khác. ``period`` / ``date`` sai -> 422.
+         *
+         *     T-049: ``video`` là video của đúng cú đó (ẩn danh vẫn phát).
+         */
+        get: operations["speed_ranking_api_v1_member_area_speed_ranking_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/record-videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Record Videos
+         * @description Video & kỷ lục (T-046): số đo có video trong kỳ (tuần T2→CN / tháng / năm / mọi thời gian,
+         *     giờ VN), mới nhất trước, tối đa 60. Ẩn danh như Bảng xếp hạng (video vẫn phát).
+         */
+        get: operations["record_videos_api_v1_member_area_record_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/record-breaks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Record Breaks
+         * @description Các lần phá kỷ lục toàn cụm (T-048), mới nhất trước, gồm cả lần chưa có video.
+         *
+         *     Kỳ tuần T2→CN / tháng / năm (giờ VN) chứa hôm nay chỉ lọc theo ngày đo: ``delta_kmh``,
+         *     ``previous_kmh``, ``held_days`` vẫn tính trên toàn chuỗi. Mốc đầu chỉ có ở ``all``. Ẩn danh như
+         *     Bảng xếp hạng (video vẫn phát). ``period`` sai -> 422.
+         */
+        get: operations["record_breaks_api_v1_member_area_record_breaks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/speed-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Speed Record
+         * @description Gửi cú đập của **chính mình** (km/h, thời điểm, sân, link video) -> "Chờ duyệt"; chưa tính
+         *     hạng / kỷ lục tới khi Admin duyệt. Audit ``record.submit``.
+         *     403 E-REC-7 (hội viên Ngừng) · 422 E-REC-5 / E-REC-6 / E-REC-1 · 429 E-SEC-5 (đã gửi 5 bản
+         *     trong ngày giờ VN – mọi trạng thái, bản đã rút lại không tính; lượt lỗi không tính).
+         */
+        post: operations["submit_speed_record_api_v1_member_area_speed_records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/speed-records/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Speed Records
+         * @description Bản tôi đã gửi (Chờ duyệt / Đã duyệt / Bị từ chối + lý do), mới gửi trước; kèm danh sách
+         *     sân đang hoạt động cho hộp "Gửi cú đập". Không có bản của người khác.
+         */
+        get: operations["my_speed_records_api_v1_member_area_speed_records_mine_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/member-area/speed-records/{record_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Withdraw Speed Record
+         * @description Rút lại bản **chờ duyệt** của mình (xóa). Không phải của mình -> 404 · đã duyệt / bị từ
+         *     chối -> 409 E-REC-4.
+         */
+        delete: operations["withdraw_speed_record_api_v1_member_area_speed_records__record_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Speed Records
+         * @description Số đo mới nhất trước (20 / trang) – tên thật + Mã HV, sân, video, nguồn, trạng thái
+         *     (chỉ Admin). ``pending_count`` cho tab "Chờ duyệt (n)".
+         */
+        get: operations["list_speed_records_api_v1_admin_speed_records_get"];
+        put?: never;
+        /**
+         * Create Speed Record
+         * @description Admin nhập số đo (T-047) -> ``source=admin``, duyệt ngay (tính hạng / kỷ lục). Audit
+         *     ``record.create_manual``. 422: E-REC-7 (Mã HV không có / không Hoạt động), E-REC-5 (thời điểm
+         *     ở tương lai / quá 365 ngày), E-REC-6 (sân), E-REC-1 (link video).
+         */
+        post: operations["create_speed_record_api_v1_admin_speed_records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records/{record_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Speed Record
+         * @description Xóa thật số đo Admin nhập / hội viên gửi (audit ``record.delete`` giữ giá trị cũ).
+         *     403 E-REC-2 (số đo máy đo) · 404.
+         */
+        delete: operations["delete_speed_record_api_v1_admin_speed_records__record_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Speed Record
+         * @description Sửa km/h, thời điểm, sân, video (chỉ ô có gửi; null = bỏ sân / gỡ video) kèm ``version``.
+         *     403 E-REC-2 (số đo máy đo) · 409 E-REC-3 (lệch ``version``) · 404. Audit ``record.update``.
+         */
+        patch: operations["update_speed_record_api_v1_admin_speed_records__record_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records/{record_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Speed Record
+         * @description Duyệt bản hội viên gửi -> tính hạng / kỷ lục; báo hội viên. 409 E-REC-4 (không còn chờ
+         *     duyệt) · 404. Audit ``record.approve``.
+         */
+        post: operations["approve_speed_record_api_v1_admin_speed_records__record_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records/{record_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Speed Record
+         * @description Từ chối + lý do (bắt buộc, ≤ 200 ký tự – 422 E-REC-8); báo hội viên kèm lý do.
+         *     409 E-REC-4 · 404. Audit ``record.reject``.
+         */
+        post: operations["reject_speed_record_api_v1_admin_speed_records__record_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/speed-records/{record_id}/video": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Video
+         * @description Gắn / sửa link video. Chỉ YouTube hoặc file .mp4 / .webm (https), khác -> 422 E-REC-1.
+         *     Audit ``record.video_set``. Không có số đo -> 404.
+         */
+        put: operations["set_video_api_v1_admin_speed_records__record_id__video_put"];
+        post?: never;
+        /**
+         * Remove Video
+         * @description Gỡ video (audit ``record.video_removed``); chưa có video -> trả nguyên trạng.
+         */
+        delete: operations["remove_video_api_v1_admin_speed_records__record_id__video_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rackets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rackets
+         * @description Vợt đang dùng, theo thứ tự rồi tên. ``all=1`` (chỉ Admin) -> gồm cả vợt ẩn.
+         *
+         *     Hội viên (khu hội viên) đọc được danh mục đang dùng.
+         */
+        get: operations["list_rackets_api_v1_rackets_get"];
+        put?: never;
+        /**
+         * Create Racket
+         * @description Thêm vợt. 409 E-MEM-5 (trùng tên, không phân biệt hoa thường / khoảng trắng).
+         */
+        post: operations["create_racket_api_v1_rackets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rackets/{racket_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Racket
+         * @description Xóa hẳn (hồ sơ đang ghi vợt này giữ nguyên tên). 404 E-NOT-FOUND.
+         */
+        delete: operations["delete_racket_api_v1_rackets__racket_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Racket
+         * @description Sửa tên / ẩn-hiện / thứ tự. 404 E-NOT-FOUND · 409 E-MEM-5.
+         */
+        patch: operations["update_racket_api_v1_rackets__racket_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/me/member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Member
+         * @description Thẻ Hội viên. 401 · 403 E-AUTH-25 (chưa đổi MK) / E-AUTH-29 (cần xác minh SĐT) · 404.
+         */
+        get: operations["my_member_api_v1_me_member_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/member/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Bookings
+         * @description Lịch sử đặt sân, mới nhất trước, 10 dòng / trang. Lỗi như ``GET /me/member``.
+         */
+        get: operations["my_bookings_api_v1_me_member_bookings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Booking
+         * @description Đặt sân tại quầy: 1 lần bấm = **1 đơn** (mã chung), 1–20 khối hôm nay -> mỗi khối một
+         *     booking Chưa thanh toán mã ``{mã đơn}-NN``. Cùng sân, giờ liền nhau -> gộp một khối.
+         *
+         *     All-or-nothing. Lỗi: E-001/E-002 (hồ sơ tạm, khối trùng giờ nhau), E-014 (không có hội
+         *     viên), E-018 (SĐT là của hội viên), E-004 (khung đã qua), E-CFG-10 (khung không bán),
+         *     E-019 (thiếu giá), 409 E-003 kèm ``conflicts`` (vừa có người đặt), 403 E-AUTH-2 (ngày khác
+         *     hôm nay – cả Admin; ngày sau chỉ Đặt sự kiện).
+         */
+        post: operations["create_booking_api_v1_front_desk_bookings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/sessions/{code}/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Ticket
+         * @description Đăng ký vé tại quầy: sự kiện hôm nay chưa kết thúc, còn chỗ -> vé Chưa thanh toán.
+         *
+         *     Lỗi: E-001/E-002/E-014/E-018 (khách), E-004 (không phải hôm nay / đã kết thúc), E-024 (đủ chỗ).
+         */
+        post: operations["register_ticket_api_v1_front_desk_sessions__code__tickets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/sessions/{code}/tickets/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Tickets
+         * @description Đăng ký vé cho nhiều người một lần (T-071): hội viên và hồ sơ tạm lẫn nhau, mỗi người một
+         *     vé, **tất cả hoặc không ai** (một transaction, khóa sự kiện, đếm chỗ một lần).
+         *
+         *     Lỗi: E-001 (rỗng, quá 50, trùng người, hồ sơ tạm thiếu tên / SĐT), E-004 (không phải hôm nay
+         *     / đã kết thúc), E-024 409 "Chỉ còn n chỗ." kèm ``remaining`` (hết sạch: "Sự kiện đã đủ chỗ.").
+         */
+        post: operations["register_tickets_api_v1_front_desk_sessions__code__tickets_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/recurring/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Recurring
+         * @description Xem trước đặt sân định kỳ (chỉ Admin, không ghi): từng buổi (ngày, thứ, giờ, giá gốc, giá
+         *     sau giảm, ``ok`` / ``reason``) + tổng. ``reason``: booked · event · hold · closed · inactive ·
+         *     past · no_price. Lỗi 422: không chọn thứ, giờ sai, từ ngày < hôm nay, > 92 ngày, > 60 buổi,
+         *     % ngoài 0–100. 403 không phải Admin.
+         */
+        post: operations["preview_recurring_api_v1_front_desk_recurring_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/recurring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Recurring
+         * @description Màn "Đơn định kỳ" (chỉ Admin, T-039): mới nhất trước, lọc trạng thái, tìm theo mã đơn / tên
+         *     khách / SĐT. Thu cả đơn vẫn qua ``POST /booking/orders/{code}/collect`` (T-019).
+         */
+        get: operations["list_recurring_api_v1_front_desk_recurring_get"];
+        put?: never;
+        /**
+         * Create Recurring
+         * @description Đặt sân định kỳ (chỉ Admin): **một đơn** (mã theo ngày buổi đầu) + mỗi buổi một booking
+         *     Chưa thanh toán, giảm % phân bổ vào từng buổi. Thu tiền bằng "Thu cả đơn" (T-019).
+         *
+         *     Tất cả hoặc không: có buổi không đặt được (kể cả vừa bị người khác đặt) -> 409 ``E-BOOK-5``
+         *     "Có n buổi không đặt được." kèm ``conflicts: [{date, start, reason, reason_text}]``.
+         *     Lỗi khác như xem trước; khách: E-014 / E-018 / E-001 như đặt quầy.
+         */
+        post: operations["create_recurring_api_v1_front_desk_recurring_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Orders
+         * @description Màn "Đơn đặt sân" (chỉ Admin, T-041): mọi đơn quầy / online / định kỳ (không gồm vé, không
+         *     gồm lượt giữ chỗ chưa trả tiền), mới nhất trước. Lọc loại × trạng thái + khoảng ngày chơi (đơn
+         *     có khối trong khoảng); tìm mã đơn / mã con / tên / SĐT. Thu cả đơn: ``POST
+         *     /booking/orders/{code}/collect`` (T-019). Ngày sai thứ tự -> 422 E-016.
+         */
+        get: operations["list_orders_api_v1_front_desk_orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/items/{code}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Item
+         * @description Hủy một booking hoặc vé (chỉ Admin, T-052): đã thu hủy được mọi lúc, kể cả đang chơi và đã
+         *     qua; chưa thu chỉ trước giờ bắt đầu. Nhả khung / chỗ ngay, không tự hoàn tiền.
+         *
+         *     422 E-001 (lý do) · E-PAY-5 (đã bắt đầu mà chưa thu) · E-PAY-7 (đã thu mà chưa xác nhận hoàn) ·
+         *     409 E-PAY-6 (đã hủy / Không thu được) · E-012 (``version`` cũ) · 404.
+         */
+        post: operations["cancel_item_api_v1_front_desk_items__code__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/orders/{order_code}/collect-qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Order Collect Qr
+         * @description Thu cả đơn bằng QR chuyển khoản (T-058) – popup gọi lại tới khi ``status`` khác ``unpaid``.
+         *
+         *     Số tiền = tổng khối Chưa thanh toán (như ``POST /booking/orders/{code}/collect``); nội dung
+         *     chuyển khoản ``pay_ref`` = mã đơn bỏ gạch. Tiền về đúng số -> webhook thu cả đơn; lệch số ->
+         *     Tiền về cần xử lý (cần hoàn). ``status``: ``unpaid`` / ``paid`` (tiền đã về hết) / ``closed``
+         *     (hết khối chưa thu do Không thu được / hủy – xử lý ở máy khác). 404 E-BOOK-3 · 409 E-PAY-9
+         *     (chưa cài nhận chuyển khoản).
+         */
+        get: operations["order_collect_qr_api_v1_front_desk_orders__order_code__collect_qr_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/items/{code}/collect-qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Item Collect Qr
+         * @description Thu một buổi (T-065) hoặc một vé quầy (T-068) bằng QR: ``order_code`` = mã khối / mã vé,
+         *     ``pay_ref`` = mã đó bỏ gạch (mã con ``BK2026111000601`` / mã vé ``BK20261110002V05``, bắt
+         *     đầu bằng mã đơn / mã sự kiện), số tiền = tiền của khối / vé, ``blocks = 1``. Đã thu ->
+         *     ``status = paid``, ``amount = 0``. Tiền về đúng số -> chỉ khối / vé đó Đã thanh toán; lệch ->
+         *     cần hoàn. 404 E-BOOK-3 · 422 E-PAY-1 (booking / vé online) · 409 E-PAY-9. ``status``:
+         *     unpaid / paid / closed.
+         */
+        get: operations["item_collect_qr_api_v1_front_desk_items__code__collect_qr_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/orders/{order_code}/cancel-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Order Cancel Preview
+         * @description Xem trước hủy cả đơn: khối sẽ hủy, khối bỏ qua kèm lý do, tổng tiền. 404 E-BOOK-3.
+         */
+        get: operations["order_cancel_preview_api_v1_front_desk_orders__order_code__cancel_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/front-desk/orders/{order_code}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Order
+         * @description Hủy các khối ``codes`` của đơn (lấy từ xem trước). Kiểm tra lại từng khối lúc hủy: khối đã
+         *     bắt đầu / có trận sau lúc xem trước vào ``skipped``, buổi đã chơi giữ nguyên.
+         *
+         *     422 E-001 (lý do; ``codes`` rỗng hoặc có mã ngoài đơn) · E-PAY-7 cho cả lệnh · 404 E-BOOK-3.
+         */
+        post: operations["cancel_order_api_v1_front_desk_orders__order_code__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Calendar
+         * @description Lịch đặt sân cho khách: trạng thái + giá từng ô; ngày đã qua -> 422 ``E-WEB-2``.
+         */
+        get: operations["calendar_api_v1_web_booking_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Checkout
+         * @description Giữ chỗ 5 phút + cấp mã, trả ``token`` (một lần) để mở trang thanh toán.
+         *
+         *     Cần ``phone_token`` của đúng SĐT (trừ khách đăng nhập có SĐT đã xác minh trùng ``phone``).
+         *     ``as_member`` (đặt trong khu hội viên, T-018 AC4): Họ tên + SĐT lấy từ hồ sơ hội viên của
+         *     phiên (bỏ qua giá trị gửi lên), không cần ``phone_token``; không phải hội viên liên kết đang
+         *     Hoạt động -> 403 E-HV-8.
+         *     Lỗi: E-WEB-1 (dữ liệu), E-WEB-2 (khung không đặt được), E-WEB-3 (vừa có người đặt, kèm
+         *     ``conflicts``), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (đặt online tạm ngưng),
+         *     E-WEB-8 (chưa xác minh SĐT), E-019, E-ROOM-14 (T-031: khoảng hạng sai thứ tự, hoặc gửi khi
+         *     không ``as_member``).
+         */
+        post: operations["create_checkout_api_v1_web_booking_checkouts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/events/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Event Detail
+         * @description Chi tiết sự kiện cho popup mua vé (AC5, AC17) – không tên / SĐT người mua.
+         *
+         *     ``my_tickets`` chỉ khi có cookie hội viên liên kết (khách: null). Không có -> 404 E-NOT-FOUND.
+         */
+        get: operations["event_detail_api_v1_web_booking_events__code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/event-checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Event Checkout
+         * @description Mua vé sự kiện online (T-023): giữ ``seats`` ghế 5 phút, cấp mã đơn, trả ``token`` (một
+         *     lần) để mở trang thanh toán QR. Dùng chung cho /dat-san (khách: ``phone_token``) và
+         *     /hoi-vien/dat-san (``as_member``).
+         *
+         *     Lỗi: E-WEB-1 (dữ liệu / số vé), E-WEB-4 (SĐT đang có lượt chờ), E-WEB-5 (online tạm ngưng),
+         *     E-WEB-8 (chưa xác minh SĐT), E-WEB-9 (sự kiện đã bắt đầu / đã hủy), E-WEB-10 (hết chỗ /
+         *     không đủ chỗ, kèm ``remaining``), E-WEB-11 (giá 0 – đăng ký tại quầy), E-HV-8, E-NOT-FOUND.
+         */
+        post: operations["create_event_checkout_api_v1_web_booking_event_checkouts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/phone/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Request
+         * @description Gửi OTP xác minh SĐT trước khi đặt (T-013 AC25).
+         *
+         *     Lỗi: E-WEB-1 (SĐT sai), E-WEB-5 (đặt online tạm ngưng), E-AUTH-13 (gửi quá nhiều, 429).
+         */
+        post: operations["phone_request_api_v1_web_booking_phone_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/phone/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone Verify
+         * @description Mã đúng -> ``phone_token`` (30 phút, dùng cho nhiều lượt đặt của SĐT này trong hạn).
+         *
+         *     Khách đang đăng nhập (T-013 AC40, T-021 AC5): SĐT tài khoản trùng -> ``account_verified``;
+         *     tài khoản Google chưa có SĐT -> gắn SĐT (gộp nếu SĐT thuộc khách khác – cookie mới). Xác minh
+         *     xong là hội viên: ``became_member``, ``member_code``.
+         *     Lỗi: E-WEB-1 (SĐT sai), E-AUTH-14 (sai mã, ``attempts_left``), E-AUTH-15 (mã hết hiệu lực).
+         */
+        post: operations["phone_verify_api_v1_web_booking_phone_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/checkouts/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Checkout
+         * @description Trạng thái lượt thanh toán (trang hỏi mỗi 3 giây). Token sai -> 404 ``E-WEB-6``.
+         */
+        get: operations["get_checkout_api_v1_web_booking_checkouts__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/checkouts/{token}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Checkout
+         * @description Hủy giữ chỗ (sân hoặc vé) khi chưa trả đồng nào: khung / ghế trả lại ngay. Gọi lại khi đã
+         *     hủy -> 200 như cũ. Lượt của hội viên: phải đăng nhập đúng hội viên đó.
+         *
+         *     Lỗi: 404 E-WEB-6 (token sai / không phải lượt của mình), 409 E-WEB-12 ``reason`` = paid (đã
+         *     thanh toán) / partially_paid (đã ghi nhận một phần tiền) / expired (đã hết hạn).
+         */
+        post: operations["cancel_checkout_api_v1_web_booking_checkouts__token__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web/booking/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lookup
+         * @description Tra cứu theo mã đơn hoặc mã con + SĐT -> cả đơn. Sai mã hay sai SĐT -> cùng 404
+         *     ``E-WEB-7``.
+         */
+        post: operations["lookup_api_v1_web_booking_lookup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/dev/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Simulate Payment
+         * @description Giả lập tiền về cho ``pay_ref`` (chỉ dev/staging, ``PAYMENTS_SIMULATE=true``).
+         *
+         *     Trả giao dịch vừa ghi (``outcome``, ``refund_amount``, ``booking_codes``…).
+         */
+        post: operations["simulate_payment_api_v1_payments_dev_simulate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Settings
+         * @description Cài đặt nhận tiền online (chỉ Admin). Khóa webhook không trả ra – chỉ 4 ký tự cuối.
+         */
+        get: operations["get_settings_api_v1_payments_settings_get"];
+        /**
+         * Put Settings
+         * @description Lưu cài đặt – luôn cần ``current_password``.
+         *
+         *     Lỗi: 400 E-AUTH-7 (sai mật khẩu; 5 lần / 15 phút -> 429 E-SEC-5), 422 E-PAY-4 (dữ liệu),
+         *     409 E-PAY-3 (đổi ngân hàng / số TK khi còn lượt chờ thanh toán).
+         */
+        put: operations["put_settings_api_v1_payments_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/banks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Banks
+         * @description Danh sách ngân hàng (mã VietQR) cho ô chọn.
+         */
+        get: operations["list_banks_api_v1_payments_banks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit-log/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Catalog
+         * @description Danh mục cho bộ lọc: loại thao tác theo nhóm, người làm, khoảng ngày chọn được.
+         */
+        get: operations["get_catalog_api_v1_admin_audit_log_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Audit Log
+         * @description Lịch sử thao tác: mặc định 7 ngày gần nhất, 50 dòng / trang, mới nhất trước.
+         *
+         *     Lỗi: E-AUDIT-1 (khoảng ngày sai / ngoài 12 tháng), E-AUDIT-2 (loại thao tác không có).
+         */
+        get: operations["list_audit_log_api_v1_admin_audit_log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Overview
+         * @description Cả màn trong một lần đọc: kỳ + kỳ trước, 3 chỉ số, doanh thu theo ngày / sân, heatmap.
+         *
+         *     Thiếu cả hai ngày ⇒ Tuần (hôm nay − 6 → hôm nay). Doanh thu theo ngày chơi.
+         *     Lỗi 422: E-REPORT-1 (Từ ngày sau Đến ngày), E-REPORT-2 (> 90 ngày), E-REPORT-3 (sau hôm nay).
+         */
+        get: operations["get_overview_api_v1_admin_reports_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -474,214 +3203,3333 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AvailabilityOut */
-        AvailabilityOut: {
+        /**
+         * AdminAccountOut
+         * @description Thẻ tài khoản khu quản trị.
+         */
+        AdminAccountOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "admin" | "staff";
+            /** Display Name */
+            display_name: string;
+            /** Role Label */
+            role_label: string;
+            /** Staff Code */
+            staff_code?: string | null;
+        };
+        /** AdminAvatarOut */
+        AdminAvatarOut: {
+            /** Avatar Url */
+            avatar_url: string;
+        };
+        /**
+         * AdminPasswordChangeIn
+         * @description Admin / NV tự đổi mật khẩu; luôn cần mật khẩu hiện tại.
+         */
+        AdminPasswordChangeIn: {
+            /** Current Password */
+            current_password: string;
+            /**
+             * New Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            new_password: string;
+        };
+        /**
+         * AdminProfileIn
+         * @description Admin tự sửa họ tên: tối đa 50 ký tự sau khi gộp khoảng trắng.
+         */
+        AdminProfileIn: {
+            /**
+             * Full Name
+             * @description Tối đa 50 ký tự sau khi gộp khoảng trắng
+             */
+            full_name: string;
+        };
+        /**
+         * AdminProfileOut
+         * @description Hồ sơ của tôi (khu quản trị): SĐT chỉ trả cho chính người đó.
+         */
+        AdminProfileOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "admin" | "staff";
+            /** Full Name */
+            full_name: string;
+            /** Role Label */
+            role_label: string;
+            /** Staff Code */
+            staff_code?: string | null;
+            /** Username */
+            username?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Session Expires At
+             * Format: date-time
+             */
+            session_expires_at: string;
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
+        };
+        /**
+         * AdminSessionOut
+         * @description ``/admin/auth/me``: thêm quyền (đăng nhập không trả – FE gọi ``/me`` để dựng menu).
+         */
+        AdminSessionOut: {
+            account: components["schemas"]["AdminAccountOut"];
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Perms
+             * @description Mã quyền hiện có (FE ẩn / hiện menu theo quyền)
+             */
+            perms: string[];
+            /**
+             * Menu Order
+             * @description Thứ tự menu chung (key ``MenuKey``), đủ mọi mục
+             */
+            menu_order: string[];
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
+        };
+        /** AdminSignInOut */
+        AdminSignInOut: {
+            account: components["schemas"]["AdminAccountOut"];
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "admin";
+        };
+        /** AdminSpeedRecordList */
+        AdminSpeedRecordList: {
+            /** Items */
+            items: components["schemas"]["AdminSpeedRecordRow"][];
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+            /** Total */
+            total: number;
+            /**
+             * Pending Count
+             * @description Số bản chờ duyệt (tab “Chờ duyệt (n)”), không theo lọc
+             */
+            pending_count: number;
+        };
+        /** AdminSpeedRecordRow */
+        AdminSpeedRecordRow: {
+            /** Id */
+            id: number;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /** Member Code */
+            member_code: string | null;
+            /** Member Name */
+            member_name: string;
+            /**
+             * Resource Code
+             * @description Mã sân (T-047) – null: không ghi sân
+             */
+            resource_code: string | null;
+            /** Resource Name */
+            resource_name: string | null;
+            video: components["schemas"]["VideoOut"] | null;
+            /**
+             * Source
+             * @description device: Máy đo · admin: Admin nhập · member: Hội viên gửi
+             * @enum {string}
+             */
+            source: "device" | "admin" | "member";
+            /**
+             * Status
+             * @description approved: tính hạng · pending: chờ duyệt · rejected
+             * @enum {string}
+             */
+            status: "approved" | "pending" | "rejected";
+            /** Reject Reason */
+            reject_reason: string | null;
+            /**
+             * Editable
+             * @description false với số đo máy đo (không sửa / xóa được, E-REC-2)
+             */
+            editable: boolean;
+            /**
+             * Submitted At
+             * Format: date-time
+             * @description Lúc nhập / gửi
+             */
+            submitted_at: string;
+            /**
+             * Version
+             * @description Gửi kèm khi sửa (PATCH); lệch -> 409 E-REC-3
+             */
+            version: number;
+        };
+        /** AuditCatalogOut */
+        AuditCatalogOut: {
+            /** Groups */
+            groups: components["schemas"]["AuditGroupOut"][];
+            /** Actors */
+            actors: components["schemas"]["AuditOptionOut"][];
+            /**
+             * Min Date
+             * Format: date
+             */
+            min_date: string;
+            /**
+             * Max Date
+             * Format: date
+             */
+            max_date: string;
+        };
+        /** AuditChangeOut */
+        AuditChangeOut: {
+            /** Field */
+            field: string;
+            /** Before */
+            before: string | number | boolean | null;
+            /** After */
+            after: string | number | boolean | null;
+        };
+        /** AuditEntryOut */
+        AuditEntryOut: {
+            /** Id */
+            id: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Actor
+             * @enum {string}
+             */
+            actor: "admin" | "staff" | "system" | "customer";
+            /** Actor Label */
+            actor_label: string;
+            /** Actor Name */
+            actor_name: string | null;
+            /** Actor Code */
+            actor_code: string | null;
+            /** Action */
+            action: string;
+            /** Action Label */
+            action_label: string;
+            target: components["schemas"]["AuditTargetOut"];
+            /** Changes */
+            changes: components["schemas"]["AuditChangeOut"][];
+        };
+        /** AuditGroupOut */
+        AuditGroupOut: {
+            /** Label */
+            label: string;
+            /** Types */
+            types: components["schemas"]["AuditOptionOut"][];
+        };
+        /** AuditLogPageOut */
+        AuditLogPageOut: {
+            /** Items */
+            items: components["schemas"]["AuditEntryOut"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+        };
+        /** AuditOptionOut */
+        AuditOptionOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * AuditPageSize
+         * @description Số dòng / trang: 20 | 50 | 100.
+         * @enum {integer}
+         */
+        AuditPageSize: 20 | 50 | 100;
+        /** AuditTargetOut */
+        AuditTargetOut: {
+            /** Code */
+            code: string | null;
+            /** Name */
+            name: string | null;
+        };
+        /** AvatarOut */
+        AvatarOut: {
+            /** Avatar Url */
+            avatar_url: string;
+        };
+        /**
+         * BankInfo
+         * @description Thông tin chuyển khoản hiển thị cho khách (QR SePay).
+         */
+        BankInfo: {
+            /** Bank Name */
+            bank_name: string;
+            /** Account Number */
+            account_number: string;
+            /** Account Name */
+            account_name: string;
+            /** Qr Url */
+            qr_url: string;
+        };
+        /** BankOut */
+        BankOut: {
+            /** Code */
+            code: string;
+            /** Short Name */
+            short_name: string;
+            /** Name */
+            name: string;
+        };
+        /** BankTransactionOut */
+        BankTransactionOut: {
+            /** Id */
+            id: number;
+            /** Provider */
+            provider: string;
+            /** Provider Txn Id */
+            provider_txn_id: string;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /**
+             * Transaction At
+             * Format: date-time
+             */
+            transaction_at: string;
+            /** Amount */
+            amount: number;
+            /** Content */
+            content: string;
+            /** Code */
+            code: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "applied" | "partial" | "refund_needed" | "unmatched" | "ignored";
+            /** Refund Amount */
+            refund_amount: number;
+            /** Booking Codes */
+            booking_codes: string[];
+        };
+        /** Body_upload_avatar_api_v1_member_area_me_avatar_put */
+        Body_upload_avatar_api_v1_member_area_me_avatar_put: {
+            /**
+             * File
+             * @description JPG / PNG / WebP ≤ 5 MB
+             */
+            file: string;
+            /** Crop X */
+            crop_x: number;
+            /** Crop Y */
+            crop_y: number;
+            /** Crop Size */
+            crop_size: number;
+        };
+        /** Body_upload_logo_api_v1_admin_site_logo_put */
+        Body_upload_logo_api_v1_admin_site_logo_put: {
+            /**
+             * File
+             * @description JPG / PNG / WebP ≤ 5 MB; không nhận SVG
+             */
+            file: string;
+            /** Crop X */
+            crop_x: number;
+            /** Crop Y */
+            crop_y: number;
+            /** Crop Size */
+            crop_size: number;
+        };
+        /** Body_upload_my_avatar_api_v1_admin_auth_me_avatar_put */
+        Body_upload_my_avatar_api_v1_admin_auth_me_avatar_put: {
+            /**
+             * File
+             * @description JPG / PNG / WebP ≤ 5 MB
+             */
+            file: string;
+            /** Crop X */
+            crop_x: number;
+            /** Crop Y */
+            crop_y: number;
+            /** Crop Size */
+            crop_size: number;
+        };
+        /** BookingSummary */
+        BookingSummary: {
+            /** Count */
+            count: number;
+            /**
+             * Hours
+             * @description Tổng giờ chơi các lượt đặt sân
+             */
+            hours: number;
+        };
+        /** BookingsOut */
+        BookingsOut: {
+            /** Current */
+            current: number;
+            /** Previous */
+            previous: number;
+            /**
+             * Tickets
+             * @description Số vé xé vé đã gồm trong current
+             */
+            tickets: number;
+        };
+        /** CalendarBlock */
+        CalendarBlock: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "booking" | "session" | "hold";
+            /**
+             * Code
+             * @description Booking: mã con (mở chi tiết); sự kiện: mã sự kiện
+             */
+            code: string | null;
+            /**
+             * Order Code
+             * @description Booking: mã đơn (hiện trên khối)
+             */
+            order_code?: string | null;
+            /** Resource Codes */
+            resource_codes: string[];
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /** Payment Status */
+            payment_status?: ("unpaid" | "paid" | "uncollectible" | "cancelled") | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Source */
+            source?: ("counter" | "online") | null;
+            /** Name */
+            name?: string | null;
+            /** Taken */
+            taken?: number | null;
+            /** Capacity */
+            capacity?: number | null;
+            /** Is Full */
+            is_full?: boolean | null;
+            /** Unpaid Tickets */
+            unpaid_tickets?: number | null;
+            /** Expires At */
+            expires_at?: string | null;
+        };
+        /** CalendarCan */
+        CalendarCan: {
+            /** Counter Book */
+            counter_book: boolean;
+            /** Create Session */
+            create_session: boolean;
+        };
+        /** CalendarOut */
+        CalendarOut: {
             /**
              * Date
              * Format: date
              */
             date: string;
             /**
-             * Open Time
-             * Format: time
+             * Now
+             * Format: date-time
              */
-            open_time: string;
+            now: string;
             /**
-             * Close Time
-             * Format: time
+             * Is Past
+             * @description Ngày đã qua – chỉ xem
              */
-            close_time: string;
-            /** Slot Minutes */
-            slot_minutes: number;
-            /** Courts */
-            courts: components["schemas"]["CourtAvailability"][];
+            is_past: boolean;
+            /**
+             * Columns
+             * @description Giờ bắt đầu từng cột (khung 1 giờ)
+             */
+            columns: number[];
+            /** Resources */
+            resources: components["schemas"]["CalendarResource"][];
+            /** Blocks */
+            blocks: components["schemas"]["CalendarBlock"][];
+            /** Unpaid Count */
+            unpaid_count: number;
+            can: components["schemas"]["CalendarCan"];
         };
-        /** BookingCreateIn */
-        BookingCreateIn: {
-            /** Slots */
-            slots: components["schemas"]["SlotIn"][];
-            /** Note */
-            note?: string | null;
-        };
-        /** BookingOut */
-        BookingOut: {
-            /** Id */
-            id: number;
+        /** CalendarResource */
+        CalendarResource: {
             /** Code */
             code: string;
-            status: components["schemas"]["BookingStatus"];
-            source: components["schemas"]["BookingSource"];
-            /** Customer Id */
-            customer_id: number | null;
-            /** Customer Name */
-            customer_name: string;
-            /** Customer Phone */
-            customer_phone: string | null;
-            /** Total Amount */
-            total_amount: number;
-            /** Note */
-            note: string | null;
-            /** Expires At */
-            expires_at: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Slots */
-            slots: components["schemas"]["SlotOut"][];
-        };
-        /**
-         * BookingSource
-         * @enum {string}
-         */
-        BookingSource: "online" | "counter";
-        /**
-         * BookingStatus
-         * @enum {string}
-         */
-        BookingStatus: "pending" | "confirmed" | "completed" | "cancelled" | "expired";
-        /** BusyRange */
-        BusyRange: {
-            /**
-             * Start
-             * Format: date-time
-             */
-            start: string;
-            /**
-             * End
-             * Format: date-time
-             */
-            end: string;
-        };
-        /**
-         * CounterBookingIn
-         * @description Nhân viên đặt hộ khách tại quầy / qua điện thoại.
-         */
-        CounterBookingIn: {
-            /** Slots */
-            slots: components["schemas"]["SlotIn"][];
-            /** Note */
-            note?: string | null;
-            /** Customer Name */
-            customer_name: string;
-            /** Customer Phone */
-            customer_phone?: string | null;
-            /** Customer Id */
-            customer_id?: number | null;
-            /**
-             * Confirm
-             * @default true
-             */
-            confirm: boolean;
-        };
-        /** CourtAvailability */
-        CourtAvailability: {
-            /** Court Id */
-            court_id: number;
             /** Name */
             name: string;
-            /** Busy */
-            busy: components["schemas"]["BusyRange"][];
-        };
-        /** CourtIn */
-        CourtIn: {
-            /** Name */
-            name: string;
-            /** Description */
-            description?: string | null;
-            /** Surface */
-            surface?: string | null;
-            /** Image Url */
-            image_url?: string | null;
-            /**
-             * Is Active
-             * @default true
-             */
+            /** Type */
+            type: string;
+            /** Is Active */
             is_active: boolean;
             /**
-             * Sort Order
-             * @default 0
+             * Off Hours
+             * @description Giờ bắt đầu các ô Xám (không bán) của sân này
              */
-            sort_order: number;
-            /** Slug */
-            slug?: string | null;
+            off_hours: number[];
+            /**
+             * Hour Prices
+             * @description Giá/giờ từng ô bán được theo bảng giá của ngày (giờ bắt đầu -> VND), cùng cách tính với lịch khách – chỉ để xem trước, giá chốt lúc đặt (T-025 AC9)
+             */
+            hour_prices?: {
+                [key: string]: number;
+            };
+        };
+        /** CancelIn */
+        CancelIn: {
+            /**
+             * Reason
+             * @description Bắt buộc, tối đa 200 ký tự
+             * @default
+             */
+            reason: string;
+            /** Version */
+            version: number;
+            /**
+             * Refund Confirmed
+             * @description Khoản đã thu: Admin xác nhận đã / sẽ tự hoàn tiền
+             * @default false
+             */
+            refund_confirmed: boolean;
+        };
+        /** CancelPreview */
+        CancelPreview: {
+            /** Cancellable */
+            cancellable: components["schemas"]["CancelPreviewItem"][];
+            /** Skipped */
+            skipped: components["schemas"]["CancelSkipped"][];
+            /**
+             * Refund Total
+             * @description Tổng các khối đã thu sẽ hủy (trừ khỏi doanh thu)
+             */
+            refund_total: number;
+            /**
+             * Unpaid Total
+             * @description Tổng các khối chưa thu sẽ hủy
+             */
+            unpaid_total: number;
+        };
+        /** CancelPreviewItem */
+        CancelPreviewItem: {
+            /** Code */
+            code: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Amount */
+            amount: number;
+            /**
+             * Payment Status
+             * @enum {string}
+             */
+            payment_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
+        };
+        /** CancelSkipped */
+        CancelSkipped: {
+            /** Code */
+            code: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "started" | "played" | "cancelled" | "uncollectible";
+        };
+        /** CheckoutCreatedOut */
+        CheckoutCreatedOut: {
+            /**
+             * Kind
+             * @description court: đặt sân · ticket: mua vé (T-023)
+             * @enum {string}
+             */
+            kind: "court" | "ticket";
+            /**
+             * Status
+             * @description cancelled: khách tự hủy giữ chỗ
+             * @enum {string}
+             */
+            status: "pending" | "paid" | "expired" | "cancelled";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /** Amount */
+            amount: number;
+            /** Paid Amount */
+            paid_amount: number;
+            /** Paid At */
+            paid_at: string | null;
+            /**
+             * Order Code
+             * @description Mã đơn – khách chỉ thấy mã này
+             */
+            order_code: string;
+            /**
+             * Pay Ref
+             * @description Nội dung chuyển khoản = mã đơn bỏ dấu gạch
+             */
+            pay_ref: string;
+            /** @description Chỉ có khi đang chờ thanh toán */
+            bank: components["schemas"]["BankInfo"] | null;
+            customer: components["schemas"]["WebCustomer"];
+            /**
+             * Items
+             * @description Khung sân – rỗng khi kind = ticket
+             */
+            items: components["schemas"]["WebCheckoutItem"][];
+            /** @description Chỉ khi kind = ticket: sự kiện, số vé, mã vé (có khi đã thanh toán) */
+            event: components["schemas"]["CheckoutEvent"] | null;
+            /**
+             * Token
+             * @description Chìa khóa trang /thanh-toan/{token} – chỉ trả ở lần tạo
+             */
+            token: string;
+        };
+        /**
+         * CheckoutEvent
+         * @description Lượt thanh toán mua vé (T-023): sự kiện + số vé; mã vé có khi đã thanh toán.
+         */
+        CheckoutEvent: {
+            /**
+             * Code
+             * @description Mã sự kiện
+             */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Names */
+            resource_names: string[];
+            /**
+             * Seats
+             * @description Số vé của lượt
+             */
+            seats: number;
+            /**
+             * Ticket Price
+             * @description Giá một vé, chốt lúc giữ chỗ
+             */
+            ticket_price: number;
+            /**
+             * Ticket Codes
+             * @description Mã vé ``{mã sự kiện}-Vnn`` – rỗng khi chưa trả
+             */
+            ticket_codes: string[];
+            /**
+             * Cancelled Ticket Codes
+             * @description Vé trong ``ticket_codes`` đã bị sân hủy (T-051)
+             */
+            cancelled_ticket_codes?: string[];
+        };
+        /** CheckoutIn */
+        CheckoutIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Slots */
+            slots?: components["schemas"]["OnlineSlotIn"][];
+            /**
+             * Full Name
+             * @default
+             */
+            full_name: string;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+            /** Note */
+            note?: string | null;
+            /** Phone Token */
+            phone_token?: string | null;
+            /**
+             * As Member
+             * @description Đặt trong khu hội viên (/hoi-vien/dat-san): Họ tên + SĐT lấy từ hồ sơ, bỏ qua full_name/phone gửi lên, không cần phone_token (T-018 AC4)
+             * @default false
+             */
+            as_member: boolean;
+            /**
+             * Min Tier
+             * @description Chỉ với as_member (đặt công khai gửi -> 422 E-ROOM-14). Hạng thấp nhất được vào phòng (null = không giới hạn dưới)
+             */
+            min_tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
+            /**
+             * Max Tier
+             * @description Hạng cao nhất (null = không giới hạn trên); min ≤ max (E-ROOM-14)
+             */
+            max_tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
+        };
+        /** CheckoutOut */
+        CheckoutOut: {
+            /**
+             * Kind
+             * @description court: đặt sân · ticket: mua vé (T-023)
+             * @enum {string}
+             */
+            kind: "court" | "ticket";
+            /**
+             * Status
+             * @description cancelled: khách tự hủy giữ chỗ
+             * @enum {string}
+             */
+            status: "pending" | "paid" | "expired" | "cancelled";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /** Amount */
+            amount: number;
+            /** Paid Amount */
+            paid_amount: number;
+            /** Paid At */
+            paid_at: string | null;
+            /**
+             * Order Code
+             * @description Mã đơn – khách chỉ thấy mã này
+             */
+            order_code: string;
+            /**
+             * Pay Ref
+             * @description Nội dung chuyển khoản = mã đơn bỏ dấu gạch
+             */
+            pay_ref: string;
+            /** @description Chỉ có khi đang chờ thanh toán */
+            bank: components["schemas"]["BankInfo"] | null;
+            customer: components["schemas"]["WebCustomer"];
+            /**
+             * Items
+             * @description Khung sân – rỗng khi kind = ticket
+             */
+            items: components["schemas"]["WebCheckoutItem"][];
+            /** @description Chỉ khi kind = ticket: sự kiện, số vé, mã vé (có khi đã thanh toán) */
+            event: components["schemas"]["CheckoutEvent"] | null;
+        };
+        /** CollectIn */
+        CollectIn: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "cash" | "transfer";
+            /** Version */
+            version: number;
+        };
+        /** CollectQrOut */
+        CollectQrOut: {
+            /**
+             * Order Code
+             * @description Mã đơn; QR từng buổi (T-065): mã của khối
+             */
+            order_code: string;
+            /**
+             * Pay Ref
+             * @description Nội dung chuyển khoản = mã đơn / mã con bỏ gạch, vd BK20261106001 / BK2026110600102
+             */
+            pay_ref: string;
+            /**
+             * Amount
+             * @description Tổng các khối Chưa thanh toán hiện tại; 0 khi hết khối chưa thu
+             */
+            amount: number;
+            /**
+             * Status
+             * @description unpaid: còn khối chưa thu · paid: hết khối chưa thu, khối còn hiệu lực (trừ đã hủy) đều Đã thanh toán · closed: hết khối chưa thu nhưng có khối Không thu được, hoặc không có khối nào Đã thanh toán (đã hủy hết) – xử lý ở máy khác, không phải tiền về
+             * @enum {string}
+             */
+            status: "unpaid" | "paid" | "closed";
+            /**
+             * Blocks
+             * @description Số khối chưa thu
+             */
+            blocks: number;
+            /**
+             * Qr Paid
+             * @description T-072: có tiền QR về cho phạm vi QR này (đơn: đã hết khối chưa thu) từ ``since`` – popup ưu tiên báo "Đã nhận tiền". Không gửi ``since`` -> false
+             * @default false
+             */
+            qr_paid: boolean;
+            /** @description Như trang thanh toán online: ngân hàng, số TK, chủ TK, QR */
+            bank: components["schemas"]["BankInfo"];
+        };
+        /** CounterBlockIn */
+        CounterBlockIn: {
+            /** Resource Code */
+            resource_code: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+        };
+        /** CounterOrderOut */
+        CounterOrderOut: {
+            /** Order Code */
+            order_code: string;
+            /** Bookings */
+            bookings: components["schemas"]["ItemOut"][];
         };
         /** CourtOut */
         CourtOut: {
+            /** Code */
+            code: string;
             /** Name */
             name: string;
-            /** Description */
-            description?: string | null;
-            /** Surface */
-            surface?: string | null;
-            /** Image Url */
-            image_url?: string | null;
-            /**
-             * Is Active
-             * @default true
-             */
+            /** Revenue */
+            revenue: number;
+            /** Is Active */
             is_active: boolean;
+        };
+        /**
+         * CurrentMatchOut
+         * @description Trận vừa bốc (``drawn``) hoặc đang chơi (``playing``) – mốc 2.
+         */
+        CurrentMatchOut: {
+            /** No */
+            no: number;
             /**
-             * Sort Order
-             * @default 0
+             * Format
+             * @enum {string}
              */
-            sort_order: number;
-            /** Id */
-            id: number;
-            /** Slug */
-            slug: string;
+            format: "2v2" | "1v1";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "drawn" | "playing";
+            /** Team A */
+            team_a: components["schemas"]["PlayerOut"][];
+            /** Team B */
+            team_b: components["schemas"]["PlayerOut"][];
+            /** Started At */
+            started_at: string | null;
+        };
+        /**
+         * CustomerIn
+         * @description Khách của lượt đặt: đúng một trong hai – hội viên (theo mã) hoặc hồ sơ tạm.
+         */
+        CustomerIn: {
+            /** Member Code */
+            member_code?: string | null;
+            temp?: components["schemas"]["TempCustomerIn"] | null;
+        };
+        /** CustomerSignInOut */
+        CustomerSignInOut: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "member";
+            account: components["schemas"]["UserOut"];
+        };
+        /** DailyOut */
+        DailyOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Revenue */
+            revenue: number;
+        };
+        /**
+         * EventCard
+         * @description Thẻ sự kiện sắp tới (T-045) – không danh sách người mua.
+         */
+        EventCard: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Names */
+            resource_names: string[];
+            /** Ticket Price */
+            ticket_price: number;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Taken
+             * @description Vé đã có + ghế đang giữ online
+             */
+            taken: number;
+            /** Remaining */
+            remaining: number;
+            /** Can Buy */
+            can_buy: boolean;
+            /**
+             * Reason
+             * @description full = Đã đủ chỗ · free = Đăng ký tại quầy (giá 0) · online_off = đặt online tạm ngưng
+             */
+            reason: ("full" | "free" | "online_off") | null;
+            /**
+             * My Ticket Count
+             * @description "Bạn có n vé"
+             */
+            my_ticket_count: number;
+        };
+        /** EventCheckoutIn */
+        EventCheckoutIn: {
+            /** Event Code */
+            event_code: string;
+            /**
+             * Seats
+             * @description 1..min(còn lại, 10) – sai -> 422 E-WEB-1
+             */
+            seats: number;
+            /**
+             * Full Name
+             * @default
+             */
+            full_name: string;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+            /** Phone Token */
+            phone_token?: string | null;
+            /**
+             * As Member
+             * @description Hội viên liên kết: Họ tên + SĐT lấy từ hồ sơ, không cần phone_token
+             * @default false
+             */
+            as_member: boolean;
+        };
+        /** FormatIn */
+        FormatIn: {
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "2v2" | "1v1";
+            /** Version */
+            version: number;
+        };
+        /**
+         * FrontDeskBookingIn
+         * @description Một lần bấm Đặt sân = một đơn (T-019 phương án A).
+         *
+         *     ``blocks``: 1–20 khối cùng ``date``. Vẫn nhận dạng cũ một khối
+         *     (``resource_code``, ``start_hour``, ``end_hour``) – không gửi cả hai dạng.
+         */
+        FrontDeskBookingIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Blocks */
+            blocks?: components["schemas"]["CounterBlockIn"][] | null;
+            /** Resource Code */
+            resource_code?: string | null;
+            /** Start Hour */
+            start_hour?: number | null;
+            /** End Hour */
+            end_hour?: number | null;
+            customer: components["schemas"]["CustomerIn"];
+        };
+        /** GoogleSignInIn */
+        GoogleSignInIn: {
+            /**
+             * Credential
+             * @description ID token của Google
+             */
+            credential: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /** LoginIn */
-        LoginIn: {
+        /** HeatCellOut */
+        HeatCellOut: {
+            /** Booked Hours */
+            booked_hours: number;
             /**
-             * Email
-             * Format: email
+             * Open Hours
+             * @description 0 ⇒ không sân nào mở, ô hiện “–”
              */
-            email: string;
-            /** Password */
-            password: string;
+            open_hours: number;
         };
-        /** ManualPaymentIn */
-        ManualPaymentIn: {
-            /** @default cash */
-            method: components["schemas"]["PaymentMethod"];
-            /** Amount */
-            amount?: number | null;
+        /** HeatColumnOut */
+        HeatColumnOut: {
+            /**
+             * Date
+             * @description null khi mode = weekday
+             */
+            date: string | null;
+            /**
+             * Weekday
+             * @description 0 = T2 … 6 = CN
+             */
+            weekday: number;
+            /** Is Today */
+            is_today: boolean;
+        };
+        /** HeatmapOut */
+        HeatmapOut: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "day" | "weekday";
+            /** Columns */
+            columns: components["schemas"]["HeatColumnOut"][];
+            /**
+             * Hours
+             * @description Giờ bắt đầu khung 1 giờ, vd 5 = 05h–06h
+             */
+            hours: number[];
+            /**
+             * Cells
+             * @description cells[hàng giờ][cột]
+             */
+            cells: components["schemas"]["HeatCellOut"][][];
+        };
+        /** InviteIn */
+        InviteIn: {
+            /**
+             * Phone
+             * @description SĐT **đầy đủ** của hội viên được mời (chuẩn hóa như đăng nhập)
+             */
+            phone: string;
+            /** Version */
+            version: number;
+        };
+        /** ItemCustomer */
+        ItemCustomer: {
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string | null;
+            /**
+             * Profile Label
+             * @description "Hồ sơ tạm" hoặc "Hội viên (HV0087 · Hạng Khá)"
+             */
+            profile_label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "member" | "temp";
+            /** Member Code */
+            member_code: string | null;
+            /** Tier */
+            tier: string | null;
         };
         /**
-         * PaymentMethod
-         * @enum {string}
+         * ItemMove
+         * @description Một lần đổi: lịch cũ (gạch) -> lịch mới; giờ theo giờ VN.
          */
-        PaymentMethod: "cash" | "bank_transfer" | "payos" | "vnpay" | "momo";
-        /** PaymentOut */
-        PaymentOut: {
-            /** Id */
-            id: number;
-            /** Booking Id */
-            booking_id: number;
-            method: components["schemas"]["PaymentMethod"];
-            status: components["schemas"]["PaymentStatus"];
-            /** Amount */
-            amount: number;
-            /** Provider Ref */
-            provider_ref: string | null;
+        ItemMove: {
+            /** From Code */
+            from_code: string;
+            /** From Name */
+            from_name: string;
+            /** To Code */
+            to_code: string;
+            /** To Name */
+            to_name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** From Start Time */
+            from_start_time: string;
+            /** From End Time */
+            from_end_time: string;
+            /**
+             * Start Time
+             * @description Giờ của lịch mới
+             */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /**
+             * Moved At
+             * Format: date-time
+             */
+            moved_at: string;
+            /** Moved By */
+            moved_by: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * ItemOut
+         * @description Thông tin booking / vé (SRS IV.5) – không SĐT đầy đủ, không id nội bộ.
+         */
+        ItemOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "booking" | "ticket";
+            /**
+             * Code
+             * @description Booking: mã con {mã đơn}-NN · vé: mã vé
+             */
+            code: string;
+            /**
+             * Order Code
+             * @description Booking: mã đơn
+             */
+            order_code?: string | null;
+            /** Version */
+            version: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "online";
+            customer: components["schemas"]["ItemCustomer"];
+            schedule: components["schemas"]["ItemSchedule"];
+            payment: components["schemas"]["ItemPayment"];
+            /** Price Breakdown */
+            price_breakdown?: components["schemas"]["QuoteItem"][];
+            /** Note */
+            note?: string | null;
+            /** Created By */
+            created_by: string;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Actions */
+            actions: ("collect" | "uncollectible" | "cancel" | "move")[];
+            /**
+             * Moves
+             * @description Lịch sử đổi sân, cũ trước mới sau; rỗng khi chưa đổi
+             */
+            moves?: components["schemas"]["ItemMove"][];
+            /**
+             * Cancel Phase
+             * @description Lúc này so với giờ chơi, để popup chọn câu cảnh báo (T-052); null: không hủy được
+             */
+            cancel_phase?: ("before" | "playing" | "past") | null;
+        };
+        /** ItemPayment */
+        ItemPayment: {
+            /** Amount */
+            amount: number;
+            /**
+             * Payment Status
+             * @enum {string}
+             */
+            payment_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
+            /** Payment Method */
+            payment_method?: ("cash" | "transfer" | "online_transfer") | null;
+            /** Paid At */
+            paid_at?: string | null;
+            /** Collected By */
+            collected_by?: string | null;
+            /** Uncollectible Reason */
+            uncollectible_reason?: string | null;
+            /** Marked By */
+            marked_by?: string | null;
+            /** Marked At */
+            marked_at?: string | null;
+            /** Cancel Reason */
+            cancel_reason?: string | null;
+            /** Cancelled At */
+            cancelled_at?: string | null;
+            /** Cancelled By Label */
+            cancelled_by_label?: string | null;
+            /**
+             * Refund Amount
+             * @description Số Admin xác nhận hoàn tay (T-051)
+             * @default 0
+             */
+            refund_amount: number;
+        };
+        /** ItemSchedule */
+        ItemSchedule: {
+            /** Resource Codes */
+            resource_codes: string[];
+            /** Resource Names */
+            resource_names: string[];
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            session?: components["schemas"]["ItemSessionRef"] | null;
+        };
+        /** ItemSessionRef */
+        ItemSessionRef: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+        };
+        /** LineupIn */
+        LineupIn: {
+            /**
+             * Team A
+             * @description Id dòng thành viên phòng – 2 người (2 vs 2) / 1 người (1 vs 1)
+             */
+            team_a: number[];
+            /**
+             * Team B
+             * @description Như team_a
+             */
+            team_b: number[];
+            /** Version */
+            version: number;
         };
         /**
-         * PaymentStatus
-         * @enum {string}
+         * LookupEvent
+         * @description Tra cứu đơn vé (T-023 AC21): sự kiện + vé (rỗng khi chưa thanh toán).
          */
-        PaymentStatus: "pending" | "succeeded" | "failed" | "refunded";
+        LookupEvent: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Names */
+            resource_names: string[];
+            /** Seats */
+            seats: number;
+            /** Ticket Price */
+            ticket_price: number;
+            /** Tickets */
+            tickets: components["schemas"]["LookupTicket"][];
+        };
+        /** LookupIn */
+        LookupIn: {
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+        };
+        /** LookupItemOut */
+        LookupItemOut: {
+            /**
+             * Code
+             * @description Mã con – FE không hiện cho khách
+             */
+            code: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Hours */
+            hours: number;
+            /** Amount */
+            amount: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "paid" | "unpaid" | "uncollectible" | "cancelled" | "pending" | "expired";
+        };
+        /**
+         * LookupOut
+         * @description Tra cứu bằng mã đơn **hoặc** mã con + SĐT -> cả đơn (T-019 AC3). Đơn vé (T-023 AC21): mã
+         *     đơn vé hoặc mã vé ``{mã sự kiện}-Vnn`` -> ``kind = ticket`` + khối ``event``.
+         */
+        LookupOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "court" | "ticket";
+            /**
+             * Order Code
+             * @description Mã đơn; vé đăng ký tại quầy tra theo mã vé -> mã vé
+             */
+            order_code: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "paid" | "unpaid" | "uncollectible" | "cancelled" | "pending" | "expired";
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Hours
+             * @description Tổng giờ của đơn
+             */
+            hours: number;
+            /** Customer Name */
+            customer_name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+            /**
+             * Amount
+             * @description Tổng tiền của đơn
+             */
+            amount: number;
+            /** Payment Method Label */
+            payment_method_label: string | null;
+            /** Paid At */
+            paid_at: string | null;
+            /**
+             * Items
+             * @description Khối sân – rỗng khi kind = ticket
+             */
+            items: components["schemas"]["LookupItemOut"][];
+            pending?: components["schemas"]["LookupPendingOut"] | null;
+            /** @description Chỉ khi kind = ticket: sự kiện, số vé, mã vé + trạng thái */
+            event?: components["schemas"]["LookupEvent"] | null;
+        };
+        /** LookupPendingOut */
+        LookupPendingOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /** Pay Ref */
+            pay_ref: string;
+            /** Amount */
+            amount: number;
+            bank: components["schemas"]["BankInfo"] | null;
+        };
+        /** LookupTicket */
+        LookupTicket: {
+            /** Code */
+            code: string;
+            /**
+             * Pay Status
+             * @enum {string}
+             */
+            pay_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
+        };
+        /** MatchList */
+        MatchList: {
+            /**
+             * Total
+             * @description Tổng trận đã lưu (mọi thể thức)
+             */
+            total: number;
+            /** Count 2V2 */
+            count_2v2: number;
+            /** Count 1V1 */
+            count_1v1: number;
+            /**
+             * Items
+             * @description Mới nhất trên cùng (lọc theo ``format``)
+             */
+            items: components["schemas"]["MatchRow"][];
+        };
+        /** MatchRow */
+        MatchRow: {
+            /**
+             * No
+             * @description Trận #n (đánh số theo phòng)
+             */
+            no: number;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "2v2" | "1v1";
+            /** Started At */
+            started_at: string | null;
+            /** Ended At */
+            ended_at: string | null;
+            /**
+             * Team A
+             * @description Tên hiển thị lúc bốc
+             */
+            team_a: string[];
+            /** Team B */
+            team_b: string[];
+            /** Score A */
+            score_a: number;
+            /** Score B */
+            score_b: number;
+            /**
+             * Winner
+             * @enum {string}
+             */
+            winner: "a" | "b";
+        };
+        /** MemberBooking */
+        MemberBooking: {
+            /**
+             * Code
+             * @description Mã con của khối (quản trị)
+             */
+            code: string;
+            /**
+             * Order Code
+             * @description Mã đơn – khách / khu hội viên chỉ hiện mã này
+             */
+            order_code: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Amount */
+            amount: number;
+            /**
+             * Is Cancelled
+             * @description Nhãn “Đã hủy” (T-051)
+             * @default false
+             */
+            is_cancelled: boolean;
+        };
+        /**
+         * MemberCalendarOut
+         * @description Như ``WebCalendarOut``; mỗi ô thêm ``mine`` / ``order_code`` (chỉ ô của mình) /
+         *     ``has_ticket``. Ô của người khác vẫn chỉ ``state = booked``.
+         */
+        MemberCalendarOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /**
+             * Online Enabled
+             * @description Cùng điều kiện với /web/booking/calendar
+             */
+            online_enabled: boolean;
+            /** Hold Minutes */
+            hold_minutes: number;
+            /** Columns */
+            columns: number[];
+            /** Resources */
+            resources: components["schemas"]["MemberCalendarResource"][];
+        };
+        /** MemberCalendarResource */
+        MemberCalendarResource: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Slots */
+            slots: components["schemas"]["MemberSlot"][];
+        };
+        /**
+         * MemberCan
+         * @description Quyền của người xem – FE khóa ô Trạng thái khi ``edit_status = False``.
+         */
+        MemberCan: {
+            /** Edit Status */
+            edit_status: boolean;
+            /**
+             * Manage Rackets
+             * @description Thấy nút Danh mục vợt (thêm / sửa / ẩn)
+             */
+            manage_rackets: boolean;
+        };
+        /** MemberCounts */
+        MemberCounts: {
+            /** All */
+            all: number;
+            /** Member */
+            member: number;
+            /** Temp */
+            temp: number;
+        };
+        /**
+         * MemberCreateIn
+         * @description Thêm hội viên. Độ dài, định dạng kiểm ở service (mã lỗi SRS).
+         */
+        MemberCreateIn: {
+            /** Full Name */
+            full_name: string;
+            /** Phone */
+            phone: string;
+            /** Gender */
+            gender?: ("male" | "female") | null;
+            /**
+             * Tier
+             * @description Trình độ; bỏ trống = chưa xếp hạng
+             */
+            tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh (1900 → hôm nay, sai -> E-001); null = bỏ trống
+             */
+            birth_date?: string | null;
+            /**
+             * Racket
+             * @description Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null
+             */
+            racket?: string | null;
+        };
+        /**
+         * MemberCreatedOut
+         * @description Thêm hội viên (T-026): kèm thông tin tài khoản đăng nhập – **không** có mật khẩu.
+         */
+        MemberCreatedOut: {
+            /** Ref */
+            ref: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "member" | "temp";
+            /** Member Code */
+            member_code: string | null;
+            /** Full Name */
+            full_name: string;
+            /** Phone */
+            phone: string;
+            /** Gender */
+            gender: ("male" | "female") | null;
+            /** Tier */
+            tier: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
+            /** Racket */
+            racket: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Bookings */
+            bookings: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Version
+             * @description Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4
+             */
+            version: number;
+            /**
+             * Source
+             * @description Người tạo: ``counter`` = quầy / Admin, ``self_register`` = Tự đăng ký online (T-021; hồ sơ tạm luôn ``counter``)
+             * @enum {string}
+             */
+            source: "counter" | "self_register";
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
+            /**
+             * Account Created
+             * @description True: SĐT chưa có tài khoản -> vừa tạo, mật khẩu ban đầu = SĐT, phải đổi trước ``initial_password_expires_at``. False: SĐT đã có tài khoản – giữ mật khẩu hiện có
+             */
+            account_created: boolean;
+            /**
+             * Initial Password Expires At
+             * @description Hạn đổi mật khẩu ban đầu (chỉ khi ``account_created``); quá hạn -> E-AUTH-30, dùng Quên mật khẩu
+             */
+            initial_password_expires_at: string | null;
+        };
+        /**
+         * MemberDetail
+         * @description Chi tiết hồ sơ (form Sửa), mỗi lần xem ghi nhật ký ``member.view``.
+         */
+        MemberDetail: {
+            /** Ref */
+            ref: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "member" | "temp";
+            /** Member Code */
+            member_code: string | null;
+            /** Full Name */
+            full_name: string;
+            /** Phone */
+            phone: string;
+            /** Gender */
+            gender: ("male" | "female") | null;
+            /** Tier */
+            tier: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
+            /** Racket */
+            racket: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Bookings */
+            bookings: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Version
+             * @description Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4
+             */
+            version: number;
+            /**
+             * Source
+             * @description Người tạo: ``counter`` = quầy / Admin, ``self_register`` = Tự đăng ký online (T-021; hồ sơ tạm luôn ``counter``)
+             * @enum {string}
+             */
+            source: "counter" | "self_register";
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
+            /** Note */
+            note: string | null;
+            /**
+             * Nickname
+             * @description Biệt danh hội viên tự nhập ở khu hội viên (chỉ xem)
+             */
+            nickname: string | null;
+            /**
+             * Email
+             * @description Email hội viên tự nhập ở khu hội viên (chỉ xem)
+             */
+            email: string | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh; null = chưa nhập
+             */
+            birth_date: string | null;
+            /** Total Minutes */
+            total_minutes: number;
+            /**
+             * Recent Bookings
+             * @description 5 lượt đặt gần nhất
+             */
+            recent_bookings: components["schemas"]["MemberBooking"][];
+            can: components["schemas"]["MemberCan"];
+        };
+        /** MemberListOut */
+        MemberListOut: {
+            /** Items */
+            items: components["schemas"]["MemberRow"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+            /** @description Đếm theo loại (theo q/status/tier, bỏ qua kind) */
+            counts: components["schemas"]["MemberCounts"];
+            can: components["schemas"]["MemberCan"];
+        };
+        /**
+         * MemberMeIn
+         * @description Độ dài / định dạng kiểm ở server để trả ``fields`` (E-HV-1/10/11) – chuỗi rỗng = null.
+         */
+        MemberMeIn: {
+            /** Full Name */
+            full_name: string;
+            /** Nickname */
+            nickname?: string | null;
+            /** Email */
+            email?: string | null;
+            /**
+             * Tier
+             * @description Hạng tự chọn (T-042): một trong 8 bậc hoặc null (Chưa xếp hạng); giá trị lạ -> 422 (fields: tier, E-HV-1). Không gửi = giữ hạng hiện tại
+             */
+            tier?: string | null;
+            /**
+             * Gender
+             * @description Giới tính tự chọn: male / female hoặc null (Chưa chọn); giá trị lạ -> 422 (fields: gender, E-HV-1). Không gửi = giữ nguyên
+             */
+            gender?: ("male" | "female") | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh (1900 → hôm nay, sai -> 422 fields: birth_date, E-HV-1); null = xóa. Không gửi = giữ nguyên
+             */
+            birth_date?: string | null;
+            /**
+             * Racket
+             * @description Tên vợt tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự, rỗng = null; không dùng danh mục
+             */
+            racket?: string | null;
+            /** Show On Records */
+            show_on_records: boolean;
+            /** Version */
+            version: number;
+        };
+        /**
+         * MemberMeOut
+         * @description Hồ sơ của chính hội viên đang đăng nhập (SĐT, email đầy đủ – chỉ chính chủ thấy).
+         */
+        MemberMeOut: {
+            /** Member Code */
+            member_code: string;
+            /** Full Name */
+            full_name: string;
+            /**
+             * Short Name
+             * @description Từ cuối của Họ tên (nút tài khoản, chữ cái avatar)
+             */
+            short_name: string;
+            /** Nickname */
+            nickname: string | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Phone
+             * @description Đầy đủ 0xxxxxxxxx – FE nhóm 4-3-3
+             */
+            phone: string;
+            /**
+             * Joined At
+             * Format: date
+             * @description Ngày tạo hồ sơ hội viên (giờ VN)
+             */
+            joined_at: string;
+            /**
+             * Tier
+             * @description Trình độ = Hạng (8 bậc); null = chưa xếp hạng
+             */
+            tier: string | null;
+            /**
+             * Gender
+             * @description null = Chưa chọn
+             */
+            gender: ("male" | "female") | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh; null = chưa nhập
+             */
+            birth_date: string | null;
+            /**
+             * Racket
+             * @description Tên vợt đang dùng (tự nhập)
+             */
+            racket: string | null;
+            /** Show On Records */
+            show_on_records: boolean;
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
+            /**
+             * Record Kmh
+             * @description Kỷ lục tốc độ cú đập mọi thời gian (km/h); null: chưa có số đo
+             */
+            record_kmh?: number | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * MemberOrder
+         * @description Đơn đặt sân của chính hội viên (T-023 AC2) – không SĐT.
+         */
+        MemberOrder: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "online";
+            /**
+             * Pay Status
+             * @description Chung của đơn, bỏ qua khối đã hủy: còn khối chưa thu -> unpaid; tất cả đã thu -> paid; còn lại -> uncollectible; hủy hết -> cancelled
+             * @enum {string}
+             */
+            pay_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
+            /** Amount */
+            amount: number;
+            /** Items */
+            items: components["schemas"]["MemberOrderItem"][];
+        };
+        /** MemberOrderItem */
+        MemberOrderItem: {
+            /**
+             * Code
+             * @description Mã con – không hiện; dùng gọi /member-area/payments/{code}
+             */
+            code: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Hours */
+            hours: number;
+            /** Amount */
+            amount: number;
+            /**
+             * Pay Status
+             * @enum {string}
+             */
+            pay_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
+        };
+        /**
+         * MemberRow
+         * @description Một dòng danh sách – SĐT đầy đủ; ``ref`` = mã HV hoặc mã tham chiếu hồ sơ tạm.
+         */
+        MemberRow: {
+            /** Ref */
+            ref: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "member" | "temp";
+            /** Member Code */
+            member_code: string | null;
+            /** Full Name */
+            full_name: string;
+            /** Phone */
+            phone: string;
+            /** Gender */
+            gender: ("male" | "female") | null;
+            /** Tier */
+            tier: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
+            /** Racket */
+            racket: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Bookings */
+            bookings: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Version
+             * @description Gửi lại khi sửa (PATCH) – khóa lạc quan, T-020 AC4
+             */
+            version: number;
+            /**
+             * Source
+             * @description Người tạo: ``counter`` = quầy / Admin, ``self_register`` = Tự đăng ký online (T-021; hồ sơ tạm luôn ``counter``)
+             * @enum {string}
+             */
+            source: "counter" | "self_register";
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
+        };
+        /**
+         * MemberSearchItem
+         * @description Một dòng kết quả tìm hội viên – SĐT đầy đủ (màn quản trị), không lộ id nội bộ.
+         */
+        MemberSearchItem: {
+            /**
+             * Ref
+             * @description Mã tham chiếu để chọn hội viên (= mã hội viên)
+             */
+            ref: string;
+            /** Member Code */
+            member_code: string;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string;
+            /** Tier */
+            tier: string | null;
+            /** Is Active */
+            is_active: boolean;
+        };
+        /**
+         * MemberSlot
+         * @description Ô lịch hội viên: thêm đánh dấu của chính mình. Không có thông tin của người khác.
+         */
+        MemberSlot: {
+            /** Start Hour */
+            start_hour: number;
+            /**
+             * State
+             * @description held (T-075): đang có người giữ chỗ chờ thanh toán – không chọn được, mở lại nếu họ không thanh toán
+             * @enum {string}
+             */
+            state: "free" | "booked" | "event" | "closed" | "held";
+            /**
+             * Expires At
+             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ – quá hạn là ô trống lại ngay
+             */
+            expires_at?: string | null;
+            /** Price */
+            price?: number | null;
+            /** Band */
+            band?: ("offpeak" | "partial" | "peak") | null;
+            /** Taken */
+            taken?: number | null;
+            /** Capacity */
+            capacity?: number | null;
+            /**
+             * Event Code
+             * @description Ô sự kiện: mã sự kiện (mở chi tiết / mua vé, T-023)
+             */
+            event_code?: string | null;
+            /**
+             * Mine
+             * @description Ô thuộc booking của chính hội viên
+             * @default false
+             */
+            mine: boolean;
+            /**
+             * Holding
+             * @description Ô đang giữ chỗ của chính hội viên (chờ thanh toán)
+             * @default false
+             */
+            holding: boolean;
+            /**
+             * Order Code
+             * @description Mã đơn – khi mine / holding
+             */
+            order_code?: string | null;
+            /**
+             * Has Ticket
+             * @description Ô sự kiện mà hội viên đã có vé
+             * @default false
+             */
+            has_ticket: boolean;
+        };
+        /**
+         * MemberUpdateIn
+         * @description Chỉ gửi trường muốn đổi; không đổi SĐT. Hồ sơ tạm: chỉ ``full_name``, ``gender``
+         *     (không có ngày sinh).
+         *
+         *     ``tier: null`` = bỏ xếp hạng; trạng thái: chỉ Admin.
+         */
+        MemberUpdateIn: {
+            /** Full Name */
+            full_name?: string | null;
+            /** Gender */
+            gender?: ("male" | "female") | null;
+            /**
+             * Birth Date
+             * @description Ngày sinh (1900 → hôm nay, sai -> E-001); null = bỏ trống
+             */
+            birth_date?: string | null;
+            /** Tier */
+            tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
+            /**
+             * Racket
+             * @description Tự nhập (T-033): gộp khoảng trắng, tối đa 100 ký tự (E-001), rỗng = null
+             */
+            racket?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /**
+             * Version
+             * @description ``version`` lúc mở hộp Sửa; lệch -> 409 E-MEM-9
+             */
+            version: number;
+        };
+        /** MenuOrderIn */
+        MenuOrderIn: {
+            /** Order */
+            order: ("baoCao" | "san" | "datSan" | "donDatSan" | "theoDoiSan" | "hoiVien" | "lichSu" | "kyLuc" | "thanhToan" | "nhanVien")[];
+        };
+        /** MenuOrderOut */
+        MenuOrderOut: {
+            /** Order */
+            order: ("baoCao" | "san" | "datSan" | "donDatSan" | "theoDoiSan" | "hoiVien" | "lichSu" | "kyLuc" | "thanhToan" | "nhanVien")[];
+        };
+        /** MetricOut */
+        MetricOut: {
+            /** Current */
+            current: number;
+            /** Previous */
+            previous: number;
+        };
+        /** MonitorCourt */
+        MonitorCourt: {
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Rooms
+             * @description Theo giờ bắt đầu; rỗng = Không có phòng
+             */
+            rooms: components["schemas"]["MonitorRoom"][];
+        };
+        /** MonitorDay */
+        MonitorDay: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Courts
+             * @description Theo thứ tự sân; sân ngừng hoạt động chỉ có khi có phòng trong ngày
+             */
+            courts: components["schemas"]["MonitorCourt"][];
+        };
+        /** MonitorMatch */
+        MonitorMatch: {
+            /** No */
+            no: number;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "2v2" | "1v1";
+            /**
+             * Status
+             * @description drawn: vừa bốc · playing: đang đánh · finished: đã ghi kết quả
+             * @enum {string}
+             */
+            status: "drawn" | "playing" | "finished";
+            /** Team A */
+            team_a: components["schemas"]["MonitorPerson"][];
+            /** Team B */
+            team_b: components["schemas"]["MonitorPerson"][];
+            /**
+             * Score A
+             * @description Kết quả trận do phòng ghi; null khi chưa xong
+             */
+            score_a: number | null;
+            /** Score B */
+            score_b: number | null;
+            /** Winner */
+            winner: ("a" | "b") | null;
+            /** Started At */
+            started_at: string | null;
+            /** Ended At */
+            ended_at: string | null;
+        };
+        /** MonitorMember */
+        MonitorMember: {
+            /** Customer Id */
+            customer_id: number;
+            /** Full Name */
+            full_name: string;
+            /** Nickname */
+            nickname: string | null;
+            /** Member Code */
+            member_code: string | null;
+            /**
+             * Tier
+             * @description Hạng (trình độ); null = chưa xếp hạng
+             */
+            tier: string | null;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "host" | "member";
+            /**
+             * Queue State
+             * @description Hàng chờ / Đang chơi
+             * @enum {string}
+             */
+            queue_state: "waiting" | "playing";
+        };
+        /**
+         * MonitorPerson
+         * @description Người chơi trên màn Theo dõi sân: **tên thật + biệt danh + mã HV** (ẩn danh T-030 không áp
+         *     cho người có quyền ``play_rooms.monitor``). Không có SĐT.
+         */
+        MonitorPerson: {
+            /** Customer Id */
+            customer_id: number;
+            /** Full Name */
+            full_name: string;
+            /** Nickname */
+            nickname: string | null;
+            /** Member Code */
+            member_code: string | null;
+            /**
+             * Tier
+             * @description Hạng (trình độ); null = chưa xếp hạng
+             */
+            tier: string | null;
+            /** Avatar Url */
+            avatar_url: string | null;
+        };
+        /** MonitorRankingRow */
+        MonitorRankingRow: {
+            /** Customer Id */
+            customer_id: number;
+            /** Full Name */
+            full_name: string;
+            /** Nickname */
+            nickname: string | null;
+            /** Member Code */
+            member_code: string | null;
+            /**
+             * Tier
+             * @description Hạng (trình độ); null = chưa xếp hạng
+             */
+            tier: string | null;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Rank
+             * @description Đồng hạng khi bằng cả số trận thắng và tỉ lệ thắng
+             */
+            rank: number;
+            /** Wins */
+            wins: number;
+            /** Losses */
+            losses: number;
+            /** Played */
+            played: number;
+            /**
+             * Win Rate
+             * @description 0–1, làm tròn 4 chữ số
+             */
+            win_rate: number;
+        };
+        /** MonitorRoom */
+        MonitorRoom: {
+            /** Room Id */
+            room_id: number;
+            /** Booking Code */
+            booking_code: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Status
+             * @description upcoming: Sắp tới · playing: Đang chơi · ended: Đã kết thúc · cancelled: Booking đã hủy
+             * @enum {string}
+             */
+            status: "upcoming" | "playing" | "ended" | "cancelled";
+            host: components["schemas"]["MonitorPerson"];
+            /** Member Count */
+            member_count: number;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "2v2" | "1v1";
+            /** Min Tier */
+            min_tier: string | null;
+            /** Max Tier */
+            max_tier: string | null;
+            /** Matches Finished */
+            matches_finished: number;
+            /** @description Trận vừa bốc / đang đánh */
+            current_match: components["schemas"]["MonitorMatch"] | null;
+            /** @description Trận đã xong gần nhất, kèm tỉ số */
+            last_match: components["schemas"]["MonitorMatch"] | null;
+        };
+        /** MonitorRoomDetail */
+        MonitorRoomDetail: {
+            room: components["schemas"]["MonitorRoom"];
+            /** Members */
+            members: components["schemas"]["MonitorMember"][];
+            /**
+             * Matches
+             * @description Mọi trận, mới nhất trên cùng
+             */
+            matches: components["schemas"]["MonitorMatch"][];
+            /** Ranking */
+            ranking: components["schemas"]["MonitorRankingRow"][];
+        };
+        /**
+         * MoveIn
+         * @description Đổi sân: cùng ngày, cùng giờ; giá + tiền + mã giữ nguyên.
+         */
+        MoveIn: {
+            /** Resource Code */
+            resource_code: string;
+            /** Version */
+            version: number;
+            /**
+             * Reason
+             * @description Bắt buộc, đúng một trong MOVE_REASONS; sai / thiếu -> 422 E-001
+             * @enum {unknown}
+             */
+            reason?: "Sân hỏng / bảo trì" | "Ngừng sân";
+        };
+        /** MoveTarget */
+        MoveTarget: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Type Name
+             * @description Loại sân – đổi khác loại vẫn giữ giá đã chốt
+             */
+            type_name: string;
+        };
+        /** MyBookingsOut */
+        MyBookingsOut: {
+            /** Items */
+            items: components["schemas"]["MemberBooking"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+        };
+        /**
+         * MyMemberOut
+         * @description Thẻ Hội viên ở /tai-khoan – chỉ hồ sơ khớp SĐT của chính người đăng nhập.
+         */
+        MyMemberOut: {
+            /** Member Code */
+            member_code: string;
+            /** Full Name */
+            full_name: string;
+            /** Tier */
+            tier: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Gender */
+            gender: ("male" | "female") | null;
+            /** Racket */
+            racket: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Bookings */
+            bookings: number;
+            /** Total Minutes */
+            total_minutes: number;
+        };
+        /**
+         * MySessionOut
+         * @description Một nơi đang đăng nhập (Hồ sơ của tôi): không trả IP.
+         */
+        MySessionOut: {
+            /** Id */
+            id: number;
+            /**
+             * Device Type
+             * @enum {string}
+             */
+            device_type: "desktop" | "mobile" | "tablet" | "unknown";
+            /** Os */
+            os: string | null;
+            /** Browser */
+            browser: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Is Current */
+            is_current: boolean;
+        };
+        /** MySpeedRecord */
+        MySpeedRecord: {
+            /** Id */
+            id: number;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /** Resource Code */
+            resource_code: string | null;
+            /** Resource Name */
+            resource_name: string | null;
+            /**
+             * Status
+             * @description pending: “Chờ duyệt” · rejected: “Bị từ chối: {lý do}”
+             * @enum {string}
+             */
+            status: "approved" | "pending" | "rejected";
+            /** Reject Reason */
+            reject_reason: string | null;
+            video: components["schemas"]["VideoOut"] | null;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /**
+             * Can Withdraw
+             * @description true khi đang chờ duyệt (nút “Rút lại”)
+             */
+            can_withdraw: boolean;
+        };
+        /** MySpeedRecordList */
+        MySpeedRecordList: {
+            /**
+             * Items
+             * @description Bản tôi đã gửi, mới gửi trước (tối đa 50)
+             */
+            items: components["schemas"]["MySpeedRecord"][];
+            /**
+             * Resources
+             * @description Sân đang hoạt động (hộp “Gửi cú đập”)
+             */
+            resources: components["schemas"]["ResourceOption"][];
+            /**
+             * Daily Limit
+             * @description Số lượt gửi tối đa / ngày
+             */
+            daily_limit: number;
+        };
+        /** MyTicket */
+        MyTicket: {
+            /** Code */
+            code: string;
+            /**
+             * Pay Status
+             * @enum {string}
+             */
+            pay_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
+        };
+        /** NextCodeOut */
+        NextCodeOut: {
+            /**
+             * Member Code
+             * @description Chỉ để hiển thị – mã thật cấp lúc lưu
+             */
+            member_code: string;
+        };
+        /** NextStaffCodeOut */
+        NextStaffCodeOut: {
+            /**
+             * Staff Code
+             * @description Mã dự kiến của NV kế tiếp – có thể lệch nếu tạo đồng thời
+             */
+            staff_code: string;
+        };
+        /** NotificationList */
+        NotificationList: {
+            /** Items */
+            items: components["schemas"]["NotificationOut"][];
+            /**
+             * Unread Count
+             * @description Số chưa đọc (30 ngày) – chấm số ở menu
+             */
+            unread_count: number;
+        };
+        /** NotificationOut */
+        NotificationOut: {
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @description room.invited · room.join_requested · room.join_approved · room.join_rejected · room.kicked · room.host_assigned · record.approved · record.rejected (T-047) · booking.cancelled · room.cancelled (T-051)
+             */
+            kind: string;
+            /**
+             * Text
+             * @description Câu hiển thị, vd. “Minh mời bạn vào phòng Sân 1 · 18h–19h.”
+             */
+            text: string;
+            /**
+             * Link
+             * @description Đường dẫn trong web, vd. /hoi-vien/phong/12
+             */
+            link: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Read */
+            read: boolean;
+        };
+        /** OnlineSlotIn */
+        OnlineSlotIn: {
+            /** Resource Code */
+            resource_code: string;
+            /** Start Hour */
+            start_hour: number;
+        };
+        /** OrderCancelIn */
+        OrderCancelIn: {
+            /**
+             * Reason
+             * @description Bắt buộc, tối đa 200 ký tự
+             * @default
+             */
+            reason: string;
+            /**
+             * Refund Confirmed
+             * @default false
+             */
+            refund_confirmed: boolean;
+            /**
+             * Codes
+             * @description Mã con lấy từ xem trước
+             */
+            codes: string[];
+        };
+        /** OrderCancelOut */
+        OrderCancelOut: {
+            /** Cancelled */
+            cancelled: string[];
+            /** Skipped */
+            skipped: components["schemas"]["CancelSkipped"][];
+            /** Refund Total */
+            refund_total: number;
+        };
+        /** OrderCollectIn */
+        OrderCollectIn: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "cash" | "transfer";
+        };
+        /** OrderCollectOut */
+        OrderCollectOut: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Collected
+             * @description Mã con vừa thu
+             */
+            collected: string[];
+            /**
+             * Amount
+             * @description Tổng tiền vừa thu
+             */
+            amount: number;
+            /**
+             * Bookings
+             * @description Mọi khối của đơn sau khi thu
+             */
+            bookings: components["schemas"]["ItemOut"][];
+        };
+        /** OrderCountsOut */
+        OrderCountsOut: {
+            all: components["schemas"]["RecurringCounts"];
+            single: components["schemas"]["RecurringCounts"];
+            recurring: components["schemas"]["RecurringCounts"];
+        };
+        /** OrderListOut */
+        OrderListOut: {
+            /** Items */
+            items: components["schemas"]["OrderOut"][];
+            /** @description Loại × trạng thái theo q + ngày */
+            counts: components["schemas"]["OrderCountsOut"];
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * OrderOut
+         * @description Một đơn đặt sân (quầy / online / định kỳ), không gồm vé. SĐT đầy đủ như các màn quản trị
+         *     khác (người dùng chốt 2026-11-09); quyền ``booking.orders.view``.
+         */
+        OrderOut: {
+            /** Order Code */
+            order_code: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Weekdays
+             * @description ISO 1 = T2 … 7 = CN (các thứ có buổi)
+             */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /**
+             * Date From
+             * Format: date
+             * @description Ngày buổi đầu
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             * @description Ngày buổi cuối
+             */
+            date_to: string;
+            /** Sessions */
+            sessions: number;
+            /** Original Amount */
+            original_amount: number;
+            /** Discount Pct */
+            discount_pct: number;
+            /** Discount Amount */
+            discount_amount: number;
+            /**
+             * Total
+             * @description Phải thu (sau giảm)
+             */
+            total: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unpaid" | "paid" | "uncollectible" | "cancelled";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string;
+            /** Phone */
+            phone: string;
+            /**
+             * Kind
+             * @description single = đơn ngày · recurring
+             * @enum {string}
+             */
+            kind: "single" | "recurring";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "online";
+            /**
+             * Member Code
+             * @description Mã HV khi khách là hội viên
+             */
+            member_code: string | null;
+            /** Resource Codes */
+            resource_codes: string[];
+            /**
+             * Resource Names
+             * @description Đơn ngày có thể nhiều sân
+             */
+            resource_names: string[];
+            /**
+             * Play Date
+             * Format: date
+             * @description Ngày chơi (định kỳ: ngày buổi đầu)
+             */
+            play_date: string;
+            /**
+             * Blocks
+             * @description Số khối (đơn ngày) / số buổi (định kỳ)
+             */
+            blocks: number;
+            /**
+             * Unpaid Amount
+             * @description Còn phải thu (T-066) = tổng khối Chưa thanh toán – đúng số Thu cả đơn tiền mặt / QR cả đơn thu; ``total`` vẫn là tổng đơn sau giảm
+             */
+            unpaid_amount: number;
+            /**
+             * Unpaid Blocks
+             * @description Số khối Chưa thanh toán
+             */
+            unpaid_blocks: number;
+        };
+        /** OrderUncollectibleIn */
+        OrderUncollectibleIn: {
+            /**
+             * Reason
+             * @description Không bắt buộc (T-064)
+             * @default
+             */
+            reason: string;
+        };
+        /** OrderUncollectibleOut */
+        OrderUncollectibleOut: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Marked
+             * @description Mã con vừa đánh dấu Không thu được
+             */
+            marked: string[];
+            /**
+             * Remaining Unpaid
+             * @description Mã con chưa tới giờ, còn Chưa thanh toán
+             */
+            remaining_unpaid: string[];
+            /**
+             * Bookings
+             * @description Mọi khối của đơn sau khi đánh dấu
+             */
+            bookings: components["schemas"]["ItemOut"][];
+        };
+        /** OtpSentOut */
+        OtpSentOut: {
+            /**
+             * Resend After
+             * @description Giây tới lúc được gửi lại mã
+             */
+            resend_after: number;
+            /**
+             * Test Otp
+             * @description Chỉ khi OTP_TEST_MODE (link dev) và là mã của khách
+             */
+            test_otp?: string | null;
+        };
+        /** Overview */
+        Overview: {
+            /**
+             * Greeting Name
+             * @description Tên ngắn (từ cuối của họ tên) – không dùng biệt danh
+             */
+            greeting_name: string;
+            /**
+             * Today
+             * Format: date
+             * @description Hôm nay (giờ VN)
+             */
+            today: string;
+            /**
+             * Today Count
+             * @description Lịch chơi hôm nay chưa kết thúc
+             */
+            today_count: number;
+            /**
+             * Upcoming
+             * @description Tối đa 4: thẻ TIẾP THEO + 3 dòng
+             */
+            upcoming: components["schemas"]["UpcomingItem"][];
+            /**
+             * Unread Count
+             * @description Thông báo chưa đọc
+             */
+            unread_count: number;
+            /**
+             * Month
+             * @description Tháng hiện tại YYYY-MM (giờ VN)
+             */
+            month: string;
+            /** @description Buổi chơi / số trận / thắng trong tháng */
+            month_stats: components["schemas"]["PlayHistorySummary"];
+            /**
+             * Month Record Kmh
+             * @description Số đo cao nhất của mình trong tháng
+             */
+            month_record_kmh: number | null;
+            /**
+             * Record Kmh
+             * @description Kỷ lục mọi thời gian của mình
+             */
+            record_kmh: number | null;
+            /**
+             * Open Rooms
+             * @description Tối đa 3 phòng hôm nay còn mở, còn chỗ, mình chưa ở trong
+             */
+            open_rooms: components["schemas"]["RoomCard"][];
+            ranking: components["schemas"]["OverviewRanking"];
+            /**
+             * Recent Records
+             * @description Tối đa 3 lần phá kỷ lục cụm gần nhất (mới nhất trước); rỗng -> ẩn khối
+             */
+            recent_records: components["schemas"]["RecentRecord"][];
+            /**
+             * Upcoming Events
+             * @description T-045: tối đa 3 sự kiện chưa bắt đầu trong 14 ngày tới; rỗng -> ẩn khối
+             */
+            upcoming_events?: components["schemas"]["EventCard"][];
+        };
+        /**
+         * OverviewRanking
+         * @description Bảng xếp hạng tốc độ **tháng này**, xếp theo từng cú đập (T-053).
+         */
+        OverviewRanking: {
+            /** Total Members */
+            total_members: number;
+            /**
+             * Total Records
+             * @description Số cú đập trong tháng – mẫu của “#n / m”
+             */
+            total_records: number;
+            /** @description null: mình chưa có số đo trong tháng */
+            me: components["schemas"]["OverviewRankingMe"] | null;
+            /** Top3 */
+            top3: components["schemas"]["SpeedRankingRow"][];
+        };
+        /** OverviewRankingMe */
+        OverviewRankingMe: {
+            /** Rank */
+            rank: number;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Gap To Top10
+             * @description null khi đã trong top 10
+             */
+            gap_to_top10: number | null;
+            /**
+             * Top10 Kmh
+             * @description km/h của hạng 10 (null khi chưa đủ 10 người)
+             */
+            top10_kmh: number | null;
+        };
+        /**
+         * PasswordChangeIn
+         * @description Đổi mật khẩu của khách; ``current_password`` không cần khi đang bắt đổi lần đầu.
+         */
+        PasswordChangeIn: {
+            /**
+             * New Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            new_password: string;
+            /** Current Password */
+            current_password?: string | null;
+        };
+        /** PaymentItem */
+        PaymentItem: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "booking" | "ticket";
+            /**
+             * Code
+             * @description Id gọi chi tiết (mã con booking / mã vé) – không in ra
+             */
+            code: string;
+            /**
+             * Display Code
+             * @description Mã hiện cho khách: mã chung booking / mã vé
+             */
+            display_code: string;
+            /**
+             * Title
+             * @description "Đặt sân · Sân 1 · 18h–19h" / "Vé sự kiện · {tên} · {sân}"
+             */
+            title: string;
+            /** Event Name */
+            event_name: string | null;
+            /** Resource Names */
+            resource_names: string[];
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** Amount */
+            amount: number;
+            /**
+             * Paid At
+             * Format: date-time
+             */
+            paid_at: string;
+            /**
+             * Method
+             * @description Tag hình thức
+             * @enum {string}
+             */
+            method: "QR" | "Tiền mặt";
+            /**
+             * Channel
+             * @description Tại quầy / online
+             * @enum {string}
+             */
+            channel: "counter" | "online";
+            /**
+             * Cancelled
+             * @description Đã thu rồi bị sân hủy: nhãn “Đã hủy · Đã hoàn n đ” (T-051)
+             * @default false
+             */
+            cancelled: boolean;
+            /**
+             * Refund Amount
+             * @default 0
+             */
+            refund_amount: number;
+        };
+        /** PaymentList */
+        PaymentList: {
+            /**
+             * Month
+             * @description YYYY-MM đang xem
+             */
+            month: string;
+            /**
+             * Months
+             * @description Dropdown: tối đa 12 tháng gần nhất có giao dịch, luôn có tháng hiện tại
+             */
+            months: string[];
+            /** @description Cả tháng (không theo bộ lọc) */
+            summary: components["schemas"]["PaymentSummary"];
+            /**
+             * Items
+             * @description Theo bộ lọc ``kind``, mới nhất trước
+             */
+            items: components["schemas"]["PaymentItem"][];
+        };
+        /** PaymentSettingsIn */
+        PaymentSettingsIn: {
+            /** Bank Code */
+            bank_code: string;
+            /** Account Number */
+            account_number: string;
+            /** Account Name */
+            account_name: string;
+            /** Online Toggle */
+            online_toggle: boolean;
+            /**
+             * Webhook Secret
+             * @description Bỏ qua / null = giữ khóa đang có
+             */
+            webhook_secret?: string | null;
+            /** Current Password */
+            current_password: string;
+        };
+        /** PaymentSettingsOut */
+        PaymentSettingsOut: {
+            /** Bank Code */
+            bank_code: string | null;
+            /** Bank Name */
+            bank_name: string | null;
+            /** Account Number */
+            account_number: string | null;
+            /** Account Name */
+            account_name: string | null;
+            /** Online Toggle */
+            online_toggle: boolean;
+            /** Online Enabled */
+            online_enabled: boolean;
+            /** Missing */
+            missing: ("bank" | "account_number" | "account_name" | "webhook_secret")[];
+            /** Secret Set */
+            secret_set: boolean;
+            /** Secret Last4 */
+            secret_last4: string | null;
+            /** Webhook Url */
+            webhook_url: string;
+            /** Pay Code Hint */
+            pay_code_hint: string;
+            /** Last Webhook At */
+            last_webhook_at: string | null;
+            /** Updated At */
+            updated_at: string | null;
+            /** Updated By Label */
+            updated_by_label: string | null;
+            /** Pending Checkouts */
+            pending_checkouts: number;
+            /** Simulate Enabled */
+            simulate_enabled: boolean;
+        };
+        /** PaymentSummary */
+        PaymentSummary: {
+            /**
+             * Total
+             * @description Đã thanh toán trong tháng (VND), không tính khoản đã hủy
+             */
+            total: number;
+            /**
+             * Count
+             * @description Số giao dịch (lượt đặt sân + vé), không tính khoản đã hủy
+             */
+            count: number;
+            bookings: components["schemas"]["BookingSummary"];
+            tickets: components["schemas"]["TicketSummary"];
+        };
+        /**
+         * PendingCheckout
+         * @description Đơn online đang chờ thanh toán của một SĐT (chặn đặt mới E-WEB-4, thẻ "Chờ thanh toán").
+         */
+        PendingCheckout: {
+            /** Order Code */
+            order_code: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "court" | "ticket";
+            /**
+             * Title
+             * @description Tên các sân (nối dấu phẩy) hoặc tên sự kiện
+             */
+            title: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start Time
+             * @description HH:MM – giờ bắt đầu sớm nhất
+             */
+            start_time: string;
+            /**
+             * End Time
+             * @description HH:MM – giờ kết thúc muộn nhất
+             */
+            end_time: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /** Amount */
+            amount: number;
+            /**
+             * Paid Amount
+             * @description > 0: đã ghi nhận một phần tiền – không hủy được
+             */
+            paid_amount: number;
+            /**
+             * Pay Token
+             * @description Token trang /thanh-toan/{token}; null với đơn tạo trước khi có tính năng này
+             */
+            pay_token: string | null;
+            /**
+             * Slots
+             * @description Từng sân · giờ theo thứ tự mã con; vé sự kiện: rỗng
+             */
+            slots?: components["schemas"]["PendingSlot"][];
+        };
+        /** PendingPersonOut */
+        PendingPersonOut: {
+            /**
+             * Id
+             * @description Id yêu cầu / lời mời
+             */
+            id: number;
+            /** Display Name */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Tier
+             * @description Hạng của người xin / được mời (T-031); null = chưa xếp
+             */
+            tier: string | null;
+        };
+        /**
+         * PendingSlot
+         * @description Một dải giờ liền nhau trên một sân của đơn chờ (cùng ngày ``play_date`` của đơn).
+         */
+        PendingSlot: {
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Start Time
+             * @description HH:MM
+             */
+            start_time: string;
+            /**
+             * End Time
+             * @description HH:MM
+             */
+            end_time: string;
+        };
+        /** PeriodOut */
+        PeriodOut: {
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /** Days */
+            days: number;
+        };
+        /** PermGroupOut */
+        PermGroupOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Perms */
+            perms: components["schemas"]["PermOut"][];
+        };
+        /** PermOut */
+        PermOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Hint */
+            hint?: string | null;
+        };
+        /** PersonOut */
+        PersonOut: {
+            /**
+             * Display Name
+             * @description Biệt danh nếu có, không thì Họ tên
+             */
+            display_name: string;
+            /**
+             * Avatar Url
+             * @description Ảnh đại diện; null -> FE hiện chữ cái đầu
+             */
+            avatar_url: string | null;
+        };
+        /** PhoneCodeIn */
+        PhoneCodeIn: {
+            /** Phone */
+            phone: string;
+        };
+        /** PhoneCodeSentOut */
+        PhoneCodeSentOut: {
+            /**
+             * Resend After
+             * @description Giây tới lúc được gửi lại mã
+             */
+            resend_after: number;
+            /**
+             * Test Otp
+             * @description Chỉ khi OTP_TEST_MODE (link dev)
+             */
+            test_otp?: string | null;
+        };
+        /** PhoneIn */
+        PhoneIn: {
+            /** Phone */
+            phone: string;
+        };
+        /** PhoneOtpIn */
+        PhoneOtpIn: {
+            /** Phone */
+            phone: string;
+            /** Otp */
+            otp: string;
+        };
+        /** PhoneTokenOut */
+        PhoneTokenOut: {
+            /** Phone Token */
+            phone_token: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Account Verified
+             * @description Khách đang đăng nhập có SĐT trùng SĐT vừa xác minh -> tài khoản đã xác minh, lần đặt sau không cần OTP (cả khi đã xác minh từ trước)
+             * @default false
+             */
+            account_verified: boolean;
+            /**
+             * Became Member
+             * @description T-021: tài khoản đang đăng nhập vừa thành hội viên nhờ lần xác minh này
+             * @default false
+             */
+            became_member: boolean;
+            /**
+             * Member Code
+             * @description Mã HV của tài khoản đang đăng nhập (đã là / vừa thành hội viên)
+             */
+            member_code?: string | null;
+            /**
+             * Reason
+             * @description Khách đang đăng nhập nhưng tài khoản không được gắn SĐT / thành hội viên: E-AUTH-17 (tài khoản có SĐT khác), E-AUTH-18 (SĐT không dùng được), E-AUTH-31 (hội viên Ngừng – tài khoản bị khóa). ``phone_token`` vẫn dùng được để đặt
+             */
+            reason?: string | null;
+            /**
+             * Account Merged
+             * @description Tài khoản Google vừa được gộp vào tài khoản chủ SĐT – cookie đã đổi, FE tải lại thông tin tài khoản
+             * @default false
+             */
+            account_merged: boolean;
+        };
+        /** PhoneVerifyIn */
+        PhoneVerifyIn: {
+            /** Phone */
+            phone: string;
+            /** Otp */
+            otp: string;
+        };
+        /** PhoneVerifyOut */
+        PhoneVerifyOut: {
+            /**
+             * Merged
+             * @description SĐT đã thuộc tài khoản khác -> đã gộp tài khoản Google vào
+             */
+            merged: boolean;
+            /**
+             * Password Cleared
+             * @description Gộp vào tài khoản có mật khẩu -> mật khẩu đó đã bị hủy (đăng nhập bằng Google hoặc Quên mật khẩu)
+             */
+            password_cleared: boolean;
+            account: components["schemas"]["UserOut"];
+            /**
+             * Became Member
+             * @description Vừa thành hội viên ở lần xác minh này (T-021 R1)
+             * @default false
+             */
+            became_member: boolean;
+            /**
+             * Member Code
+             * @description Mã HV của tài khoản (nếu có)
+             */
+            member_code?: string | null;
+        };
+        /** PlayHistory */
+        PlayHistory: {
+            /**
+             * Month
+             * @description YYYY-MM (tháng của ngày đầu khoảng)
+             */
+            month: string;
+            /**
+             * Start
+             * Format: date
+             * @description Ngày đầu khoảng đang xem (giờ VN)
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             * @description Ngày cuối khoảng đang xem, gồm cả ngày này (giờ VN)
+             */
+            end: string;
+            summary: components["schemas"]["PlayHistorySummary"];
+            /**
+             * Items
+             * @description Mới nhất trước
+             */
+            items: components["schemas"]["PlayHistoryItem"][];
+        };
+        /** PlayHistoryItem */
+        PlayHistoryItem: {
+            /**
+             * Room Id
+             * @description Mở /hoi-vien/phong/{room_id} (404 nếu phòng đã ẩn)
+             */
+            room_id: number;
+            /**
+             * Date
+             * Format: date
+             * @description Ngày chơi (giờ VN)
+             */
+            date: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Resource Type Name */
+            resource_type_name: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** Matches */
+            matches: number;
+            /** Wins */
+            wins: number;
+            /** Losses */
+            losses: number;
+        };
+        /** PlayHistorySummary */
+        PlayHistorySummary: {
+            /**
+             * Sessions
+             * @description Số buổi (phòng) có ≥ 1 trận đã lưu mà mình ở đội A/B
+             */
+            sessions: number;
+            /** Matches */
+            matches: number;
+            /**
+             * Wins
+             * @description 2 vs 2: cả 2 người đội thắng đều được tính
+             */
+            wins: number;
+        };
+        /**
+         * PlayStats
+         * @description Tổng thắng / thua mọi thời gian trong Lịch sử chơi của người phá kỷ lục.
+         */
+        PlayStats: {
+            /**
+             * Matches
+             * @description Mọi trận đã lưu kết quả mà người này ở đội A/B (≥ 1)
+             */
+            matches: number;
+            /**
+             * Wins
+             * @description 2 vs 2: cả 2 người đội thắng đều được tính
+             */
+            wins: number;
+            /** Losses */
+            losses: number;
+        };
+        /** PlayerOut */
+        PlayerOut: {
+            /**
+             * Member Id
+             * @description Id dòng thành viên (null nếu đã rời)
+             */
+            member_id: number | null;
+            /** Display Name */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+        };
         /** PostIn */
         PostIn: {
             /** Title */
@@ -747,157 +6595,2388 @@ export interface components {
              */
             updated_at: string;
         };
-        /** PriceRuleIn */
-        PriceRuleIn: {
-            /** Name */
-            name: string;
-            /** Court Id */
-            court_id?: number | null;
-            /** Days Of Week */
-            days_of_week: number[];
+        /** PreviousOut */
+        PreviousOut: {
             /**
-             * Start Time
-             * Format: time
+             * From
+             * Format: date
              */
-            start_time: string;
+            from: string;
             /**
-             * End Time
-             * Format: time
+             * To
+             * Format: date
              */
-            end_time: string;
-            /** Price Per Hour */
-            price_per_hour: number;
+            to: string;
             /**
-             * Priority
-             * @default 0
+             * Until
+             * @description So cùng mốc (BR-005): kỳ có hôm nay ⇒ ngày cuối kỳ trước chỉ tính tới mốc này
              */
-            priority: number;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean;
+            until: string | null;
         };
-        /** PriceRuleOut */
-        PriceRuleOut: {
-            /** Name */
-            name: string;
-            /** Court Id */
-            court_id?: number | null;
-            /** Days Of Week */
-            days_of_week: number[];
+        /** PriceCellIn */
+        PriceCellIn: {
+            /** Resource Type Code */
+            resource_type_code: string;
             /**
-             * Start Time
-             * Format: time
+             * Day Type
+             * @enum {string}
              */
-            start_time: string;
+            day_type: "weekday" | "weekend" | "holiday";
             /**
-             * End Time
-             * Format: time
+             * Band
+             * @enum {string}
              */
-            end_time: string;
+            band: "offpeak" | "peak";
             /** Price Per Hour */
             price_per_hour: number;
+        };
+        /** PriceCellOut */
+        PriceCellOut: {
+            /** Resource Type Code */
+            resource_type_code: string;
             /**
-             * Priority
-             * @default 0
+             * Day Type
+             * @enum {string}
              */
-            priority: number;
+            day_type: "weekday" | "weekend" | "holiday";
             /**
-             * Is Active
-             * @default true
+             * Band
+             * @enum {string}
              */
-            is_active: boolean;
-            /** Id */
-            id: number;
+            band: "offpeak" | "peak";
+            /** Price Per Hour */
+            price_per_hour: number;
+        };
+        /** PriceTable */
+        PriceTable: {
+            /** Version */
+            version: number;
+            /** Updated At */
+            updated_at: string | null;
+            /** Updated By */
+            updated_by: string | null;
+            /** Resource Types */
+            resource_types: components["schemas"]["ResourceTypeOut"][];
+            /** Prices */
+            prices: components["schemas"]["PriceCellOut"][];
+        };
+        /** PriceTableUpdate */
+        PriceTableUpdate: {
+            /** Version */
+            version: number;
+            /** Prices */
+            prices: components["schemas"]["PriceCellIn"][];
+        };
+        /** PublicCalendarResource */
+        PublicCalendarResource: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Slots */
+            slots: components["schemas"]["PublicSlot"][];
+        };
+        /** PublicOpeningHours */
+        PublicOpeningHours: {
+            /** Earliest Open */
+            earliest_open: string | null;
+            /** Latest Close */
+            latest_close: string | null;
+        };
+        /** PublicPeakBands */
+        PublicPeakBands: {
+            /** Resource Type Code */
+            resource_type_code: string;
+            /** Bands */
+            bands: [
+                string,
+                string
+            ][];
+        };
+        /**
+         * PublicPrices
+         * @description Bản rút gọn cho trang public – không lộ version, người sửa, id nội bộ.
+         */
+        PublicPrices: {
+            /**
+             * Currency
+             * @default VND
+             * @constant
+             */
+            currency: "VND";
+            /**
+             * Unit
+             * @default hour
+             * @constant
+             */
+            unit: "hour";
+            /** Updated At */
+            updated_at: string | null;
+            /** Resource Types */
+            resource_types: components["schemas"]["PublicResourceType"][];
+            /** Prices */
+            prices: components["schemas"]["PriceCellOut"][];
+            opening_hours: components["schemas"]["PublicOpeningHours"];
+            /** Peak Bands */
+            peak_bands: components["schemas"]["PublicPeakBands"][];
+            /** Special Days */
+            special_days: components["schemas"]["PublicSpecialDay"][];
+        };
+        /** PublicResourceType */
+        PublicResourceType: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Resource Count */
+            resource_count: number;
+        };
+        /** PublicSlot */
+        PublicSlot: {
+            /** Start Hour */
+            start_hour: number;
+            /**
+             * State
+             * @description held (T-075): đang có người giữ chỗ chờ thanh toán – không chọn được, mở lại nếu họ không thanh toán
+             * @enum {string}
+             */
+            state: "free" | "booked" | "event" | "closed" | "held";
+            /**
+             * Expires At
+             * @description Chỉ khi ``held``: hạn thanh toán của lượt giữ – quá hạn là ô trống lại ngay
+             */
+            expires_at?: string | null;
+            /** Price */
+            price?: number | null;
+            /** Band */
+            band?: ("offpeak" | "partial" | "peak") | null;
+            /** Taken */
+            taken?: number | null;
+            /** Capacity */
+            capacity?: number | null;
+            /**
+             * Event Code
+             * @description Ô sự kiện: mã sự kiện (mở chi tiết / mua vé, T-023)
+             */
+            event_code?: string | null;
+        };
+        /** PublicSpecialDay */
+        PublicSpecialDay: {
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /** Name */
+            name: string;
+        };
+        /** QuoteIn */
+        QuoteIn: {
+            /** Resource Code */
+            resource_code: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+        };
+        /** QuoteItem */
+        QuoteItem: {
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "offpeak" | "partial" | "peak";
+            /** Label */
+            label: string;
+            /** Price */
+            price: number;
         };
         /** QuoteOut */
         QuoteOut: {
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Day Type
+             * @enum {string}
+             */
+            day_type: "weekday" | "weekend" | "holiday";
+            /** Price Version */
+            price_version: number;
+            /** Items */
+            items: components["schemas"]["QuoteItem"][];
             /** Total Amount */
             total_amount: number;
-            /** Slots */
-            slots: components["schemas"]["SlotOut"][];
         };
-        /** RegisterIn */
-        RegisterIn: {
+        /** RacketCreateIn */
+        RacketCreateIn: {
+            /** Name */
+            name: string;
             /**
-             * Email
-             * Format: email
+             * Sort Order
+             * @default 0
              */
-            email: string;
-            /** Password */
-            password: string;
+            sort_order: number;
+        };
+        /** RacketOut */
+        RacketOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Sort Order */
+            sort_order: number;
+            /**
+             * Member Count
+             * @description Số hồ sơ đang ghi vợt này (khớp tên chuẩn hóa)
+             */
+            member_count: number;
+        };
+        /**
+         * RacketUpdateIn
+         * @description Chỉ gửi trường muốn đổi; ẩn vợt không làm đổi hồ sơ hội viên đang dùng tên đó.
+         */
+        RacketUpdateIn: {
+            /** Name */
+            name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** Ranking */
+        Ranking: {
+            /**
+             * Items
+             * @description Xếp theo số trận thắng, bằng nhau thì tỉ lệ thắng
+             */
+            items: components["schemas"]["RankingRow"][];
+        };
+        /** RankingRow */
+        RankingRow: {
+            /**
+             * Rank
+             * @description Đồng hạng khi bằng cả số trận thắng và tỉ lệ thắng
+             */
+            rank: number;
+            /**
+             * Display Name
+             * @description Tên của trận gần nhất (giữ cả người đã rời)
+             */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /** Wins */
+            wins: number;
+            /** Losses */
+            losses: number;
+            /** Played */
+            played: number;
+            /**
+             * Win Rate
+             * @description 0–1, làm tròn 4 chữ số
+             */
+            win_rate: number;
+            /** Is Me */
+            is_me: boolean;
+        };
+        /** RecentRecord */
+        RecentRecord: {
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Delta Kmh
+             * @description + so với kỷ lục cụm trước đó; null = lần đầu
+             */
+            delta_kmh: number | null;
+            /**
+             * Display Name
+             * @description 'Hội viên ẩn danh' khi người đó ẩn
+             */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Racket
+             * @description Vợt (T-033); null khi ẩn danh / chưa nhập
+             */
+            racket: string | null;
+            /**
+             * Resource Name
+             * @description Sân đo; null khi số đo không gắn sân
+             */
+            resource_name: string | null;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /**
+             * Is Current
+             * @description Đang giữ kỷ lục (thẻ viền vàng)
+             */
+            is_current: boolean;
+            /** @description T-046: có thì hiện nút ▶ phát tại chỗ (cả khi ẩn danh) */
+            video?: components["schemas"]["VideoOut"] | null;
+        };
+        /**
+         * RecordBreakItem
+         * @description Một lần phá kỷ lục cụm. Ẩn danh như T-030: chỉ còn số đo, sân, thời điểm và video.
+         */
+        RecordBreakItem: {
+            /** Id */
+            id: number;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Delta Kmh
+             * @description Hơn kỷ lục trước bao nhiêu km/h; null = mốc đầu
+             */
+            delta_kmh: number | null;
+            /**
+             * Previous Kmh
+             * @description Kỷ lục ngay trước; null = mốc đầu
+             */
+            previous_kmh: number | null;
+            /**
+             * Is Current
+             * @description Đang giữ kỷ lục của cả cụm
+             */
+            is_current: boolean;
+            /**
+             * Is Baseline
+             * @description Số đo đầu tiên của chuỗi; chỉ có khi period = all
+             */
+            is_baseline: boolean;
+            /**
+             * Held Days
+             * @description Số ngày giữ kỷ lục theo ngày giờ VN: lần sau − lần này; đang giữ: hôm nay − lần này. 0 = dưới 1 ngày
+             */
+            held_days: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /**
+             * Label Date
+             * Format: date
+             * @description Ngày trên nhãn “Kỷ lục ngày dd/mm” (giờ VN): lần dán link video mới nhất; chưa có video thì ngày đo
+             */
+            label_date: string;
+            /**
+             * Display Name
+             * @description Họ tên thật (khác các API khác, nơi đây là biệt danh nếu có); 'Hội viên ẩn danh' khi người đó tắt Hiện trên kỷ lục
+             */
+            display_name: string;
+            /**
+             * Nickname
+             * @description null khi không đặt biệt danh hoặc ẩn danh
+             */
+            nickname: string | null;
+            /** Tier */
+            tier: string | null;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Racket
+             * @description Vợt hiện tại trong hồ sơ, không phải vợt lúc đo
+             */
+            racket: string | null;
+            /** Resource Name */
+            resource_name: string | null;
+            /** Is Me */
+            is_me: boolean;
+            /** @description null: “Chưa có video” */
+            video: components["schemas"]["VideoOut"] | null;
+            /** @description Tổng thắng / thua mọi thời gian trong Lịch sử chơi; null: ẩn danh hoặc chưa có trận nào đã lưu */
+            play_stats: components["schemas"]["PlayStats"] | null;
+        };
+        /** RecordBreakList */
+        RecordBreakList: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "week" | "month" | "year" | "all";
+            /**
+             * Start
+             * @description null khi period = all
+             */
+            start: string | null;
+            /**
+             * End
+             * @description Ngày cuối kỳ, tính cả ngày này; null khi period = all
+             */
+            end: string | null;
+            /**
+             * Items
+             * @description Mới nhất trước, không phân trang
+             */
+            items: components["schemas"]["RecordBreakItem"][];
+        };
+        /**
+         * RecordVideoCard
+         * @description Thẻ Video & kỷ lục (T-046) – ẩn danh như T-030 (mình luôn thấy tên mình).
+         */
+        RecordVideoCard: {
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /** Display Name */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /** Resource Name */
+            resource_name: string | null;
+            /** Is Me */
+            is_me: boolean;
+            video: components["schemas"]["VideoOut"];
+        };
+        /** RecordVideoList */
+        RecordVideoList: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "week" | "month" | "year" | "all";
+            /**
+             * Start
+             * @description null khi period = all
+             */
+            start: string | null;
+            /** End */
+            end: string | null;
+            /**
+             * Items
+             * @description Mới nhất trước, tối đa 60
+             */
+            items: components["schemas"]["RecordVideoCard"][];
+        };
+        /** RecurringBookingIn */
+        RecurringBookingIn: {
+            /** Resource Code */
+            resource_code: string;
+            /**
+             * Weekdays
+             * @description ISO: 1 = Thứ 2 … 7 = Chủ nhật
+             */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /**
+             * Discount Pct
+             * @description % giảm cho cả đơn, 0–100
+             * @default 0
+             */
+            discount_pct: number;
+            /**
+             * Sessions
+             * @description Buổi tường minh (T-043); tối đa 60 buổi, trong 92 ngày, mỗi buổi một sân
+             */
+            sessions?: components["schemas"]["RecurringSessionIn"][] | null;
+            customer: components["schemas"]["CustomerIn"];
+        };
+        /** RecurringCounts */
+        RecurringCounts: {
+            /** All */
+            all: number;
+            /** Unpaid */
+            unpaid: number;
+            /** Paid */
+            paid: number;
+            /** Uncollectible */
+            uncollectible: number;
+            /**
+             * Cancelled
+             * @default 0
+             */
+            cancelled: number;
+        };
+        /** RecurringCreated */
+        RecurringCreated: {
+            /** Order Code */
+            order_code: string;
+            /** Bookings */
+            bookings: components["schemas"]["ItemOut"][];
+            /** Original Amount */
+            original_amount: number;
+            /** Discount Pct */
+            discount_pct: number;
+            /** Discount Amount */
+            discount_amount: number;
+            /** Total */
+            total: number;
+        };
+        /** RecurringOrderListOut */
+        RecurringOrderListOut: {
+            /** Items */
+            items: components["schemas"]["RecurringOrderOut"][];
+            /** @description Theo q, bỏ qua status */
+            counts: components["schemas"]["RecurringCounts"];
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * RecurringOrderOut
+         * @description Một đơn định kỳ (T-039) – SĐT đã che.
+         */
+        RecurringOrderOut: {
+            /** Order Code */
+            order_code: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Weekdays
+             * @description ISO 1 = T2 … 7 = CN (các thứ có buổi)
+             */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /**
+             * Date From
+             * Format: date
+             * @description Ngày buổi đầu
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             * @description Ngày buổi cuối
+             */
+            date_to: string;
+            /** Sessions */
+            sessions: number;
+            /** Original Amount */
+            original_amount: number;
+            /** Discount Pct */
+            discount_pct: number;
+            /** Discount Amount */
+            discount_amount: number;
+            /**
+             * Total
+             * @description Phải thu (sau giảm)
+             */
+            total: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unpaid" | "paid" | "uncollectible" | "cancelled";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+        };
+        /** RecurringPreview */
+        RecurringPreview: {
+            /** Sessions */
+            sessions: components["schemas"]["RecurringSession"][];
+            /**
+             * Count
+             * @description Số buổi
+             */
+            count: number;
+            /**
+             * Original Amount
+             * @description Tổng giá gốc các buổi định giá được
+             */
+            original_amount: number;
+            /** Discount Pct */
+            discount_pct: number;
+            /** Discount Amount */
+            discount_amount: number;
+            /**
+             * Total
+             * @description Phải thu = gốc − giảm
+             */
+            total: number;
+            /**
+             * Conflicts Count
+             * @description Số buổi không đặt được
+             */
+            conflicts_count: number;
+        };
+        /**
+         * RecurringPreviewIn
+         * @description Như lúc tạo; ``customer`` không bắt buộc (xem trước không dựng hồ sơ khách).
+         */
+        RecurringPreviewIn: {
+            /** Resource Code */
+            resource_code: string;
+            /**
+             * Weekdays
+             * @description ISO: 1 = Thứ 2 … 7 = Chủ nhật
+             */
+            weekdays: number[];
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /**
+             * Discount Pct
+             * @description % giảm cho cả đơn, 0–100
+             * @default 0
+             */
+            discount_pct: number;
+            /**
+             * Sessions
+             * @description Buổi tường minh (T-043); tối đa 60 buổi, trong 92 ngày, mỗi buổi một sân
+             */
+            sessions?: components["schemas"]["RecurringSessionIn"][] | null;
+            customer?: components["schemas"]["CustomerIn"] | null;
+        };
+        /** RecurringSession */
+        RecurringSession: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Weekday
+             * @description ISO 1–7
+             */
+            weekday: number;
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Price
+             * @description Giá gốc theo bảng giá ngày đó; null khi không định giá
+             */
+            price: number | null;
+            /** Price After Discount */
+            price_after_discount: number | null;
+            /** Ok */
+            ok: boolean;
+            /** Reason */
+            reason?: ("booked" | "event" | "hold" | "closed" | "inactive" | "past" | "no_price") | null;
+            /** Reason Text */
+            reason_text?: string | null;
+            /**
+             * Suggestions
+             * @description Tối đa 2 – chỉ buổi lỗi booked / event / hold (T-043)
+             */
+            suggestions?: components["schemas"]["RecurringSuggestion"][];
+        };
+        /**
+         * RecurringSessionIn
+         * @description Một buổi tường minh (T-043): FE sinh từ lịch chung rồi áp chỉnh sửa / gợi ý; bỏ buổi = không
+         *     gửi buổi đó.
+         */
+        RecurringSessionIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Resource Code */
+            resource_code: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+        };
+        /**
+         * RecurringSuggestion
+         * @description Gợi ý cho buổi trùng (T-043): ``shift`` = cùng sân lệch giờ gần nhất, ``court`` = cùng giờ
+         *     sân khác (ưu tiên cùng loại sân). Đã kiểm giờ mở cửa, giá và chỗ trống của ngày đó.
+         */
+        RecurringSuggestion: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "shift" | "court";
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /** Price */
+            price: number;
+        };
+        /** RegisterOut */
+        RegisterOut: {
+            account: components["schemas"]["UserOut"];
+            /**
+             * Member Code
+             * @description Mã HV – tài khoản đăng ký xong là hội viên (R1)
+             */
+            member_code: string;
+            /**
+             * Upgraded From Temp
+             * @description SĐT đã có hồ sơ tạm -> nâng lên hội viên, giữ lịch sử đặt sân
+             */
+            upgraded_from_temp: boolean;
+        };
+        /** RegisterRequestIn */
+        RegisterRequestIn: {
             /** Full Name */
             full_name: string;
             /** Phone */
-            phone?: string | null;
+            phone: string;
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
+        };
+        /** RegisterVerifyIn */
+        RegisterVerifyIn: {
+            /** Phone */
+            phone: string;
+            /** Otp */
+            otp: string;
+        };
+        /** RejectIn */
+        RejectIn: {
+            /**
+             * Reason
+             * @description Bắt buộc, tối đa 200 ký tự sau khi cắt trống
+             */
+            reason: string;
+        };
+        /** ReportOverviewOut */
+        ReportOverviewOut: {
+            period: components["schemas"]["PeriodOut"];
+            previous: components["schemas"]["PreviousOut"];
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /** Active Courts */
+            active_courts: number;
+            revenue: components["schemas"]["MetricOut"];
+            bookings: components["schemas"]["BookingsOut"];
+            new_members: components["schemas"]["MetricOut"];
+            /** Daily */
+            daily: components["schemas"]["DailyOut"][];
+            /** Courts */
+            courts: components["schemas"]["CourtOut"][];
+            heatmap: components["schemas"]["HeatmapOut"];
+        };
+        /** ResetConfirmIn */
+        ResetConfirmIn: {
+            /** Reset Token */
+            reset_token: string;
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
+        };
+        /** ResetTokenOut */
+        ResetTokenOut: {
+            /** Reset Token */
+            reset_token: string;
+        };
+        /** ResourceCreate */
+        ResourceCreate: {
+            /** Name */
+            name: string;
+            /** Resource Type Code */
+            resource_type_code: string;
+            /** Open Time */
+            open_time: string;
+            /** Close Time */
+            close_time: string;
+            /** Peak Bands */
+            peak_bands?: [
+                string,
+                string
+            ][];
+        };
+        /** ResourceDetailOut */
+        ResourceDetailOut: {
+            resource: components["schemas"]["ResourceOut"];
+            /**
+             * Prices
+             * @description Giá của loại sân (chỉ xem)
+             */
+            prices: components["schemas"]["ResourcePriceOut"][];
+            /**
+             * Upcoming
+             * @description Tối đa 20, sớm nhất trước
+             */
+            upcoming: components["schemas"]["UpcomingOut"][];
+        };
+        /** ResourceList */
+        ResourceList: {
+            /** Items */
+            items: components["schemas"]["ResourceOut"][];
+            /** Resource Types */
+            resource_types: components["schemas"]["ResourceTypeOut"][];
+        };
+        /** ResourceOption */
+        ResourceOption: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+        };
+        /** ResourceOut */
+        ResourceOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Resource Type Code */
+            resource_type_code: string;
+            /** Resource Type Name */
+            resource_type_name: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Version */
+            version: number;
+            /** @description Lịch đang áp dụng hôm nay */
+            schedule: components["schemas"]["ScheduleOut"] | null;
+            /** @description Lịch đã lưu, áp dụng từ ngày sau (effective_from > hôm nay) */
+            pending_schedule: components["schemas"]["ScheduleOut"] | null;
+        };
+        /** ResourcePriceOut */
+        ResourcePriceOut: {
+            /**
+             * Day Type
+             * @enum {string}
+             */
+            day_type: "weekday" | "weekend" | "holiday";
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "offpeak" | "peak";
+            /** Price Per Hour */
+            price_per_hour: number;
+        };
+        /** ResourceRef */
+        ResourceRef: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+        };
+        /** ResourceStatsOut */
+        ResourceStatsOut: {
+            /** Booked Hours */
+            booked_hours: number;
+            /** Revenue */
+            revenue: number;
+            /** Bookings Count */
+            bookings_count: number;
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "week" | "month" | "year";
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Until
+             * Format: date
+             * @description Ngày cuối được tính (kỳ có hôm nay -> hôm nay)
+             */
+            until: string;
+            /**
+             * Occupancy Pct
+             * @description Giờ đã đặt / giờ mở cửa × 100 (tới ``until``)
+             */
+            occupancy_pct: number;
+            /** @description Kỳ trước, cùng số ngày tính từ đầu kỳ */
+            prev: components["schemas"]["StatsFigures"];
+        };
+        /** ResourceTypeOut */
+        ResourceTypeOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * ResourceUpdate
+         * @description Chỉ gửi trường muốn đổi. Giờ / cao điểm áp dụng từ ngày mai (D4).
+         */
+        ResourceUpdate: {
+            /** Version */
+            version: number;
+            /** Name */
+            name?: string | null;
+            /** Resource Type Code */
+            resource_type_code?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Open Time */
+            open_time?: string | null;
+            /** Close Time */
+            close_time?: string | null;
+            /** Peak Bands */
+            peak_bands?: [
+                string,
+                string
+            ][] | null;
+        };
+        /** ResultIn */
+        ResultIn: {
+            /**
+             * Score A
+             * @description Điểm Đội A, 0–99
+             */
+            score_a: number;
+            /**
+             * Score B
+             * @description Điểm Đội B, 0–99, không bằng Đội A
+             */
+            score_b: number;
+            /** Version */
+            version: number;
+        };
+        /** RevokedOut */
+        RevokedOut: {
+            /** Revoked */
+            revoked: number;
         };
         /**
          * Role
          * @enum {string}
          */
-        Role: "admin" | "staff" | "customer";
-        /** SlotIn */
-        SlotIn: {
-            /** Court Id */
-            court_id: number;
-            /**
-             * Start
-             * Format: date-time
-             */
-            start: string;
-            /**
-             * End
-             * Format: date-time
-             */
-            end: string;
+        Role: "admin" | "staff" | "member";
+        /** RolePermsIn */
+        RolePermsIn: {
+            /** Perms */
+            perms: string[];
         };
-        /** SlotOut */
-        SlotOut: {
-            /** Court Id */
-            court_id: number;
+        /** RolesOut */
+        RolesOut: {
+            /** Groups */
+            groups: components["schemas"]["PermGroupOut"][];
             /**
-             * Start
-             * Format: date-time
+             * Roles
+             * @description Quyền hiện có của vai (chỉ staff)
              */
-            start: string;
+            roles: {
+                [key: string]: string[];
+            };
             /**
-             * End
-             * Format: date-time
+             * Defaults
+             * @description Quyền mặc định của vai (nút Về mặc định: FE đặt bản nháp rồi PUT)
              */
-            end: string;
-            /** Price */
-            price: number;
+            defaults: {
+                [key: string]: string[];
+            };
         };
-        /** StaffCreateIn */
-        StaffCreateIn: {
+        /**
+         * RoomCard
+         * @description Thẻ phòng ở Danh sách sân (AC6).
+         */
+        RoomCard: {
+            /** Id */
+            id: number;
             /**
-             * Email
-             * Format: email
+             * Resource Name
+             * @description "Sân 1"
              */
-            email: string;
+            resource_name: string;
+            /**
+             * Resource Type Name
+             * @description Loại sân
+             */
+            resource_type_name: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "upcoming" | "ongoing";
+            /**
+             * Status
+             * @description ended: phòng đã đóng hoặc buổi đã hủy, chỉ có ở kết quả tìm (T-054): nhãn “Đã kết thúc”, vào xem chỉ đọc, không xin vào. Khi đó my_join_block, my_invite_id là null, my_join_pending là false
+             * @enum {string}
+             */
+            status: "open" | "ended";
+            /**
+             * Can View
+             * @description false: phòng ended và mình không phải người trong phòng – ẩn “Xem phòng”, ``members`` rỗng, ``member_count`` 0; mở trực tiếp sẽ 404 (T-054)
+             */
+            can_view: boolean;
+            /**
+             * Play Date
+             * Format: date
+             * @description Ngày chơi (giờ Việt Nam)
+             */
+            play_date: string;
+            host: components["schemas"]["PersonOut"];
+            /**
+             * Members
+             * @description Cụm avatar (Host đứng đầu)
+             */
+            members: components["schemas"]["PersonOut"][];
+            /** Member Count */
+            member_count: number;
+            /**
+             * Capacity
+             * @description 8 người / sân, tính cả Host
+             */
+            capacity: number;
+            /**
+             * Is Mine
+             * @description Mình đang trong phòng (tag "Bạn", nút "Vào phòng")
+             */
+            is_mine: boolean;
+            /**
+             * My Join Pending
+             * @description Đã "Xin vào", đang chờ Host duyệt
+             */
+            my_join_pending: boolean;
+            /**
+             * My Invite Id
+             * @description Lời mời đang chờ mình ("Nhận lời mời")
+             */
+            my_invite_id: number | null;
+            /** @description Khoảng hạng của phòng (T-031); null = mở */
+            tier_range: components["schemas"]["TierRange"] | null;
+            /**
+             * My Join Block
+             * @description Mình không vào được vì hạng (nút Xin vào mờ): ngoài khoảng / chưa xếp hạng
+             */
+            my_join_block: ("out_of_range" | "unranked") | null;
+            /** Version */
+            version: number;
+        };
+        /** RoomDetail */
+        RoomDetail: {
+            /** Id */
+            id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "closed";
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "upcoming" | "ongoing" | "closed";
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "2v2" | "1v1";
+            /** Resource Name */
+            resource_name: string;
+            /** Resource Type Name */
+            resource_type_name: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Closes At
+             * Format: date-time
+             * @description Giờ kết thúc + 10 phút: phòng tự khóa (AC3)
+             */
+            closes_at: string;
+            /**
+             * Can Start From
+             * Format: date-time
+             * @description Bắt đầu trận được từ 15 phút trước giờ
+             */
+            can_start_from: string;
+            /** Capacity */
+            capacity: number;
+            /** Version */
+            version: number;
+            /**
+             * My Role
+             * @enum {string}
+             */
+            my_role: "host" | "member" | "outsider";
+            /** My Join Pending */
+            my_join_pending: boolean;
+            /** My Invite Id */
+            my_invite_id: number | null;
+            /** @description Khoảng hạng của phòng (T-031); null = mở */
+            tier_range: components["schemas"]["TierRange"] | null;
+            /**
+             * My Join Block
+             * @description Người ngoài phòng không vào được vì hạng; người trong phòng luôn null
+             */
+            my_join_block: ("out_of_range" | "unranked") | null;
+            /**
+             * Members
+             * @description Host đầu tiên, rồi theo giờ vào
+             */
+            members: components["schemas"]["RoomMemberOut"][];
+            /**
+             * Join Requests
+             * @description Chỉ Host thấy (người khác: [])
+             */
+            join_requests: components["schemas"]["PendingPersonOut"][];
+            /**
+             * Invites
+             * @description Lời mời đang chờ – chỉ Host thấy
+             */
+            invites: components["schemas"]["PendingPersonOut"][];
+            current_match: components["schemas"]["CurrentMatchOut"] | null;
+        };
+        /** RoomList */
+        RoomList: {
+            /**
+             * Date
+             * Format: date
+             * @description Hôm nay (giờ Việt Nam)
+             */
+            date: string;
+            /**
+             * Ongoing Count
+             * @description Đang diễn ra
+             */
+            ongoing_count: number;
+            /**
+             * Upcoming Count
+             * @description Sắp diễn ra
+             */
+            upcoming_count: number;
+            /**
+             * Mine Count
+             * @description "Phòng của bạn" / "Sân của tôi (n)"
+             */
+            mine_count: number;
+            /**
+             * All Count
+             * @description "Tất cả (n)"
+             */
+            all_count: number;
+            /**
+             * Items
+             * @description Theo giờ bắt đầu, rồi tên sân (lọc theo ``scope``); có ``q``: kết quả tìm
+             */
+            items: components["schemas"]["RoomCard"][];
+        };
+        /** RoomMemberOut */
+        RoomMemberOut: {
+            /**
+             * Id
+             * @description Id dòng thành viên phòng – dùng cho mời ra / chuyển Host
+             */
+            id: number;
+            /** Display Name */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "host" | "member";
+            /**
+             * Queue State
+             * @description Hàng chờ / Đang chơi
+             * @enum {string}
+             */
+            queue_state: "waiting" | "playing";
+            /**
+             * Waiting Since
+             * Format: date-time
+             */
+            waiting_since: string;
+            /** Is Me */
+            is_me: boolean;
+        };
+        /** RoomRef */
+        RoomRef: {
+            /** Room Id */
+            room_id: number;
+        };
+        /** ScheduleOut */
+        ScheduleOut: {
+            /**
+             * Effective From
+             * Format: date
+             */
+            effective_from: string;
+            /** Open Time */
+            open_time: string;
+            /** Close Time */
+            close_time: string;
+            /** Peak Bands */
+            peak_bands: [
+                string,
+                string
+            ][];
+        };
+        /** SearchResult */
+        SearchResult: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "order" | "booking" | "ticket" | "session";
+            /**
+             * Code
+             * @description order: mã đơn · booking: mã con · ticket / session: mã
+             */
+            code: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Order Code
+             * @description order / booking: mã đơn
+             */
+            order_code?: string | null;
+            /**
+             * Codes
+             * @description order: mã con các khối (theo thứ tự -01, -02…)
+             */
+            codes?: string[];
+        };
+        /** SessionCan */
+        SessionCan: {
+            /** Register */
+            register: boolean;
+            /** Delete */
+            delete: boolean;
+        };
+        /** SessionCreate */
+        SessionCreate: {
+            /** Resource Codes */
+            resource_codes: string[];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Start Hour */
+            start_hour: number;
+            /** End Hour */
+            end_hour: number;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** Capacity */
+            capacity?: number | null;
+            /** Ticket Price */
+            ticket_price?: number | null;
+        };
+        /** SessionDelete */
+        SessionDelete: {
+            /** Version */
+            version: number;
+        };
+        /** SessionHold */
+        SessionHold: {
+            /** Seats */
+            seats: number;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** SessionOut */
+        SessionOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "deleted";
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resources */
+            resources: components["schemas"]["ResourceRef"][];
+            /** Ticket Price */
+            ticket_price: number;
+            /** Capacity */
+            capacity: number;
+            /** Taken */
+            taken: number;
+            /** Is Full */
+            is_full: boolean;
+            /** Created By */
+            created_by: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Version */
+            version: number;
+            /** Tickets */
+            tickets: components["schemas"]["SessionTicket"][];
+            /** Active Holds */
+            active_holds: components["schemas"]["SessionHold"][];
+            can: components["schemas"]["SessionCan"];
+        };
+        /** SessionTicket */
+        SessionTicket: {
+            /** Code */
+            code: string;
+            /** Customer Name */
+            customer_name: string;
+            /**
+             * Customer Kind
+             * @description member: hội viên · temp: hồ sơ tạm
+             * @enum {string}
+             */
+            customer_kind: "member" | "temp";
+            /**
+             * Member Code
+             * @description Mã HV khi là hội viên – FE so để hiện "Đã có vé" (T-071); hồ sơ tạm: null
+             */
+            member_code: string | null;
+            /** Phone */
+            phone: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "online";
+            /**
+             * Payment Status
+             * @enum {string}
+             */
+            payment_status: "unpaid" | "paid" | "uncollectible" | "cancelled";
+            /** Amount */
+            amount: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * SignInIn
+         * @description Ô "Số điện thoại hoặc tên đăng nhập" – chuẩn hóa ở service.
+         */
+        SignInIn: {
+            /** Login */
+            login: string;
             /** Password */
             password: string;
+        };
+        /** SimulateIn */
+        SimulateIn: {
+            /** Pay Ref */
+            pay_ref: string;
+            /** Amount */
+            amount: number;
+        };
+        /**
+         * SiteBrandingOut
+         * @description Dữ liệu công khai cho header, chân trang.
+         */
+        SiteBrandingOut: {
+            /**
+             * Map Url
+             * @description Link Admin dán; null = chưa có bản đồ
+             */
+            map_url: string | null;
+            /**
+             * Lat
+             * @description Vĩ độ; cùng có hoặc cùng null với lng
+             */
+            lat: number | null;
+            /**
+             * Lng
+             * @description Kinh độ
+             */
+            lng: number | null;
+            /**
+             * Name
+             * @description Tên sân, dùng chung cho mọi nơi hiển thị
+             */
+            name: string;
+            /**
+             * Address
+             * @description Một dòng
+             */
+            address: string;
+            /**
+             * Phone
+             * @description Hotline: số di động, đã tách 4-3-3 (0912 345 678)
+             */
+            phone: string;
+            /** Email */
+            email: string;
+            /**
+             * Logo Url
+             * @description Đã gồm ?v={etag}; null -> FE hiện icon mặc định
+             */
+            logo_url: string | null;
+            /**
+             * Favicon Url
+             * @description PNG nhỏ, đã gồm ?v={etag}; null khi chưa có logo
+             */
+            favicon_url: string | null;
+        };
+        /** SiteBrandingSavedOut */
+        SiteBrandingSavedOut: {
+            /**
+             * Logo Url
+             * @description Đã gồm ?v={etag}; null -> FE hiện icon mặc định
+             */
+            logo_url: string | null;
+            /**
+             * Favicon Url
+             * @description PNG nhỏ, đã gồm ?v={etag}; null khi chưa có logo
+             */
+            favicon_url: string | null;
+            /**
+             * Cache Tag
+             * @description Tag FE cần xóa (revalidateTag) để trang khách thấy logo
+             */
+            cache_tag: string;
+        };
+        /**
+         * SiteInfoIn
+         * @description Độ dài, định dạng kiểm ở ``_clean_info``, bản đồ ở ``site_map`` (lỗi E-001 tiếng Việt).
+         */
+        SiteInfoIn: {
+            /** Name */
+            name: string;
+            /** Address */
+            address: string;
+            /** Phone */
+            phone: string;
+            /** Email */
+            email: string;
+            /** Map Url */
+            map_url?: string | null;
+            /** Lat */
+            lat?: number | null;
+            /** Lng */
+            lng?: number | null;
+            /** Version */
+            version: number;
+        };
+        /** SiteInfoOut */
+        SiteInfoOut: {
+            /**
+             * Map Url
+             * @description Link Admin dán; null = chưa có bản đồ
+             */
+            map_url: string | null;
+            /**
+             * Lat
+             * @description Vĩ độ; cùng có hoặc cùng null với lng
+             */
+            lat: number | null;
+            /**
+             * Lng
+             * @description Kinh độ
+             */
+            lng: number | null;
+            /**
+             * Name
+             * @description Tên sân, dùng chung cho mọi nơi hiển thị
+             */
+            name: string;
+            /**
+             * Address
+             * @description Một dòng
+             */
+            address: string;
+            /**
+             * Phone
+             * @description Hotline: số di động, đã tách 4-3-3 (0912 345 678)
+             */
+            phone: string;
+            /** Email */
+            email: string;
+            /**
+             * Version
+             * @description Gửi lại khi lưu – khóa lạc quan; 0 = chưa lưu lần nào
+             */
+            version: number;
+        };
+        /** SiteInfoSavedOut */
+        SiteInfoSavedOut: {
+            /**
+             * Map Url
+             * @description Link Admin dán; null = chưa có bản đồ
+             */
+            map_url: string | null;
+            /**
+             * Lat
+             * @description Vĩ độ; cùng có hoặc cùng null với lng
+             */
+            lat: number | null;
+            /**
+             * Lng
+             * @description Kinh độ
+             */
+            lng: number | null;
+            /**
+             * Name
+             * @description Tên sân, dùng chung cho mọi nơi hiển thị
+             */
+            name: string;
+            /**
+             * Address
+             * @description Một dòng
+             */
+            address: string;
+            /**
+             * Phone
+             * @description Hotline: số di động, đã tách 4-3-3 (0912 345 678)
+             */
+            phone: string;
+            /** Email */
+            email: string;
+            /**
+             * Version
+             * @description Gửi lại khi lưu – khóa lạc quan; 0 = chưa lưu lần nào
+             */
+            version: number;
+            /**
+             * Cache Tag
+             * @description Tag FE cần xóa (revalidateTag) để trang khách thấy mới
+             */
+            cache_tag: string;
+        };
+        /** SiteMapOut */
+        SiteMapOut: {
+            /**
+             * Map Url
+             * @description Link Admin dán; null = chưa có bản đồ
+             */
+            map_url: string | null;
+            /**
+             * Lat
+             * @description Vĩ độ; cùng có hoặc cùng null với lng
+             */
+            lat: number | null;
+            /**
+             * Lng
+             * @description Kinh độ
+             */
+            lng: number | null;
+        };
+        /** SiteMapResolveIn */
+        SiteMapResolveIn: {
+            /**
+             * Input
+             * @description Link Google Maps
+             */
+            input: string;
+        };
+        /** SpecialDayIn */
+        SpecialDayIn: {
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * @description Bỏ trống = 1 ngày
+             */
+            date_to?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** SpecialDayOut */
+        SpecialDayOut: {
+            /** Id */
+            id: number;
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /** Name */
+            name: string;
+            /**
+             * Day Type
+             * @constant
+             */
+            day_type: "holiday";
+        };
+        /** SpeedMe */
+        SpeedMe: {
+            /**
+             * Rank
+             * @description Hạng cú tốt nhất của mình trong kỳ (T-053)
+             */
+            rank: number;
+            /**
+             * Display Name
+             * @description Cùng tên với bục và danh sách: biệt danh trước
+             */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Speed Kmh
+             * @description Số đo cao nhất của mình trong kỳ
+             */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /**
+             * Gap To Top10
+             * @description km/h hạng 10 − của mình; null khi mình đã trong top 10
+             */
+            gap_to_top10: number | null;
+            /** @description Video của đúng số đo xếp hạng của mình */
+            video: components["schemas"]["VideoOut"] | null;
+        };
+        /** SpeedRanking */
+        SpeedRanking: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "week" | "month" | "year";
+            /**
+             * Start
+             * Format: date
+             * @description Ngày đầu kỳ (giờ VN)
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             * @description Ngày cuối kỳ, tính cả ngày này (giờ VN)
+             */
+            end: string;
+            /**
+             * Total Members
+             * @description Số hội viên có số đo trong kỳ
+             */
+            total_members: number;
+            /**
+             * Total Records
+             * @description Số cú đập trong kỳ – mẫu của “#n / m” (T-053)
+             */
+            total_records: number;
+            /**
+             * Top
+             * @description Tối đa 10 **cú đập**, hạng 1 trước; một người có thể chiếm nhiều bậc
+             */
+            top: components["schemas"]["SpeedRankingRow"][];
+            /** @description null: mình chưa có số đo trong kỳ */
+            me: components["schemas"]["SpeedMe"] | null;
+            /**
+             * Bar Floor Kmh
+             * @description Mốc đầu thanh tốc độ (FE)
+             */
+            bar_floor_kmh: number;
+        };
+        /** SpeedRankingRow */
+        SpeedRankingRow: {
+            /** Rank */
+            rank: number;
+            /**
+             * Display Name
+             * @description 'Hội viên ẩn danh' khi người đó tắt Hiện trên kỷ lục
+             */
+            display_name: string;
+            /**
+             * Avatar Url
+             * @description null với người ẩn danh (FE dùng avatar chung)
+             */
+            avatar_url: string | null;
+            /** Speed Kmh */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             * @description Lúc đo của đúng cú đập này
+             */
+            measured_at: string;
+            /**
+             * Resource Name
+             * @description Sân của đúng cú đập này (T-053)
+             */
+            resource_name?: string | null;
+            /** Is Me */
+            is_me: boolean;
+            /** @description Video của đúng số đo xếp hạng; số đo đó không có thì null, không lấy số đo khác. Ẩn danh vẫn phát */
+            video: components["schemas"]["VideoOut"] | null;
+        };
+        /**
+         * SpeedRecordCreateIn
+         * @description Admin nhập số đo -> duyệt ngay (``source=admin``).
+         */
+        SpeedRecordCreateIn: {
+            /**
+             * Member Code
+             * @description Mã HV (hội viên Hoạt động)
+             */
+            member_code: string;
+            /**
+             * Speed Kmh
+             * @description km/h, số nguyên 50–500
+             */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             * @description Có múi giờ; không ở tương lai, không quá 365 ngày trước
+             */
+            measured_at: string;
+            /**
+             * Resource Code
+             * @description Mã sân đang có
+             */
+            resource_code?: string | null;
+            /**
+             * Video Url
+             * @description YouTube / .mp4 / .webm (https), E-REC-1
+             */
+            video_url?: string | null;
+        };
+        /**
+         * SpeedRecordPatchIn
+         * @description Chỉ gửi ô muốn đổi; ``resource_code`` / ``video_url`` = null -> bỏ sân / gỡ video.
+         */
+        SpeedRecordPatchIn: {
+            /** Version */
+            version: number;
+            /** Speed Kmh */
+            speed_kmh?: number | null;
+            /** Measured At */
+            measured_at?: string | null;
+            /**
+             * Resource Code
+             * @description Mã sân đang có
+             */
+            resource_code?: string | null;
+            /**
+             * Video Url
+             * @description YouTube / .mp4 / .webm (https), E-REC-1
+             */
+            video_url?: string | null;
+        };
+        /**
+         * SpeedSubmitIn
+         * @description Hội viên gửi cú đập của chính mình -> chờ Admin duyệt.
+         */
+        SpeedSubmitIn: {
+            /**
+             * Speed Kmh
+             * @description km/h, số nguyên 50–500
+             */
+            speed_kmh: number;
+            /**
+             * Measured At
+             * Format: date-time
+             * @description Có múi giờ; không ở tương lai, không quá 365 ngày trước
+             */
+            measured_at: string;
+            /**
+             * Resource Code
+             * @description Mã sân đang có
+             */
+            resource_code?: string | null;
+            /**
+             * Video Url
+             * @description YouTube / .mp4 / .webm (https), E-REC-1
+             */
+            video_url?: string | null;
+        };
+        /**
+         * StaffCreateIn
+         * @description Chỉ họ tên + mật khẩu; mã ``NV…`` và tên đăng nhập do hệ thống sinh.
+         */
+        StaffCreateIn: {
+            /** Full Name */
+            full_name: string;
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
+            /**
+             * Username Suffix
+             * @description Đuôi tên đăng nhập FE đã sinh + hiện trong xem trước (4 ký tự a-z 2-9, bỏ 0 o 1 l i). Trùng -> 409 E-STAFF-3, không tự đổi. Không gửi -> server tự sinh.
+             */
+            username_suffix?: string | null;
+        };
+        /** StaffOut */
+        StaffOut: {
+            /** Id */
+            id: number;
+            /** Staff Code */
+            staff_code: string;
+            /** Full Name */
+            full_name: string;
+            /** Username */
+            username: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Login At */
+            last_login_at: string | null;
+            /** Active Sessions */
+            active_sessions: number;
+            /**
+             * Avatar Url
+             * @description Đã gồm ?v={etag}; null -> hiện chữ cái
+             */
+            avatar_url: string | null;
+        };
+        /** StaffPasswordIn */
+        StaffPasswordIn: {
+            /**
+             * Password
+             * @description ≥ 8 ký tự, có ít nhất 1 chữ in hoa và 1 chữ số hoặc ký tự đặc biệt
+             */
+            password: string;
+        };
+        /**
+         * StaffSessionHistoryOut
+         * @description Một lần đăng nhập của NV (đang mở hoặc đã kết thúc) – không trả IP.
+         */
+        StaffSessionHistoryOut: {
+            /** Id */
+            id: number;
+            /**
+             * Device Type
+             * @enum {string}
+             */
+            device_type: "desktop" | "mobile" | "tablet" | "unknown";
+            /** Os */
+            os: string | null;
+            /** Browser */
+            browser: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description Lúc đăng nhập
+             */
+            created_at: string;
+            /**
+             * Ended At
+             * @description Lúc thu hồi, hoặc lúc hết hạn nếu đã hết hạn; null khi còn mở
+             */
+            ended_at: string | null;
+            /**
+             * End Reason
+             * @enum {string}
+             */
+            end_reason: "active" | "logout" | "expired" | "password_changed" | "account_disabled" | "revoked_by_admin";
+            /** Is Active */
+            is_active: boolean;
+        };
+        /**
+         * StaffSessionOut
+         * @description Thiết bị đang đăng nhập của NV – không trả IP (người dùng chốt 2026-11-05).
+         */
+        StaffSessionOut: {
+            /** Id */
+            id: number;
+            /**
+             * Device Type
+             * @enum {string}
+             */
+            device_type: "desktop" | "mobile" | "tablet" | "unknown";
+            /** Os */
+            os: string | null;
+            /** Browser */
+            browser: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** StaffUpdateIn */
+        StaffUpdateIn: {
+            /** Full Name */
+            full_name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /** StatsFigures */
+        StatsFigures: {
+            /** Booked Hours */
+            booked_hours: number;
+            /** Revenue */
+            revenue: number;
+            /** Bookings Count */
+            bookings_count: number;
+        };
+        /** TempCreateIn */
+        TempCreateIn: {
             /** Full Name */
             full_name: string;
             /** Phone */
-            phone?: string | null;
-            /** @default staff */
-            role: components["schemas"]["Role"];
+            phone: string;
+            /** Gender */
+            gender?: ("male" | "female") | null;
         };
-        /** UserOut */
+        /** TempCustomerIn */
+        TempCustomerIn: {
+            /**
+             * Full Name
+             * @default
+             */
+            full_name: string;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+            /** Note */
+            note?: string | null;
+        };
+        /** TicketBatchIn */
+        TicketBatchIn: {
+            /**
+             * Customers
+             * @description 1..50 người, mỗi người một vé, theo thứ tự cấp số vé
+             */
+            customers: components["schemas"]["CustomerIn"][];
+            /**
+             * Note
+             * @description Ghi chú chung (hồ sơ tạm có ghi chú riêng)
+             */
+            note?: string | null;
+        };
+        /** TicketBatchOut */
+        TicketBatchOut: {
+            /**
+             * Tickets
+             * @description Theo thứ tự gửi
+             */
+            tickets: components["schemas"]["ItemOut"][];
+        };
+        /** TicketIn */
+        TicketIn: {
+            customer: components["schemas"]["CustomerIn"];
+        };
+        /** TicketSummary */
+        TicketSummary: {
+            /** Count */
+            count: number;
+            /** Total */
+            total: number;
+        };
+        /** TierRange */
+        TierRange: {
+            /**
+             * Min
+             * @description Hạng thấp nhất (null = không giới hạn dưới)
+             */
+            min: string | null;
+            /**
+             * Max
+             * @description Hạng cao nhất (null = không giới hạn trên)
+             */
+            max: string | null;
+        };
+        /**
+         * TransactionCards
+         * @description VND, theo bộ lọc ngày + sân (không theo phương thức / loại / tìm kiếm).
+         */
+        TransactionCards: {
+            /**
+             * Net
+             * @description cash + transfer − refund
+             */
+            net: number;
+            /** Cash */
+            cash: number;
+            /** Transfer */
+            transfer: number;
+            /** Refund */
+            refund: number;
+        };
+        /**
+         * TransactionEntry
+         * @description Một lần nhận tiền (``in``) hoặc hoàn tiền (``refund``) – sổ tiền vào (T-057, ADR-014).
+         *
+         *     Không có id số nội bộ (T-006 SEC4): FE dùng vị trí dòng trong trang làm key.
+         */
+        TransactionEntry: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "in" | "refund";
+            /**
+             * Method
+             * @description transfer gồm cả chuyển khoản online
+             * @enum {string}
+             */
+            method: "cash" | "transfer";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "counter" | "counter_qr" | "online";
+            /**
+             * Amount
+             * @description Luôn dương; hoàn tiền FE hiện dấu −
+             */
+            amount: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Order Code
+             * @description Mã đơn; vé: mã sự kiện
+             */
+            order_code: string | null;
+            /** Customer Name */
+            customer_name: string;
+            /**
+             * Customer Phone
+             * @description SĐT đầy đủ (T-061): ai có quyền xem lịch sử giao dịch đều thấy
+             */
+            customer_phone: string | null;
+            /** Member Code */
+            member_code?: string | null;
+            /**
+             * Actor Label
+             * @description Người thu / hủy; tiền về qua cổng: "Hệ thống"
+             */
+            actor_label: string;
+            /** Items */
+            items: components["schemas"]["TransactionEntryItem"][];
+        };
+        /** TransactionEntryItem */
+        TransactionEntryItem: {
+            /**
+             * Code
+             * @description Booking: mã con · vé: mã vé
+             */
+            code: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "booking" | "ticket";
+            /**
+             * Resource Name
+             * @description Tên sân; vé: các sân của sự kiện, cách bằng dấu phẩy
+             */
+            resource_name: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Amount
+             * @description Phần tiền của mục trong dòng (dương)
+             */
+            amount: number;
+        };
+        /** TransactionsOut */
+        TransactionsOut: {
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            cards: components["schemas"]["TransactionCards"];
+            /**
+             * Items
+             * @description Mới nhất trước (theo occurred_at)
+             */
+            items: components["schemas"]["TransactionEntry"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+        };
+        /** UncollectibleIn */
+        UncollectibleIn: {
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Version */
+            version: number;
+        };
+        /** UpcomingItem */
+        UpcomingItem: {
+            /**
+             * Room Id
+             * @description null: booking chưa có phòng -> ẩn nút Vào phòng
+             */
+            room_id: number | null;
+            /**
+             * Booking Code
+             * @description Mã con (id nội bộ) – không hiện cho khách
+             */
+            booking_code: string;
+            /**
+             * Order Code
+             * @description Mã chung để hiện (T-019)
+             */
+            order_code: string | null;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "upcoming" | "ongoing";
+            /** Resource Name */
+            resource_name: string;
+            /** Resource Type Name */
+            resource_type_name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "host" | "member";
+            /**
+             * Host Name
+             * @description Role host -> FE hiện "Host: bạn"
+             */
+            host_name: string;
+            /** Members Preview */
+            members_preview: components["schemas"]["PersonOut"][];
+            /**
+             * Count
+             * @description Số người trong phòng (null khi chưa có phòng)
+             */
+            count: number | null;
+            /** Capacity */
+            capacity: number | null;
+        };
+        /** UpcomingOut */
+        UpcomingOut: {
+            /** Code */
+            code: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "booking" | "session";
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /**
+             * Title
+             * @description Tên khách (booking) hoặc tên sự kiện
+             */
+            title: string;
+            /**
+             * Payment Status
+             * @description Chỉ booking: unpaid / paid / …
+             */
+            payment_status: string | null;
+        };
+        /**
+         * UserOut
+         * @description Tài khoản khách – chỉ trả cho **chính người đó** (SĐT đầy đủ của mình).
+         */
         UserOut: {
             /** Id */
             id: number;
-            /** Email */
-            email: string;
-            /** Full Name */
-            full_name: string;
             /** Phone */
             phone: string | null;
+            /** Phone Verified */
+            phone_verified: boolean;
+            /** Username */
+            username: string | null;
+            /** Full Name */
+            full_name: string;
+            /** Google Email */
+            google_email: string | null;
             role: components["schemas"]["Role"];
             /** Is Active */
             is_active: boolean;
+            /**
+             * Must Change Password
+             * @description Tài khoản hội viên chưa đổi mật khẩu ban đầu -> chuyển trang đổi mật khẩu
+             */
+            must_change_password: boolean;
+            /**
+             * Is Member
+             * @description Có hồ sơ hội viên cùng SĐT (đã xác minh) -> vào được khu hội viên (T-016)
+             * @default false
+             */
+            is_member: boolean;
         };
         /** ValidationError */
         ValidationError: {
@@ -912,28 +8991,155 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
-        /** VenueConfigOut */
-        VenueConfigOut: {
+        /** VersionIn */
+        VersionIn: {
             /**
-             * Open Time
-             * Format: time
+             * Version
+             * @description ``version`` của phòng lúc người dùng bấm (AC21)
              */
-            open_time: string;
+            version: number;
+        };
+        /** VideoIn */
+        VideoIn: {
             /**
-             * Close Time
-             * Format: time
+             * Url
+             * @description https YouTube hoặc file .mp4 / .webm
              */
-            close_time: string;
-            /** Slot Minutes */
-            slot_minutes: number;
-            /** Min Booking Minutes */
-            min_booking_minutes: number;
-            /** Max Advance Days */
-            max_advance_days: number;
+            url: string;
+        };
+        /** VideoOut */
+        VideoOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "youtube" | "file";
+            /**
+             * Url
+             * @description Link Admin đã dán
+             */
+            url: string;
+            /**
+             * Embed Url
+             * @description YouTube: youtube-nocookie.com/embed/{id}
+             */
+            embed_url: string | null;
+            /**
+             * Thumbnail Url
+             * @description YouTube: ảnh xem trước i.ytimg.com
+             */
+            thumbnail_url: string | null;
+        };
+        /** WebCalendarOut */
+        WebCalendarOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /** Online Enabled */
+            online_enabled: boolean;
             /** Hold Minutes */
             hold_minutes: number;
-            /** Timezone */
-            timezone: string;
+            /** Columns */
+            columns: number[];
+            /** Resources */
+            resources: components["schemas"]["PublicCalendarResource"][];
+        };
+        /** WebCheckoutItem */
+        WebCheckoutItem: {
+            /**
+             * Code
+             * @description Mã con {mã đơn}-NN – FE không hiện cho khách (ADR-010)
+             */
+            code: string;
+            /** Resource Code */
+            resource_code: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Start Hour */
+            start_hour: number;
+            /** Hours */
+            hours: number;
+            /** Amount */
+            amount: number;
+            /**
+             * Cancelled
+             * @description Khối đã bị sân hủy sau khi trả (T-051)
+             * @default false
+             */
+            cancelled: boolean;
+        };
+        /** WebCustomer */
+        WebCustomer: {
+            /** Full Name */
+            full_name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+        };
+        /**
+         * WebEventOut
+         * @description Chi tiết sự kiện công khai – không tên / SĐT người mua. ``my_tickets`` chỉ khi có cookie
+         *     hội viên liên kết (null với khách).
+         */
+        WebEventOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Play Date
+             * Format: date
+             */
+            play_date: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Resource Names */
+            resource_names: string[];
+            /** Ticket Price */
+            ticket_price: number;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Taken
+             * @description Vé đã có + ghế đang giữ online
+             */
+            taken: number;
+            /**
+             * Max Seats
+             * @description Số vé tối đa mua được lúc này: min(còn lại, 10)
+             */
+            max_seats: number;
+            /** Can Buy */
+            can_buy: boolean;
+            /**
+             * Reason
+             * @description Lý do can_buy = false: started (đã bắt đầu), full (hết chỗ), free (giá 0 – đăng ký tại quầy), deleted (đã hủy), online_off (đặt online tạm ngưng)
+             */
+            reason: ("started" | "full" | "free" | "deleted" | "online_off") | null;
+            /**
+             * My Tickets
+             * @description Vé của tôi – chỉ khi lớp gọi truyền refs của hội viên
+             */
+            my_tickets?: components["schemas"]["MyTicket"][] | null;
+            /** Hold Minutes */
+            hold_minutes: number;
         };
     };
     responses: never;
@@ -944,7 +9150,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    register_api_v1_auth_register_post: {
+    sign_in_api_v1_auth_sign_in_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -953,17 +9159,17 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RegisterIn"];
+                "application/json": components["schemas"]["SignInIn"];
             };
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserOut"];
+                    "application/json": components["schemas"]["CustomerSignInOut"] | components["schemas"]["AdminSignInOut"];
                 };
             };
             /** @description Validation Error */
@@ -977,7 +9183,7 @@ export interface operations {
             };
         };
     };
-    login_api_v1_auth_login_post: {
+    google_sign_in_api_v1_auth_google_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -986,7 +9192,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LoginIn"];
+                "application/json": components["schemas"]["GoogleSignInIn"];
             };
         };
         responses: {
@@ -996,7 +9202,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserOut"];
+                    "application/json": components["schemas"]["CustomerSignInOut"];
                 };
             };
             /** @description Validation Error */
@@ -1006,6 +9212,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_request_api_v1_auth_register_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtpSentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_verify_api_v1_auth_register_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterVerifyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_closed_api_v1_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description E-AUTH-32 */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };
@@ -1068,27 +9360,7 @@ export interface operations {
             };
         };
     };
-    list_users_api_v1_admin_users_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserOut"][];
-                };
-            };
-        };
-    };
-    create_staff_api_v1_admin_users_post: {
+    password_reset_request_api_v1_auth_password_reset_request_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1097,12 +9369,175 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["StaffCreateIn"];
+                "application/json": components["schemas"]["PhoneIn"];
             };
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtpSentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    password_reset_verify_api_v1_auth_password_reset_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneOtpIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetTokenOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    password_reset_confirm_api_v1_auth_password_reset_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetConfirmIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_verify_request_api_v1_auth_phone_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtpSentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_verify_api_v1_auth_phone_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneOtpIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneVerifyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_password_api_v1_auth_password_change_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1121,7 +9556,7 @@ export interface operations {
             };
         };
     };
-    venue_config_api_v1_venue_config_get: {
+    admin_profile_api_v1_admin_account_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1136,72 +9571,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VenueConfigOut"];
+                    "application/json": components["schemas"]["AdminProfileOut"];
                 };
             };
         };
     };
-    list_courts_api_v1_courts_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourtOut"][];
-                };
-            };
-        };
-    };
-    list_price_rules_api_v1_price_rules_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PriceRuleOut"][];
-                };
-            };
-        };
-    };
-    admin_list_courts_api_v1_admin_courts_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourtOut"][];
-                };
-            };
-        };
-    };
-    create_court_api_v1_admin_courts_post: {
+    admin_rename_api_v1_admin_account_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -1210,17 +9585,17 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CourtIn"];
+                "application/json": components["schemas"]["AdminProfileIn"];
             };
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CourtOut"];
+                    "application/json": components["schemas"]["AdminProfileOut"];
                 };
             };
             /** @description Validation Error */
@@ -1234,135 +9609,83 @@ export interface operations {
             };
         };
     };
-    update_court_api_v1_admin_courts__court_id__put: {
+    admin_change_password_api_v1_admin_account_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPasswordChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_sessions_api_v1_admin_account_sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MySessionOut"][];
+                };
+            };
+        };
+    };
+    revoke_other_sessions_api_v1_admin_account_sessions_revoke_others_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedOut"];
+                };
+            };
+        };
+    };
+    revoke_my_session_api_v1_admin_account_sessions__session_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                court_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CourtIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CourtOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    admin_list_price_rules_api_v1_admin_price_rules_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PriceRuleOut"][];
-                };
-            };
-        };
-    };
-    create_price_rule_api_v1_admin_price_rules_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PriceRuleIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PriceRuleOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_price_rule_api_v1_admin_price_rules__rule_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                rule_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PriceRuleIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PriceRuleOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_price_rule_api_v1_admin_price_rules__rule_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                rule_id: number;
+                session_id: number;
             };
             cookie?: never;
         };
@@ -1386,11 +9709,9 @@ export interface operations {
             };
         };
     };
-    availability_api_v1_bookings_availability_get: {
+    admin_me_api_v1_admin_auth_me_get: {
         parameters: {
-            query: {
-                date: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -1403,21 +9724,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AvailabilityOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["AdminSessionOut"];
                 };
             };
         };
     };
-    quote_api_v1_bookings_quote_post: {
+    upload_my_avatar_api_v1_admin_auth_me_avatar_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -1426,7 +9738,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SlotIn"][];
+                "multipart/form-data": components["schemas"]["Body_upload_my_avatar_api_v1_admin_auth_me_avatar_put"];
             };
         };
         responses: {
@@ -1436,7 +9748,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QuoteOut"];
+                    "application/json": components["schemas"]["AdminAvatarOut"];
                 };
             };
             /** @description Validation Error */
@@ -1450,40 +9762,7 @@ export interface operations {
             };
         };
     };
-    create_booking_api_v1_bookings_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BookingCreateIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    my_bookings_api_v1_bookings_me_get: {
+    delete_my_avatar_api_v1_admin_auth_me_avatar_delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -1493,84 +9772,84 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["BookingOut"][];
-                };
+                content?: never;
             };
         };
     };
-    get_booking_api_v1_bookings__booking_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    cancel_booking_api_v1_bookings__booking_id__cancel_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    admin_list_bookings_api_v1_admin_bookings_get: {
+    admin_avatar_api_v1_admin_auth_avatars__user_id__get: {
         parameters: {
             query?: {
-                date?: string | null;
-                status?: components["schemas"]["BookingStatus"] | null;
+                v?: string | null;
             };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Not Modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_logout_api_v1_admin_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_staff_api_v1_admin_staff_get: {
+        parameters: {
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -1583,21 +9862,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["StaffOut"][];
                 };
             };
         };
     };
-    create_counter_booking_api_v1_admin_bookings_post: {
+    create_staff_api_v1_admin_staff_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1606,7 +9876,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CounterBookingIn"];
+                "application/json": components["schemas"]["StaffCreateIn"];
             };
         };
         responses: {
@@ -1616,7 +9886,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingOut"];
+                    "application/json": components["schemas"]["StaffOut"];
                 };
             };
             /** @description Validation Error */
@@ -1630,13 +9900,11 @@ export interface operations {
             };
         };
     };
-    confirm_booking_api_v1_admin_bookings__booking_id__confirm_post: {
+    next_staff_code_api_v1_admin_staff_next_code_get: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                booking_id: number;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -1647,73 +9915,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["NextStaffCodeOut"];
                 };
             };
         };
     };
-    list_payments_api_v1_admin_bookings__booking_id__payments_get: {
+    update_staff_api_v1_admin_staff__staff_id__patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                booking_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    record_payment_api_v1_admin_bookings__booking_id__payments_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                booking_id: number;
+                staff_id: number;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ManualPaymentIn"];
+                "application/json": components["schemas"]["StaffUpdateIn"];
             };
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaymentOut"];
+                    "application/json": components["schemas"]["StaffOut"];
                 };
             };
             /** @description Validation Error */
@@ -1723,6 +9951,492 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_staff_password_api_v1_admin_staff__staff_id__password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPasswordIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_staff_sessions_api_v1_admin_staff__staff_id__sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    staff_session_history_api_v1_admin_staff__staff_id__sessions_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                staff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionHistoryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_staff_session_api_v1_admin_staff__staff_id__sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: number;
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_roles_api_v1_admin_roles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolesOut"];
+                };
+            };
+        };
+    };
+    update_role_api_v1_admin_roles__role__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role: "staff";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RolePermsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_menu_order_api_v1_admin_menu_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MenuOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuOrderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_menu_order_api_v1_admin_menu_order_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    upload_logo_api_v1_admin_site_logo_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_logo_api_v1_admin_site_logo_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteBrandingSavedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_logo_api_v1_admin_site_logo_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteBrandingSavedOut"];
+                };
+            };
+        };
+    };
+    site_logo_api_v1_site_logo_get: {
+        parameters: {
+            query?: {
+                v?: string | null;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": unknown;
+                };
+            };
+            /** @description Not Modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    site_favicon_api_v1_site_favicon_get: {
+        parameters: {
+            query?: {
+                v?: string | null;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": unknown;
+                };
+            };
+            /** @description Not Modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_site_info_api_v1_admin_site_info_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteInfoOut"];
+                };
+            };
+        };
+    };
+    put_site_info_api_v1_admin_site_info_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SiteInfoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteInfoSavedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_site_map_api_v1_admin_site_map_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SiteMapResolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteMapOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    site_branding_api_v1_site_branding_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteBrandingOut"];
                 };
             };
         };
@@ -1865,6 +10579,4065 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_resources_api_v1_booking_resources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceList"];
+                };
+            };
+        };
+    };
+    create_resource_api_v1_booking_resources_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_resource_api_v1_booking_resources__code__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_resource_api_v1_booking_resources__code__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_prices_api_v1_booking_prices_public_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPrices"];
+                };
+            };
+        };
+    };
+    get_prices_api_v1_booking_prices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceTable"];
+                };
+            };
+        };
+    };
+    put_prices_api_v1_booking_prices_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceTableUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_special_days_api_v1_booking_special_days_get: {
+        parameters: {
+            query?: {
+                year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialDayOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_special_day_api_v1_booking_special_days_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecialDayIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialDayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_special_day_api_v1_booking_special_days__special_day_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                special_day_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_special_day_api_v1_booking_special_days__special_day_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                special_day_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecialDayIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialDayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quote_api_v1_booking_quote_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calendar_api_v1_booking_calendar_get: {
+        parameters: {
+            query: {
+                date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_api_v1_booking_search_get: {
+        parameters: {
+            query?: {
+                code?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_item_api_v1_booking_items__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_session_api_v1_booking_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_session_api_v1_booking_sessions__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_session_api_v1_booking_sessions__code__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    collect_api_v1_booking_items__code__collect_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    collect_order_api_v1_booking_orders__order_code__collect_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCollectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderCollectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uncollectible_order_api_v1_booking_orders__order_code__uncollectible_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderUncollectibleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderUncollectibleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_uncollectible_api_v1_booking_items__code__uncollectible_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UncollectibleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_targets_api_v1_booking_items__code__move_targets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoveTarget"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_booking_api_v1_booking_items__code__move_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_transactions_api_v1_booking_transactions_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                /** @description Dòng có mục ở sân này */
+                resource?: string | null;
+                /** @description transfer gồm cả online */
+                method?: ("cash" | "transfer") | null;
+                /** @description Thu tiền / Hoàn tiền */
+                kind?: ("in" | "refund") | null;
+                q?: string | null;
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resource_detail_view_api_v1_booking_resources__code__detail_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resource_stats_api_v1_booking_resources__code__stats_get: {
+        parameters: {
+            query?: {
+                period?: "week" | "month" | "year";
+                date?: string | null;
+            };
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceStatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_members_api_v1_members_search_get: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberSearchItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_members_api_v1_members_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                kind?: ("member" | "temp") | null;
+                status?: ("active" | "inactive") | null;
+                /** @description none = chưa xếp hạng */
+                tier?: ("Yếu" | "Trung bình yếu" | "Trung bình -" | "Trung bình" | "Trung bình +" | "Khá" | "Bán chuyên" | "Chuyên nghiệp") | "none" | null;
+                /** @description Tên vợt (không phân biệt hoa thường) */
+                racket?: string | null;
+                /** @description Số lần đặt: bookings = bookings_desc (nhiều trước) | bookings_asc */
+                sort?: ("bookings" | "bookings_desc" | "bookings_asc") | null;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_member_api_v1_members_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    next_code_api_v1_members_next_code_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextCodeOut"];
+                };
+            };
+        };
+    };
+    create_temp_api_v1_members_temp_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TempCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_member_api_v1_members__ref__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_member_api_v1_members__ref__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_me_api_v1_member_area_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberMeOut"];
+                };
+            };
+        };
+    };
+    update_me_api_v1_member_area_me_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberMeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberMeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_avatar_api_v1_member_area_me_avatar_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_avatar_api_v1_member_area_me_avatar_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvatarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_avatar_api_v1_member_area_me_avatar_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_avatar_api_v1_member_area_avatars__customer_id__get: {
+        parameters: {
+            query?: {
+                v?: string | null;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Not Modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    overview_api_v1_member_area_overview_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Overview"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upcoming_events_api_v1_member_area_events_get: {
+        parameters: {
+            query?: {
+                /** @description Số ngày tới (giờ VN) */
+                days?: number;
+            };
+            header?: {
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCard"][];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payments_api_v1_member_area_payments_get: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM, mặc định tháng này */
+                month?: string | null;
+                kind?: "all" | "booking" | "ticket";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payment_api_v1_member_area_payments__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ``code`` của dòng (id nội bộ) */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    booking_calendar_api_v1_member_area_booking_calendar_get: {
+        parameters: {
+            query: {
+                date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_booking_api_v1_member_area_bookings__order_code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberOrder"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pending_payment_api_v1_member_area_pending_payment_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingCheckout"] | null;
+                };
+            };
+        };
+    };
+    list_rooms_api_v1_member_area_rooms_get: {
+        parameters: {
+            query?: {
+                /** @description mine: phòng có mình */
+                scope?: "all" | "mine";
+                /** @description Đúng mã đơn BK-YYYYMMDD-NNN hoặc mã con -NN (T-054) */
+                q?: string | null;
+            };
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomList"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    room_by_booking_api_v1_member_area_rooms_by_booking__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mã con của khối booking */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomRef"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_room_api_v1_member_area_rooms__room_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_join_api_v1_member_area_rooms__room_id__join_requests_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_join_api_v1_member_area_rooms__room_id__join_requests_mine_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_join_api_v1_member_area_rooms__room_id__join_requests__request_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_join_api_v1_member_area_rooms__room_id__join_requests__request_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invite_api_v1_member_area_rooms__room_id__invites_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_invite_api_v1_member_area_invites__invite_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                invite_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decline_invite_api_v1_member_area_invites__invite_id__decline_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                invite_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leave_api_v1_member_area_rooms__room_id__leave_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    kick_api_v1_member_area_rooms__room_id__members__member_id__kick_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+                /** @description Id dòng thành viên phòng */
+                member_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transfer_host_api_v1_member_area_rooms__room_id__members__member_id__transfer_host_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+                /** @description Id dòng thành viên phòng */
+                member_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_format_api_v1_member_area_rooms__room_id__format_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormatIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    draw_api_v1_member_area_rooms__room_id__draw_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_lineup_api_v1_member_area_rooms__room_id__lineup_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_api_v1_member_area_rooms__room_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_result_api_v1_member_area_rooms__room_id__matches__no__result_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                room_id: number;
+                no: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResultIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    match_list_api_v1_member_area_rooms__room_id__matches_get: {
+        parameters: {
+            query?: {
+                format?: ("2v2" | "1v1") | null;
+            };
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchList"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    play_history_api_v1_member_area_play_history_get: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM, mặc định tháng này */
+                month?: string | null;
+                /** @description Từ ngày (gửi kèm ``to``; có thì bỏ qua month) */
+                from?: string | null;
+                /** @description Đến ngày, gồm cả ngày này */
+                to?: string | null;
+            };
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayHistory"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ranking_api_v1_member_area_rooms__room_id__ranking_get: {
+        parameters: {
+            query?: {
+                format?: ("2v2" | "1v1") | null;
+            };
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ranking"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    monitor_day_api_v1_play_rooms_admin_day_get: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM-DD, mặc định hôm nay (giờ VN); trong ±1 năm */
+                date?: string | null;
+            };
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorDay"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    monitor_room_api_v1_play_rooms_admin_rooms__room_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag lần trước -> 304 nếu không đổi */
+                "if-none-match"?: string | null;
+            };
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorRoomDetail"];
+                };
+            };
+            /** @description Không đổi so với ETag gửi lên (polling 5 giây, AC21) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notifications_api_v1_member_area_notifications_get: {
+        parameters: {
+            query?: {
+                /** @description true: chỉ chưa đọc */
+                unread?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_all_api_v1_member_area_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    read_one_api_v1_member_area_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    speed_ranking_api_v1_member_area_speed_ranking_get: {
+        parameters: {
+            query?: {
+                period?: "week" | "month" | "year";
+                /** @description Ngày bất kỳ trong kỳ, mặc định hôm nay */
+                date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpeedRanking"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_videos_api_v1_member_area_record_videos_get: {
+        parameters: {
+            query?: {
+                period?: "week" | "month" | "year" | "all";
+                /** @description Ngày bất kỳ trong kỳ, mặc định hôm nay */
+                date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordVideoList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_breaks_api_v1_member_area_record_breaks_get: {
+        parameters: {
+            query?: {
+                period?: "week" | "month" | "year" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordBreakList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_speed_record_api_v1_member_area_speed_records_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpeedSubmitIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MySpeedRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_speed_records_api_v1_member_area_speed_records_mine_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MySpeedRecordList"];
+                };
+            };
+        };
+    };
+    withdraw_speed_record_api_v1_member_area_speed_records__record_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_speed_records_api_v1_admin_speed_records_get: {
+        parameters: {
+            query?: {
+                /** @description true: có video · false: chưa có */
+                has_video?: boolean | null;
+                page?: number;
+                /** @description T-047: pending = tab Chờ duyệt */
+                status?: ("approved" | "pending" | "rejected") | null;
+                /** @description device · admin · member */
+                source?: ("device" | "admin" | "member") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_speed_record_api_v1_admin_speed_records_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpeedRecordCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_speed_record_api_v1_admin_speed_records__record_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_speed_record_api_v1_admin_speed_records__record_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpeedRecordPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_speed_record_api_v1_admin_speed_records__record_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_speed_record_api_v1_admin_speed_records__record_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_video_api_v1_admin_speed_records__record_id__video_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_video_api_v1_admin_speed_records__record_id__video_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSpeedRecordRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rackets_api_v1_rackets_get: {
+        parameters: {
+            query?: {
+                all?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RacketOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_racket_api_v1_rackets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RacketCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RacketOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_racket_api_v1_rackets__racket_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                racket_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_racket_api_v1_rackets__racket_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                racket_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RacketUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RacketOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_member_api_v1_me_member_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyMemberOut"];
+                };
+            };
+        };
+    };
+    my_bookings_api_v1_me_member_bookings_get: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyBookingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_booking_api_v1_front_desk_bookings_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FrontDeskBookingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CounterOrderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_ticket_api_v1_front_desk_sessions__code__tickets_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_tickets_api_v1_front_desk_sessions__code__tickets_batch_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketBatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketBatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_recurring_api_v1_front_desk_recurring_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurringPreviewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_recurring_api_v1_front_desk_recurring_get: {
+        parameters: {
+            query?: {
+                status?: ("unpaid" | "paid" | "uncollectible" | "cancelled") | null;
+                q?: string | null;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringOrderListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_recurring_api_v1_front_desk_recurring_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurringBookingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_orders_api_v1_front_desk_orders_get: {
+        parameters: {
+            query?: {
+                kind?: "all" | "single" | "recurring";
+                status?: ("unpaid" | "paid" | "uncollectible" | "cancelled") | null;
+                q?: string | null;
+                /** @description Ngày chơi từ (khối bất kỳ) */
+                date_from?: string | null;
+                /** @description Ngày chơi đến */
+                date_to?: string | null;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_item_api_v1_front_desk_items__code__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_collect_qr_api_v1_front_desk_orders__order_code__collect_qr_get: {
+        parameters: {
+            query?: {
+                /** @description T-072: lúc mở popup (ISO 8601 có múi giờ, nhớ URL-encode dấu +) -> ``qr_paid``; sai -> 422 E-001 */
+                since?: string | null;
+            };
+            header?: never;
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectQrOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    item_collect_qr_api_v1_front_desk_items__code__collect_qr_get: {
+        parameters: {
+            query?: {
+                /** @description T-072: lúc mở popup (ISO 8601 có múi giờ, nhớ URL-encode dấu +) -> ``qr_paid``; sai -> 422 E-001 */
+                since?: string | null;
+            };
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectQrOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_cancel_preview_api_v1_front_desk_orders__order_code__cancel_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CancelPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_order_api_v1_front_desk_orders__order_code__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCancelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderCancelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calendar_api_v1_web_booking_calendar_get: {
+        parameters: {
+            query: {
+                date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_checkout_api_v1_web_booking_checkouts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    event_detail_api_v1_web_booking_events__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebEventOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_event_checkout_api_v1_web_booking_event_checkouts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventCheckoutIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_request_api_v1_web_booking_phone_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneCodeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneCodeSentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    phone_verify_api_v1_web_booking_phone_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneVerifyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneTokenOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_checkout_api_v1_web_booking_checkouts__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_checkout_api_v1_web_booking_checkouts__token__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lookup_api_v1_web_booking_lookup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LookupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simulate_payment_api_v1_payments_dev_simulate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankTransactionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_settings_api_v1_payments_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentSettingsOut"];
+                };
+            };
+        };
+    };
+    put_settings_api_v1_payments_settings_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description UUID v4 sinh khi người dùng bấm nút; giữ nguyên khi tự thử lại. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_banks_api_v1_payments_banks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankOut"][];
+                };
+            };
+        };
+    };
+    get_catalog_api_v1_admin_audit_log_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditCatalogOut"];
+                };
+            };
+        };
+    };
+    list_audit_log_api_v1_admin_audit_log_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                actor?: ("admin" | "staff" | "system" | "customer") | null;
+                action?: string | null;
+                /** @description Thời điểm: at_desc (mặc định, mới trước) | at_asc (cũ trước) */
+                sort?: ("at_desc" | "at_asc") | null;
+                page?: number;
+                /** @description Số dòng / trang: 20 | 50 (mặc định) | 100 */
+                size?: components["schemas"]["AuditPageSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_overview_api_v1_admin_reports_overview_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportOverviewOut"];
                 };
             };
             /** @description Validation Error */

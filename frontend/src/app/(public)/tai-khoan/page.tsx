@@ -2,15 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { BookingAction } from "@/components/booking/booking-action";
-import { StatusBadge } from "@/components/booking/status-badge";
 import { LogoutButton } from "@/components/logout-button";
-import { authedApi, getCurrentUser } from "@/lib/api/server";
-import { formatDate, formatTime, formatVnd } from "@/lib/format";
+import { Alert } from "@/components/ui/alert";
+import { getDictionary } from "@/i18n/dictionaries";
+import { getBranding, getCurrentUser } from "@/lib/api/server";
+import { phoneHref } from "@/lib/site";
+import { AccountPhone } from "./_components/account-phone";
 
 export const metadata: Metadata = {
   title: "Tài khoản của tôi",
-  robots: { index: false },
+  robots: { index: false, follow: false },
 };
 
 export default function AccountPage() {
@@ -22,63 +23,110 @@ export default function AccountPage() {
 }
 
 async function Account() {
+  const { phone } = await getBranding();
   const user = await getCurrentUser();
   if (!user) redirect("/dang-nhap?next=/tai-khoan");
-
-  const api = await authedApi();
-  const { data: bookings = [], error } = await api.GET("/api/v1/bookings/me");
-  if (error) throw new Error("Không tải được lịch sử đặt sân");
+  if (user.must_change_password) redirect("/doi-mat-khau");
+  const dictionary = await getDictionary();
+  const t = dictionary.account;
+  // `is_member`: tài khoản đã liên kết hồ sơ hội viên (T-016); bản API cũ chưa có trường này ⇒ không hiện gì
+  const isMember = (user as { is_member?: boolean }).is_member;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Xin chào, {user.full_name}</h1>
-          <p className="text-sm text-muted">{user.email}</p>
+          <dl className="mt-2 space-y-1 text-sm text-muted">
+            <div>
+              <dt className="sr-only">Số điện thoại</dt>
+              <dd>
+                {user.phone ? (
+                  <>
+                    {user.phone}{" "}
+                    <span className={user.phone_verified ? "font-medium text-primary" : "font-medium text-foreground"}>
+                      · {user.phone_verified ? t.phoneVerified : t.phoneUnverified}
+                    </span>
+                  </>
+                ) : (
+                  t.noPhone
+                )}
+              </dd>
+            </div>
+            {user.username && (
+              <div>
+                <dt className="sr-only">Tên đăng nhập</dt>
+                <dd>{t.username.replace("{username}", user.username)}</dd>
+              </div>
+            )}
+            {user.google_email && (
+              <div>
+                <dt className="sr-only">Google</dt>
+                <dd>{t.googleEmail.replace("{email}", user.google_email)}</dd>
+              </div>
+            )}
+          </dl>
+          {user.phone && !user.phone_verified && <p className="mt-2 max-w-prose text-sm text-muted">{t.phoneUnverifiedHint}</p>}
         </div>
-        <div className="flex items-center gap-4">
-          {user.role !== "customer" && (
-            <Link href="/admin" className="text-sm text-primary">
-              Trang quản lý →
-            </Link>
-          )}
-          <LogoutButton />
-        </div>
+        <LogoutButton />
       </div>
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Lịch sử đặt sân</h2>
-        {!bookings.length ? (
-          <p className="text-muted">
-            Bạn chưa đặt sân nào.{" "}
-            <Link href="/dat-san" className="text-primary">
-              Đặt ngay
-            </Link>
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {bookings.map((b) => (
-              <li key={b.id} className="rounded-lg border border-border bg-surface p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-mono text-sm">{b.code}</p>
-                  <StatusBadge status={b.status} />
-                </div>
-                <ul className="mt-2 text-sm">
-                  {b.slots.map((s) => (
-                    <li key={`${s.court_id}-${s.start}`}>
-                      Sân #{s.court_id} · {formatDate(s.start)} · {formatTime(s.start)}–
-                      {formatTime(s.end)}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-2 flex items-center justify-between">
-                  <p className="font-semibold">{formatVnd(b.total_amount)}</p>
-                  {b.status === "pending" && <BookingAction id={b.id} action="cancel" />}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+      <AccountPhone t={dictionary.phoneVerify} hasPhone={Boolean(user.phone)} />
+
+      {isMember === true ? (
+        <Alert variant="info">
+          Bạn là hội viên.{" "}
+          <Link href="/hoi-vien" className="font-semibold underline">
+            Vào khu hội viên
+          </Link>
+        </Alert>
+      ) : isMember === false && !user.phone_verified ? (
+        // T-021: xác minh SĐT bằng OTP là thành hội viên. Chưa có SĐT ⇒ form xác minh ngay phía trên.
+        // Đã có SĐT nhưng chưa xác minh (tài khoản đời cũ): đường chính là Quên mật khẩu (xong là hội viên, AC6),
+        // đường phụ là OTP khi đặt sân online.
+        <Alert variant="info">
+          <span className="flex flex-col gap-3">
+            <span>Xác minh số điện thoại để trở thành hội viên.</span>
+            {user.phone ? (
+              <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <Link
+                  href={`/quen-mat-khau?sdt=${encodeURIComponent(user.phone)}`}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white focus-ring hover:bg-primary-hover"
+                >
+                  Xác minh số điện thoại
+                </Link>
+                <span className="text-sm">
+                  Hoặc nhập mã OTP khi{" "}
+                  <Link href="/dat-san" className="font-semibold underline">
+                    đặt sân online
+                  </Link>
+                  .
+                </span>
+              </span>
+            ) : null}
+          </span>
+        </Alert>
+      ) : isMember === false ? (
+        <Alert variant="info">Bạn chưa là hội viên. Vui lòng liên hệ quầy để được hỗ trợ.</Alert>
+      ) : null}
+
+      <section className="rounded-card bg-surface p-4 shadow-card sm:p-6">
+        <h2 className="text-lg font-semibold">Đặt sân</h2>
+        <p className="mt-1 text-sm text-muted">
+          Đặt sân online tại{" "}
+          <Link href="/dat-san" className="font-medium text-primary">
+            trang Đặt sân
+          </Link>
+          , tra cứu bằng mã booking và số điện thoại ở mục{" "}
+          <Link href="/tra-cuu" className="font-medium text-primary">
+            Tra cứu booking
+          </Link>
+          . Cần hỗ trợ, gọi{" "}
+          <a href={phoneHref(phone)} className="font-medium text-primary">
+            {phone}
+          </a>
+          .
+        </p>
       </section>
     </div>
   );

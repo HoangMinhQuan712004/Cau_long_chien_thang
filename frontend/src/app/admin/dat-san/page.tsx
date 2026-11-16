@@ -1,0 +1,34 @@
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { CalendarScreen } from "@/components/booking-engine/calendar-screen";
+import type { Calendar } from "@/components/booking-engine/types";
+import { getDictionary } from "@/i18n/dictionaries";
+import { adminPerms, authedGetJson } from "@/lib/api/server";
+import { can } from "../_components/forbidden";
+import { todayVn } from "@/lib/format";
+
+export const metadata: Metadata = { title: "Đặt sân" };
+
+export default function BookingCalendarPage({ searchParams }: PageProps<"/admin/dat-san">) {
+  return (
+    <Suspense fallback={<p className="text-muted">Đang tải lịch…</p>}>
+      <CalendarLoader searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function CalendarLoader({ searchParams }: Pick<PageProps<"/admin/dat-san">, "searchParams">) {
+  // Đọc cookie (dữ liệu theo người dùng) trước khi dùng giờ hiện tại, để Next coi đây là nội dung động.
+  const [perms, { adminNav }] = await Promise.all([adminPerms(), getDictionary()]);
+  if (!can(perms, "booking.calendar.view")) return <p className="text-muted">{adminNav.noPermission}</p>;
+  const sp = await searchParams;
+  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayVn();
+  const calendar = await authedGetJson<Calendar>("/api/v1/booking/calendar", { date });
+
+  if (!calendar.ok) {
+    if (calendar.status === 403) return <p className="text-muted">{adminNav.noPermission}</p>;
+    throw new Error("Không tải được lịch đặt sân");
+  }
+  // key theo dữ liệu server: Next 16 giữ trang đã rời trong <Activity> nên state cũ (useState(initial)) không tự lấy props mới khi quay lại bằng menu
+  return <CalendarScreen key={calendar.data.now} initial={calendar.data} canRecurring={can(perms, "booking.recurring")} />;
+}

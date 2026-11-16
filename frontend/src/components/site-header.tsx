@@ -1,46 +1,50 @@
 import Link from "next/link";
-import { site } from "@/lib/site";
+import { Suspense } from "react";
+import { HeaderAccount } from "@/components/header-account";
+import { SiteLogo } from "@/components/site-logo";
+import { SiteNav } from "@/components/site-nav";
+import { PendingCheckoutBanner } from "@/components/web-booking/pending-banner";
+import { getBranding } from "@/lib/api/server";
+import { phoneHref } from "@/lib/site";
 
-const NAV = [
-  { href: "/dat-san", label: "Đặt sân" },
-  { href: "/bang-gia", label: "Bảng giá" },
-  { href: "/tin-tuc", label: "Tin tức" },
-];
-
-export function SiteHeader() {
+// Header khách: logo, Đặt sân, Tra cứu booking, Hotline, Đăng nhập / Đăng ký (T-013 AC23). Ô "Bạn là hội viên?" vẫn ẩn.
+// Cùng kiểu header khu hội viên (người dùng 12/11): nền xanh đậm, trải hết bề ngang, logo ô trắng, mục đang xem vạch vàng.
+export async function SiteHeader() {
+  const { name, phone, logo_url: logoUrl } = await getBranding();
+  // pt safe-area: app cài trên iPhone vẽ dưới thanh trạng thái (black-translucent) ⇒ chừa tai thỏ, vùng đó mang màu header
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-surface/90 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-primary">
-          <span aria-hidden className="inline-block size-3 rounded-full bg-accent" />
-          {site.shortName}
+    <header data-site-header className="sticky top-0 z-(--z-header) border-b border-surface/10 bg-appbar pt-[env(safe-area-inset-top)] text-surface">
+      <div className="flex h-14 w-full items-center gap-3 px-4 sm:h-16 sm:gap-6 sm:px-6">
+        {/* /dat-san là trang chính (ADR-012): trỏ thẳng, không qua chuyển hướng "/" */}
+        <Link href="/dat-san" className="flex min-w-0 items-center gap-2 font-bold focus-ring">
+          <SiteLogo url={logoUrl} onDark className="size-8" />
+          <span className="truncate" title={name}>{name}</span>
         </Link>
-        <nav aria-label="Chính" className="hidden gap-5 text-sm font-medium sm:flex">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className="hover:text-primary">
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="ml-auto flex items-center gap-3 text-sm">
-          <Link href="/tai-khoan" className="hover:text-primary">
-            Tài khoản
-          </Link>
-          <Link
-            href="/dat-san"
-            className="rounded-md bg-primary px-3 py-2 font-medium text-primary-fg"
-          >
-            Đặt sân ngay
-          </Link>
+        <Suspense fallback={null}>
+          <SiteNav />
+        </Suspense>
+        <a href={phoneHref(phone)} className="ml-auto shrink-0 text-sm hover:text-accent-soft">
+          <span className="hidden text-surface/70 sm:inline">Hotline </span>
+          <b>{phone}</b>
+        </a>
+        <div className="hidden sm:block">
+          <Suspense fallback={<div aria-hidden className="h-8 w-40" />}>
+            <HeaderAccount />
+          </Suspense>
         </div>
       </div>
-      <nav aria-label="Chính (di động)" className="flex gap-5 px-4 pb-2 text-sm sm:hidden">
-        {NAV.map((n) => (
-          <Link key={n.href} href={n.href}>
-            {n.label}
-          </Link>
-        ))}
-      </nav>
+      <div className="flex items-center justify-between gap-3 px-4 pb-1.5 text-sm sm:hidden">
+        <Suspense fallback={null}>
+          <SiteNav mobile />
+        </Suspense>
+        <Suspense fallback={<div aria-hidden className="h-8 w-36" />}>
+          <HeaderAccount />
+        </Suspense>
+      </div>
+      {/* Đơn chờ thanh toán: dải dưới header (máy tính) + thanh nổi đáy (điện thoại) */}
+      <Suspense fallback={null}>
+        <PendingCheckoutBanner part="both" />
+      </Suspense>
     </header>
   );
 }

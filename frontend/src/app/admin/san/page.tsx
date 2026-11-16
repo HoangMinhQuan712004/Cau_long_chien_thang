@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { PriceTable } from "@/components/price-table";
-import { authedApi } from "@/lib/api/server";
+import { CourtsTable } from "@/components/admin/courts-table";
+import { adminPerms, authedApi } from "@/lib/api/server";
+import { getDictionary } from "@/i18n/dictionaries";
+import { can } from "../_components/forbidden";
 
 export const metadata: Metadata = { title: "Sân & bảng giá" };
 
 export default function CourtsAdminPage() {
   return (
+    // Tiêu đề + tab chỉ hiện sau khi qua kiểm quyền (thiếu quyền chỉ còn dòng báo, như các trang khác)
     <Suspense fallback={<p className="text-muted">Đang tải…</p>}>
       <Courts />
     </Suspense>
@@ -14,40 +17,35 @@ export default function CourtsAdminPage() {
 }
 
 async function Courts() {
+  // Thiếu quyền booking.config.manage ⇒ báo không có quyền, không gọi API (backend vẫn kiểm: 403 cũng báo như vậy)
+  const [perms, { adminNav, courts }] = await Promise.all([adminPerms(), getDictionary()]);
+  const noPermission = adminNav.noPermission;
+  if (!can(perms, "booking.config.manage")) return <p className="text-muted">{noPermission}</p>;
   const api = await authedApi();
-  // Dùng API admin để thấy cả sân / giá đang tạm ngưng
-  const [courts, rules] = await Promise.all([
-    api.GET("/api/v1/admin/courts"),
-    api.GET("/api/v1/admin/price-rules"),
+  const [resources, prices] = await Promise.all([
+    api.GET("/api/v1/booking/resources"),
+    api.GET("/api/v1/booking/prices"),
   ]);
-  if (courts.response.status === 403) {
-    return <p className="text-muted">Chỉ chủ sân mới xem được mục này.</p>;
+  if (resources.response.status === 403 || prices.response.status === 403) {
+    return <p className="text-muted">{noPermission}</p>;
   }
-  if (courts.error || rules.error) throw new Error("Không tải được dữ liệu sân");
+  if (resources.error || prices.error || !resources.data || !prices.data) {
+    throw new Error("Không tải được dữ liệu sân");
+  }
 
+  const weekdayPrice: Record<string, number> = {};
+  for (const p of prices.data.prices) {
+    if (p.day_type === "weekday" && p.band === "offpeak") weekdayPrice[p.resource_type_code] = p.price_per_hour;
+  }
+
+  // Đầu trang + tab nằm trong CourtsTable (nút "Thêm sân" mở popup phía client)
   return (
-    <div className="space-y-8">
-      <section className="space-y-3">
-        <h1 className="text-2xl font-bold">Danh sách sân</h1>
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {courts.data.map((c) => (
-            <li key={c.id} className="rounded-lg border border-border bg-surface p-4">
-              <p className="font-semibold">{c.name}</p>
-              <p className="text-sm text-muted">{c.surface ?? "—"}</p>
-              <p className={`mt-1 text-xs ${c.is_active ? "text-success" : "text-danger"}`}>
-                {c.is_active ? "Đang hoạt động" : "Tạm ngưng"}
-              </p>
-            </li>
-          ))}
-        </ul>
-        {/* TODO: form thêm / sửa sân -> POST/PUT /api/v1/admin/courts */}
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Bảng giá</h2>
-        <PriceTable rules={rules.data} />
-        {/* TODO: form quản lý bảng giá -> /api/v1/admin/price-rules */}
-      </section>
-    </div>
+    <CourtsTable
+      resources={resources.data.items}
+      types={resources.data.resource_types}
+      weekdayPrice={weekdayPrice}
+      canDelete={can(perms, "booking.resources.delete")}
+      t={courts}
+    />
   );
 }

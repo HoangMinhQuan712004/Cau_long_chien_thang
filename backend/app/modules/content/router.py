@@ -1,15 +1,20 @@
 from datetime import UTC, datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from slugify import slugify
 from sqlalchemy import select
 
+from app.core.db import SessionDep
 from app.core.errors import Conflict, NotFound
-from app.modules.auth.deps import AdminUser, SessionDep
+from app.core.params import path_id
+from app.core.permissions import Perm, Principal, require
 from app.modules.content.models import Post
 from app.modules.content.schemas import PostIn, PostOut, PostSummary
 
 router = APIRouter(prefix="/posts", tags=["content"])
+
+AdminUser = Annotated[Principal, Depends(require(Perm.CONTENT_MANAGE))]
 
 
 def _published():
@@ -38,6 +43,8 @@ async def get_post(slug: str, session: SessionDep):
 
 # --- Admin ---
 admin_router = APIRouter(prefix="/admin/posts", tags=["admin: content"])
+# Id ngoài khoảng cột -> 404 như không tồn tại (T-070)
+PostId = path_id("post_id", lambda: NotFound("Không tìm thấy bài viết"))
 
 
 async def _save(session: SessionDep, data: PostIn, post: Post | None = None) -> Post:
@@ -68,7 +75,7 @@ async def create_post(data: PostIn, _: AdminUser, session: SessionDep):
 
 
 @admin_router.put("/{post_id}", response_model=PostOut)
-async def update_post(post_id: int, data: PostIn, _: AdminUser, session: SessionDep):
+async def update_post(post_id: PostId, data: PostIn, _: AdminUser, session: SessionDep):
     post = await session.get(Post, post_id)
     if not post:
         raise NotFound("Không tìm thấy bài viết")

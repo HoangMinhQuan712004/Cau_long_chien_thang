@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Literal, NamedTuple
 
 import jwt
 from pwdlib import PasswordHash
@@ -20,22 +20,40 @@ def verify_password(password: str, hashed: str) -> bool:
     return password_hash.verify(password, hashed)
 
 
-def create_token(subject: str, token_type: TokenType) -> str:
+def create_token(subject: str, token_type: TokenType, version: int = 0) -> str:
+    """JWT khách; ``version`` = ``User.token_version`` lúc cấp (claim ``ver``)."""
     if token_type == "access":
         expires = timedelta(minutes=settings.ACCESS_TOKEN_MINUTES)
     else:
         expires = timedelta(days=settings.REFRESH_TOKEN_DAYS)
     now = datetime.now(UTC)
-    payload = {"sub": subject, "type": token_type, "iat": now, "exp": now + expires}
+    payload = {
+        "sub": subject,
+        "type": token_type,
+        "ver": version,
+        "iat": now,
+        "exp": now + expires,
+    }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 
-def decode_token(token: str, token_type: TokenType) -> str | None:
-    """Trả về subject (user id) nếu token hợp lệ và đúng loại, ngược lại None."""
+class TokenClaims(NamedTuple):
+    subject: str
+    version: int
+
+
+def decode_token(token: str, token_type: TokenType) -> TokenClaims | None:
+    """JWT đúng loại -> (user id, ver; thiếu ver = 0); sai -> None."""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
     except jwt.PyJWTError:
         return None
-    if payload.get("type") != token_type:
+    subject, version = payload.get("sub"), payload.get("ver", 0)
+    if (
+        payload.get("type") != token_type
+        or not isinstance(subject, str)
+        or not subject.isdecimal()
+        or type(version) is not int
+    ):
         return None
-    return payload.get("sub")
+    return TokenClaims(subject, version)
