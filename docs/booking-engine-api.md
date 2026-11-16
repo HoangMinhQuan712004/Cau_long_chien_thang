@@ -1,4 +1,4 @@
-# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-063, T-064, T-065, T-066, T-068, T-069)
+# API booking engine, đặt online, đăng nhập, hội viên, mã đơn (T-005, T-006, T-008, T-012, T-013, T-015, T-016, T-019, T-020, T-021, T-017, T-018, T-023, T-025, T-026, T-027, T-029, T-030, T-046, T-047, T-048, T-049, T-051, T-052, T-053, T-054, T-057, T-058, T-061, T-063, T-064, T-065, T-066, T-068, T-069, T-072, T-075)
 
 Tài liệu này dành cho người viết code gọi API đặt sân: cần gửi gì, nhận lỗi gì, ai được gọi gì.
 Nguồn: code `dev` (T-005, T-006, T-008, T-012, T-013, quản trị hội viên PR #21 `c288d08`, PR #23 `993b27c` gồm khu hội viên T-016, mã chung T-019, chỉnh hội viên T-020, và PR #24 gồm đăng ký là thành hội viên T-021); mục **(T-021)** đã đối chiếu với code `dev` (`backend/app/modules/auth/`, `web_booking/schemas.py`, `audit_log/catalog.py`); giao diện chưa kiểm; spec `board/tasks/`; ADR-001, ADR-003, ADR-004, ADR-007, ADR-008, ADR-009, ADR-010.
@@ -452,6 +452,11 @@ Quyền: **`booking.collect`** (Admin và nhân viên có quyền thu tiền; g�
 | `closed` | Hết khối chưa thu nhưng có khối Không thu được, hoặc không có khối nào Đã thanh toán (hủy hết). Hiểu là đã xử lý ở máy khác, **không có tiền về**; popup không báo nhận tiền |
 
 - Hết khối chưa thu: `amount = 0`, `blocks = 0`.
+- **`since` và `qr_paid` (T-072, đã vào `dev`).** Lỗi cũ: đơn đã có khối Không thu được, mở QR cả đơn cho phần còn lại, tiền về đúng số thì tiền được áp đúng nhưng `status = closed` nên popup báo "xử lý ở máy khác". Cách sửa, **áp cho cả QR đơn lẫn QR buổi / vé** (`GET …/collect-qr?since=<ISO>`):
+  - `since` = lúc mở popup, ISO 8601 **có múi giờ** (`2026-11-12T03:00:00Z` hoặc `…+07:00`). **Nhớ URL-encode dấu `+` (`%2B`)**, nếu không `+` thành khoảng trắng và bị coi là sai. Sai định dạng hoặc thiếu múi giờ → 422 `E-001`. "Tạo lại mã QR" giữ nguyên mốc đầu. Không gửi `since` → `qr_paid = false`.
+  - Response thêm `qr_paid: bool` (mặc định `false`): **QR buổi / vé:** có dòng sổ `counter_qr` (tiền QR) chứa đúng khối hoặc vé đó với `occurred_at ≥ since`. **QR cả đơn:** **không còn khối chưa thu** và có dòng sổ `counter_qr` cho khối của đơn với `occurred_at ≥ since` (để một buổi trả bằng QR từng buổi, đơn còn buổi chưa thu, không làm popup cả đơn báo đã nhận tiền).
+  - `status` **giữ nguyên nghĩa**, không đổi phá vỡ. Giao diện: `qr_paid = true` → "Đã nhận tiền chuyển khoản" (ưu tiên hơn `status`); `paid` hoặc `closed` mà `qr_paid = false` → "Đơn đã được xử lý ở máy khác" (`paid` mà không có tiền QR nghĩa là máy khác thu tiền mặt).
+  - Đối chiếu code backend `be/T-072-qr-paid-since` @ `cf5ae1b`; không migration. Giao diện chưa kiểm.
 - **Đã bỏ 409 `E-BOOK-4`** của QR đơn (đơn hủy hết nay trả 200 `closed`). Đơn có cả khối Đã thanh toán lẫn Không thu được → `closed` (ARCHITECT chốt).
 - **Popup (T-058 sửa 10/11, chỉ giao diện, không đổi máy chủ):** chờ **5 phút**, đếm ngược "Còn m:ss"; hết giờ thì QR mờ, có nút "Tạo lại mã QR" (chờ thêm 5 phút) và kiểm lần cuối ngay lúc hết giờ. Bỏ dòng ghi chú "Chuyển thiếu hoặc thừa…". **Tiền về sau 5 phút vẫn được nhận nếu đúng số** và khối còn Chưa thanh toán: 5 phút chỉ là thời gian popup chờ, không có `expires_at`.
 
@@ -552,7 +557,7 @@ Khai báo trong `backend/app/core/config.py`, mẫu ở `backend/.env.example`.
 | `SEPAY_WEBHOOK_SECRET` | trống | Khóa ký webhook (HMAC). **Secret – không ghi vào repo, board hay tin nhắn** |
 | `SEPAY_TIMESTAMP_TOLERANCE_SECONDS` | `0` | `0` = không chặn theo tuổi của timestamp; `> 0` = lệch quá số giây này → 401 |
 | `ONLINE_HOLD_MINUTES` | `5` | Thời gian giữ chỗ online |
-| `ONLINE_HOLD_GRACE_SECONDS` | `60` | Ân hạn nhận tiền báo trễ sau khi hết giữ chỗ (khung vẫn bị chiếm trong lúc này) |
+| `ONLINE_HOLD_GRACE_SECONDS` | `60` | Ân hạn **chỉ để nhận tiền báo trễ** sau khi hết giữ chỗ. **Từ 13/11 khung mở lại ngay tại `expires_at`**, không còn bị chiếm trong ân hạn (mục 10.9) |
 | `PAYMENTS_SIMULATE` | `false` | Bật `POST /payments/dev/simulate` (giả lập tiền về). `ENV=production` mà bật → API **không khởi động** |
 | `FIRST_ADMIN_PHONE` **(T-013)** | `0912345678` | Thay `FIRST_ADMIN_EMAIL`. SĐT Admin đầu tiên. Migration T-013 cũng dùng biến này để gán SĐT cho Admin cũ chưa có; **thiếu hoặc sai → migration dừng**. Production: SĐT thật, phải có trong `.env` **trước** khi deploy |
 | `FIRST_ADMIN_PASSWORD` | `Admin@12345` (mẫu, `.env.example`) | Chỉ dùng khi **chưa có Admin**; không bao giờ ghi đè mật khẩu Admin đã có. Production từ chối mật khẩu mẫu hoặc yếu |
@@ -585,7 +590,7 @@ Chạy bằng `arq app.workers.worker.WorkerSettings`.
 | Job | Chu kỳ | Việc |
 |---|---|---|
 | `publish_booking_outbox` | mỗi 2 giây | Đọc outbox của engine, phát sự kiện nội bộ (vd. `booking.created`) |
-| `expire_holds` | mỗi 30 giây | Giữ chỗ quá `expires_at` → hết hạn, nhả khung. Giữ chỗ quá hạn không hiện trên lịch và không chặn đặt dù job chưa chạy. Từ T-008 cũng đóng lượt thanh toán online `pending` quá `expires_at` + ân hạn (→ `expired`) và phát `checkout.expired` nếu lượt đó đã nhận một phần tiền |
+| `expire_holds` | mỗi 30 giây | Giữ chỗ quá `expires_at` → hết hạn, nhả khung. Giữ chỗ quá hạn không hiện trên lịch và không chặn đặt dù job chưa chạy. Từ T-008 cũng đóng lượt thanh toán online `pending` quá `expires_at` + ân hạn (→ `expired`; **thao tác đặt mới đóng ngay lượt đã quá `expires_at`, không chờ ân hạn**, mục 10.9) và phát `checkout.expired` nếu lượt đó đã nhận một phần tiền |
 | `purge_audit_log` | hằng ngày 03:15 | Xóa dòng nhật ký quá 12 tháng |
 | `purge_idempotency_keys` | mỗi giờ (phút 5) | Xóa key quá 24 giờ |
 | `purge_otp_codes` (T-013) | mỗi giờ (phút 35) | Xóa mã OTP quá 24 giờ |
@@ -628,7 +633,7 @@ Migration quay lui được (`alembic downgrade`), không xóa dữ liệu bản
 2. Chọn ô, nhập họ tên + SĐT. **(T-013)** Khách bấm "Gửi mã" (`POST /web/booking/phone/request`), nhập OTP (`POST /web/booking/phone/verify` → `phone_token`); khách đã đăng nhập với SĐT đã xác minh thì bỏ qua bước này. Rồi `POST /web/booking/checkouts` → server giữ chỗ **5 phút**, cấp **một mã đơn** `BK-YYYYMMDD-NNN` (T-019; trước đó mỗi dải giờ liền nhau của từng sân một mã) và mã con `{mã đơn}-NN` cho từng dải giờ liền nhau của từng sân, trả `token` (chỉ trả **một lần**) và thông tin chuyển khoản.
 3. Khách quét QR, chuyển khoản với **nội dung = `pay_ref`**. Trang hỏi `GET /web/booking/checkouts/{token}` (mỗi 3 giây).
 4. SePay báo tiền về qua webhook → server đủ tiền thì **trong cùng transaction** tạo booking (`source=online`, cùng mã đã cấp, gắn vào đơn, `payment_status=paid`, `payment_method=online_transfer`) và đóng lượt thanh toán `paid`.
-5. Quá `expires_at` + 60 giây mà chưa đủ tiền → worker đóng lượt `expired`, nhả khung. Tiền về sau đó **không** tạo booking: giao dịch ghi `outcome = refund_needed` vào `payments.bank_transaction`; không có màn xử lý, chủ sân đối soát và hoàn tiền ngoài hệ thống (SePay hoặc ngân hàng).
+5. Quá `expires_at` mà chưa đủ tiền → **khung mở lại ngay** (từ 13/11, mục 10.9); worker đóng lượt `expired` sau `expires_at` + 60 giây (ân hạn chỉ để nhận tiền báo trễ). Tiền về sau đó **không** tạo booking: giao dịch ghi `outcome = refund_needed` vào `payments.bank_transaction`; không có màn xử lý, chủ sân đối soát và hoàn tiền ngoài hệ thống (SePay hoặc ngân hàng).
 
 `pay_ref` = **mã đơn** bỏ gạch (`BK-20261020-023` → `BK20261020023`; T-019, trước đó là mã booking đầu tiên). Booking online hiện trên lịch quầy như T-006 (Đỏ, nguồn Online).
 
@@ -671,7 +676,7 @@ Trường không dùng có giá trị `null`. Response **không** chứa tên, S
 - Tối đa **16** ô/lần, trong **một ngày**, nhiều sân được. Không giới hạn số ngày đặt trước. `note` ≤ 200 ký tự, họ tên 1–100 ký tự.
 - SĐT chuẩn hóa như quầy (bỏ khoảng trắng/chấm/gạch, `+84` → `0`), phải là `0` + 9 chữ số.
 - **Không gửi giá hay tổng tiền**: server tự tính từ bảng giá hiện hành và chốt lúc đặt.
-- Một SĐT chỉ có **1 lượt đang chờ** thanh toán (lượt thứ hai → 409 `E-WEB-4`).
+- Một SĐT chỉ có **1 lượt đang chờ** thanh toán (lượt thứ hai → 409 `E-WEB-4`, kèm đơn cũ để thanh toán hoặc hủy: mục 10.9).
 - **(T-013) Phải xác minh SĐT bằng OTP trước khi giữ chỗ.** Body thêm `phone_token`, lấy từ `POST /phone/verify`. Thiếu, sai, hết hạn (30 phút) hoặc khác SĐT trong body → 403 `E-WEB-8`. Một `phone_token` dùng được cho nhiều lượt checkout của **cùng SĐT** trong hạn. **Ngoại lệ:** khách đã đăng nhập, SĐT đã xác minh và trùng body thì không cần `phone_token`. `/tra-cuu` (mã + SĐT) và đặt tại quầy **không** cần OTP.
 - Trùng khung do exclusion constraint → 409 `E-WEB-3`, không tạo gì. Hai máy bấm cùng lúc: đúng một bên thành công.
 
@@ -714,7 +719,8 @@ Sai mã, mã con không thuộc SĐT, **hay** sai SĐT đều trả cùng 404 `E
 | E-WEB-1 | 422 | Theo trường: "Vui lòng nhập họ tên." · "Số điện thoại không hợp lệ — cần đủ 10 số." · "Ghi chú tối đa 200 ký tự." · "Chọn ít nhất 1 khung giờ." · "Mỗi lần đặt tối đa 16 khung giờ." |
 | E-WEB-2 | 422 | "Không đặt được ngày đã qua." hoặc khung đã qua, ngoài giờ mở cửa, sân ngừng hoạt động |
 | E-WEB-3 | 409 | "Khung giờ vừa có người đặt. Vui lòng chọn khung khác." Kèm `detail.conflicts: [{resource_code, start_hour}]` |
-| E-WEB-4 | 409 | SĐT này đang có lượt giữ chỗ chưa thanh toán (**T-023:** chung cho đặt sân và mua vé, ràng buộc `uq_checkout_pending_phone`) |
+| E-WEB-4 | 409 | "Bạn còn đơn chưa thanh toán. Hãy thanh toán hoặc hủy đơn đó để đặt đơn mới." (**T-023:** chung cho đặt sân và mua vé, ràng buộc `uq_checkout_pending_phone`). Kèm `detail.pending` (mục 10.9) |
+| E-WEB-12 | 409 | **(PR ngoài nhóm, mục 10.9)** Không hủy được giữ chỗ: `detail.reason` = `paid` / `partially_paid` / `expired` |
 | E-WEB-5 | 503 | Đặt online đang tạm ngưng (chưa đủ cấu hình SePay; từ T-013 còn thiếu cả kênh OTP). Gọi hotline |
 | E-WEB-6 | 404 | "Không tìm thấy lượt thanh toán." (token sai hoặc không có) |
 | E-WEB-7 | 404 | "Không tìm thấy booking. Kiểm tra lại mã và số điện thoại." |
@@ -883,6 +889,67 @@ Khóa dòng `session` `FOR UPDATE` khi giữ ghế và khi tiền về, nên hai
 | GET | `/member-area/bookings/{order_code}` | Đơn của mình: `{order_code, play_date, source: online hoặc counter, pay_status, amount, items:[{code, resource_name, start_time, end_time, hours, amount, pay_status}]}`. Không có SĐT. `items[].code` là mã con, dùng gọi `GET /member-area/payments/{code}` lấy hóa đơn khi đã thanh toán. Không có hoặc của người khác → 404 `E-NOT-FOUND` |
 
 Endpoint công khai `/web/booking/calendar` **không bao giờ** trả `order_code` của ai. Không có `/member-area/events/...`: hội viên xem sự kiện và mua vé qua `/web/booking/events/{code}` và `/web/booking/event-checkouts` với `as_member`.
+
+### 10.9 Ô đang giữ trên lịch (T-075), hủy giữ chỗ và đơn chờ thanh toán (PR ngoài nhóm, đã vào `dev`)
+
+> Đã vào `dev`. **Phần hủy giữ chỗ và đơn chờ không có spec hay handoff** (commit ngoài nhóm `51f0080`, `b3b0771`, `32f7eee`, `b8808ae`, ngày 13/11); tôi ghi theo code `dev` và các docstring trong `checkout_cancel.py`, `checkout_pending.py`, `holds.py`. Phần lịch `held` theo spec `board/tasks/T-075-giu-cho-ro-rang-quay-lai-qr.md` và handoff `be/T-075-held-slot` @ `102a7e6`, **nhưng một quy tắc đã đổi sau đó** (xem "Khung mở lại ngay"). Giao diện chưa kiểm.
+
+#### Lịch công khai và lịch hội viên: ô `held` (T-075, đổi phá vỡ)
+
+`GET /api/v1/web/booking/calendar` và `GET /api/v1/member-area/booking-calendar` (`MemberSlot` kế thừa `PublicSlot`):
+
+- `state` thêm giá trị **`held`**: khung đang có người giữ chỗ chờ thanh toán. FE cũ không biết `held` nên **BE và FE phải lên cùng lượt**.
+- `expires_at` (mới, `datetime | null`): **chỉ có khi `state = held`**, bằng `Hold.expires_at` (hạn thanh toán, không cộng ân hạn). Các ô khác `null`.
+- Ô `held` có `price`, `band`, `taken`, `capacity`, `event_code` = `null`. **Không** có tên, SĐT, mã đơn, `pay_ref` hay token. Lịch hội viên: ô `held` luôn `mine = false`, `order_code = null` (server không biết lượt nào của trình duyệt nào). `server_now` có sẵn để đếm ngược. Lịch admin không đổi.
+- Trùng ô: sự kiện > booking > held (hạng rõ ràng, không phụ thuộc thứ tự khối). Lượt đã thanh toán → ô thành `booked`.
+- **Khung mở lại ngay (người dùng 13/11, thay quy tắc ân hạn của bản T-075 đầu):** ô `held` chỉ còn tới đúng `expires_at`; hết hạn là ô **trống ngay**, bỏ trạng thái "Sắp mở lại". Vì vậy `expires_at` của ô `held` luôn ở tương lai. **Ân hạn 60 giây chỉ còn để nhận tiền báo trễ** (webhook), không giữ khung. Tiền về trong ân hạn mà khung đã bị người khác lấy → lượt đã `expired` → `refund_needed` như tiền về trễ (mục 10.4).
+- Thao tác đặt mới gặp lượt đã quá `expires_at` mà worker chưa đóng → **đóng ngay** (như worker: lượt + hold → `expired`, tắt allocation) rồi cho đặt.
+
+#### Một SĐT một đơn chờ: `E-WEB-4` kèm đơn cũ
+
+Ràng buộc `uq_checkout_pending_phone` (một lượt `pending` mỗi SĐT, chung sân và vé) giữ nguyên. Khác trước: **409 `E-WEB-4` kèm `detail.pending`** để khách thanh toán hoặc hủy đơn đó thay vì kẹt tới khi hết giờ. `detail.pending` là `PendingCheckout` (`null` nếu lượt vừa hết hạn):
+
+```json
+{ "order_code": "BK-20261113-004", "kind": "court", "title": "Sân 1, Sân 2",
+  "play_date": "2026-11-13", "start_time": "18:00", "end_time": "20:00",
+  "expires_at": "…", "server_now": "…", "amount": 360000, "paid_amount": 0,
+  "pay_token": "…", "slots": [ { "resource_name": "Sân 1", "start_time": "18:00", "end_time": "19:00" } ] }
+```
+
+- `kind` = `court` hoặc `ticket`; `title` = tên các sân nối dấu phẩy hoặc tên sự kiện; `start_time` / `end_time` = giờ sớm nhất / muộn nhất (HH:MM, giờ VN); `slots[]` theo thứ tự mã con, **rỗng với vé**.
+- `paid_amount > 0` nghĩa là đã ghi nhận một phần tiền: **không hủy được**.
+- **`pay_token`** = token trang `/thanh-toan/{token}`. Token nay **tính lại được** (`HMAC(SECRET_KEY, id lượt)`, DB vẫn chỉ lưu `token_hash`) để trả cho chủ đơn; lượt tạo trước tính năng này, hoặc sau khi đổi `SECRET_KEY`, thì `pay_token = null`. **Đổi `SECRET_KEY` làm các lượt đang chờ mất đường quay lại bằng token** (vẫn tra cứu được bằng mã đơn + SĐT).
+- Lượt chỉ tính là đang chờ khi `expires_at > now`; quá hạn không còn chặn.
+
+#### `POST /api/v1/web/booking/checkouts/{token}/cancel` – hủy giữ chỗ
+
+Công khai (khách) hoặc đã đăng nhập (hội viên); cần `Origin`; giới hạn **40 lượt / 10 phút** / IP; `no-store`. Hủy lượt **chưa trả đồng nào**, cả đặt sân lẫn mua vé. Trả `CheckoutOut` (`status = "cancelled"`).
+
+- Một transaction, khóa dòng checkout (như lúc nhận tiền hoặc hết hạn, nên không đua với webhook hay worker): lượt → `cancelled`, mọi hold `active` → `released`, tắt allocation (**khung mở lại ngay**; ghế sự kiện không còn được đếm). Audit `checkout.cancel` (người làm "Khách hủy giữ chỗ" hoặc "Hội viên hủy giữ chỗ"), outbox `checkout.cancelled {pay_ref, order_code, kind}`.
+- **Gọi lại khi đã hủy → 200 như cũ.** Hết hạn mà worker chưa đóng vẫn hủy được.
+- Lượt của hội viên: phải đăng nhập **đúng hội viên đó**; người khác nhận 404 như token sai.
+- Tiền về sau khi hủy đi đường của lượt đã đóng: `refund_needed`, lượt **không sống lại** (theo docstring `checkout_cancel.py`).
+
+| Mã lỗi | HTTP | Khi nào |
+|---|---|---|
+| `E-WEB-6` | 404 | Token sai, không phải lượt của mình |
+| `E-WEB-12` | 409 | `reason = paid` "Đơn đã thanh toán, không thể hủy." · `partially_paid` "Đơn đã ghi nhận tiền chuyển khoản, không thể hủy. Vui lòng liên hệ sân." · `expired` "Đơn đã hết hạn giữ chỗ." |
+
+- `GET /web/booking/checkouts/{token}` và các `CheckoutOut` khác: `status` thêm giá trị **`cancelled`** (`pending | paid | expired | cancelled`). Lượt hủy không có `bank`.
+- **Giới hạn tạo đơn nâng lên 30 lượt / 10 phút** (`POST /web/booking/checkouts` và `/event-checkouts`).
+
+#### `GET /api/v1/member-area/pending-payment` – đơn chờ của hội viên
+
+Điều kiện chung của mục 13, chưa là hội viên → 403 `E-HV-8`. Giới hạn 120 / phút, `no-store`. Trả `PendingCheckout | null`: đơn online đang chờ của hội viên (theo SĐT hồ sơ, đúng cái chặn đặt mới `E-WEB-4`), `null` nếu không có. Dùng cho thẻ "Chờ thanh toán" và thanh nhắc ở khu hội viên.
+
+#### Migration `f1c4b7e2a9d3` (nối sau `a3d9cdb7c461`, **production phải chạy**)
+
+Đổi check `ck_checkout_status` của `booking.checkout` thành `status IN ('pending','paid','expired','cancelled')`. **Downgrade** đổi mọi dòng `cancelled` thành `expired` rồi trả check cũ (mất phân biệt hủy tay và hết hạn). Không biến cấu hình mới.
+
+#### Điểm lệch spec T-075 (ghi cho ARCHITECT)
+
+- Spec T-075 nói "token chỉ lưu hash nên server không trả lại token được" và chọn nhận "ô của tôi" bằng `localStorage` ở FE; code nay trả `pay_token` tính lại được ở `E-WEB-4` và `pending-payment`, và có thêm nút hủy giữ chỗ. Đây là thay đổi ngoài spec (ngoài nhóm, có "ADR-013 riêng" như spec nhắc nhưng **chưa có trong `board/decisions/ADR-013-huy-thanh-toan.md`**, file đó chỉ nói về hủy booking và vé).
+
 
 ## 11. Đăng nhập, nhân viên, OTP, tài khoản khách (T-013)
 
