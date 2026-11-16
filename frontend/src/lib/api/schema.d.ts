@@ -5725,7 +5725,7 @@ export interface components {
             id: number;
             /**
              * Kind
-             * @description room.invited · room.join_requested · room.join_approved · room.join_rejected · room.kicked · room.host_assigned · record.approved · record.rejected (T-047) · booking.cancelled · room.cancelled (T-051)
+             * @description room.invited · room.join_requested · room.join_approved · room.join_rejected · room.kicked · room.host_assigned · record.approved · record.rejected (T-047) · booking.cancelled · room.cancelled (T-051) · booking.reminder · booking.moved · booking.paid (T-076)
              */
             kind: string;
             /**
