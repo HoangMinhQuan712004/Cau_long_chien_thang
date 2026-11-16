@@ -10,14 +10,19 @@ không rò họ tên / SĐT / endpoint trên màn khóa.
 """
 
 import asyncio
-from datetime import timedelta
+import importlib
+from datetime import datetime, timedelta
 
-from sqlalchemy import delete, select, update
+import pytest
+from sqlalchemy import delete, func, select, update
 
 from app.core import events
+from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.auth.models import RolePermission, User
-from app.modules.booking_engine.models import Booking
+from app.modules.booking_engine import common
+from app.modules.booking_engine.api import expire_holds
+from app.modules.booking_engine.models import Booking, EventSession, Ticket
 from app.modules.member_area import handlers as member_area
 from app.modules.member_inbox.models import MemberNotification
 from app.modules.web_push import messages
@@ -27,6 +32,8 @@ from tests.conftest import ENQUEUED_JOBS, PUSH, idem
 from tests.conftest import push_testing as testing
 from tests.helpers_booking import BK, member, new_court, temp
 from tests.helpers_web import checkout, simulate
+from tests.test_counter_qr import FD
+from tests.test_online_payments import shift_expiry
 from tests.test_web_push_events import (
     _backdate,
     device,
@@ -38,6 +45,22 @@ from tests.test_web_push_events import (
 )
 
 people = base.people
+t68 = importlib.import_module("tests.test_qa_T-068")
+event_today = t68.event_today
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """Đóng băng đồng hồ engine lúc 06:00 hôm nay: vé quầy chỉ đăng ký cho sự kiện hôm nay (9h–11h luôn ở tương lai)."""
+    day = datetime.now(settings.tz).date()
+    frozen = datetime(day.year, day.month, day.day, 6, tzinfo=settings.tz)
+
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen.astimezone(tz)
+
+    monkeypatch.setattr(common, "datetime", Frozen)
 
 
 def vnd(n: int) -> str:
@@ -463,3 +486,100 @@ async def test_reminder_inbox_row_keeps_payload_code_for_dedup(admin, staff, peo
             )
         )
     assert len(rows) == 1
+
+
+# ---------------------------------------------------------------- AC8–AC9 (vé) và AC19 (partial hết hạn)
+
+
+async def test_ac8_ac9_ticket_reminder_once_and_cancelled_or_guest_tickets_are_skipped(
+    admin, people, clock
+):
+    hv = await people("QA Hội Viên Nhắc Vé")
+    ep = await device(hv.client)
+    ev = await event_today(admin)
+    codes = []
+    for customer in (member(hv.code), member(hv.code), temp("QA Khách Vé Lẻ", "0867700031")):
+        r = await admin.post(
+            f"{FD}/sessions/{ev['code']}/tickets", json={"customer": customer}, headers=idem()
+        )
+        assert r.status_code == 201, r.text
+        codes.append(r.json()["code"])
+    live, cancelled, guest = codes
+    async with SessionLocal() as s:
+        start = await s.scalar(select(EventSession.start_at).where(EventSession.code == ev["code"]))
+        await s.execute(
+            update(Ticket)
+            .where(Ticket.code.in_(codes))
+            .values(created_at=start - timedelta(hours=3))
+        )
+        await s.execute(
+            update(Ticket)
+            .where(Ticket.code == cancelled)
+            .values(payment_status="cancelled", cancel_reason="QA hủy vé", cancelled_at=func.now())
+        )
+        await s.commit()
+    await flush()
+    PUSH.clear()
+    now = start - timedelta(minutes=60)
+    await member_area.send_reminders(now)
+    await testing.drain(ENQUEUED_JOBS)
+    assert [s.body for s in to(ep)] == [f"{ev['name']} · 9h–11h hôm nay · {live}"]
+    assert to(ep)[0].title == "Sắp đến giờ chơi" and to(ep)[0].url == messages.MEMBER_HISTORY
+    # Cron chạy lại (kể cả song song): vẫn một thông báo cho vé còn hiệu lực
+    await asyncio.gather(
+        *[member_area.send_reminders(start - timedelta(minutes=40)) for _ in range(3)]
+    )
+    await testing.drain(ENQUEUED_JOBS)
+    assert len(to(ep)) == 1
+    assert await inbox_texts(hv.customer_id, "booking.reminder") == [to(ep)[0].body]
+    # Vé đã hủy và vé khách không có tài khoản không được nhắc
+    async with SessionLocal() as s:
+        rows = list(
+            await s.scalars(
+                select(MemberNotification.payload["code"].astext).where(
+                    MemberNotification.kind == "booking.reminder"
+                )
+            )
+        )
+    assert cancelled not in rows and guest not in rows
+    assert_no_identity(PUSH.sent, hv.phone, "QA Hội Viên Nhắc Vé", "QA Khách Vé Lẻ")
+
+
+async def test_ac19_partial_payment_turning_refund_needed_on_expiry_pushes_money_review_once(
+    admin, staff, anon
+):
+    admin_ep, staff_ep = await device(admin), await device(staff)
+    court = await new_court(admin)
+    co = (
+        await checkout(anon, [(court["code"], 17)], phone="0867700017", name="QA Khách Hết Hạn")
+    ).json()
+    PUSH.clear()
+    assert await simulate(admin, co["pay_ref"], 10_000) == "partial"
+    await flush()
+    first = [s for s in to(admin_ep) if s.title == "Tiền về cần xử lý"]
+    assert [s.body for s in first] == ["10.000 đ · Thiếu tiền"]
+    # Hết hạn (quá cả ân hạn): phần đã trả thành "cần hoàn" -> đúng một push nữa cho mỗi nhân viên có quyền
+    await shift_expiry(co["pay_ref"], 90)
+    async with SessionLocal() as s:
+        assert await expire_holds(s) >= 1
+        await s.commit()
+    PUSH.clear()
+    await flush()
+    await flush()  # chạy lại outbox / job: không được gửi thêm
+    for ep in (admin_ep, staff_ep):
+        got = [s for s in to(ep) if s.title == "Tiền về cần xử lý"]
+        assert [s.body for s in got] == ["10.000 đ · Cần hoàn"], (ep, [s.body for s in got])
+        assert got[0].url == messages.MONEY_REVIEW_URL
+    assert_no_identity(PUSH.sent, "0867700017", "QA Khách Hết Hạn")
+    # Quyền xem giao dịch bị gỡ giữa chừng: tiền về trễ sau hết hạn chỉ còn Admin nhận
+    await drop_permission("staff", "booking.transactions.view")
+    try:
+        PUSH.clear()
+        assert await simulate(admin, co["pay_ref"], co["amount"]) == "refund_needed"
+        await flush()
+        assert [s.body for s in to(admin_ep) if s.title == "Tiền về cần xử lý"] == [
+            f"{vnd(co['amount'])} đ · Cần hoàn"
+        ]
+        assert to(staff_ep) == []
+    finally:
+        await grant_permission("staff", "booking.transactions.view")

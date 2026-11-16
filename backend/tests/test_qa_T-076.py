@@ -110,10 +110,13 @@ async def test_ac7_forged_endpoints_are_rejected_stored_nowhere_and_never_contac
     before = len(PUSH.attempts)
     r = await customer.post(f"{API}/subscriptions", json=body(endpoint))
     assert r.status_code == 422, (endpoint, r.status_code, r.text[:200])
-    assert r.json()["detail"]["code"] in ("E-PUSH-1", "E-001"), r.text[:200]
+    detail = r.json()["detail"]
+    # 422 nghiệp vụ {detail:{code}} hoặc 422 kiểm dữ liệu chuẩn (detail là danh sách) đều hợp lệ
+    code = detail["code"] if isinstance(detail, dict) else "E-001"
+    assert code in ("E-PUSH-1", "E-001"), r.text[:200]
     assert await rows_for(endpoint) == 0, "không được lưu"
     assert len(PUSH.attempts) == before, "không được thử gửi tới host giả"
-    if r.json()["detail"]["code"] == "E-PUSH-1":  # thông báo lỗi nghiệp vụ không lặp lại endpoint
+    if code == "E-PUSH-1":  # thông báo lỗi nghiệp vụ không lặp lại endpoint
         assert endpoint not in r.text
 
 
