@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getBranding } from "@/lib/api/server";
-import { APP_NAME } from "@/lib/site";
+import { APP_NAME, APP_SHORT_NAME } from "@/lib/site";
 
 // Manifest cho app cài từ web (PWA): đủ điều kiện ⇒ Chrome / Edge hiện "Cài đặt ứng dụng" và cài thành app riêng
 // (Android: có trong ngăn ứng dụng, mở toàn màn hình không thanh địa chỉ / thanh tiêu đề). Tên app cố định
@@ -16,7 +16,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   return {
     id: "/",
     name: APP_NAME,
-    short_name: APP_NAME,
+    short_name: APP_SHORT_NAME, // tên dưới icon; APP_NAME hiện ở hộp thoại cài đặt
     description: `Đặt sân, phòng chơi, bảng xếp hạng – ${name}`,
     lang: "vi",
     start_url: "/",
