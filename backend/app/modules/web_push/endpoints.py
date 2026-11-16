@@ -39,7 +39,8 @@ def host_of(endpoint: str) -> str | None:
     if "@" in parts.netloc or port not in (None, 443):
         return None
     host = (parts.hostname or "").lower()
-    if not host or host.endswith("."):
+    # Nhãn rỗng (``..push.apple.com``, ``.fcm…``, dấu chấm cuối) -> không phải tên miền hợp lệ
+    if not host or any(label == "" for label in host.split(".")):
         return None
     try:
         ipaddress.ip_address(host)

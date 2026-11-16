@@ -79,6 +79,11 @@ async def test_subscribe_upsert_and_move_between_accounts(anon, customer, admin)
         "https://user:pw@fcm.googleapis.com/x",
         "https://fcm.googleapis.com.evil.com/x",
         "fcm.googleapis.com/x",
+        # Nhãn rỗng / dấu chấm cuối (T-76-1)
+        "https://..push.apple.com/x",
+        "https://x..notify.windows.com/x",
+        "https://.web.push.apple.com/x",
+        "https://fcm.googleapis.com./x",
     ],
 )
 async def test_bad_endpoint_is_e_push_1(customer, endpoint):

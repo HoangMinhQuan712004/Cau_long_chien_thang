@@ -12,6 +12,7 @@ import app.modules.members.handlers  # noqa: F401  (handler nhận sự kiện o
 import app.modules.notifications.handlers  # noqa: F401
 import app.modules.payments.handlers  # noqa: F401
 import app.modules.play_rooms.handlers  # noqa: F401
+import app.modules.web_push.handlers  # noqa: F401
 from app.core import audit, idempotency
 from app.core.config import settings
 from app.core.context import setup_logging
@@ -19,6 +20,7 @@ from app.core.db import SessionLocal
 from app.modules.auth import otp as otp_service
 from app.modules.auth.models import OtpCode
 from app.modules.booking_engine import api as booking_engine
+from app.modules.member_area import handlers as member_area
 from app.modules.member_inbox import api as member_inbox
 from app.modules.notifications import zalo
 from app.modules.play_rooms import lifecycle as play_rooms
@@ -81,6 +83,13 @@ async def purge_member_notifications(ctx) -> int:
 
 
 push_test = web_push.push_test
+push_member_notification = web_push.push_member_notification
+push_staff = web_push.push_staff
+
+
+async def send_play_reminders(ctx) -> int:
+    """Nhắc giờ chơi 60' trước (T-076): mỗi 5 phút, chống trùng trong ``notify_once``."""
+    return await member_area.send_reminders()
 
 
 class WorkerSettings:
@@ -95,6 +104,9 @@ class WorkerSettings:
         play_rooms_tick,
         purge_member_notifications,
         push_test,
+        push_member_notification,
+        push_staff,
+        send_play_reminders,
     ]
     cron_jobs = [
         cron(publish_booking_outbox, second=set(range(0, 60, 2)), unique=True),  # mỗi 2 giây
@@ -104,4 +116,6 @@ class WorkerSettings:
         cron(purge_otp_codes, minute=35, second=0),  # mỗi giờ: mã quá 24 giờ
         cron(play_rooms_tick, second=10, unique=True),  # mỗi phút
         cron(purge_member_notifications, hour=3, minute=40, second=0),  # hằng ngày: > 90 ngày
+        # Nhắc giờ chơi: phút chia hết cho 5 (17:00 nhắc buổi 18:00)
+        cron(send_play_reminders, minute=set(range(0, 60, 5)), second=0, unique=True),
     ]

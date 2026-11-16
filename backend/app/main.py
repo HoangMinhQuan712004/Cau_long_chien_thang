@@ -9,6 +9,7 @@ import app.modules.members.handlers  # noqa: F401  (đăng ký event handler)
 import app.modules.notifications.handlers  # noqa: F401  (đăng ký event handler)
 import app.modules.payments.handlers  # noqa: F401  (đăng ký event handler)
 import app.modules.play_rooms.handlers  # noqa: F401  (đăng ký event handler)
+import app.modules.web_push.handlers  # noqa: F401  (đăng ký event handler)
 from app.core.config import settings
 from app.core.context import RequestContextMiddleware, setup_logging
 from app.core.db import engine
