@@ -244,7 +244,7 @@ async def test_reminder_window_once_and_skips(admin, staff, people):
         start = await s.scalar(select(Booking.start_at).where(Booking.code == b["code"]))
     for code in (b["code"], cancelled["code"], guest_code):
         await _backdate(code, start - timedelta(hours=2))
-    await _backdate(late["code"], start - timedelta(minutes=30))
+    await _backdate(late["code"], start - timedelta(minutes=10))  # còn ≤ 20 phút (T-077)
     r = await admin.post(
         f"{FD}/items/{cancelled['code']}/cancel",
         json={"reason": "Sân bảo trì", "version": cancelled["version"]},
@@ -380,3 +380,50 @@ async def test_locked_account_gets_nothing(admin, staff, people):
         staff_ids = await auth_api.staff_user_ids_with(s, "booking.collect")
         uid = await s.scalar(select(User.id).where(User.phone == hv.phone))
     assert uid not in staff_ids
+
+
+async def test_late_booking_reminded_15_minutes_before(admin, staff, people):
+    """T-077 C: đặt sát giờ (sau mốc 60') mà còn > 20' -> nhắc 15' trước, một lần; quá start − 5'
+    thì bỏ; đặt khi còn ≤ 20' không nhắc; buổi thường không nhắc thêm lần 15'."""
+    hv = await people("Hội Viên Sát Giờ")
+    ep = await device(hv.client)
+    late = await member_block(staff, admin, hv, hour=16)  # đặt 15:30 cho 16:00
+    tight = await member_block(staff, admin, hv, hour=16)  # đặt 15:40 (còn 20')
+    normal = await member_block(staff, admin, hv, hour=16)  # đặt từ hôm trước
+    async with SessionLocal() as s:
+        start = await s.scalar(select(Booking.start_at).where(Booking.code == late["code"]))
+    await _backdate(late["code"], start - timedelta(minutes=30))
+    await _backdate(tight["code"], start - timedelta(minutes=20))
+    await _backdate(normal["code"], start - timedelta(days=1))
+    await flush()
+    PUSH.clear()
+
+    async def reminded_at(minutes_before: float) -> set[str]:
+        await member_area.send_reminders(start - timedelta(minutes=minutes_before))
+        await testing.drain(ENQUEUED_JOBS)
+        async with SessionLocal() as s:
+            rows = await s.scalars(
+                select(MemberNotification.payload["code"].astext).where(
+                    MemberNotification.customer_id == hv.customer_id,
+                    MemberNotification.kind == "booking.reminder",
+                )
+            )
+            return set(rows)
+
+    assert await reminded_at(60) == {normal["code"]}  # thường: 60' trước
+    assert await reminded_at(16) == {normal["code"]}  # sát giờ: chưa tới mốc 15'
+    assert await reminded_at(15) == {normal["code"], late["code"]}
+    assert await reminded_at(10) == {normal["code"], late["code"]}  # không trùng
+    assert len(to(ep)) == 2 and all(s.title == "Sắp đến giờ chơi" for s in to(ep))
+    assert tight["code"] not in await reminded_at(6)
+
+
+async def test_late_booking_skipped_after_five_minutes_before(admin, staff, people):
+    hv = await people("Hội Viên Trễ")
+    b = await member_block(staff, admin, hv, hour=17)
+    async with SessionLocal() as s:
+        start = await s.scalar(select(Booking.start_at).where(Booking.code == b["code"]))
+    await _backdate(b["code"], start - timedelta(minutes=40))
+    await member_area.send_reminders(start - timedelta(minutes=5))  # còn đúng 5': bỏ
+    await member_area.send_reminders(start - timedelta(minutes=2))
+    assert await inbox_texts(hv.customer_id, "booking.reminder") == []
