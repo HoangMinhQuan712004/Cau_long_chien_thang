@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.audit import SYSTEM_ACTOR, Value, audit, audit_change, audit_detail
 from app.core.config import settings
@@ -122,7 +123,9 @@ async def renew_if_due(
     await session.commit()
     if not result.rowcount:
         return False  # request khác vừa gia hạn / phiên vừa bị thu hồi
-    admin_session.expires_at = new
+    # Giá trị mới đã ở DB: chỉ cập nhật bản trong bộ nhớ, không đánh dấu "bẩn" – gán thường
+    # khiến lần commit của request phát thêm một câu UPDATE thừa (T-77-2)
+    set_committed_value(admin_session, "expires_at", new)
     return True
 
 

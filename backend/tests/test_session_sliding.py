@@ -178,3 +178,35 @@ async def test_concurrent_refresh_with_same_token_both_succeed():
         async with _client() as late:
             late.cookies.set("refresh_token", old)
             assert (await late.post(f"{API}/auth/refresh")).status_code == 200
+
+
+async def test_renewal_writes_exactly_one_update(admin):
+    """T-77-2: một lượt gia hạn = đúng một câu UPDATE; bản trong bộ nhớ mang hạn mới nhưng không
+    "bẩn", nên lần commit sau của request không ghi lại."""
+    from sqlalchemy import event
+
+    from app.core.db import engine
+    from app.modules.auth import sessions
+
+    nv = await create_staff(admin, "Một Câu Ghi")
+    async with _client() as c:
+        await sign_in(c, nv["username"], PASSWORD)
+    row = await session_row(nv["id"])
+    await set_expiry(row.id, datetime.now(UTC) + timedelta(days=3))
+    updates: list[str] = []
+
+    def count(conn, cursor, statement, *args):
+        if statement.lstrip().upper().startswith("UPDATE ADMIN_SESSIONS"):
+            updates.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", count)
+    try:
+        async with SessionLocal() as s:
+            live = await s.get(AdminSession, row.id)
+            assert await sessions.renew_if_due(s, live)
+            assert near(live.expires_at, datetime.now(UTC) + timedelta(days=30))
+            assert live not in s.dirty
+            await s.commit()  # như request commit nghiệp vụ của nó
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", count)
+    assert len(updates) == 1, updates
