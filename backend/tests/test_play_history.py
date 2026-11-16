@@ -175,6 +175,8 @@ async def test_date_range_spans_months_vn_time_and_errors(staff, admin, people):
 async def test_career_stats_for_record_card(staff, admin, people):
     """Thẻ kỷ lục: tổng thắng / thua mọi thời gian (mọi phòng), cùng cách đếm Lịch sử chơi."""
     host, mate = await people("Phá Kỷ Lục"), await people("Đồng Đội")
+    # Hội viên thật chưa có trận: id âm (-9) có thể bị test khác dùng làm người chơi
+    idle = (await people("Chưa Chơi")).customer_id
     h, x = host.customer_id, mate.customer_id
     first = (await room_for(staff, admin, host.code))["room"]
     second = (await room_for(staff, admin, host.code))["room"]
@@ -183,11 +185,11 @@ async def test_career_stats_for_record_card(staff, admin, people):
     await add_match(first.id, 3, [h], [-1], status="abandoned")  # không tính
     await add_match(second.id, 1, [h], [-4], win="b")  # phòng khác: h thua
     async with SessionLocal() as s:
-        got = await rooms.career_stats(s, {h, x, -9})
+        got = await rooms.career_stats(s, {h, x, idle})
         assert await rooms.career_stats(s, set()) == {}
     assert (got[h].matches, got[h].wins) == (3, 1)
     assert (got[x].matches, got[x].wins) == (1, 1)
-    assert -9 not in got  # chưa có trận nào
+    assert idle not in got  # chưa có trận nào
     # Khớp tổng Lịch sử chơi của tháng có các trận đó
     d = (await history(host.client)).json()
     assert (d["summary"]["matches"], d["summary"]["wins"]) == (got[h].matches, got[h].wins)
