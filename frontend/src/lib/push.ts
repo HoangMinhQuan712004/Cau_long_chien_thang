@@ -1,9 +1,10 @@
 // T-076 / ADR-015: thông báo đẩy (Web Push) trên thiết bị này – phát hiện hỗ trợ, bật, tắt, gửi thử, gỡ khi đăng xuất.
-// API: GET /push/config, POST + DELETE /push/subscriptions, POST /push/test (dùng looseApi tới khi BE bàn giao schema).
+// API: GET /push/config, POST + DELETE /push/subscriptions, POST /push/test (kiểu sinh từ schema.d.ts).
 
-import { errorMessage, looseApi } from "@/lib/api/client";
+import { api, errorMessage } from "@/lib/api/client";
+import type { components } from "@/lib/api/schema";
 
-export type PushConfig = { enabled: boolean; public_key: string | null };
+export type PushConfig = components["schemas"]["PushConfig"];
 
 /**
  * `ok`: bật được ngay · `ios-install`: iPhone/iPad mở bằng Safari chưa thêm vào màn hình chính, hoặc iOS < 16.4 (AC2)
@@ -30,9 +31,9 @@ let configPromise: Promise<PushConfig | null> | null = null;
 
 /** Cấu hình push (một lần mỗi lượt tải trang). Lỗi mạng ⇒ null (coi như tắt, không hiện nút). */
 export function getPushConfig(): Promise<PushConfig | null> {
-  configPromise ??= looseApi
-    .GET("/api/v1/push/config", {})
-    .then(({ data }) => (data && typeof data.enabled === "boolean" ? (data as PushConfig) : null))
+  configPromise ??= api
+    .GET("/api/v1/push/config")
+    .then(({ data }) => (data && typeof data.enabled === "boolean" ? data : null))
     .catch(() => null);
   return configPromise;
 }
@@ -75,7 +76,7 @@ async function saveSubscription(sub: PushSubscription): Promise<{ ok: true } | {
   const auth = json.keys?.auth;
   if (!json.endpoint || !p256dh || !auth) return { ok: false, message: "Thiết bị này không hỗ trợ nhận thông báo." };
   try {
-    const { error, response } = await looseApi.POST("/api/v1/push/subscriptions", {
+    const { error, response } = await api.POST("/api/v1/push/subscriptions", {
       body: { endpoint: json.endpoint, keys: { p256dh, auth }, device_label: deviceLabel() },
     });
     if (response.ok) return { ok: true };
@@ -129,7 +130,7 @@ export async function resyncPush(sub: PushSubscription): Promise<void> {
 export async function disablePush(): Promise<void> {
   const sub = await currentSubscription();
   if (!sub) return;
-  await looseApi.DELETE("/api/v1/push/subscriptions", { body: { endpoint: sub.endpoint } }).catch(() => {});
+  await api.DELETE("/api/v1/push/subscriptions", { body: { endpoint: sub.endpoint } }).catch(() => {});
   await sub.unsubscribe().catch(() => false);
 }
 
@@ -142,8 +143,8 @@ export async function forgetPushDevice(): Promise<void> {
 /** Gửi thử tới các thiết bị của chính tài khoản (AC4). */
 export async function sendTestPush(): Promise<{ ok: true; devices: number } | { ok: false; message: string }> {
   try {
-    const { data, error, response } = await looseApi.POST("/api/v1/push/test", {});
-    if (response.ok) return { ok: true, devices: Number(data?.devices ?? 0) };
+    const { data, error, response } = await api.POST("/api/v1/push/test");
+    if (response.ok) return { ok: true, devices: data?.devices ?? 0 };
     if (response.status === 429) return { ok: false, message: "Bạn đã gửi thử nhiều lần, vui lòng chờ vài phút." };
     return { ok: false, message: errorMessage(error, "Không gửi thử được, vui lòng thử lại.") };
   } catch {
