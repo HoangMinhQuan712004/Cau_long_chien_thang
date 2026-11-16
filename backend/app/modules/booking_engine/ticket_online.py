@@ -371,6 +371,12 @@ async def apply_ticket_payment(
             "order_code": checkout.order_code,
             "session": ev.code,
             "codes": codes,
+            # T-076: thông báo "Đặt online mới" / "Đã ghi nhận thanh toán"
+            "amount": checkout.amount,
+            "play_date": ev.play_date.isoformat(),
+            "session_name": ev.name,
+            "start_at": ev.start_at.isoformat(),
+            "end_at": ev.end_at.isoformat(),
             "customer_kind": checkout.customer_kind,
             "full_name": checkout.customer_name,
             "phone": checkout.customer_phone,

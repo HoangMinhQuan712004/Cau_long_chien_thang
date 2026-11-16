@@ -18,5 +18,6 @@ async def flag_partial_payments(payload: dict) -> None:
     async with SessionLocal() as session:
         count = await service.mark_expired_partials(session, pay_ref)
         await session.commit()
+        await service.publish_reviews(session)
     if count:
         logger.info("Marked %s partial transactions of %s as refund_needed", count, pay_ref)
