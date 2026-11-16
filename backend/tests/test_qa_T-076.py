@@ -53,6 +53,8 @@ BAD_ENDPOINTS = [
     "https://push.apple.com/x",  # tên miền gốc (Q7)
     "https://notify.windows.com/x",
     "https://.push.apple.com/x",  # nhãn rỗng, host trùng đúng đuôi
+    "https://..push.apple.com/x",  # T-76-1: nhãn rỗng liên tiếp
+    "https://x..notify.windows.com/x",
     "https://evilpush.apple.com/x",  # thiếu dấu chấm trước push
     "https://x.push.apple.com.evil.io/x",
     "https://x.push.apple.com:8443/x",  # cổng lạ
@@ -78,21 +80,6 @@ BAD_ENDPOINTS = [
     "https:///fcm/send/abc",
     "https://fcm.googleapis.com/" + "a" * 1000,  # > 1000 ký tự
 ]
-# Nghi vấn nhỏ, ghi nhận không chặn: host có nhãn rỗng liên tiếp đang được nhận (DNS không phân giải được nên vô hại, nhưng lọc chưa chặt).
-SUSPECT_ENDPOINTS = [
-    pytest.param(
-        "https://..push.apple.com/x",
-        marks=pytest.mark.xfail(
-            strict=True, reason="T-76-1: nhãn rỗng '..push.apple.com' đang được nhận"
-        ),
-    ),
-    pytest.param(
-        "https://x..notify.windows.com/x",
-        marks=pytest.mark.xfail(
-            strict=True, reason="T-76-1: nhãn rỗng 'x..notify.windows.com' đang được nhận"
-        ),
-    ),
-]
 
 
 async def rows_for(endpoint: str) -> int:
@@ -116,7 +103,7 @@ async def user_id_of(endpoint: str) -> int:
 # ---------------------------------------------------------------- AC7: chống SSRF
 
 
-@pytest.mark.parametrize("endpoint", BAD_ENDPOINTS + SUSPECT_ENDPOINTS)
+@pytest.mark.parametrize("endpoint", BAD_ENDPOINTS)
 async def test_ac7_forged_endpoints_are_rejected_stored_nowhere_and_never_contacted(
     customer, endpoint
 ):
