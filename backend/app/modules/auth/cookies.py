@@ -61,13 +61,13 @@ def set_admin_cookie(response: Response, token: str) -> None:
     delete_auth_cookies(response)
 
 
-def admin_cookie_header(token: str) -> bytes:
-    """Giá trị ``Set-Cookie`` gia hạn cookie ``admin_session`` (middleware gắn vào response)."""
+def admin_cookie_header(token: str, max_age: int) -> bytes:
+    """Giá trị ``Set-Cookie`` kéo cookie ``admin_session`` theo hạn còn lại của phiên trong DB."""
     probe = Response()
     probe.set_cookie(
         ADMIN_SESSION_COOKIE,
         token,
-        max_age=settings.ADMIN_SESSION_IDLE_DAYS * 86400,
+        max_age=max_age,
         path="/",
         **_common(),
     )
