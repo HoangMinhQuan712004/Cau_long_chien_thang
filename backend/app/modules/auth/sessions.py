@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import SYSTEM_ACTOR, Value, audit, audit_change, audit_detail
 from app.core.config import settings
-from app.core.db import SessionLocal
 from app.modules.auth.models import AdminSession, Role, SessionEndReason, User, UserAvatar
 from app.modules.auth.schemas import AdminAccountOut
 
@@ -96,26 +95,31 @@ def idle_lifetime() -> timedelta:
     return timedelta(days=settings.ADMIN_SESSION_IDLE_DAYS)
 
 
-async def renew_if_due(admin_session: AdminSession, now: datetime | None = None) -> bool:
+async def renew_if_due(
+    session: AsyncSession, admin_session: AdminSession, now: datetime | None = None
+) -> bool:
     """Gia hạn phiên đang dùng: lần gia hạn trước (suy từ ``expires_at − hạn``) đã hơn 1 giờ ->
-    ``expires_at = now + hạn``. Ghi bằng session riêng (không đụng transaction của request), có
-    điều kiện ``expires_at`` cũ: nhiều request cùng lúc chỉ một câu ghi thắng (AC7)."""
+    ``expires_at = now + hạn``.
+
+    T-77-1: **một** câu UPDATE có điều kiện trên chính session của request rồi commit ngay (lúc
+    này transaction chỉ mới có các câu đọc xác thực) – không mở session thứ hai, nên nhiều request
+    song song không cạn pool. Request đến cùng lúc: một câu chạm dòng, các câu khác không làm gì
+    (AC7). Trả True khi chính request này đã gia hạn (-> gửi lại cookie)."""
     now = now or datetime.now(UTC)
-    old = admin_session.expires_at
-    if old - idle_lifetime() + RENEW_EVERY > now:
+    if admin_session.expires_at - idle_lifetime() + RENEW_EVERY > now:
         return False
     new = now + idle_lifetime()
-    async with SessionLocal() as s:
-        result = await s.execute(
-            update(AdminSession)
-            .where(
-                AdminSession.id == admin_session.id,
-                AdminSession.expires_at == old,
-                AdminSession.revoked_at.is_(None),
-            )
-            .values(expires_at=new)
+    result = await session.execute(
+        update(AdminSession)
+        .where(
+            AdminSession.id == admin_session.id,
+            AdminSession.expires_at < new - RENEW_EVERY,
+            AdminSession.revoked_at.is_(None),
         )
-        await s.commit()
+        .values(expires_at=new)
+        .execution_options(synchronize_session=False)
+    )
+    await session.commit()
     if not result.rowcount:
         return False  # request khác vừa gia hạn / phiên vừa bị thu hồi
     admin_session.expires_at = new
