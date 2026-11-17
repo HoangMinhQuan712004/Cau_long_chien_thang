@@ -61,7 +61,7 @@ export function SearchXIcon(props: IconProps) {
 /** Vòng đang tải tự xoay (Lucide loader-circle); giảm chuyển động ⇒ đứng yên, cần chữ "Đang…" bên cạnh. */
 export function LoaderIcon({ className, ...props }: IconProps) {
   return (
-    <Svg className={cn("animate-spin motion-reduce:animate-none", className)} {...props}>
+    <Svg className={cn("shrink-0 animate-spin motion-reduce:animate-none", className)} {...props}>
       <path d="M21 12a9 9 0 1 1-6.22-8.56" />
     </Svg>
   );

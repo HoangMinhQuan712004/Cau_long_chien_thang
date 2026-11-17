@@ -169,7 +169,7 @@ export function PaymentScreen({ token, hotline, member = false }: { token: strin
 
       {view === "pending" ? (
         <p role="status" className="mt-5 flex items-center gap-2 rounded-lg border border-border bg-primary-softer px-4 py-3 text-sm">
-          <span aria-hidden className="size-4 animate-spin rounded-full border-2 border-border border-t-primary" />
+          <span aria-hidden className="size-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-primary" />
           Đang chờ xác nhận thanh toán… Trang sẽ tự chuyển khi nhận được tiền.
         </p>
       ) : (
