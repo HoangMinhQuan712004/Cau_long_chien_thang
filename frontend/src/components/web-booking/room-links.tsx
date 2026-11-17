@@ -50,7 +50,7 @@ function RoomButton({ item, many }: { item: CheckoutItem; many: boolean }) {
   if (state === "waiting") {
     return (
       <span role="status" className={`${btn} border border-border text-muted`}>
-        <span aria-hidden className="mr-2 size-4 animate-spin rounded-full border-2 border-border border-t-primary" />
+        <span aria-hidden className="mr-2 size-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-primary" />
         Đang tạo phòng{many ? ` ${item.resource_name}` : ""}…
       </span>
     );

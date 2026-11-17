@@ -172,7 +172,7 @@ function ResultCard({ result: r, hotline }: { result: Lookup; hotline: string })
           {/* T-075 AC13: hết giờ ⇒ ẩn hẳn QR, số tài khoản, nội dung chuyển khoản (không chỉ làm mờ) */}
           {r.pending.bank && !timedOut ? <BankBox bank={r.pending.bank} amount={r.pending.amount} payRef={r.pending.pay_ref} /> : null}
           <p role="status" className="flex items-center gap-2 rounded-lg border border-border bg-primary-softer px-4 py-3 text-sm">
-            <span aria-hidden className="size-4 animate-spin rounded-full border-2 border-border border-t-primary" />
+            <span aria-hidden className="size-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-primary" />
             {timedOut
               ? "Đã hết thời gian giữ chỗ, đang chờ hệ thống xác nhận lần cuối…"
               : `Đang chờ xác nhận thanh toán… Giữ chỗ còn ${left == null ? "--:--" : mmss(left)}.`}
