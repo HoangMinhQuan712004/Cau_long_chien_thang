@@ -50,6 +50,8 @@ type Props = {
   onVerified: (token: string, expiresAt: string, accountVerified: boolean, account: VerifiedAccount) => void;
   /** Hộp chặn đơn mới (đơn cũ chưa thanh toán) */
   dialog: ReactNode;
+  /** Khách bấm Đăng nhập / Đăng ký hội viên: lưu lựa chọn để quay lại đúng bước xác nhận sau đăng nhập */
+  onLoginLeave?: () => void;
 };
 
 const FIELD = "w-full rounded-lg border bg-surface px-3 py-2.5 text-sm";
@@ -115,7 +117,7 @@ export function BookingConfirm(p: Props) {
 
       {p.member ? <TierRangeBlock min={p.tiers.min} max={p.tiers.max} onChange={p.setTiers} /> : null}
 
-      {p.isGuest && !p.member ? <MemberHint next={`/dat-san?ngay=${p.date}`} /> : null}
+      {p.isGuest && !p.member ? <MemberHint next={`/dat-san?ngay=${p.date}`} onLeave={p.onLoginLeave} /> : null}
 
       <section className="rounded-xl bg-surface p-4 shadow-card sm:p-5">
         <h3 className="text-sm font-bold text-primary">Khách hàng</h3>
