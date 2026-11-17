@@ -40,7 +40,8 @@ type Me = { full_name: string; phone: string | null; phone_verified: boolean };
 
 // Thông tin đã nhập trong tab (ô đã chọn / bước không lưu: mở màn luôn là lưới trống – người dùng 13/11)
 type Saved = { date: string; name: string; phone: string; note: string; minTier?: string; maxTier?: string };
-type Restore = { date: string; items: Cell[] };
+/** "Đặt lại" (màn QR hết giờ) ⇒ chỉ chọn lại ô; `step: 2` (khách đi đăng nhập ở bước xác nhận) ⇒ mở thẳng bước xác nhận. */
+type Restore = { date: string; items: Cell[]; step?: 2 };
 
 /** Đặt trong khu hội viên (T-018 AC4): họ tên + SĐT lấy từ hồ sơ, khóa; bỏ OTP; server nhận `as_member`. */
 export type MemberIdentity = { name: string; phone: string };
@@ -148,7 +149,10 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
           .slice(0, MAX_CELLS);
         if (wanted.length) {
           applyCells(wanted);
-          setNotice(wanted.length === restore.items.length ? "" : "Một số khung đã có người đặt, đã bỏ khỏi lựa chọn.");
+          const all = wanted.length === restore.items.length;
+          setNotice(all ? "" : "Một số khung đã có người đặt, đã bỏ khỏi lựa chọn.");
+          // Vừa đăng nhập từ bước xác nhận và các khung vẫn trống ⇒ về lại bước xác nhận (thông tin hội viên tự điền)
+          if (restore.step === 2 && all) applyStep(2);
           return;
         }
       }
@@ -441,6 +445,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
         onlineOff={onlineOff}
         banner={banner}
         onBack={() => applyStep(1)}
+        onLoginLeave={() => writeJson(RESTORE_KEY, { date, items: cellsRef.current, step: 2 } satisfies Restore)}
         onSubmit={() => void submit()}
         onChangePhone={() => setOtp(null)}
         onVerified={(token, expiresAt, accountVerified, account) => {
