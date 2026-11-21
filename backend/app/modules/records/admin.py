@@ -4,12 +4,13 @@ T-047: dòng có nguồn / trạng thái / ``version``; lọc theo ``status`` / 
 xóa, duyệt ở ``manual``.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor, audit, audit_change, audit_detail
+from app.core.config import settings
 from app.core.errors import AppError
 from app.modules.booking_engine import api as engine
 from app.modules.members import api as members
@@ -34,7 +35,9 @@ async def _court_names(session: AsyncSession) -> dict[str, str]:
 
 
 async def rows_of(session: AsyncSession, records: list[SpeedRecord]) -> list[AdminSpeedRecordRow]:
-    people = await members.room_people(session, {r.customer_id for r in records})
+    ids = {r.customer_id for r in records}
+    people = await members.room_people(session, ids)
+    contacts = await members.admin_contacts(session, ids)
     courts = await _court_names(session) if any(r.court_code for r in records) else {}
     return [
         AdminSpeedRecordRow(
@@ -43,6 +46,9 @@ async def rows_of(session: AsyncSession, records: list[SpeedRecord]) -> list[Adm
             measured_at=r.measured_at,
             member_code=people[r.customer_id].member_code if r.customer_id in people else None,
             member_name=people[r.customer_id].display_name if r.customer_id in people else "—",
+            full_name=contacts[r.customer_id].full_name if r.customer_id in contacts else None,
+            phone=contacts[r.customer_id].phone if r.customer_id in contacts else None,
+            gender=_gender(contacts[r.customer_id].gender) if r.customer_id in contacts else None,
             resource_code=r.court_code,
             resource_name=courts.get(r.court_code) if r.court_code else None,
             video=video.parse(r.video_url),
@@ -57,6 +63,10 @@ async def rows_of(session: AsyncSession, records: list[SpeedRecord]) -> list[Adm
     ]
 
 
+def _gender(value: str | None) -> str | None:
+    return value if value in ("male", "female") else None
+
+
 async def pending_count(session: AsyncSession) -> int:
     count = select(func.count()).select_from(SpeedRecord).where(SpeedRecord.status == "pending")
     return await session.scalar(count) or 0
@@ -69,9 +79,19 @@ async def list_records(
     size: int = PAGE_SIZE,
     status: Status | None = None,
     source: Source | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> AdminSpeedRecordList:
-    """Số đo mới nhất trước; Admin thấy tên thật (không áp ẩn danh), mọi trạng thái."""
+    """Số đo mới nhất trước; Admin thấy tên thật (không áp ẩn danh), mọi trạng thái.
+    ``date_from`` / ``date_to``: ngày đo theo giờ sân, gồm cả hai đầu; bỏ trống = không giới hạn."""
+    tz = settings.tz
     conds = []
+    if date_from is not None:
+        conds.append(SpeedRecord.measured_at >= datetime.combine(date_from, time(), tz))
+    if date_to is not None:
+        conds.append(
+            SpeedRecord.measured_at < datetime.combine(date_to + timedelta(days=1), time(), tz)
+        )
     if status is not None:
         conds.append(SpeedRecord.status == status)
     if source is not None:

@@ -3,6 +3,7 @@
 T-047: nhập tay (duyệt ngay), sửa / xóa (trừ số đo máy đo), duyệt / từ chối bản hội viên gửi.
 """
 
+import datetime as dt
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import AuditActor
 from app.core.db import SessionDep
+from app.core.errors import AppError
 from app.core.idempotency import Idempotency, IdempotencyDep
 from app.core.middleware import require_origin
 from app.core.params import not_found, path_id
@@ -67,10 +69,22 @@ async def list_speed_records(
     page: Annotated[int, Query(ge=1, le=10_000)] = 1,
     status: Annotated[Status | None, Query(description="T-047: pending = tab Chờ duyệt")] = None,
     source: Annotated[Source | None, Query(description="device · admin · member")] = None,
+    date_from: Annotated[
+        dt.date | None, Query(alias="from", description="Từ ngày đo (giờ sân)")
+    ] = None,
+    date_to: Annotated[
+        dt.date | None, Query(alias="to", description="Đến ngày đo (gồm cả ngày này)")
+    ] = None,
 ):
-    """Số đo mới nhất trước (20 / trang) – tên thật + Mã HV, sân, video, nguồn, trạng thái
-    (chỉ Admin). ``pending_count`` cho tab "Chờ duyệt (n)"."""
-    return await admin.list_records(session, has_video, page, status=status, source=source)
+    """Số đo mới nhất trước (20 / trang) – Mã HV, tên hiển thị, **họ tên thật, SĐT đầy đủ,
+    giới tính** (chỉ Admin), sân, video, nguồn, trạng thái. Lọc theo khoảng ngày đo
+    ``from`` / ``to`` (422 E-001 khi Từ ngày sau Đến ngày). ``pending_count`` cho tab
+    "Chờ duyệt (n)"."""
+    if date_from and date_to and date_from > date_to:
+        raise AppError("E-001", "Từ ngày phải trước hoặc bằng Đến ngày.", 422)
+    return await admin.list_records(
+        session, has_video, page, status=status, source=source, date_from=date_from, date_to=date_to
+    )
 
 
 @router.post("", response_model=AdminSpeedRecordRow, status_code=201, dependencies=WRITE)

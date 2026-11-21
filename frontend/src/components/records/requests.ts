@@ -23,7 +23,8 @@ const idem = (key: string) => ({ "Idempotency-Key": key });
 export type AdminSpeedRecord = components["schemas"]["AdminSpeedRecordRow"];
 export type AdminSpeedRecordList = components["schemas"]["AdminSpeedRecordList"];
 
-export const getAdminSpeedRecords = (f: { has_video?: boolean; status?: RecordStatus; source?: RecordSource; page?: number; size?: number }) => {
+/** `from` / `to`: khoảng ngày đo YYYY-MM-DD theo giờ sân, gồm cả hai đầu (Admin, 21/11). */
+export const getAdminSpeedRecords = (f: { has_video?: boolean; status?: RecordStatus; source?: RecordSource; page?: number; size?: number; from?: string; to?: string }) => {
   const query = Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined));
   return read<AdminSpeedRecordList>(() => looseApi.GET(`${P}/admin/speed-records`, { params: { query } }));
 };

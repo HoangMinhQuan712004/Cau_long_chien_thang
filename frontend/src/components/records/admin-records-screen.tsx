@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { authFailure } from "@/components/booking-engine/booking-dialogs";
 import { btnCls, btnDangerCls, btnPrimaryCls, ErrorBanner, inputCls } from "@/components/booking-engine/ui";
 import { errorText, write } from "@/lib/api/write";
 import { toast } from "@/lib/feedback";
-import { formatDate, formatTime } from "@/lib/format";
+import { DateRange } from "@/components/ui/date-range";
+import { addDaysIso, formatDate, formatTime, todayVn } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
 import { parseVideoUrl, VIDEO_LINK_HINT } from "@/lib/video";
 import { type AdminRecordRow as AdminSpeedRecord, type AdminSpeedRecordList, getAdminSpeedRecords, SOURCE_LABEL, sendAdminDeleteRecord, sendApproveRecord, sendRecordVideo, sendRejectRecord, sendRemoveRecordVideo } from "./requests";
 import { RecordFormDialog, type RecordFormMode } from "./record-form-dialog";
@@ -14,6 +16,7 @@ import { VideoPlayer } from "./video-player";
 
 // /admin/ky-luc (T-046 + T-047, chỉ Admin): số đo mới nhất trước, lọc Có video / Chưa có, gắn / sửa / gỡ video bằng cách dán link (có xem thử);
 // thêm / sửa / xóa số đo nhập tay (trừ nguồn máy đo); tab "Chờ duyệt" để duyệt / từ chối số đo hội viên gửi.
+// Người dùng 21/11: mỗi dòng hiện họ tên thật, SĐT đầy đủ, giới tính của người đánh; lọc Tuần này / Tháng này / Tất cả + khoảng ngày đo.
 
 const SIZE = 20;
 const FILTERS = [
@@ -23,6 +26,28 @@ const FILTERS = [
 ] as const;
 type Filter = (typeof FILTERS)[number]["key"];
 type Tab = "all" | "pending";
+type Period = "week" | "month" | "all" | "custom";
+const PERIODS = [
+  { key: "week", label: "Tuần này" },
+  { key: "month", label: "Tháng này" },
+  { key: "all", label: "Tất cả" },
+] as const;
+const GENDER_LABEL = { male: "Nam", female: "Nữ" } as const;
+
+/** Thứ Hai → Chủ nhật của tuần chứa `today` (YYYY-MM-DD, giờ VN). */
+function weekOf(today: string): { from: string; to: string } {
+  const weekday = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7; // 0 = Thứ Hai
+  const from = addDaysIso(today, -weekday);
+  return { from, to: addDaysIso(from, 6) };
+}
+
+/** Ngày 1 → ngày cuối của tháng chứa `today`. */
+function monthOf(today: string): { from: string; to: string } {
+  const from = `${today.slice(0, 8)}01`;
+  const next = new Date(`${from}T00:00:00Z`);
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  return { from, to: addDaysIso(next.toISOString().slice(0, 10), -1) };
+}
 
 export function AdminRecordsScreen() {
   const [tab, setTab] = useState<Tab>("all");
@@ -36,15 +61,25 @@ export function AdminRecordsScreen() {
   const [error, setError] = useState("");
   const [edit, setEdit] = useState<AdminSpeedRecord | null>(null);
   const [remove, setRemove] = useState<AdminSpeedRecord | null>(null);
+  const [period, setPeriod] = useState<Period>("all");
+  const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
+  const [rangeError, setRangeError] = useState("");
+  const today = useMemo(() => todayVn(), []);
+  // Khoảng ngày đang áp: Tuần / Tháng tính theo hôm nay; Tất cả ⇒ không gửi from / to
+  const range = period === "week" ? weekOf(today) : period === "month" ? monthOf(today) : period === "custom" ? custom : null;
+  const rangeFrom = range?.from;
+  const rangeTo = range?.to;
+  const maxDate = [weekOf(today).to, monthOf(today).to].sort().at(-1) ?? today;
 
   const load = useCallback(async () => {
-    const res = await getAdminSpeedRecords(tab === "pending" ? { status: "pending", page, size: SIZE } : { has_video: filter === "all" ? undefined : filter === "yes", page, size: SIZE });
+    const dates = { from: rangeFrom, to: rangeTo };
+    const res = await getAdminSpeedRecords(tab === "pending" ? { status: "pending", page, size: SIZE, ...dates } : { has_video: filter === "all" ? undefined : filter === "yes", page, size: SIZE, ...dates });
     if (res.ok) {
       setPending(res.data.pending_count); // không phụ thuộc bộ lọc
       setData(res.data);
       setError("");
     } else if (!authFailure(res.error)) setError(errorText(res.error));
-  }, [tab, filter, page]);
+  }, [tab, filter, page, rangeFrom, rangeTo]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- tải khi đổi bộ lọc / trang
@@ -104,6 +139,50 @@ export function AdminRecordsScreen() {
         ))}
       </div>
 
+      {/* Lọc theo ngày đo: Tuần này / Tháng này / Tất cả, hoặc tự chọn Từ ngày – Đến ngày */}
+      <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Lọc theo thời gian đo">
+          {PERIODS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              aria-pressed={period === p.key}
+              onClick={() => {
+                setPeriod(p.key);
+                setRangeError("");
+                setPage(1);
+              }}
+              className={chip(period === p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <DateRange
+          from={range?.from ?? ""}
+          to={range?.to ?? ""}
+          max={maxDate}
+          linked={false}
+          invalid={rangeError ? "from" : null}
+          onChange={(next) => {
+            if (next.from > next.to) {
+              setRangeError("Từ ngày phải trước hoặc bằng Đến ngày.");
+              return;
+            }
+            setRangeError("");
+            setCustom(next);
+            setPeriod("custom");
+            setPage(1);
+          }}
+          t={{ from: "Từ ngày", to: "Đến ngày" }}
+        />
+        {rangeError ? (
+          <p role="alert" className="text-sm text-danger">
+            {rangeError}
+          </p>
+        ) : null}
+      </div>
+
       {error && !data ? (
         <div role="alert" className="space-y-2 rounded-lg border border-border bg-surface p-6 text-center text-sm">
           <p className="text-danger">{error}</p>
@@ -116,7 +195,7 @@ export function AdminRecordsScreen() {
           Đang tải…
         </p>
       ) : data.items.length === 0 ? (
-        <p className="rounded-lg border border-border bg-surface p-8 text-center text-muted">{tab === "pending" ? "Không có số đo nào chờ duyệt." : filter === "all" ? "Chưa có số đo nào." : "Không có số đo nào khớp bộ lọc."}</p>
+        <p className="rounded-lg border border-border bg-surface p-8 text-center text-muted">{tab === "pending" ? "Không có số đo nào chờ duyệt." : filter === "all" && !range ? "Chưa có số đo nào." : "Không có số đo nào khớp bộ lọc."}</p>
       ) : (
         <ul className="space-y-3">
           {data.items.map((r) => (
@@ -129,10 +208,19 @@ export function AdminRecordsScreen() {
                   {r.status === "pending" ? <span className="rounded-full bg-cta px-2 py-0.5 text-xs font-semibold text-cta-fg">Chờ duyệt</span> : null}
                   {r.status === "rejected" ? <span className="rounded-full bg-danger px-2 py-0.5 text-xs font-semibold text-white">Bị từ chối</span> : null}
                 </p>
-                <p className="text-sm font-medium">
-                  {r.member_name}
+                {/* Người đánh: họ tên thật + Mã HV, biệt danh (nếu khác); SĐT đầy đủ · giới tính (chỉ Admin thấy) */}
+                <p className="text-sm font-semibold break-words">
+                  {r.full_name ?? r.member_name}
                   {r.member_code ? <span className="ml-1.5 rounded bg-background px-1.5 py-0.5 font-mono text-xs font-normal text-muted">{r.member_code}</span> : null}
+                  {r.full_name && r.member_name !== r.full_name && r.member_name !== "—" ? <span className="ml-1.5 font-normal text-accent-fg">“{r.member_name}”</span> : null}
                 </p>
+                {r.phone || r.gender ? (
+                  <p className="text-sm text-foreground/80 tabular-nums">
+                    {r.phone ? <a href={`tel:${r.phone}`} className="hover:text-primary hover:underline">{formatPhone(r.phone)}</a> : null}
+                    {r.phone ? " · " : null}
+                    {r.gender ? GENDER_LABEL[r.gender] : "Chưa nhập giới tính"}
+                  </p>
+                ) : null}
                 <p className="text-xs text-muted tabular-nums">
                   {formatDate(r.measured_at)} · {formatTime(r.measured_at)}
                   {r.resource_name ? ` · ${r.resource_name}` : ""}
