@@ -2372,8 +2372,10 @@ export interface paths {
         };
         /**
          * List Speed Records
-         * @description Số đo mới nhất trước (20 / trang) – tên thật + Mã HV, sân, video, nguồn, trạng thái
-         *     (chỉ Admin). ``pending_count`` cho tab "Chờ duyệt (n)".
+         * @description Số đo mới nhất trước (20 / trang) – Mã HV, tên hiển thị, **họ tên thật, SĐT đầy đủ,
+         *     giới tính** (chỉ Admin), sân, video, nguồn, trạng thái. Lọc theo khoảng ngày đo
+         *     ``from`` / ``to`` (422 E-001 khi Từ ngày sau Đến ngày). ``pending_count`` cho tab
+         *     "Chờ duyệt (n)".
          */
         get: operations["list_speed_records_api_v1_admin_speed_records_get"];
         put?: never;
@@ -3422,8 +3424,26 @@ export interface components {
             measured_at: string;
             /** Member Code */
             member_code: string | null;
-            /** Member Name */
+            /**
+             * Member Name
+             * @description Tên hiển thị (biệt danh / họ tên)
+             */
             member_name: string;
+            /**
+             * Full Name
+             * @description Họ tên thật – chỉ Admin (21/11)
+             */
+            full_name?: string | null;
+            /**
+             * Phone
+             * @description SĐT đầy đủ – chỉ Admin, như Sổ giao dịch (T-061)
+             */
+            phone?: string | null;
+            /**
+             * Gender
+             * @description Giới tính; null: chưa nhập
+             */
+            gender?: ("male" | "female") | null;
             /**
              * Resource Code
              * @description Mã sân (T-047) – null: không ghi sân
@@ -13387,6 +13407,10 @@ export interface operations {
                 status?: ("approved" | "pending" | "rejected") | null;
                 /** @description device · admin · member */
                 source?: ("device" | "admin" | "member") | null;
+                /** @description Từ ngày đo (giờ sân) */
+                from?: string | null;
+                /** @description Đến ngày đo (gồm cả ngày này) */
+                to?: string | null;
             };
             header?: never;
             path?: never;

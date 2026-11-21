@@ -68,7 +68,10 @@ class AdminSpeedRecordRow(BaseModel):
     speed_kmh: int
     measured_at: dt.datetime
     member_code: str | None
-    member_name: str
+    member_name: str = Field(description="Tên hiển thị (biệt danh / họ tên)")
+    full_name: str | None = Field(None, description="Họ tên thật – chỉ Admin (21/11)")
+    phone: str | None = Field(None, description="SĐT đầy đủ – chỉ Admin, như Sổ giao dịch (T-061)")
+    gender: Literal["male", "female"] | None = Field(None, description="Giới tính; null: chưa nhập")
     resource_code: str | None = Field(description="Mã sân (T-047) – null: không ghi sân")
     resource_name: str | None
     video: VideoOut | None
