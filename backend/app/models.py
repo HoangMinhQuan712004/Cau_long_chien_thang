@@ -7,6 +7,7 @@ from app.core.settings_store import AppSetting, SiteLogo
 from app.modules.auth.models import AdminSession, OtpCode, RolePermission, User, UserAvatar
 from app.modules.booking_engine import models as booking_engine_models
 from app.modules.content.models import Post
+from app.modules.device_link.models import DeviceCourt
 from app.modules.member_inbox.models import MemberNotification
 from app.modules.members.models import Customer, CustomerAvatar, Racket
 from app.modules.payments.models import BankTransaction
@@ -23,6 +24,7 @@ __all__ = [
     "Base",
     "Customer",
     "CustomerAvatar",
+    "DeviceCourt",
     "Racket",
     "RolePermission",
     "IdempotencyKey",

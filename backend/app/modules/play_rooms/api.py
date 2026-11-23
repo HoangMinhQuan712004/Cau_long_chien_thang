@@ -182,6 +182,43 @@ async def career_stats(session: AsyncSession, customer_ids: set[int]) -> dict[in
     return await history.career_stats(session, customer_ids)
 
 
+@dataclass(frozen=True)
+class CourtMatch:
+    """Trận đang chơi trên một sân – cho máy đo tốc độ (device_link)."""
+
+    match_id: int
+    court_code: str
+    format: str  # 2v2 | 1v1
+    team_a: tuple[int, ...]  # id hồ sơ, theo thứ tự đội hình
+    team_b: tuple[int, ...]
+    started_at: datetime
+
+
+async def playing_matches(session: AsyncSession) -> list[CourtMatch]:
+    """Trận ``playing`` của các phòng còn mở, mỗi sân một trận. Hai phòng nối giờ trên một sân
+    (phòng trước chưa đóng, phòng sau đã bắt đầu) -> lấy trận bắt đầu muộn hơn."""
+    rows = await session.execute(
+        select(PlayMatch, PlayRoom.resource_code)
+        .join(PlayRoom, PlayRoom.id == PlayMatch.room_id)
+        .where(PlayMatch.status == "playing", PlayRoom.status == "open")
+        .order_by(PlayMatch.started_at.desc(), PlayMatch.id.desc())
+    )
+    by_court: dict[str, CourtMatch] = {}
+    for match, court in rows:
+        by_court.setdefault(
+            court,
+            CourtMatch(
+                match_id=match.id,
+                court_code=court,
+                format=match.format,
+                team_a=tuple(match.team_a),
+                team_b=tuple(match.team_b),
+                started_at=match.started_at,
+            ),
+        )
+    return list(by_court.values())
+
+
 # ------------------------------------------------------------------ dữ liệu mẫu dev (T-034)
 
 DemoMatch = demo.DemoMatch

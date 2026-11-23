@@ -117,6 +117,20 @@ class Settings(BaseSettings):
     # ``mailto:`` hoặc URL web; trống -> origin https đầu tiên trong ALLOWED_ORIGINS
     VAPID_SUBJECT: str = ""
 
+    # Máy đo tốc độ ShuttleTrack (module device_link). ``MQTT_HOST`` trống -> tắt hẳn: worker không
+    # nối broker, không phát lệnh trận, không ghi mốc kỷ lục vào Redis.
+    MQTT_HOST: str = ""
+    MQTT_PORT: int = 1883
+    MQTT_USERNAME: str = ""
+    MQTT_PASSWORD: str = ""
+    MQTT_TLS: bool = False
+    # Phải trùng ``live.mqtt.topic_prefix`` của ShuttleTrack. Hai môi trường (dev, production) dùng
+    # chung một broker thì mỗi bên một prefix và một client id riêng.
+    MQTT_TOPIC_PREFIX: str = "badminton"
+    MQTT_CLIENT_ID: str = "caulong-server"
+    # Khóa Redis ShuttleTrack đọc mốc kỷ lục (``live.redis.key_prefix``), ghi vào ``REDIS_URL``
+    RECORD_MARK_PREFIX: str = "badminton:record"
+
     # Admin đầu tiên: migration gán SĐT này cho Admin chưa có SĐT; seed tạo Admin khi chưa có.
     # Production phải đặt rõ SĐT thật (mặc định / SĐT mẫu -> migration + seed dừng)
     FIRST_ADMIN_PHONE: str = SAMPLE_ADMIN_PHONE
@@ -171,6 +185,10 @@ class Settings(BaseSettings):
     def otp_channel_ready(self) -> bool:
         """Có đường gửi OTP: Zalo đủ cấu hình hoặc chế độ thử (dev)."""
         return self.zalo_configured or self.OTP_TEST_MODE
+
+    @property
+    def device_link_enabled(self) -> bool:
+        return bool(self.MQTT_HOST)
 
     @property
     def push_enabled(self) -> bool:

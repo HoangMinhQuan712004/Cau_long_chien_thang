@@ -20,6 +20,7 @@ from app.core.db import SessionLocal
 from app.modules.auth import otp as otp_service
 from app.modules.auth.models import OtpCode
 from app.modules.booking_engine import api as booking_engine
+from app.modules.device_link import api as device_link
 from app.modules.member_area import handlers as member_area
 from app.modules.member_inbox import api as member_inbox
 from app.modules.notifications import zalo
@@ -92,8 +93,45 @@ async def send_play_reminders(ctx) -> int:
     return await member_area.send_reminders()
 
 
+async def sync_device_courts(ctx) -> int:
+    """Máy đo tốc độ: phát ``match.start`` / ``match.stop`` còn thiếu cho từng sân."""
+    return await device_link.sync_courts(ctx.get("device_link"))
+
+
+async def refresh_record_marks(ctx) -> dict[str, int]:
+    """Máy đo tốc độ: ghi mốc kỷ lục ngày / tuần / tháng / năm vào Redis."""
+    return await device_link.refresh_marks(ctx["redis"])
+
+
+async def startup(ctx) -> None:
+    ctx["device_link"] = device_link.start(ctx["redis"])
+    try:  # mốc có ngay khi worker lên, không chờ lượt cron đầu
+        await device_link.refresh_marks(ctx["redis"])
+    except Exception:
+        logger.exception("Record marks could not be written at startup")
+
+
+async def shutdown(ctx) -> None:
+    link = ctx.get("device_link")
+    if link is not None:
+        await link.stop()
+
+
+# Chỉ chạy khi bật nối máy đo (``MQTT_HOST``): không bật thì worker như cũ
+_device_link_cron = (
+    [
+        cron(sync_device_courts, second=set(range(0, 60, 3)), unique=True),  # mỗi 3 giây
+        cron(refresh_record_marks, second=20, unique=True),  # mỗi phút
+    ]
+    if settings.device_link_enabled
+    else []
+)
+
+
 class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
+    on_startup = startup
+    on_shutdown = shutdown
     functions = [
         publish_booking_outbox,
         expire_holds,
@@ -107,6 +145,8 @@ class WorkerSettings:
         push_member_notification,
         push_staff,
         send_play_reminders,
+        sync_device_courts,
+        refresh_record_marks,
     ]
     cron_jobs = [
         cron(publish_booking_outbox, second=set(range(0, 60, 2)), unique=True),  # mỗi 2 giây
@@ -118,4 +158,5 @@ class WorkerSettings:
         cron(purge_member_notifications, hour=3, minute=40, second=0),  # hằng ngày: > 90 ngày
         # Nhắc giờ chơi: phút chia hết cho 5 (17:00 nhắc buổi 18:00)
         cron(send_play_reminders, minute=set(range(0, 60, 5)), second=0, unique=True),
+        *_device_link_cron,
     ]
