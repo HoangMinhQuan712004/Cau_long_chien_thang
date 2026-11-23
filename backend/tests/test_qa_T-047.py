@@ -473,10 +473,9 @@ async def test_ac1_list_filters_and_counts(admin, staff, people):
     for field in ("version", "editable", "source", "status", "resource_code"):
         assert field in got[adm["id"]], field
     assert got[adm["id"]]["editable"] is True
-    # Người dùng 21/11 (PR #98): danh sách Admin hiện SĐT đầy đủ của người đánh (ngoại lệ ADR-004 như
-    # Sổ giao dịch T-061); vẫn chỉ Admin xem được, nhân viên bị chặn.
-    pending_rows = {i["id"]: i for i in data["items"]}
-    assert pending_rows[pend["id"]]["phone"] == hv.phone, "Admin thấy SĐT đầy đủ (21/11)"
+    # User 23/11: for the release, the phone stays hidden as in production (the 21/11 full-phone
+    # change is postponed). This line is the original QA assertion.
+    assert hv.phone not in str(data), "danh sách không lộ SĐT đầy đủ"
     assert (await staff.get(ADMIN)).status_code == 403
 
 
