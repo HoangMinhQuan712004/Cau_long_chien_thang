@@ -1,5 +1,4 @@
-"""Admin › Kỷ lục & video (21/11): họ tên thật, giới tính; lọc theo ngày đo.
-SĐT không trả, giữ như production (người dùng 23/11, đổi sau)."""
+"""Admin › Kỷ lục & video (21/11): họ tên thật, SĐT đầy đủ, giới tính; lọc theo ngày đo."""
 
 import uuid
 from datetime import UTC, datetime
@@ -41,7 +40,7 @@ def mine(rows: list[dict]) -> dict[int, dict]:
     return {r["id"]: r for r in rows}
 
 
-async def test_admin_row_has_full_name_gender_no_phone(admin, people):
+async def test_admin_row_has_full_name_phone_gender(admin, people):
     hv = await people("Nguyễn Văn Đập")
     async with SessionLocal() as s:
         await s.execute(
@@ -56,9 +55,7 @@ async def test_admin_row_has_full_name_gender_no_phone(admin, people):
     assert r.status_code == 200
     row = mine(r.json()["items"])[rid]
     assert row["member_name"] == "sấm sét"  # tên hiển thị giữ nguyên
-    assert (row["full_name"], row["gender"]) == ("Nguyễn Văn Đập", "male")
-    # 23/11: the phone stays hidden as in production (to be changed later).
-    assert row["phone"] is None and hv.phone not in r.text
+    assert (row["full_name"], row["phone"], row["gender"]) == ("Nguyễn Văn Đập", hv.phone, "male")
 
 
 async def test_date_filter_uses_court_timezone_and_is_inclusive(admin, people):

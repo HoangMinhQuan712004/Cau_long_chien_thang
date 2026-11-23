@@ -47,6 +47,7 @@ async def rows_of(session: AsyncSession, records: list[SpeedRecord]) -> list[Adm
             member_code=people[r.customer_id].member_code if r.customer_id in people else None,
             member_name=people[r.customer_id].display_name if r.customer_id in people else "—",
             full_name=contacts[r.customer_id].full_name if r.customer_id in contacts else None,
+            phone=contacts[r.customer_id].phone if r.customer_id in contacts else None,
             gender=_gender(contacts[r.customer_id].gender) if r.customer_id in contacts else None,
             resource_code=r.court_code,
             resource_name=courts.get(r.court_code) if r.court_code else None,

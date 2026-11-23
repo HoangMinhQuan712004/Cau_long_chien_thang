@@ -236,10 +236,11 @@ async def record_cards(session: AsyncSession, ids: set[int] | list[int]) -> dict
 
 @dataclass(frozen=True)
 class AdminContact:
-    """Họ tên thật, giới tính của hồ sơ – **chỉ màn quản trị** (Admin). Không trả ra khu khách /
-    hội viên, không ghi log. SĐT không trả, giữ như bản production (người dùng 23/11, đổi sau)."""
+    """Họ tên thật, SĐT đầy đủ, giới tính của hồ sơ – **chỉ màn quản trị** (Admin, như Sổ giao dịch
+    T-061). Không trả ra khu khách / hội viên, không ghi log."""
 
     full_name: str
+    phone: str
     gender: str | None
 
 
@@ -250,7 +251,7 @@ async def admin_contacts(
     if not ids:
         return {}
     rows = await session.execute(
-        select(Customer.id, Customer.full_name, Customer.gender).where(
+        select(Customer.id, Customer.full_name, Customer.phone, Customer.gender).where(
             Customer.id.in_(sorted(set(ids)))
         )
     )
