@@ -4,14 +4,18 @@ from datetime import date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.records import demo, service, video
+from app.modules.records import demo, device, service, video
 from app.modules.records.schemas import Period, SpeedRanking, VideoOut
 from app.modules.records.service import RecordBreak
 
 __all__ = [
+    "MARK_PERIODS",
     "RecordBreak",
+    "add_device_record",
     "club_record_breaks",
+    "mark_bounds",
     "month_best",
+    "period_bests",
     "purge_demo",
     "record_kmh",
     "seed_demo_breaks",
@@ -19,6 +23,13 @@ __all__ = [
     "speed_ranking",
     "video_of",
 ]
+
+
+# Máy đo tốc độ (giai đoạn B – module device_link): ghi số đo, mốc kỷ lục từng kỳ
+MARK_PERIODS = device.MARK_PERIODS
+add_device_record = device.add_device_record
+mark_bounds = device.mark_bounds
+period_bests = device.period_bests
 
 
 async def record_kmh(session: AsyncSession, customer_id: int) -> int | None:
