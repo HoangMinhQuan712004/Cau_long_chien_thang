@@ -241,7 +241,7 @@ Mục này dùng để biết ai đăng nhập bằng gì, cấu hình biến m�
 | Khách | SĐT hoặc tên đăng nhập + mật khẩu, hoặc Google. Tự đăng ký tại `/dang-ky` (từ T-021: phải xác minh SĐT bằng OTP và đăng ký xong là hội viên) | `/dang-nhap` → `/tai-khoan` (hội viên: `/hoi-vien`) |
 
 - Chỉ có **một** trang `/dang-nhap` với một ô "Số điện thoại hoặc tên đăng nhập".
-- Sai mật khẩu 5 lần liên tiếp → khóa 15 phút. Phiên Admin/nhân viên tồn tại tối đa 12 giờ, rồi phải đăng nhập lại.
+- Sai mật khẩu 5 lần liên tiếp → khóa 15 phút. Phiên Admin/nhân viên **trượt 30 ngày** (T-077): hết hạn sau 30 ngày không dùng, đang dùng thì tự gia hạn; không có hạn tuyệt đối. Đổi mật khẩu, khóa tài khoản, thu hồi hoặc đăng xuất vẫn kết thúc phiên ngay.
 - Nhân viên có quyền như "Tài khoản tại máy" trước đây (đặt sân tại quầy, thu tiền, xem lịch). Không tạo/xóa sự kiện, không xem Lịch sử giao dịch, không vào Nhân viên và Cài đặt thanh toán.
 - Đặt tại quầy **không** cần OTP. OTP chỉ dùng khi khách **đặt online**, khi **quên mật khẩu**, khi **xác minh SĐT** trong `/tai-khoan` và (từ T-021) khi **đăng ký tài khoản**.
 
@@ -265,6 +265,8 @@ Khai báo ở `backend/.env` (máy dev) và `.env` trên server. Danh sách đ�
 | `FIRST_ADMIN_PHONE` | SĐT Admin đầu tiên (thay `FIRST_ADMIN_EMAIL`) | Link dev: `0912345678`. **Production: SĐT thật, phải có trong `.env` trước khi deploy** (thiếu → migration dừng, API không lên) |
 | `FIRST_ADMIN_PASSWORD` | Mật khẩu Admin đầu tiên (mẫu `Admin@12345`) | Chỉ dùng khi **chưa có Admin**; không bao giờ ghi đè mật khẩu đã có. Production từ chối mật khẩu mẫu hoặc yếu. **Secret** |
 | `OTP_TEST_MODE` | Hiện mã OTP trên màn hình khi chưa có Zalo | Chỉ máy dev và link dev. `true` + `ENV=production` → API không khởi động |
+| `ADMIN_SESSION_IDLE_DAYS` (T-077) | `30` | Phiên Admin/nhân viên hết hạn sau N ngày không dùng. **Thay `ADMIN_SESSION_HOURS`** (đã bỏ khỏi code; còn trong `.env` thì bị bỏ qua, nên xóa đi) |
+| `REFRESH_TOKEN_DAYS` (T-077) | `30` | Hạn refresh token của khách (trước đây 14). Đang đặt 14 trong `.env` thì đổi hoặc xóa dòng đó |
 | `ZALO_APP_ID`, `ZALO_SECRET_KEY`, `ZALO_REFRESH_TOKEN`, `ZALO_TEMPLATE_OTP` | Gửi OTP qua Zalo | **Chưa dùng được** (làm sau). Secret |
 | `GOOGLE_CLIENT_ID` | Đăng nhập Google (backend) | Để trống thì nút Google hiện "đang được cấu hình" |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Nút Google (frontend) | Client ID là thông tin công khai. Deploy lấy từ biến repo `GOOGLE_CLIENT_ID` (Settings → Secrets and variables → Variables), build vào image web |
@@ -420,6 +422,7 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 - **Bảng xếp hạng theo từng cú đập (T-053, đã vào `dev`):** mỗi **cú đập** một hạng, không còn mỗi hội viên một dòng: một người đạt cả top 3 thì vẫn hiện cả ba bậc. Bằng km/h thì cú đo sớm hơn xếp trên; không đồng hạng. Mỗi dòng ghi sân của cú đó, và API trả thêm tổng số cú trong kỳ. Người ẩn danh vẫn ẩn tên ở mọi bậc. Không đổi DB.
 - **Video & kỷ lục thành dòng thời gian phá kỷ lục (T-048, đã vào `dev`):** API `GET /member-area/record-breaks` trả các lần phá kỷ lục của cả cụm, mới nhất trước, kèm số km/h hơn kỷ lục trước, số ngày giữ kỷ lục và video (nếu có). Nhãn "Kỷ lục ngày dd/mm" lấy theo **ngày dán link video**, không phải ngày đo. Màn này hiện **họ tên thật** kèm biệt danh của người đã bật "Hiện trên Video & kỷ lục" (hoặc của chính mình); Tổng quan và Bảng xếp hạng vẫn chỉ hiện biệt danh. Người ẩn danh hiện "Hội viên ẩn danh". Cần chạy migration `a4c91e7d2f58` (thêm cột `video_set_at`).
 - **Bảng xếp hạng bấm xem video (T-049, đã vào `dev`):** mỗi dòng top 10 và dòng "Hạng của tôi" kèm video của đúng số đo xếp hạng trong kỳ; không có video thì không có gì để bấm. Người ẩn danh vẫn có video, tên vẫn ẩn. Không đổi DB.
+- **Thay đổi ngoài nhóm từ nhánh `fix/ui-ux` (đã vào `dev`, không có spec):** (1) **Ngày sinh hội viên** (`birth_date`): quầy thêm hoặc sửa ở màn Hội viên (hồ sơ tạm không có), hội viên tự nhập ở hồ sơ; từ 1900 đến hôm nay. (2) **Lịch sử chơi chọn khoảng ngày** (`?from&to`, tối đa 1 năm) và ô tìm sân (lọc trên máy). (3) **Thẻ kỷ lục có thắng/thua** (`play_stats` ở `record-breaks`): tổng trận thắng/thua mọi thời gian của người phá kỷ lục, `null` nếu ẩn danh. Có 3 migration nối liền (`b34da28b29f8`, `8eb2eb8e8727`, `a3d9cdb7c461`; hai cái sau bù nhau). Chi tiết: `docs/booking-engine-api.md` mục 12.3, 12.6, 13.4, 13.5, 13.8.
 - **Theo dõi sân (T-069, backend xong, chưa vào `dev`):** trang quản trị `/admin/theo-doi-san` (menu "Theo dõi sân"), **chỉ xem**. Mỗi sân một hàng, trong hàng là các phòng chơi của ngày đang xem: giờ, trạng thái (Sắp tới, Đang chơi, Đã kết thúc, Booking đã hủy), Host, số người, thể thức, khoảng hạng, trận đang đánh hoặc trận gần nhất kèm tỉ số. Bấm phòng xem thành viên, mọi trận và bảng xếp hạng phòng. Hôm nay tự tải lại mỗi 10 giây; có thể xem ngày khác (trong ±1 năm). Người xem thấy **tên thật, biệt danh, mã HV, kể cả hội viên đã ẩn danh; không có SĐT**. Quyền mới `play_rooms.monitor`: Admin có, Nhân viên mặc định **không**, Admin bật ở tab Phân quyền. API: `GET /api/v1/play-rooms/admin/day` và `/admin/rooms/{room_id}`.
 - Chi tiết: `docs/booking-engine-api.md` mục 13.5, 13.6, 13.7, 13.8 và 13.9.
 
@@ -446,6 +449,43 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 - Không có biến môi trường hay gói mới.
 
 API, mã lỗi `E-MEM-*`, `E-HV-*`, `E-AUTH-25…32`: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 12 và 11.2.
+
+## Thông báo đẩy Web Push (T-076, chưa vào `dev`)
+
+Gửi thông báo lên màn hình khóa điện thoại: hội viên (sắp tới giờ chơi, buổi bị đổi hoặc hủy, đã ghi nhận thanh toán, phòng chơi) và nhân viên theo quyền (đặt online mới, đã nhận tiền QR, tiền về cần xử lý). Chỉ tới người **đã đăng nhập và bật thông báo trên máy đó**. Chi tiết API, sự kiện, payload: `docs/booking-engine-api.md` mục 14. Quyết định: ADR-015.
+
+**Bật trên server (một lần, người cài server làm):**
+
+| Bước | Lệnh / việc |
+|---|---|
+| 1. Sinh khóa VAPID, ghi thẳng vào `.env` (không in ra màn hình, không dán vào chat hay board) | Trong container backend: `python -m app.scripts.vapid_keys >> .env` |
+| 2. Kiểm biến | Có hai dòng `VAPID_PUBLIC_KEY=` và `VAPID_PRIVATE_KEY=`. `VAPID_SUBJECT` tùy chọn (`mailto:…` hoặc URL web; trống thì lấy origin `https` đầu tiên trong `ALLOWED_ORIGINS`) |
+| 3. Build lại image, **khởi động lại api và worker** | Image cần `pywebpush`; worker cần để nhận job và cron nhắc giờ mới. Chạy migration `1a4340b669f8` (tạo schema `push`) |
+| 4. Kiểm | `GET /api/v1/push/config` trả `{"enabled": true, ...}`; đăng nhập, bấm **Bật thông báo trên máy này** rồi **Gửi thử** |
+
+- Thiếu `VAPID_PUBLIC_KEY` hoặc `VAPID_PRIVATE_KEY` → `enabled = false`, **giao diện không hiện nút bật** (không lỗi).
+- `VAPID_PRIVATE_KEY` là **secret**. **Đổi khóa thì mọi thiết bị phải bật lại.**
+- Máy dev: đặt hai khóa trong `backend/.env`; test dùng khóa thử có sẵn trong `tests/conftest.py`.
+- Nhắc giờ do cron `send_play_reminders` (mỗi 5 phút) chạy trong **worker**. Worker dừng thì không nhắc.
+- Service worker `/sw.js` chỉ xử lý push, không cache; Caddy/Next phải trả `Cache-Control: no-cache, no-store, must-revalidate` và `Service-Worker-Allowed: /` cho `/sw.js` (RELEASE kiểm).
+- **Hướng dẫn cho chủ sân và nhân viên (iPhone iOS 16.4+, Android):** [docs/huong-dan-bat-thong-bao.md](docs/huong-dan-bat-thong-bao.md).
+- Chưa kiểm trên máy thật (iPhone, Android); chưa có thử nghiệm Safari. Khách không có tài khoản chưa nhận được gì (chờ Zalo, T-073).
+
+## Cài web như một app (PWA, đã vào `dev`)
+
+Khách và hội viên cài trang web lên điện thoại thành app riêng, mở toàn màn hình. Không cần cửa hàng ứng dụng.
+
+| Việc | Cách làm |
+|---|---|
+| Android (Chrome, Edge) | Mở trang → menu → **Cài đặt ứng dụng** (hoặc "Thêm vào màn hình chính"). App có trong ngăn ứng dụng, mở không có thanh địa chỉ |
+| iPhone (Safari) | Mở trang → nút **Chia sẻ** → **Thêm vào Màn hình chính** |
+
+- Manifest do `frontend/src/app/manifest.ts` sinh (kiểm: `<site>/manifest.webmanifest`): tên **"Đặt sân Chiến Thắng"**, tên dưới icon **"Chiến Thắng"**, `display: standalone`, dọc, màu thanh trạng thái và màn chờ `#234839` (xanh header).
+- Icon sinh bằng code ở `/pwa-icon/{180,192,512,192-maskable,512-maskable}` (quả cầu lông trắng trên nền xanh), không có file ảnh trong repo.
+- iPhone: thanh trạng thái `black-translucent`, trang vẽ dưới thanh trạng thái nên header chừa `env(safe-area-inset-top)`.
+- **Chưa có service worker** (không cache dữ liệu đăng nhập, không chạy offline); cài được vẫn đủ điều kiện nhờ manifest. T-076 (Web Push) sẽ thêm service worker.
+- Màn đăng nhập, đăng ký **ghim header web** nhưng **ẩn khi mở bằng app**.
+- Chưa kiểm trên máy thật; chỉ đối chiếu code.
 
 ## Lệnh thường dùng
 
@@ -522,6 +562,8 @@ Từ T-051 Admin còn hủy được booking, vé hoặc đơn (thành **Đã h�
 Khách đặt online (T-008) trả trước: giữ chỗ 5 phút, booking chỉ được tạo khi SePay báo tiền về, xem mục "Đặt online và SePay".
 Giá được server tính và chốt lúc đặt.
 
+**Giữ chỗ online (T-075 và PR ngoài nhóm, đã vào `dev`).** Giữ chỗ 5 phút; **hết hạn là khung mở lại ngay** (ân hạn 60 giây chỉ để nhận tiền báo trễ). Lịch khách và hội viên hiện ô **Đang giữ chỗ** (`state = held`, không lộ người giữ). Khách tự **hủy giữ chỗ** khi chưa trả đồng nào; SĐT còn đơn chờ thì đặt mới bị `E-WEB-4` kèm đơn cũ để thanh toán hoặc hủy. Migration `f1c4b7e2a9d3`. Popup QR tại quầy gửi `since` và nhận `qr_paid` (T-072). Chi tiết: `docs/booking-engine-api.md` mục 10.9 và 5.3.
+
 **Sổ tiền vào và doanh thu (T-057, T-058, đã vào `dev`).** Mỗi lần nhận hoặc hoàn tiền là một dòng trong sổ `payment_entry`. **Lịch sử giao dịch** chỉ hiện tiền vào (tiền mặt và chuyển khoản), mỗi dòng một lần nhận tiền; hoàn tiền là dòng âm ở ngày hủy; màn chỉ xem; từ T-061 hiện SĐT **đầy đủ** cho ai có quyền `booking.transactions.view` (Admin, và Nhân viên mặc định; ngoại lệ có chủ đích của ADR-004 S12, chỉ màn này). **Báo cáo doanh thu tính theo ngày tiền về** (hoàn tiền trừ ngày hủy, ngày có thể âm); lượt đặt và công suất vẫn theo ngày chơi. Thu cả đơn tại quầy có popup QR (nội dung chuyển khoản = mã đơn bỏ gạch, chỉ nhận **đúng** số tiền; lệch thì ra "cần hoàn") kèm nút tiền mặt. Popup chờ **5 phút** (hết giờ thì "Tạo lại mã QR"), nhưng tiền về muộn vẫn được nhận nếu đúng số. Từ T-065 và T-068 có thể thu bằng QR **từng buổi** (nội dung = mã con bỏ gạch) và **từng vé quầy** (nội dung = mã vé bỏ gạch); webhook ưu tiên mã vé, rồi mã con, rồi mã đơn, vì SePay tự cắt mã theo mẫu "BK + 11 số" (**không cần đổi cấu hình SePay**). Quyền mở QR là `booking.collect`. **Không thu được cả đơn** (T-064): đánh dấu mọi buổi chưa thanh toán đã tới giờ một lượt. Màn Đơn đặt sân có **Còn phải thu** (`unpaid_amount`, T-066) bằng đúng số QR cả đơn và Thu cả đơn thu. Migration `e3a17c9b5d24` có backfill (một giao dịch SePay = một dòng sổ): **backup production và thử trên bản sao dữ liệu thật trước khi lên**. Chi tiết: `docs/booking-engine-api.md` mục 5.3.
 
 **Module giao tiếp qua service + event.** Module không query bảng của module khác; engine ghi sự kiện (vd. `booking.created`)
@@ -531,10 +573,10 @@ Khi cần tách service chỉ cần thay `app/core/events.py` bằng message bro
 **Bảo mật nền tảng (ADR-004).** Chống CSRF bằng kiểm `Origin`, rate limit bằng Redis, `Idempotency-Key` cho mọi lệnh ghi,
 nhật ký thao tác chỉ thêm (không sửa), quyền khai báo tập trung ở `app/core/permissions.py`, SĐT che ở API khách và hội viên (riêng màn quản trị có quyền thì hiện đầy đủ).
 
-**Auth.** JWT trong cookie httpOnly (access 30 phút, refresh 14 ngày, path `/api/v1/auth`).
+**Auth.** JWT trong cookie httpOnly (access 30 phút, refresh **30 ngày** từ T-077, mỗi lần làm mới cấp token mới; cookie refresh `Path=/` để proxy của Next đọc được, trước đó `/api/v1/auth`).
 Trình duyệt gọi `/api/v1/*` cùng domain, Next rewrite sang FastAPI → không cần CORS.
 Client tự gọi `/auth/refresh` khi gặp 401; trang đăng nhập tự khôi phục phiên nếu refresh còn hạn.
-**Từ T-013 (ADR-008):** JWT chỉ còn cho **khách** (thêm `token_version`: đổi mật khẩu thì JWT cũ hết hiệu lực). Admin và nhân viên dùng **phiên phía server** (cookie `admin_session`, 12 giờ cứng, thu hồi được, đăng xuất từ xa). OTP chỉ bắt buộc ở đặt online; đặt tại quầy không cần.
+**Từ T-013 (ADR-008):** JWT chỉ còn cho **khách** (thêm `token_version`: đổi mật khẩu thì JWT cũ hết hiệu lực). Admin và nhân viên dùng **phiên phía server** (cookie `admin_session`, **trượt 30 ngày** từ T-077, thu hồi được, đăng xuất từ xa). OTP chỉ bắt buộc ở đặt online; đặt tại quầy không cần.
 
 **SEO.** Trang public prerender tĩnh, dữ liệu qua `'use cache'` + `cacheLife` (tự làm mới).
 Mỗi trang tự khai báo `alternates.canonical`; JSON-LD `SportsActivityLocation` (trang chủ),

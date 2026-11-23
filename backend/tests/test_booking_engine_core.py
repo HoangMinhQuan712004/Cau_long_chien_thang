@@ -78,7 +78,14 @@ async def test_outbox_published_after_commit():
         while batch := await api.publish_outbox(SessionLocal):
             published += batch
         assert published >= 1
-        assert received == [{"tenant_id": TENANT, "n": 2}]
+        # event_id = id dòng outbox (T-076 Q3: khóa chống trùng khi giao lại)
+        [got] = received
+        assert {k: v for k, v in got.items() if k != "event_id"} == {"tenant_id": TENANT, "n": 2}
+        async with SessionLocal() as s:
+            row_id = await s.scalar(
+                select(OutboxEvent.id).where(OutboxEvent.event_type == "test.outbox.ping")
+            )
+        assert got["event_id"] == row_id
         async with SessionLocal() as s:
             pending = await s.scalars(
                 select(OutboxEvent).where(

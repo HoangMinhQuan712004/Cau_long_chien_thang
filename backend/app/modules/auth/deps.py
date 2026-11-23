@@ -46,6 +46,11 @@ async def get_auth_state(
             admin_session, user = await sessions.resolve(session, admin_token)
         except sessions.SessionError as e:
             return AuthState(None, None, e.reason)
+        # Phiên trượt (T-077): gia hạn DB tối đa một lần / giờ. Mọi request hợp lệ đều gửi lại
+        # cookie với max-age = hạn còn lại trong DB (không ghi DB): lượt gia hạn rơi vào request
+        # render phía server (Next bỏ Set-Cookie) thì request sau từ trình duyệt vẫn kéo dài cookie
+        await sessions.renew_if_due(session, admin_session)
+        request.state.admin_session_cookie = (admin_token, admin_session.expires_at)
         return AuthState(user, admin_session)
 
     token = request.cookies.get(ACCESS_COOKIE) or (creds.credentials if creds else None)

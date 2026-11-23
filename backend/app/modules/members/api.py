@@ -33,6 +33,8 @@ __all__ = [
     "MemberEnsured",
     "ensure_member_for_phone",
     "member_of_phone",
+    "AdminContact",
+    "admin_contacts",
     "RoomPerson",
     "customer_id_of_ref",
     "booking_refs_of",
@@ -230,6 +232,29 @@ async def record_cards(session: AsyncSession, ids: set[int] | list[int]) -> dict
         ).where(Customer.id.in_(sorted(set(ids))))
     )
     return {cid: RecordCard(*card) for cid, *card in rows}
+
+
+@dataclass(frozen=True)
+class AdminContact:
+    """Họ tên thật, giới tính của hồ sơ – **chỉ màn quản trị** (Admin). Không trả ra khu khách /
+    hội viên, không ghi log. SĐT không trả, giữ như bản production (người dùng 23/11, đổi sau)."""
+
+    full_name: str
+    gender: str | None
+
+
+async def admin_contacts(
+    session: AsyncSession, ids: set[int] | list[int]
+) -> dict[int, AdminContact]:
+    """Liên hệ của người đánh cho màn Admin › Kỷ lục & video (người dùng 21/11)."""
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Customer.id, Customer.full_name, Customer.gender).where(
+            Customer.id.in_(sorted(set(ids)))
+        )
+    )
+    return {cid: AdminContact(*contact) for cid, *contact in rows}
 
 
 # ------------------------------------------------------------------ dữ liệu mẫu dev (T-034)

@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     # Auth
     SECRET_KEY: str = "change-me"
     ACCESS_TOKEN_MINUTES: int = 30
-    REFRESH_TOKEN_DAYS: int = 14
+    # Mỗi lần refresh cấp token mới -> chỉ đăng xuất khi 30 ngày không mở (T-077)
+    REFRESH_TOKEN_DAYS: int = 30
     COOKIE_DOMAIN: str | None = None
     COOKIE_SECURE: bool = False
 
@@ -80,7 +81,9 @@ class Settings(BaseSettings):
     PAYMENTS_ENCRYPTION_KEY: str | None = None
 
     # Đăng nhập, phiên, OTP (T-013, ADR-008)
-    ADMIN_SESSION_HOURS: int = 12  # phiên Admin / nhân viên hết hạn cứng, không gia hạn
+    # Phiên Admin / nhân viên trượt (T-077): hết hạn sau N ngày không dùng, tự gia hạn tối đa
+    # một lần mỗi giờ; không có hạn tuyệt đối (đăng xuất / đổi MK / khóa / thu hồi vẫn đá phiên)
+    ADMIN_SESSION_IDLE_DAYS: int = 30
     LOGIN_MAX_ATTEMPTS: int = 5  # sai liên tiếp N lần -> tạm khóa tài khoản
     LOGIN_LOCK_MINUTES: int = 15
     # Login không tồn tại: nhớ chuỗi lần sai bấy lâu (tài khoản thật đếm "liên tiếp" không hạn)
@@ -106,6 +109,13 @@ class Settings(BaseSettings):
     ZALO_TEMPLATE_OTP: str = ""
     # Client ID Google (công khai); trống -> tắt đăng nhập Google
     GOOGLE_CLIENT_ID: str = ""
+    # Thông báo đẩy Web Push (T-076, ADR-015). Thiếu khóa -> /push/config enabled=false.
+    # Khóa base64url (khóa riêng 32 byte, khóa công khai 65 byte) – sinh bằng
+    # ``python -m app.scripts.vapid_keys``; đổi khóa thì mọi thiết bị phải bật lại.
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    # ``mailto:`` hoặc URL web; trống -> origin https đầu tiên trong ALLOWED_ORIGINS
+    VAPID_SUBJECT: str = ""
 
     # Admin đầu tiên: migration gán SĐT này cho Admin chưa có SĐT; seed tạo Admin khi chưa có.
     # Production phải đặt rõ SĐT thật (mặc định / SĐT mẫu -> migration + seed dừng)
@@ -161,6 +171,17 @@ class Settings(BaseSettings):
     def otp_channel_ready(self) -> bool:
         """Có đường gửi OTP: Zalo đủ cấu hình hoặc chế độ thử (dev)."""
         return self.zalo_configured or self.OTP_TEST_MODE
+
+    @property
+    def push_enabled(self) -> bool:
+        return bool(self.VAPID_PUBLIC_KEY and self.VAPID_PRIVATE_KEY)
+
+    @property
+    def vapid_subject(self) -> str:
+        if self.VAPID_SUBJECT:
+            return self.VAPID_SUBJECT
+        web = next((o for o in self.ALLOWED_ORIGINS if o.startswith("https://")), None)
+        return web or "https://chienthang.superbai.vip"
 
     @property
     def is_deployed(self) -> bool:

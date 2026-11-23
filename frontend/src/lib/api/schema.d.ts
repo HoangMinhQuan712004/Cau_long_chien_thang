@@ -17,7 +17,7 @@ export interface paths {
          * Sign In
          * @description Một ô "SĐT hoặc tên đăng nhập" + mật khẩu.
          *
-         *     Khách -> JWT (cookie); Admin / NV -> phiên quản trị (cookie ``admin_session``, 12 giờ cứng).
+         *     Khách -> JWT (cookie); Admin / NV -> phiên quản trị (cookie ``admin_session``, trượt 30 ngày).
          *     Lỗi: 401 E-AUTH-10 · 423 E-AUTH-11 (khóa 15 phút, ``retry_after``) · 429 E-AUTH-12 (theo IP).
          */
         post: operations["sign_in_api_v1_auth_sign_in_post"];
@@ -2372,8 +2372,10 @@ export interface paths {
         };
         /**
          * List Speed Records
-         * @description Số đo mới nhất trước (20 / trang) – tên thật + Mã HV, sân, video, nguồn, trạng thái
-         *     (chỉ Admin). ``pending_count`` cho tab "Chờ duyệt (n)".
+         * @description Số đo mới nhất trước (20 / trang) – Mã HV, tên hiển thị, **họ tên thật, SĐT đầy đủ,
+         *     giới tính** (chỉ Admin), sân, video, nguồn, trạng thái. Lọc theo khoảng ngày đo
+         *     ``from`` / ``to`` (422 E-001 khi Từ ngày sau Đến ngày). ``pending_count`` cho tab
+         *     "Chờ duyệt (n)".
          */
         get: operations["list_speed_records_api_v1_admin_speed_records_get"];
         put?: never;
@@ -3182,6 +3184,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/push/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Push Config
+         * @description Công khai. ``enabled = false`` khi chưa cấu hình VAPID -> không hiện nút bật.
+         */
+        get: operations["push_config_api_v1_push_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/push/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Subscribe
+         * @description Bật thông báo trên máy này. 201 mới · 200 endpoint đã có (chuyển sang tài khoản đang đăng
+         *     nhập). 401 · 422 E-PUSH-1 (không phải https / host ngoài danh sách dịch vụ push) · 503
+         *     E-PUSH-2 (chưa cấu hình VAPID).
+         */
+        post: operations["subscribe_api_v1_push_subscriptions_post"];
+        /**
+         * Unsubscribe
+         * @description Tắt / đăng xuất: 204 kể cả khi không có hoặc là thiết bị của tài khoản khác (không xóa).
+         */
+        delete: operations["unsubscribe_api_v1_push_subscriptions_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/push/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Test
+         * @description Gửi "Thông báo đã được bật trên thiết bị này" tới các thiết bị của **chính** tài khoản
+         *     (job worker). 401 · 503 E-PUSH-2 · 429 E-SEC-5 (quá 5 lần / 10 phút).
+         */
+        post: operations["send_test_api_v1_push_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -3355,8 +3424,26 @@ export interface components {
             measured_at: string;
             /** Member Code */
             member_code: string | null;
-            /** Member Name */
+            /**
+             * Member Name
+             * @description Tên hiển thị (biệt danh / họ tên)
+             */
             member_name: string;
+            /**
+             * Full Name
+             * @description Họ tên thật – chỉ Admin (21/11)
+             */
+            full_name?: string | null;
+            /**
+             * Phone
+             * @description SĐT đầy đủ – chỉ Admin, như Sổ giao dịch (T-061)
+             */
+            phone?: string | null;
+            /**
+             * Gender
+             * @description Giới tính; null: chưa nhập
+             */
+            gender?: ("male" | "female") | null;
             /**
              * Resource Code
              * @description Mã sân (T-047) – null: không ghi sân
@@ -5658,7 +5745,7 @@ export interface components {
             id: number;
             /**
              * Kind
-             * @description room.invited · room.join_requested · room.join_approved · room.join_rejected · room.kicked · room.host_assigned · record.approved · record.rejected (T-047) · booking.cancelled · room.cancelled (T-051)
+             * @description room.invited · room.join_requested · room.join_approved · room.join_rejected · room.kicked · room.host_assigned · record.approved · record.rejected (T-047) · booking.cancelled · room.cancelled (T-051) · booking.reminder · booking.moved · booking.paid (T-076)
              */
             kind: string;
             /**
@@ -6774,6 +6861,19 @@ export interface components {
             date_to: string;
             /** Name */
             name: string;
+        };
+        /** PushConfig */
+        PushConfig: {
+            /**
+             * Enabled
+             * @description false khi server chưa cấu hình VAPID -> FE ẩn nút bật
+             */
+            enabled: boolean;
+            /**
+             * Public Key
+             * @description applicationServerKey (base64url) cho PushManager.subscribe; null khi tắt
+             */
+            public_key: string | null;
         };
         /** QuoteIn */
         QuoteIn: {
@@ -8642,6 +8742,32 @@ export interface components {
             /** Bookings Count */
             bookings_count: number;
         };
+        /**
+         * SubscriptionIn
+         * @description ``PushSubscription.toJSON()`` của trình duyệt (bỏ ``expirationTime``) + nhãn máy tùy chọn.
+         */
+        SubscriptionIn: {
+            /**
+             * Endpoint
+             * @description URL dịch vụ push, https, ≤ 1000 ký tự
+             */
+            endpoint: string;
+            keys: components["schemas"]["SubscriptionKeys"];
+            /** Device Label */
+            device_label?: string | null;
+        };
+        /** SubscriptionKeys */
+        SubscriptionKeys: {
+            /** P256Dh */
+            p256dh: string;
+            /** Auth */
+            auth: string;
+        };
+        /** SubscriptionOut */
+        SubscriptionOut: {
+            /** Id */
+            id: number;
+        };
         /** TempCreateIn */
         TempCreateIn: {
             /** Full Name */
@@ -8665,6 +8791,14 @@ export interface components {
             phone: string;
             /** Note */
             note?: string | null;
+        };
+        /** TestPushOut */
+        TestPushOut: {
+            /**
+             * Devices
+             * @description Số thiết bị của tài khoản sẽ nhận thông báo thử
+             */
+            devices: number;
         };
         /** TicketBatchIn */
         TicketBatchIn: {
@@ -8855,6 +8989,11 @@ export interface components {
             reason: string;
             /** Version */
             version: number;
+        };
+        /** UnsubscribeIn */
+        UnsubscribeIn: {
+            /** Endpoint */
+            endpoint: string;
         };
         /** UpcomingItem */
         UpcomingItem: {
@@ -13268,6 +13407,10 @@ export interface operations {
                 status?: ("approved" | "pending" | "rejected") | null;
                 /** @description device · admin · member */
                 source?: ("device" | "admin" | "member") | null;
+                /** @description Từ ngày đo (giờ sân) */
+                from?: string | null;
+                /** @description Đến ngày đo (gồm cả ngày này) */
+                to?: string | null;
             };
             header?: never;
             path?: never;
@@ -14647,6 +14790,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    push_config_api_v1_push_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushConfig"];
+                };
+            };
+        };
+    };
+    subscribe_api_v1_push_subscriptions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionIn"];
+            };
+        };
+        responses: {
+            /** @description Endpoint đã có (chuyển tài khoản) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionOut"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unsubscribe_api_v1_push_subscriptions_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnsubscribeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_test_api_v1_push_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestPushOut"];
                 };
             };
         };

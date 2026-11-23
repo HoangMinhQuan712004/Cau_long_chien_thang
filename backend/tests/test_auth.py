@@ -76,7 +76,8 @@ async def test_admin_signs_in_by_phone(login):
         me = await c.get(f"{API}/admin/auth/me")
         assert me.status_code == 200 and me.json()["account"]["kind"] == "admin"
         expires = datetime.fromisoformat(me.json()["expires_at"])
-        assert timedelta(hours=11, minutes=59) < expires - datetime.now(UTC) <= timedelta(hours=12)
+        # Phiên trượt 30 ngày (T-077)
+        assert timedelta(days=29, hours=23) < expires - datetime.now(UTC) <= timedelta(days=30)
 
 
 async def test_customer_register_sign_in_me_logout(anon):

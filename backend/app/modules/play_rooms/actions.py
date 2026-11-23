@@ -71,8 +71,16 @@ async def _close_pending(
     )
 
 
-def _notify(session: AsyncSession, room: PlayRoom, customer_id: int, kind: str, text: str) -> None:
-    inbox.notify(session, customer_id, kind, text, room_link(room.id), room_id=room.id)
+def _notify(
+    session: AsyncSession,
+    room: PlayRoom,
+    customer_id: int,
+    kind: str,
+    text: str,
+    push_text: str | None = None,
+) -> None:
+    extra = {"push_text": push_text} if push_text else {}
+    inbox.notify(session, customer_id, kind, text, room_link(room.id), room_id=room.id, **extra)
 
 
 async def _pending(
@@ -115,6 +123,8 @@ async def request_join(session: AsyncSession, me: Me, room_id: int, version: int
         room.host_customer_id,
         "room.join_requested",
         f"{name_of(people, me.customer_id)} xin vào phòng {room_label(room)}.",
+        # Màn hình khóa không hiện tên người (T-076)
+        push_text=f"Có người xin vào phòng của bạn ({room_label(room)}).",
     )
     await session.flush()
     return room

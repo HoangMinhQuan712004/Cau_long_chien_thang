@@ -2,6 +2,7 @@
 
 from app.modules.member_inbox.service import (
     CREATED,
+    PushView,
     discard_pending,
     list_for,
     mark_all_read,
@@ -11,11 +12,13 @@ from app.modules.member_inbox.service import (
     publish_created,
     purge_for,
     purge_old,
+    push_view,
     unread_count,
 )
 
 __all__ = [
     "CREATED",
+    "PushView",
     "discard_pending",
     "list_for",
     "mark_all_read",
@@ -24,6 +27,7 @@ __all__ = [
     "notify_once",
     "publish_created",
     "purge_for",
+    "push_view",
     "purge_old",
     "unread_count",
 ]

@@ -63,9 +63,11 @@ async def sepay_webhook(
         await service.process_transaction(session, payload)
     except service.WebhookError as e:
         await session.rollback()
+        service.discard_reviews(session)
         logger.warning("SePay webhook rejected (%s): %s", e.status, e)
         return _result(False, e.status)
     await session.commit()
+    await service.publish_reviews(session)
     return _result(True)
 
 
@@ -87,11 +89,13 @@ async def simulate_payment(
 
     Trả giao dịch vừa ghi (``outcome``, ``refund_amount``, ``booking_codes``…).
     """
-    return await idem.run(
+    response = await idem.run(
         session,
         principal.key,
         lambda: service.simulate(session, data.pay_ref.strip(), data.amount),
     )
+    await service.publish_reviews(session)  # sau commit (gửi lại: không có gì để phát)
+    return response
 
 
 # ---------------------------------------------------------------- cài đặt thanh toán (T-012)

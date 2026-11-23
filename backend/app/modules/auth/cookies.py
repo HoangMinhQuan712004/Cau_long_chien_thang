@@ -7,7 +7,10 @@ from app.core.security import create_token
 from app.modules.auth.deps import ACCESS_COOKIE, ADMIN_SESSION_COOKIE, REFRESH_COOKIE
 from app.modules.auth.models import User
 
-REFRESH_PATH = f"{settings.API_PREFIX}/auth"  # refresh token chỉ gửi kèm API auth
+# T-077: refresh token path "/" để proxy của Next (render phía server) đọc được và tự làm mới;
+# trước đây chỉ gửi kèm API auth -> xóa cookie cũ cùng tên ở path này
+REFRESH_PATH = "/"
+LEGACY_REFRESH_PATH = f"{settings.API_PREFIX}/auth"
 
 
 def _common() -> dict:
@@ -36,24 +39,39 @@ def set_auth_cookies(response: Response, user: User) -> None:
         path=REFRESH_PATH,
         **_common(),
     )
+    response.delete_cookie(REFRESH_COOKIE, path=LEGACY_REFRESH_PATH, **_common())
     delete_admin_cookie(response)
 
 
 def delete_auth_cookies(response: Response) -> None:
     response.delete_cookie(ACCESS_COOKIE, path="/", **_common())
     response.delete_cookie(REFRESH_COOKIE, path=REFRESH_PATH, **_common())
+    response.delete_cookie(REFRESH_COOKIE, path=LEGACY_REFRESH_PATH, **_common())
 
 
 def set_admin_cookie(response: Response, token: str) -> None:
-    """Cookie phiên quản trị (hạn cứng như phiên); xóa JWT khách nếu có."""
+    """Cookie phiên quản trị (hạn = hạn trượt của phiên); xóa JWT khách nếu có."""
     response.set_cookie(
         ADMIN_SESSION_COOKIE,
         token,
-        max_age=settings.ADMIN_SESSION_HOURS * 3600,
+        max_age=settings.ADMIN_SESSION_IDLE_DAYS * 86400,
         path="/",
         **_common(),
     )
     delete_auth_cookies(response)
+
+
+def admin_cookie_header(token: str, max_age: int) -> bytes:
+    """Giá trị ``Set-Cookie`` kéo cookie ``admin_session`` theo hạn còn lại của phiên trong DB."""
+    probe = Response()
+    probe.set_cookie(
+        ADMIN_SESSION_COOKIE,
+        token,
+        max_age=max_age,
+        path="/",
+        **_common(),
+    )
+    return probe.headers["set-cookie"].encode("latin-1")
 
 
 def delete_admin_cookie(response: Response) -> None:

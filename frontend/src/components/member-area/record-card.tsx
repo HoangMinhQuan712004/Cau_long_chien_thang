@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { formatDayMonth, formatTime, vnDate, weekdayIndex } from "@/lib/format";
 
 // Thẻ kỷ lục bên cạnh trình phát (T-048 AC2, AC4): phần đầu vàng (số km/h có vệt sáng lướt + sao nháy), người phá kỷ lục
-// + tổng thắng / thua trong Lịch sử chơi, Vợt / Sân / Thời điểm. Quyền riêng tư do server quyết định (T-030): trường null thì ẩn cả mục.
+// + số trận thắng / tổng số trận trong Lịch sử chơi, Vợt / Sân / Thời điểm. Quyền riêng tư do server quyết định (T-030): trường null thì ẩn cả mục.
 
 const WEEKDAY = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const when = (iso: string) => `${WEEKDAY[weekdayIndex(vnDate(iso))]} ${formatDayMonth(vnDate(iso))} · ${formatTime(iso)}`;
@@ -173,14 +173,14 @@ export function RecordCard({ item }: { item: RecordBreakItem }) {
             ) : null}
             <p className="text-sm text-muted">{item.tier ? `Hội viên · Trình độ ${item.tier}` : "Hội viên"}</p>
           </div>
-          {/* Tổng thắng / thua mọi thời gian của người chơi (đặt cạnh tên); chưa có trận / ẩn danh ⇒ ẩn */}
+          {/* Số trận thắng / tổng số trận mọi thời gian (người dùng 16/11: không hiện số thua); chưa có trận / ẩn danh ⇒ ẩn */}
           {stats ? (
             <div className="flex shrink-0 flex-col items-center gap-0.5" title={`${stats.matches} trận trong Lịch sử chơi`}>
               <WinRing rate={Math.round((stats.wins / stats.matches) * 100)} />
               {/* 2 dòng ngắn ⇒ cột chỉ rộng bằng vòng, nhường chỗ cho tên */}
               <p className="text-center text-[0.6875rem] leading-tight whitespace-nowrap tabular-nums">
                 <b className="block text-primary">{stats.wins} thắng</b>
-                <span className="text-muted">{stats.losses} thua</span>
+                <span className="text-muted">/ {stats.matches} trận</span>
               </p>
             </div>
           ) : null}

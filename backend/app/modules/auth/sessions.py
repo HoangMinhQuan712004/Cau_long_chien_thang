@@ -1,4 +1,8 @@
-"""Phiên khu quản trị phía server (ADR-008 §3): cookie ``admin_session``, hạn cứng, thu hồi được."""
+"""Phiên khu quản trị phía server (ADR-008 §3): cookie ``admin_session``, thu hồi được.
+
+T-077: hạn **trượt** ``ADMIN_SESSION_IDLE_DAYS`` ngày – đang dùng thì tự gia hạn (ghi DB tối đa
+một lần mỗi giờ mỗi phiên), không có hạn tuyệt đối.
+"""
 
 import hashlib
 import secrets
@@ -7,6 +11,7 @@ from typing import Any, Literal
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.audit import SYSTEM_ACTOR, Value, audit, audit_change, audit_detail
 from app.core.config import settings
@@ -75,13 +80,53 @@ async def create_session(
     row = AdminSession(
         user_id=user.id,
         token_hash=hash_token(token),
-        expires_at=datetime.now(UTC) + timedelta(hours=settings.ADMIN_SESSION_HOURS),
+        expires_at=datetime.now(UTC) + idle_lifetime(),
         user_agent=(user_agent or "")[:255] or None,
         ip=ip,
     )
     session.add(row)
     await session.flush()
     return row, token
+
+
+RENEW_EVERY = timedelta(hours=1)
+
+
+def idle_lifetime() -> timedelta:
+    return timedelta(days=settings.ADMIN_SESSION_IDLE_DAYS)
+
+
+async def renew_if_due(
+    session: AsyncSession, admin_session: AdminSession, now: datetime | None = None
+) -> bool:
+    """Gia hạn phiên đang dùng: lần gia hạn trước (suy từ ``expires_at − hạn``) đã hơn 1 giờ ->
+    ``expires_at = now + hạn``.
+
+    T-77-1: **một** câu UPDATE có điều kiện trên chính session của request rồi commit ngay (lúc
+    này transaction chỉ mới có các câu đọc xác thực) – không mở session thứ hai, nên nhiều request
+    song song không cạn pool. Request đến cùng lúc: một câu chạm dòng, các câu khác không làm gì
+    (AC7). Trả True khi chính request này đã gia hạn (-> gửi lại cookie)."""
+    now = now or datetime.now(UTC)
+    if admin_session.expires_at - idle_lifetime() + RENEW_EVERY > now:
+        return False
+    new = now + idle_lifetime()
+    result = await session.execute(
+        update(AdminSession)
+        .where(
+            AdminSession.id == admin_session.id,
+            AdminSession.expires_at < new - RENEW_EVERY,
+            AdminSession.revoked_at.is_(None),
+        )
+        .values(expires_at=new)
+        .execution_options(synchronize_session=False)
+    )
+    await session.commit()
+    if not result.rowcount:
+        return False  # request khác vừa gia hạn / phiên vừa bị thu hồi
+    # Giá trị mới đã ở DB: chỉ cập nhật bản trong bộ nhớ, không đánh dấu "bẩn" – gán thường
+    # khiến lần commit của request phát thêm một câu UPDATE thừa (T-77-2)
+    set_committed_value(admin_session, "expires_at", new)
+    return True
 
 
 async def resolve(session: AsyncSession, token: str | None) -> tuple[AdminSession, User]:
