@@ -1,7 +1,7 @@
 """Bảng xếp hạng tốc độ + kỷ lục cá nhân (T-030 giai đoạn A). Chỉ đọc.
 
 T-047: mọi truy vấn ở đây chỉ lấy số đo **đã duyệt** (``APPROVED``) – bản chờ duyệt / bị từ chối
-không tính hạng, kỷ lục hay video.
+không tính hạng, kỷ lục hay video. Từ 25/11 ``APPROVED`` còn lọc **nguồn máy đo** (camera AI).
 """
 
 from dataclasses import dataclass
@@ -33,8 +33,10 @@ from app.modules.records.schemas import (
 
 TOP = 10
 BAR_FLOOR_KMH = 200
-# T-047: chỉ số đo đã duyệt mới tính (máy đo, Admin nhập, hội viên gửi đã được duyệt)
-APPROVED = SpeedRecord.status == "approved"
+# T-047: chỉ số đo đã duyệt mới tính. Người dùng 25/11: chỉ số đo từ camera AI (máy đo) – số đo
+# Admin nhập / hội viên gửi (link YouTube) cũ vẫn giữ trong DB nhưng không tính hạng, kỷ lục, video
+# hay mốc so kỷ lục của máy đo.
+APPROVED = and_(SpeedRecord.status == "approved", SpeedRecord.source == "device")
 ANONYMOUS = "Hội viên ẩn danh"
 
 

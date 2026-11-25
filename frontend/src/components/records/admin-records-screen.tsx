@@ -9,13 +9,11 @@ import { toast } from "@/lib/feedback";
 import { DateRange } from "@/components/ui/date-range";
 import { addDaysIso, formatDate, formatTime, todayVn } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
-import { parseVideoUrl, VIDEO_LINK_HINT } from "@/lib/video";
-import { type AdminRecordRow as AdminSpeedRecord, type AdminSpeedRecordList, getAdminSpeedRecords, SOURCE_LABEL, sendAdminDeleteRecord, sendApproveRecord, sendRecordVideo, sendRejectRecord, sendRemoveRecordVideo } from "./requests";
-import { RecordFormDialog, type RecordFormMode } from "./record-form-dialog";
-import { VideoPlayer } from "./video-player";
+import { type AdminRecordRow as AdminSpeedRecord, type AdminSpeedRecordList, getAdminSpeedRecords, SOURCE_LABEL, sendAdminDeleteRecord, sendApproveRecord, sendRejectRecord, sendRemoveRecordVideo } from "./requests";
 
-// /admin/ky-luc (T-046 + T-047, chỉ Admin): số đo mới nhất trước, lọc Có video / Chưa có, gắn / sửa / gỡ video bằng cách dán link (có xem thử);
-// thêm / sửa / xóa số đo nhập tay (trừ nguồn máy đo); tab "Chờ duyệt" để duyệt / từ chối số đo hội viên gửi.
+// /admin/ky-luc (T-046 + T-047, chỉ Admin): số đo mới nhất trước, lọc Có video / Chưa có, gỡ video; xóa số đo nhập tay cũ;
+// tab "Chờ duyệt" để duyệt / từ chối số đo hội viên đã gửi trước đây. 25/11 (người dùng): số đo + video chỉ đến từ camera AI –
+// bỏ "+ Thêm số đo", "Sửa số đo" và gắn / sửa link video.
 // Người dùng 21/11: mỗi dòng hiện họ tên thật, SĐT đầy đủ, giới tính của người đánh; lọc Tuần này / Tháng này / Tất cả + khoảng ngày đo.
 
 const SIZE = 20;
@@ -53,13 +51,11 @@ export function AdminRecordsScreen() {
   const [tab, setTab] = useState<Tab>("all");
   const [filter, setFilter] = useState<Filter>("all");
   const [pending, setPending] = useState(0);
-  const [form, setForm] = useState<RecordFormMode | null>(null);
   const [del, setDel] = useState<AdminSpeedRecord | null>(null);
   const [reject, setReject] = useState<AdminSpeedRecord | null>(null);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<AdminSpeedRecordList | null>(null);
   const [error, setError] = useState("");
-  const [edit, setEdit] = useState<AdminSpeedRecord | null>(null);
   const [remove, setRemove] = useState<AdminSpeedRecord | null>(null);
   const [period, setPeriod] = useState<Period>("all");
   const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
@@ -91,13 +87,8 @@ export function AdminRecordsScreen() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold sm:text-2xl">Kỷ lục &amp; video</h1>
-        <button type="button" onClick={() => setForm({ kind: "admin-create" })} className={btnPrimaryCls}>
-          + Thêm số đo
-        </button>
-      </div>
-      <p className="text-sm text-muted">Nhập số đo tốc độ, gắn link video (YouTube hoặc file .mp4 / .webm) để hội viên xem ở Tổng quan và Video &amp; kỷ lục. Số đo hội viên gửi nằm ở tab Chờ duyệt.</p>
+      <h1 className="text-xl font-bold sm:text-2xl">Kỷ lục &amp; video</h1>
+      <p className="text-sm text-muted">Số đo và video đến tự động từ camera AI (máy đo). Bảng xếp hạng và Video &amp; kỷ lục của hội viên chỉ tính số đo máy đo; số đo nhập tay cũ vẫn xem được ở đây.</p>
 
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Danh sách số đo">
         {(
@@ -236,23 +227,15 @@ export function AdminRecordsScreen() {
                     </button>
                   </>
                 ) : null}
-                <button type="button" onClick={() => setEdit(r)} className={r.video || r.status === "pending" ? btnCls : btnPrimaryCls}>
-                  {r.video ? "Sửa video" : "Gắn video"}
-                </button>
                 {r.video ? (
                   <button type="button" onClick={() => setRemove(r)} className={btnCls}>
                     Gỡ video
                   </button>
                 ) : null}
                 {r.editable ? (
-                  <>
-                    <button type="button" onClick={() => setForm({ kind: "admin-edit", record: r })} className={btnCls}>
-                      Sửa số đo
-                    </button>
-                    <button type="button" onClick={() => setDel(r)} className={btnCls}>
-                      Xóa
-                    </button>
-                  </>
+                  <button type="button" onClick={() => setDel(r)} className={btnCls}>
+                    Xóa
+                  </button>
                 ) : null}
               </div>
             </li>
@@ -274,27 +257,6 @@ export function AdminRecordsScreen() {
         </nav>
       ) : null}
 
-      {edit ? (
-        <VideoDialog
-          key={edit.id}
-          record={edit}
-          onClose={() => setEdit(null)}
-          onSaved={() => {
-            setEdit(null);
-            void load();
-          }}
-        />
-      ) : null}
-      {form ? (
-        <RecordFormDialog
-          mode={form}
-          onClose={() => setForm(null)}
-          onDone={() => {
-            setForm(null);
-            void load();
-          }}
-        />
-      ) : null}
       {del ? (
         <DeleteDialog
           record={del}
@@ -326,89 +288,6 @@ export function AdminRecordsScreen() {
         />
       ) : null}
     </div>
-  );
-}
-
-/** Hộp gắn / sửa link: dán link → xem thử ngay trong hộp; link sai báo ngay, server (E-REC-1) kiểm lại. */
-function VideoDialog({ record, onClose, onSaved }: { record: AdminSpeedRecord; onClose: () => void; onSaved: () => void }) {
-  const id = useId();
-  const [url, setUrl] = useState(record.video?.url ?? "");
-  const [busy, setBusy] = useState(false);
-  const [banner, setBanner] = useState("");
-  const parsed = parseVideoUrl(url);
-  const invalid = url.trim() !== "" && !parsed;
-  const unchanged = url.trim() === (record.video?.url ?? "");
-
-  async function save() {
-    if (!parsed || busy) return;
-    setBusy(true);
-    setBanner("");
-    try {
-      const res = await write((key) => sendRecordVideo(key, record.id, url.trim()));
-      if (!res.ok) {
-        if (!authFailure(res.error)) setBanner(errorText(res.error));
-        return;
-      }
-      toast(record.video ? "Đã cập nhật video" : "Đã gắn video", `${record.speed_kmh} km/h · ${record.member_name}`);
-      onSaved();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      size="wide"
-      title={record.video ? "Sửa video" : "Gắn video"}
-      footer={
-        <>
-          <button type="button" onClick={onClose} className={btnCls} disabled={busy}>
-            Hủy
-          </button>
-          <button type="button" onClick={() => void save()} disabled={!parsed || unchanged || busy} className={btnPrimaryCls}>
-            {busy ? "Đang lưu…" : "Lưu"}
-          </button>
-        </>
-      }
-    >
-      {banner ? <ErrorBanner>{banner}</ErrorBanner> : null}
-      <p className="text-sm">
-        <b className="tabular-nums">{record.speed_kmh} km/h</b> · {record.member_name}
-        {record.member_code ? ` (${record.member_code})` : ""}
-      </p>
-      <div>
-        <label htmlFor={id} className="mb-1 block text-sm font-medium">
-          Link video
-        </label>
-        <input
-          id={id}
-          type="url"
-          inputMode="url"
-          value={url}
-          onChange={(e) => {
-            setUrl(e.target.value);
-            setBanner("");
-          }}
-          placeholder="https://www.youtube.com/watch?v=…  hoặc  https://…/clip.mp4"
-          aria-invalid={invalid || undefined}
-          aria-describedby={`${id}-hint`}
-          className={`${inputCls} h-11 ${invalid ? "border-danger" : ""}`}
-          autoComplete="off"
-        />
-        <p id={`${id}-hint`} className={`mt-1 text-xs ${invalid ? "text-danger" : "text-muted"}`} role={invalid ? "alert" : undefined}>
-          {VIDEO_LINK_HINT}
-        </p>
-      </div>
-      {parsed ? (
-        <div>
-          <p className="mb-1 text-xs font-semibold text-muted">Xem thử</p>
-          {/* key theo link: đổi link thì dựng lại, không phát tiếp video cũ */}
-          <VideoPlayer key={parsed.url} video={parsed} title={`Xem thử video ${record.speed_kmh} km/h`} />
-        </div>
-      ) : null}
-    </Modal>
   );
 }
 
