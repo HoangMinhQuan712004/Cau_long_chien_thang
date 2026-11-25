@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import type { RecordBreakItem } from "@/components/records/requests";
 import { cn } from "@/lib/cn";
 import { formatDayMonth, formatTime, vnDate } from "@/lib/format";
@@ -8,7 +11,29 @@ import { videoYoutubeId, youtubeThumb } from "@/lib/video";
 
 const heldText = (days: number) => (days < 1 ? "Dưới 1 ngày" : `${days} ngày`);
 
-/** Ảnh dòng: YouTube dùng ảnh server trả; mp4 / webm dùng khung mặc định (không tải video của từng dòng); không có video thì ghi rõ. */
+/** Khung hình đầu của file mp4 / webm (video camera AI) làm ảnh dòng: chỉ nạp khi dòng sắp cuộn tới (danh sách có thể dài),
+ * `preload="metadata"` + `#t=0.5` để trình duyệt chỉ tải đủ một khung. Người dùng 25/11: không để nền xanh trống. */
+function FileFrame({ url }: { url: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [src, setSrc] = useState<string>();
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        setSrc(`${url}#t=0.5`);
+        io.disconnect();
+      },
+      { rootMargin: "300px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [url]);
+  return <video ref={ref} src={src} preload="metadata" muted playsInline tabIndex={-1} className="pointer-events-none absolute inset-0 size-full object-cover" />;
+}
+
+/** Ảnh dòng: YouTube dùng ảnh server trả; mp4 / webm dùng khung hình trong video; không có video thì ghi rõ. */
 function RowThumb({ item }: { item: RecordBreakItem }) {
   const v = item.video;
   const yt = v && v.kind === "youtube" ? videoYoutubeId(v) : null;
@@ -17,6 +42,8 @@ function RowThumb({ item }: { item: RecordBreakItem }) {
       {yt ? (
         // eslint-disable-next-line @next/next/no-img-element -- ảnh xem trước của YouTube, không qua tối ưu ảnh của Next
         <img src={v?.thumbnail_url?.startsWith("https://i.ytimg.com/") ? v.thumbnail_url : youtubeThumb(yt)} alt="" loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 size-full object-cover" />
+      ) : v?.kind === "file" ? (
+        <FileFrame url={v.url} />
       ) : null}
       {v ? (
         <span className="relative grid size-8 place-items-center rounded-full bg-cta text-cta-fg shadow-card sm:size-9">
