@@ -213,7 +213,14 @@ async def test_ac_speed_bounds_integer_and_types(admin, people):
     hv = await person(people, "QA Biên Tốc Độ")
     for kmh in (50, 500):
         assert (await admin.post(ADMIN, json=body(hv, kmh), headers=idem())).status_code == 201, kmh
-    assert await record_kmh(hv.client) == 500
+    # 25/11: số đo nhập tay không còn tính kỷ lục -> kiểm biên bằng giá trị đã lưu
+    async with SessionLocal() as s:
+        stored = set(
+            await s.scalars(
+                select(SpeedRecord.speed_kmh).where(SpeedRecord.customer_id == hv.customer_id)
+            )
+        )
+    assert stored == {50, 500}
     for bad in (49, 501, 0, -1, 300.5, "abc", None, True):
         r = await admin.post(ADMIN, json=body(hv, bad), headers=idem())
         assert r.status_code == 422, (bad, r.status_code, r.text)
@@ -350,7 +357,9 @@ async def test_ac2_admin_can_approve_and_reject_only_pending(admin, people):
     assert (
         await admin.post(f"{ADMIN}/99999999/reject", json={"reason": "x"}, headers=idem())
     ).status_code == 404
-    assert await record_kmh(hv.client) == 240, "bản approved không bị từ chối nhầm"
+    async with SessionLocal() as s:
+        got = await s.get(SpeedRecord, adm["id"])
+    assert got.status == "approved", "bản approved không bị từ chối nhầm"
     # Lý do đúng 200 ký tự được; thiếu field -> 422
     sub = (await submit(hv, 130)).json()
     assert (
@@ -380,26 +389,25 @@ async def test_ac5_notifications_go_only_to_the_submitter_and_reason_is_escaped_
     ]
 
 
-async def test_ac4_approved_admin_entry_counts_like_a_device_record_and_edits_recompute(
-    admin, people
-):
+async def test_ac4_approved_admin_entry_no_longer_counts_since_25_11(admin, people):
+    # Người dùng 25/11: chỉ số đo máy đo (camera AI) tính kỷ lục / bảng tháng; bản Admin nhập vẫn
+    # sửa / xóa được nhưng không bao giờ hiện cho hội viên (trước đây AC4 tính như máy đo).
     hv = await person(people, "QA Tính Như Máy")
     row = await admin_add(admin, hv, 300)
-    assert await record_kmh(hv.client) == 300
+    assert await record_kmh(hv.client) is None
     ov = (await hv.client.get(f"{MA}/overview")).json()
-    assert ov["month_record_kmh"] == 300
+    assert not ov["month_record_kmh"]
     r = await admin.patch(
         f"{ADMIN}/{row['id']}", json={"version": 1, "speed_kmh": 310}, headers=idem()
     )
-    assert r.status_code == 200 and await record_kmh(hv.client) == 310
-    # Chuyển sang thời điểm cách đây > 1 tháng: bảng tháng không còn, kỷ lục cá nhân vẫn còn
+    assert r.status_code == 200 and await record_kmh(hv.client) is None
     old = (now() - timedelta(days=100)).isoformat()
     r = await admin.patch(
         f"{ADMIN}/{row['id']}", json={"version": 2, "measured_at": old}, headers=idem()
     )
     assert r.status_code == 200
     ov = (await hv.client.get(f"{MA}/overview")).json()
-    assert ov["record_kmh"] == 310 and not ov["month_record_kmh"]
+    assert ov["record_kmh"] is None and not ov["month_record_kmh"]
     assert (await admin.delete(f"{ADMIN}/{row['id']}", headers=idem())).status_code == 204
     assert await record_kmh(hv.client) is None
 

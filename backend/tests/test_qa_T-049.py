@@ -128,39 +128,37 @@ async def test_ac6_video_kinds_youtube_and_file_and_fields(people):
 
 
 async def test_ac6_admin_attach_edit_detach_flow_is_reflected_in_ranking(admin, people):
+    # Người dùng 25/11: bảng chỉ tính số đo máy đo – bản Admin nhập không vào bảng; gắn / đổi / gỡ
+    # video qua PUT / DELETE /video cho số đo máy đo vẫn hiện ngay ở bảng.
     a = await person(people, "QA Admin Gắn")
     viewer = await person(people, "QA Xem Admin Gắn")
     at = datetime.now(UTC) - timedelta(hours=3)
     day = datetime.now(settings.tz).date().isoformat()
+
+    async def mine():
+        d = await rank(viewer.client, "month", day)
+        return next((r for r in d["top"] if r["display_name"] == "QA Admin Gắn"), None)
+
     created = await admin.post(
         ADMIN,
         json={"member_code": a.code, "speed_kmh": 400, "measured_at": at.isoformat()},
         headers=idem(),
     )
     assert created.status_code == 201, created.text
-    rid = created.json()["id"]
-
-    async def mine():
-        d = await rank(viewer.client, "month", day)
-        return next((r for r in d["top"] if r["display_name"] == "QA Admin Gắn"), None)
-
-    assert (await mine())["video"] is None
+    assert await mine() is None, "bản Admin nhập không vào bảng xếp hạng"
     assert (
-        await admin.put(f"{ADMIN}/{rid}/video", json={"url": YT}, headers=idem())
-    ).status_code == 200
-    assert (await mine())["video"]["url"] == YT
-    cur = next(
-        i for i in (await admin.get(ADMIN, params={"size": 100})).json()["items"] if i["id"] == rid
-    )
-    r = await admin.patch(
-        f"{ADMIN}/{rid}", json={"version": cur["version"], "video_url": YT2}, headers=idem()
-    )
-    assert r.status_code == 200, r.text
-    assert (await mine())["video"]["url"] == YT2
+        await admin.delete(f"{ADMIN}/{created.json()['id']}", headers=idem())
+    ).status_code == 204
+
+    rid = await rec(a.customer_id, 400, at)
+    assert (await mine())["video"] is None
+    for url in (YT, YT2):  # gắn rồi đổi link
+        assert (
+            await admin.put(f"{ADMIN}/{rid}/video", json={"url": url}, headers=idem())
+        ).status_code == 200
+        assert (await mine())["video"]["url"] == url
     assert (await admin.delete(f"{ADMIN}/{rid}/video", headers=idem())).status_code in (200, 204)
     assert (await mine())["video"] is None
-    assert (await admin.delete(f"{ADMIN}/{rid}", headers=idem())).status_code == 204
-    assert await mine() is None, "xóa số đo -> biến khỏi bảng"
 
 
 # ---------------------------------------------------------------- khối "Hạng của tôi"
