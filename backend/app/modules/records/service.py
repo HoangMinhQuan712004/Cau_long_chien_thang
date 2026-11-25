@@ -18,6 +18,7 @@ from app.modules.play_rooms import api as rooms
 from app.modules.records import video
 from app.modules.records.models import SpeedRecord
 from app.modules.records.schemas import (
+    LiveRecord,
     Period,
     PlayStats,
     RecordBreakItem,
@@ -326,6 +327,31 @@ async def record_breaks(
             )
         )
     return RecordBreakList(period=period, start=first, end=last, items=items)
+
+
+# ------------------------------------------------------------------ tin trực tiếp (máy đo)
+
+
+async def live_card(session: AsyncSession, record_id: int, viewer_id: int) -> LiveRecord | None:
+    r = await session.scalar(select(SpeedRecord).where(SpeedRecord.id == record_id, APPROVED))
+    if r is None:
+        return None
+    p = (await eligible(session, {r.customer_id})).get(r.customer_id)
+    if p is None:
+        return None
+    courts = await engine.resource_names(session) if r.court_code else {}
+    is_me = r.customer_id == viewer_id
+    shown = is_me or p.show_on_records
+    return LiveRecord(
+        record_id=r.id,
+        speed_kmh=r.speed_kmh,
+        measured_at=r.measured_at,
+        display_name=p.display_name if shown else ANONYMOUS,
+        avatar_url=_avatar_url(p) if shown else None,
+        resource_name=courts.get(r.court_code) if r.court_code else None,
+        is_me=is_me,
+        video=video.parse(r.video_url),
+    )
 
 
 # ------------------------------------------------------------------ Video & kỷ lục (T-046)

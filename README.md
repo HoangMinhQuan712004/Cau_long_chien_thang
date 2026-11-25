@@ -450,14 +450,16 @@ Các trang của khu hội viên (đã vào `dev`; tên trang đối chiếu the
 
 API, mã lỗi `E-MEM-*`, `E-HV-*`, `E-AUTH-25…32`: [docs/booking-engine-api.md](docs/booking-engine-api.md) mục 12 và 11.2.
 
-## Máy đo tốc độ ShuttleTrack (MQTT và Redis, nhánh `feat/shuttletrack-link`, chưa vào `dev`)
+## Máy đo tốc độ ShuttleTrack (MQTT và Redis)
 
 ShuttleTrack là ứng dụng camera đo tốc độ cú đập, chạy ở máy riêng cạnh sân. Hai bên nói chuyện qua một broker MQTT và Redis; hợp đồng đầy đủ nằm ở `docs/MATCH-FLOW.md` của repo ShuttleTrack. Phía dự án này là module `backend/app/modules/device_link/`, **chỉ worker chạy** (API không mở kết nối nào). Đây là "giai đoạn B" của T-030: số đo nguồn **Máy đo**.
 
 | Chiều | Kênh | Nội dung |
 |---|---|---|
 | Server → máy đo | MQTT `badminton/court/{mã sân}/match` (retained, QoS 1) | `match.start` khi Host bấm **Bắt đầu** trận trong phòng chơi: sân, thể thức (`singles` / `doubles`), id từng người (id hồ sơ hội viên), đầu sân (`A` = Đội A, `B` = Đội B) và vị trí `left` / `right` khi đánh đôi (theo thứ tự trong đội hình). `match.stop` khi trận hết: lưu tỉ số, phòng đóng, booking bị hủy hoặc đổi sân. |
-| Máy đo → server | MQTT `badminton/court/{mã sân}/record` (QoS 1) | `shot.record`: cú đập vượt mốc kỷ lục. Có `player_id` thì thành số đo nguồn Máy đo, **đã duyệt**, gắn sân và giờ đập; video chỉ gắn khi link là `https` `.mp4` / `.webm`. |
+| Máy đo → server | MQTT `badminton/court/{mã sân}/record` (QoS 1) | `shot.record`: cú đập vượt mốc kỷ lục, gửi **ngay** khi máy đo chấm xong (`clip_pending: true`). Có `player_id` thì thành số đo nguồn Máy đo, **đã duyệt**, gắn sân và giờ đập. Sau đó `shot.clip` (cùng `shot_id`, cùng topic) khi video cắt ghép đã tải lên: gắn link vào số đo đó, chỉ khi là `https` `.mp4` / `.webm` và số đo chưa có video; `clip: null` + `clip_error` thì chỉ ghi log. |
+| Server → trình duyệt | Websocket `/api/v1/member-area/records/live` (hội viên đã đăng nhập, Origin của web) | Số đo máy đo vừa ghi → `record.new`; video vừa gắn → `record.video`; mỗi tin kèm thẻ số đo đã ẩn danh theo người xem như Bảng xếp hạng. Worker phát qua kênh Redis `records:live` (chỉ `event` + `record_id`). Màn Bảng xếp hạng hiện popup "Chúc mừng … đã đạt … km/h", đóng popup và tải lại khi video có; màn Video & kỷ lục tải lại khi video có. Hết phiên → mã đóng `4401`, FE làm mới phiên rồi nối lại. |
+| Trình duyệt → MinIO máy đo | `GET /api/v1/clips/{bucket}/{object}` | Phát video qua chính domain web (MinIO của máy đo chỉ `http`): chuyển tiếp có `Range`, chỉ bucket `CLIPS_BUCKET`, chỉ `.mp4` / `.webm`. |
 | Máy đo → server | MQTT `badminton/court/{mã sân}/status` (retained) | Trạng thái sân phía máy đo (`idle`, `starting`, `running`, `error` kèm mã lỗi); lưu ở bảng `device_court`, ghi log. |
 | Server → máy đo | Redis `badminton:record:day\|week\|month\|year:…` | Mốc phải vượt của ngày, tuần (ISO), tháng, năm theo giờ VN = số đo cao nhất đã duyệt của kỳ (cùng điều kiện Bảng xếp hạng), `0` khi chưa có. Worker ghi mỗi phút, ngay sau mỗi số đo máy đo, và tạo sẵn khóa của kỳ sắp tới 10 phút trước khi kỳ bắt đầu. |
 
@@ -480,12 +482,14 @@ Cách chạy: lệnh trận suy từ DB (trận `playing` của phòng còn mở
 | `MQTT_TOPIC_PREFIX` | `badminton` | Phải trùng `live.mqtt.topic_prefix` của ShuttleTrack. |
 | `MQTT_CLIENT_ID` | `caulong-server` | Mỗi worker một id. **Hai môi trường chung một broker phải khác id và khác prefix**, nếu không sẽ đá kết nối của nhau và nhận số đo của nhau. |
 | `RECORD_MARK_PREFIX` | `badminton:record` | Phải trùng `live.redis.key_prefix` của ShuttleTrack. Mốc ghi vào Redis của `REDIS_URL` (db 0). |
+| `CLIPS_ORIGIN` | trống | Địa chỉ MinIO của máy đo (`http://<máy chủ>:9000`). **Trống = tắt** route `/api/v1/clips/…` (404). Bucket phải cho đọc ẩn danh. ShuttleTrack đặt `live.minio.public_url = https://<domain web>/api/v1/clips`. |
+| `CLIPS_BUCKET` | `badminton-clips` | Bucket video của máy đo; route chỉ phát bucket này. |
 
 Phía ShuttleTrack: mỗi luồng camera đặt **Mã sân** = mã sân ở đây (`S01`, …), bật MQTT tới cùng broker, và đọc Redis của môi trường này. Redis trong compose không mở cổng ra ngoài; máy ShuttleTrack ở nơi khác đọc qua đường hầm SSH (`deploy/prod/redis_tunnel.sh` của repo ShuttleTrack).
 
 **Cần khi lên:** build lại image (thêm `paho-mqtt`), migration `7c2d5e9a41b6` (bảng `device_court`, không đụng bảng cũ), thêm các biến `MQTT_*` vào `.env`, **khởi động lại worker**. Chỉ chạy **một** worker có `MQTT_HOST`.
 
-Đã thử trên máy dev (23/11): ShuttleTrack thật với video mẫu qua RTSP, Mosquitto, Redis; máy đo chạy trận đơn trên `S01` khoảng 1 giây sau khi worker phát lệnh, một cú 103 km/h thành số đo Máy đo của hội viên được nêu tên, bốn mốc Redis lên 103, trận hết thì máy đo dừng sau khoảng 1 giây. Chưa thử: trên link dev / production, camera thật, nhiều sân cùng lúc. Chưa làm: màn Admin xem trạng thái máy đo (dữ liệu đã có ở `device_court`), thông báo khi có kỷ lục mới, video kỷ lục tự gắn (MinIO của ShuttleTrack đang chạy `http`).
+Đã thử trên máy dev (23/11): ShuttleTrack thật với video mẫu qua RTSP, Mosquitto, Redis; máy đo chạy trận đơn trên `S01` khoảng 1 giây sau khi worker phát lệnh, một cú 103 km/h thành số đo Máy đo của hội viên được nêu tên, bốn mốc Redis lên 103, trận hết thì máy đo dừng sau khoảng 1 giây. Chưa thử: trên link dev / production, camera thật, nhiều sân cùng lúc. Chưa làm: màn Admin xem trạng thái máy đo (dữ liệu đã có ở `device_court`).
 
 ## Thông báo đẩy Web Push (T-076, chưa vào `dev`)
 

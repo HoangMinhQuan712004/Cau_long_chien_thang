@@ -130,6 +130,11 @@ class Settings(BaseSettings):
     MQTT_CLIENT_ID: str = "caulong-server"
     # Khóa Redis ShuttleTrack đọc mốc kỷ lục (``live.redis.key_prefix``), ghi vào ``REDIS_URL``
     RECORD_MARK_PREFIX: str = "badminton:record"
+    # Video kỷ lục máy đo cắt: ``/api/v1/clips/{bucket}/{key}`` chuyển tiếp tới MinIO của máy đo
+    # để link là ``https`` cùng domain web.
+    # ``CLIPS_ORIGIN`` trống -> tắt (404). Bucket phải đọc công khai.
+    CLIPS_ORIGIN: str = ""  # http://<máy chủ MinIO>:9000
+    CLIPS_BUCKET: str = "badminton-clips"
 
     # Admin đầu tiên: migration gán SĐT này cho Admin chưa có SĐT; seed tạo Admin khi chưa có.
     # Production phải đặt rõ SĐT thật (mặc định / SĐT mẫu -> migration + seed dừng)

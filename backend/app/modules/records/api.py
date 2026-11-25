@@ -4,17 +4,20 @@ from datetime import date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.records import demo, device, service, video
-from app.modules.records.schemas import Period, SpeedRanking, VideoOut
+from app.modules.records import demo, device, live, service, video
+from app.modules.records.schemas import LiveRecord, Period, SpeedRanking, VideoOut
 from app.modules.records.service import RecordBreak
 
 __all__ = [
     "MARK_PERIODS",
     "RecordBreak",
     "add_device_record",
+    "attach_device_video",
+    "live_card",
     "club_record_breaks",
     "mark_bounds",
     "month_best",
+    "publish_live",
     "period_bests",
     "purge_demo",
     "record_kmh",
@@ -28,6 +31,9 @@ __all__ = [
 # Máy đo tốc độ (giai đoạn B – module device_link): ghi số đo, mốc kỷ lục từng kỳ
 MARK_PERIODS = device.MARK_PERIODS
 add_device_record = device.add_device_record
+attach_device_video = device.attach_device_video
+# Tin trực tiếp (popup chúc mừng): worker phát ``record.new`` / ``record.video`` lên Redis
+publish_live = live.publish
 mark_bounds = device.mark_bounds
 period_bests = device.period_bests
 
@@ -71,6 +77,12 @@ async def seed_demo_breaks(
 
 async def purge_demo(session: AsyncSession) -> int:
     return await demo.purge_demo(session)
+
+
+async def live_card(session: AsyncSession, record_id: int, viewer_id: int) -> LiveRecord | None:
+    """Một số đo cho tin trực tiếp (popup chúc mừng) – ẩn danh như Bảng xếp hạng; None khi số đo
+    không còn / người đo không đủ điều kiện."""
+    return await service.live_card(session, record_id, viewer_id)
 
 
 def video_of(url: str | None) -> VideoOut | None:

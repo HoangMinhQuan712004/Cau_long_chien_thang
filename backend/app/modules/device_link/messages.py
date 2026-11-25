@@ -3,7 +3,9 @@
 Hợp đồng nằm ở ``docs/MATCH-FLOW.md`` của ShuttleTrack:
 
 - ``{prefix}/court/{sân}/match`` (server -> máy đo, retained): ``match.start`` / ``match.stop``;
-- ``{prefix}/court/{sân}/record`` (máy đo -> server): ``shot.record`` – cú đập phá mốc kỷ lục;
+- ``{prefix}/court/{sân}/record`` (máy đo -> server): ``shot.record`` – cú đập phá mốc kỷ lục,
+  gửi ngay khi máy đo chấm xong; rồi ``shot.clip`` cùng ``shot_id`` khi video đã cắt và
+  tải lên (hoặc lỗi);
 - ``{prefix}/court/{sân}/status`` (máy đo -> server, retained): trạng thái sân phía máy đo.
 
 ``{sân}`` = mã sân (``resource_code``). Id người chơi = id hồ sơ hội viên (chuỗi số), mã trận =
@@ -137,6 +139,16 @@ class ShotRecord:
     test: bool
 
 
+def record_type(raw: bytes) -> str | None:
+    """``type`` của tin trên topic ``record`` (``shot.record`` / ``shot.clip``); None khi không
+    đọc được."""
+    try:
+        kind = _object(raw).get("type")
+    except BadMessage:
+        return None
+    return kind if isinstance(kind, str) else None
+
+
 def parse_record(raw: bytes) -> ShotRecord:
     data = _object(raw)
     if data.get("type") != "shot.record":
@@ -153,6 +165,28 @@ def parse_record(raw: bytes) -> ShotRecord:
         speed_kmh=float(speed),
         player_id=_text(data, "player_id", 64, optional=True),
         clip_url=url if isinstance(url, str) else None,
+        test=data.get("test") is True,
+    )
+
+
+@dataclass(frozen=True)
+class ShotClip:
+    shot_ref: str
+    clip_url: str | None  # None: máy đo không làm được video (``clip_error``)
+    clip_error: str | None
+    test: bool
+
+
+def parse_clip(raw: bytes) -> ShotClip:
+    data = _object(raw)
+    if data.get("type") != "shot.clip":
+        raise BadMessage("type: invalid")
+    clip = data.get("clip")
+    url = clip.get("url") if isinstance(clip, dict) else None
+    return ShotClip(
+        shot_ref=_text(data, "shot_id", REF_MAX) or "",
+        clip_url=url if isinstance(url, str) else None,
+        clip_error=_text(data, "clip_error", 40, optional=True),
         test=data.get("test") is True,
     )
 

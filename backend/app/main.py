@@ -33,6 +33,8 @@ from app.modules.payments import router as payments
 from app.modules.play_rooms import monitor_router as play_rooms_monitor
 from app.modules.play_rooms import router as play_rooms
 from app.modules.records import admin_router as records_admin
+from app.modules.records import clips as records_clips
+from app.modules.records import live as records_live
 from app.modules.records import router as records
 from app.modules.reports import router as reports
 from app.modules.web_booking import router as web_booking
@@ -87,6 +89,8 @@ for r in (
     play_rooms_monitor.router,
     member_inbox.router,
     records.router,
+    records_live.router,
+    records_clips.router,
     records_admin.router,
     racket_router.router,
     member_me.router,

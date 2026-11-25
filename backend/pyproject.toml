@@ -31,6 +31,8 @@ dependencies = [
     "pywebpush>=2.0",
     # Nối máy đo tốc độ ShuttleTrack qua MQTT (module device_link); chỉ worker mở kết nối
     "paho-mqtt>=2.0",
+    # Kỷ lục máy đo đẩy realtime tới Bảng xếp hạng (websocket); uvicorn không có [standard] nên phải thêm
+    "websockets>=14",
 ]
 
 [project.optional-dependencies]

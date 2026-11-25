@@ -175,6 +175,19 @@ class RecordVideoCard(BaseModel):
     video: VideoOut
 
 
+class LiveRecord(BaseModel):
+    """Số đo máy đo vừa ghi / vừa có video – tin trực tiếp trên websocket (ẩn danh như T-030)."""
+
+    record_id: int
+    speed_kmh: int
+    measured_at: dt.datetime
+    display_name: str
+    avatar_url: str | None
+    resource_name: str | None
+    is_me: bool
+    video: VideoOut | None = Field(description="null khi máy đo chưa cắt xong video")
+
+
 class RecordVideoList(BaseModel):
     period: VideoPeriod
     start: dt.date | None = Field(description="null khi period = all")

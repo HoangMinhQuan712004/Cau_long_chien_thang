@@ -106,3 +106,25 @@ async def add_device_record(
     if record_id is None:
         return None, "duplicate"
     return record_id, None
+
+
+async def attach_device_video(
+    session: AsyncSession, *, source_ref: str, video_url: str | None, now: datetime
+) -> tuple[int | None, str | None]:
+    """Gắn video máy đo cắt xong vào số đo máy đo đã ghi (cùng ``source_ref``). Trả ``(id, None)``
+    hoặc ``(None, lý do)``: ``no_record`` (chưa có / không phải số đo máy đo), ``has_video`` (đã
+    có video – Admin đã dán hoặc tin giao lại), ``bad_video`` (không phải https .mp4 / .webm /
+    YouTube). Không commit."""
+    row = await session.scalar(
+        select(SpeedRecord).where(
+            SpeedRecord.source_ref == source_ref, SpeedRecord.source == "device"
+        )
+    )
+    if row is None:
+        return None, "no_record"
+    if row.video_url is not None:
+        return None, "has_video"
+    if not video_url or len(video_url) > video.MAX_LEN or video.parse(video_url) is None:
+        return None, "bad_video"
+    row.set_video(video_url, now)
+    return row.id, None

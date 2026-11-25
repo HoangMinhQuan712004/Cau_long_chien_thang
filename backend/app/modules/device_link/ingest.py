@@ -1,4 +1,5 @@
-"""Nhận tin từ máy đo: cú đập phá mốc (``shot.record``) và trạng thái sân (``status``).
+"""Nhận tin từ máy đo: cú đập phá mốc (``shot.record``), video của nó (``shot.clip``, gửi sau khi
+cắt xong) và trạng thái sân (``status``).
 
 Cú đập chỉ thành số đo khi máy đo nêu đúng **một** người đánh (``player_id``). Không có id người
 đánh (đánh đôi khi máy đo chưa nhận ra ai đánh) -> không ghi nhận gì (người dùng chốt 23/11). Tin
@@ -6,6 +7,7 @@ của trận thử (``test: true``) luôn bỏ qua.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 
 from sqlalchemy.dialects.postgresql import insert
@@ -21,9 +23,15 @@ DEVICE_ID = "shuttletrack"
 REF_PREFIX = "st:"
 
 RECORDED = "recorded"
+ATTACHED = "attached"
+
+# Gọi sau commit với id số đo vừa ghi / vừa gắn video (worker phát tin trực tiếp)
+Saved = Callable[[int], Awaitable[None]] | None
 
 
-async def record(session: AsyncSession, court: str, raw: bytes, now: datetime) -> str:
+async def record(
+    session: AsyncSession, court: str, raw: bytes, now: datetime, on_saved: Saved = None
+) -> str:
     """Xử lý một ``shot.record``; trả kết quả: ``recorded`` hoặc lý do bỏ qua. Commit."""
     try:
         shot = messages.parse_record(raw)
@@ -61,7 +69,38 @@ async def record(session: AsyncSession, court: str, raw: bytes, now: datetime) -
         court,
         shot.speed_kmh,
     )
+    if on_saved is not None:
+        await on_saved(record_id)
     return RECORDED
+
+
+async def clip(
+    session: AsyncSession, court: str, raw: bytes, now: datetime, on_saved: Saved = None
+) -> str:
+    """Xử lý một ``shot.clip``: gắn link video vào số đo cùng ``shot_id``. Trả ``attached`` hoặc lý
+    do bỏ qua (``no_clip`` khi máy đo báo lỗi cắt video). Commit."""
+    try:
+        got = messages.parse_clip(raw)
+    except messages.BadMessage as exc:
+        logger.warning("Device link: unusable clip from court %s (%s)", court, exc)
+        return "bad_message"
+    if got.test:
+        return "test"
+    if got.clip_url is None:
+        logger.info("Device link: record %s has no clip (%s)", got.shot_ref, got.clip_error)
+        return "no_clip"
+    record_id, reason = await records.attach_device_video(
+        session, source_ref=f"{REF_PREFIX}{got.shot_ref}", video_url=got.clip_url, now=now
+    )
+    await session.commit()
+    if record_id is None:
+        level = logging.DEBUG if reason in ("no_record", "has_video") else logging.WARNING
+        logger.log(level, "Device link: clip of %s not attached (%s)", got.shot_ref, reason)
+        return reason or "skipped"
+    logger.info("Device link: clip attached to speed record %s", record_id)
+    if on_saved is not None:
+        await on_saved(record_id)
+    return ATTACHED
 
 
 async def status(session: AsyncSession, court: str, raw: bytes, now: datetime) -> bool:

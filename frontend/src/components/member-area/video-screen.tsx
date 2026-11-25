@@ -13,6 +13,7 @@ import { errorText, write } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
 import { toast } from "@/lib/feedback";
 import { formatDateTime } from "@/lib/format";
+import { useLiveRecords } from "@/lib/live-records";
 import { PageBanner } from "./page-banner";
 
 // /hoi-vien/video-ky-luc (T-048, thay AC4 của T-046; giữ "Của tôi" + "Gửi cú đập" của T-047):
@@ -46,10 +47,12 @@ export function VideoScreen() {
   const seq = useRef(0);
   const stage = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async (p: VideoPeriod) => {
+  const load = useCallback(async (p: VideoPeriod, quiet = false) => {
     const n = ++seq.current;
-    setItems(null);
-    setSelectedId(undefined); // đổi kỳ thì chọn lại lần mới nhất của kỳ đó (AC8)
+    if (!quiet) {
+      setItems(null);
+      setSelectedId(undefined); // đổi kỳ thì chọn lại lần mới nhất của kỳ đó (AC8)
+    }
     setError("");
     const res = await getRecordBreaks(p);
     if (n !== seq.current) return; // chỉ nhận kết quả của lần gọi mới nhất
@@ -76,6 +79,11 @@ export function VideoScreen() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- tải số đo của tôi một lần khi vào màn
     void loadMine();
   }, [loadMine]);
+
+  // Máy đo: video cắt ghép của cú đập vừa ghi đã có ⇒ tải lại danh sách (không xóa lựa chọn đang xem)
+  useLiveRecords((e) => {
+    if (e.event === "record.video") void load(period, true);
+  });
 
   const waiting = mine?.filter((r) => r.status === "pending").length ?? 0;
   const selected = items?.find((r) => r.id === selectedId) ?? items?.[0];

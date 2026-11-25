@@ -11,7 +11,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import AppError
-from app.modules.auth import cookies, demo, enroll, member_accounts, membership, otp, service, utils
+from app.core.security import decode_token
+from app.modules.auth import (
+    cookies,
+    demo,
+    deps,
+    enroll,
+    member_accounts,
+    membership,
+    otp,
+    service,
+    utils,
+)
 from app.modules.auth import phone as phone_flow
 from app.modules.auth.deps import AuthStateDep, CurrentCustomer, SessionDep
 from app.modules.auth.models import OtpPurpose, Role, User
@@ -248,6 +259,21 @@ async def _optional_member(state: AuthStateDep, session: SessionDep) -> LinkedMe
 
 # Dependency: hội viên đang đăng nhập hoặc None (vd. đọc danh mục vợt)
 OptionalMember = Annotated[LinkedMember | None, Depends(_optional_member)]
+
+ACCESS_COOKIE = deps.ACCESS_COOKIE
+
+
+async def member_of_token(session: AsyncSession, token: str) -> LinkedMember | None:
+    """Hội viên của một access token (websocket không đi qua dependency HTTP); điều kiện như
+    ``OptionalMember``: token khách hợp lệ, đã đổi mật khẩu ban đầu, có hồ sơ hội viên."""
+    claims = decode_token(token, "access")
+    if claims is None:
+        return None
+    user = await service.get_customer(session, int(claims.subject), claims.version)
+    if user is None or user.must_change_password or member_accounts.initial_password_expired(user):
+        return None
+    customer_id = await membership.member_profile_id(session, user)
+    return LinkedMember(user.id, customer_id) if customer_id is not None else None
 
 
 def normalize_phone(raw: str) -> str | None:
