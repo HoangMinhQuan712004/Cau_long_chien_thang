@@ -1,6 +1,8 @@
 # ruff: noqa: E501
 """QA T-048 (API: AC10, AC11 + hồi quy T-036 / T-046 / T-047): dòng thời gian phá kỷ lục `record-breaks`.
 
+Người dùng 25/11: chuỗi chỉ gồm số đo máy đo (camera AI); số đo nhập tay / hội viên gửi không vào chuỗi.
+
 Bổ sung cho ``test_record_breaks.py`` của BACKEND: đi qua HTTP thật (đồng hồ thật), chuỗi tối đa 451 dòng,
 kỳ theo ranh giới giờ VN qua API, xóa/sửa giữa chuỗi, duyệt/từ chối, rò rỉ dữ liệu, quyền, tham số sai.
 """
@@ -195,56 +197,31 @@ async def test_full_chain_of_451_rows_has_no_pagination_and_stays_ordered(people
 
 
 async def test_ac10_label_date_end_to_end_through_admin_and_member_api(admin, people):
+    # Người dùng 25/11: chuỗi chỉ gồm số đo máy đo – bản Admin nhập (kể cả có link) không vào chuỗi.
+    # Ngày dán vẫn áp cho video gắn vào số đo máy qua PUT / DELETE /video (T-046).
     hv = await people("QA Ngày Dán")
     viewer = await people("QA Người Xem Dán")
     at = datetime.now(UTC) - timedelta(days=3)
     created = await admin.post(ADMIN, json=body(hv, 200, at, video_url=YT), headers=idem())
     assert created.status_code == 201, created.text
-    rid = created.json()["id"]
-    item = (await get_breaks(viewer.client))["items"][0]
-    assert item["id"] == rid and item["label_date"] == today_vn().isoformat(), (
-        "ngày dán = hôm nay, không phải ngày đo"
-    )
-    assert abs(datetime.fromisoformat(item["measured_at"]) - at) < timedelta(seconds=1)
+    assert (await get_breaks(viewer.client))["items"] == [], "bản Admin nhập không vào chuỗi"
 
-    # Lùi ngày dán (như dòng cũ) để thấy sửa link / dán lại có hiệu lực
-    old = datetime.now(UTC) - timedelta(days=10)
-    async with SessionLocal() as s:
-        await s.execute(update(SpeedRecord).where(SpeedRecord.id == rid).values(video_set_at=old))
-        await s.commit()
-    old_day = old.astimezone(settings.tz).date().isoformat()
-    ver = created.json()["version"]
-    # Dán lại đúng link cũ (có khoảng trắng thừa): không đổi ngày, không tăng version
-    r = await admin.patch(
-        f"{ADMIN}/{rid}", json={"version": ver, "video_url": f"  {YT}  "}, headers=idem()
-    )
-    assert r.status_code == 200, r.text
-    assert (await get_breaks(viewer.client))["items"][0]["label_date"] == old_day
-    # Đổi sang link khác: ngày dán = hôm nay
-    r = await admin.patch(
-        f"{ADMIN}/{rid}", json={"version": r.json()["version"], "video_url": YT2}, headers=idem()
-    )
-    assert r.status_code == 200, r.text
-    assert (await get_breaks(viewer.client))["items"][0]["label_date"] == today_vn().isoformat()
-    # Gỡ link: về ngày đo, video null
-    r = await admin.patch(
-        f"{ADMIN}/{rid}", json={"version": r.json()["version"], "video_url": None}, headers=idem()
-    )
-    assert r.status_code == 200, r.text
-    got = (await get_breaks(viewer.client))["items"][0]
-    assert (
-        got["video"] is None and got["label_date"] == at.astimezone(settings.tz).date().isoformat()
-    )
-    # PUT video lại (T-046) -> hôm nay; DELETE -> về ngày đo
+    measured_day = at.astimezone(settings.tz).date().isoformat()
+    rid = await put(hv.customer_id, 210, at)
+    item = (await get_breaks(viewer.client))["items"][0]
+    assert (item["id"], item["video"], item["label_date"]) == (rid, None, measured_day)
     assert (
         await admin.put(f"{ADMIN}/{rid}/video", json={"url": YT}, headers=idem())
     ).status_code == 200
-    assert (await get_breaks(viewer.client))["items"][0]["label_date"] == today_vn().isoformat()
+    item = (await get_breaks(viewer.client))["items"][0]
+    assert item["label_date"] == today_vn().isoformat(), "ngày dán = hôm nay, không phải ngày đo"
+    assert abs(datetime.fromisoformat(item["measured_at"]) - at) < timedelta(seconds=1)
     assert (await admin.delete(f"{ADMIN}/{rid}/video", headers=idem())).status_code in (200, 204)
-    assert (await get_breaks(viewer.client))["items"][0]["video"] is None
+    got = (await get_breaks(viewer.client))["items"][0]
+    assert got["video"] is None and got["label_date"] == measured_day
 
 
-async def test_ac10_member_submission_with_video_keeps_paste_date_after_approval(admin, people):
+async def test_ac10_member_submission_with_video_stays_out_of_chain_after_approval(admin, people):
     hv = await people("QA Gửi Có Video")
     viewer = await people("QA Xem Duyệt")
     at = datetime.now(UTC) - timedelta(days=2)
@@ -256,22 +233,12 @@ async def test_ac10_member_submission_with_video_keeps_paste_date_after_approval
     assert r.status_code == 201, r.text
     rid = r.json()["id"]
     assert (await get_breaks(viewer.client))["items"] == [], "pending chưa vào chuỗi"
-    # Giả lập duyệt muộn: lùi ngày dán 5 ngày, rồi duyệt hôm nay
-    old = datetime.now(UTC) - timedelta(days=5)
-    async with SessionLocal() as s:
-        await s.execute(update(SpeedRecord).where(SpeedRecord.id == rid).values(video_set_at=old))
-        await s.commit()
     assert (await admin.post(f"{ADMIN}/{rid}/approve", headers=idem())).status_code == 200
-    item = (await get_breaks(viewer.client))["items"][0]
-    assert (
-        item["id"] == rid and item["label_date"] == old.astimezone(settings.tz).date().isoformat()
-    )
-    assert item["video"]["url"] == YT
+    # 25/11: đã duyệt vẫn không vào chuỗi (chỉ số đo máy đo)
+    assert (await get_breaks(viewer.client))["items"] == []
 
 
-async def test_ac11_pending_and_rejected_never_enter_chain_and_decisions_recompute_it(
-    admin, people
-):
+async def test_ac11_only_device_records_enter_chain_whatever_the_decision(admin, people):
     a, b = await people("QA Chuỗi A"), await people("QA Chuỗi B")
     now = datetime.now(UTC)
     first = await put(a.customer_id, 200, now - timedelta(days=5))
@@ -293,35 +260,21 @@ async def test_ac11_pending_and_rejected_never_enter_chain_and_decisions_recompu
     ).status_code == 200
     d = await get_breaks(a.client)
     assert [i["id"] for i in d["items"]] == [first] and d["items"][0]["is_current"]
-    approved = await admin.post(f"{ADMIN}/{pend.json()['id']}/approve", headers=idem())
-    assert approved.status_code == 200
-    d = await get_breaks(a.client)
-    assert [i["speed_kmh"] for i in d["items"]] == [300, 200]
-    assert d["items"][0]["delta_kmh"] == 100 and d["items"][0]["previous_kmh"] == 200
-    assert [i["is_current"] for i in d["items"]] == [True, False]
-    # Admin xóa lần phá giữa chuỗi: chuỗi tính lại
+    # Duyệt bản hội viên gửi / Admin nhập thêm: 25/11 không còn vào chuỗi
+    assert (
+        await admin.post(f"{ADMIN}/{pend.json()['id']}/approve", headers=idem())
+    ).status_code == 200
     mid = await admin.post(ADMIN, json=body(a, 250, now - timedelta(days=3)), headers=idem())
     assert mid.status_code == 201
-    # 250 đo trước 300 nhưng sau 200: chuỗi 200 -> 250 -> 300
     d = await get_breaks(a.client)
-    assert [(i["speed_kmh"], i["delta_kmh"]) for i in d["items"]] == [
-        (300, 50),
-        (250, 50),
-        (200, None),
-    ]
+    assert [i["id"] for i in d["items"]] == [first]
+    # Số đo máy đo mới cao hơn: chuỗi tính lại 200 -> 300
+    top = await put(b.customer_id, 300, now - timedelta(days=1))
+    d = await get_breaks(a.client)
+    assert [(i["id"], i["delta_kmh"]) for i in d["items"]] == [(top, 100), (first, None)]
+    assert [i["is_current"] for i in d["items"]] == [True, False]
     assert (await admin.delete(f"{ADMIN}/{mid.json()['id']}", headers=idem())).status_code == 204
-    d = await get_breaks(a.client)
-    assert [(i["speed_kmh"], i["delta_kmh"]) for i in d["items"]] == [(300, 100), (200, None)]
-    # Sửa tốc độ bản mới nhất xuống dưới kỷ lục cũ: không còn là lần phá
-    r = await admin.patch(
-        f"{ADMIN}/{pend.json()['id']}",
-        json={"version": approved.json()["version"], "speed_kmh": 150},
-        headers=idem(),
-    )
-    assert r.status_code == 200, r.text
-    d = await get_breaks(a.client)
-    assert [i["speed_kmh"] for i in d["items"]] == [200]
-    assert d["items"][0]["is_current"] and d["items"][0]["is_baseline"]
+    assert [i["id"] for i in (await get_breaks(a.client))["items"]] == [top, first]
 
 
 # ---------------------------------------------------------------- AC11: riêng tư / họ tên

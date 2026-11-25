@@ -1,4 +1,8 @@
-"""T-047: số đo nhập tay (Admin, duyệt ngay) + hội viên gửi cú đập chờ Admin duyệt."""
+"""T-047: số đo nhập tay (Admin, duyệt ngay) + hội viên gửi cú đập chờ Admin duyệt.
+
+Người dùng 25/11: bảng xếp hạng / kỷ lục / video chỉ tính số đo máy đo (camera AI) – số đo nhập tay
+vẫn lưu, duyệt, sửa, xóa được qua API nhưng không hiện cho hội viên.
+"""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -118,9 +122,9 @@ async def test_admin_creates_edits_and_deletes_manual_records(admin, staff, peop
         court["name"],
     )
     assert row["video"]["url"] == YT and row["reject_reason"] is None
-    # Admin nhập = duyệt ngay -> tính kỷ lục / bảng xếp hạng
-    assert await record_kmh(hv.client) == 260
-    assert (await my_rank(hv.client, at))["speed_kmh"] == 260
+    # Admin nhập = duyệt ngay, nhưng từ 25/11 chỉ số đo máy đo tính kỷ lục / bảng xếp hạng
+    assert await record_kmh(hv.client) is None
+    assert await my_rank(hv.client, at) is None
 
     r = await admin.patch(f"{ADMIN}/{rid}", json={"version": 1, "speed_kmh": 270}, headers=idem())
     assert r.status_code == 200, r.text
@@ -142,7 +146,7 @@ async def test_admin_creates_edits_and_deletes_manual_records(admin, staff, peop
         f"{ADMIN}/{rid}", json={"version": 3, "measured_at": future}, headers=idem()
     )
     assert r.status_code == 422 and code_of(r) == "E-REC-5"
-    assert await record_kmh(hv.client) == 270
+    assert await record_kmh(hv.client) is None  # 25/11: số đo nhập tay không tính
 
     r = await admin.delete(f"{ADMIN}/{rid}", headers=idem())
     assert r.status_code == 204, r.text
@@ -265,8 +269,9 @@ async def test_member_submission_review_flow(admin, people):
 
     r = await admin.post(f"{ADMIN}/{first['id']}/approve", headers=idem())
     assert r.status_code == 200 and r.json()["status"] == "approved"
-    assert await record_kmh(hv.client) == 300
-    assert (await my_rank(hv.client, at))["speed_kmh"] == 300
+    # 25/11: đã duyệt vẫn không tính kỷ lục / bảng xếp hạng (chỉ số đo máy đo)
+    assert await record_kmh(hv.client) is None
+    assert await my_rank(hv.client, at) is None
     r = await admin.post(f"{ADMIN}/{first['id']}/approve", headers=idem())
     assert r.status_code == 409 and code_of(r) == "E-REC-4"
     r = await hv.client.delete(f"{MINE}/{first['id']}", headers=idem())
@@ -291,7 +296,7 @@ async def test_member_submission_review_flow(admin, people):
     )
     assert r.status_code == 200, r.text
     assert (r.json()["status"], r.json()["reject_reason"]) == ("rejected", "Video không rõ")
-    assert await record_kmh(hv.client) == 300
+    assert await record_kmh(hv.client) is None
     videos = (await hv.client.get(f"{MA}/record-videos", params={"period": "all"})).json()
     assert not any(i["is_me"] and i["speed_kmh"] == 310 for i in videos["items"])
     hv_mine = (await hv.client.get(f"{MINE}/mine")).json()["items"]

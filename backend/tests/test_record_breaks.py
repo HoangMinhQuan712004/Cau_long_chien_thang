@@ -362,7 +362,7 @@ async def test_admin_manual_paths_write_paste_date(admin, people):
     assert await set_at_of(with_video["id"]) is None
 
 
-async def test_member_submit_keeps_paste_date_after_approval(admin, people):
+async def test_member_submit_keeps_paste_date_but_stays_out_of_the_chain(admin, people):
     hv = await people("Hội Viên Gửi")
     at = datetime.now(UTC) - timedelta(days=3)
     r = await hv.client.post(
@@ -379,7 +379,9 @@ async def test_member_submit_keeps_paste_date_after_approval(admin, people):
     r = await admin.post(f"{ADMIN}/{rid}/approve", headers=idem())
     assert r.status_code == 200, r.text
     assert await set_at_of(rid) == old
-    assert (await item_of(hv.client, rid))["label_date"] == "2026-02-02"
+    # 25/11: chuỗi phá kỷ lục chỉ gồm số đo máy đo – bản hội viên gửi đã duyệt không vào chuỗi
+    items = (await hv.client.get(BREAKS)).json()["items"]
+    assert rid not in [i["id"] for i in items]
 
 
 async def test_constraint_rejects_link_without_date_and_date_without_link(people):

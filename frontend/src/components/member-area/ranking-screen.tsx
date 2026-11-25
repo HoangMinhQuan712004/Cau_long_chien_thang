@@ -11,10 +11,11 @@ import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { cn } from "@/lib/cn";
 import { addDaysIso, formatDayMonthYear, vnDate } from "@/lib/format";
+import { LiveRecordTakeover } from "@/components/member-area/live-record-takeover";
 import { type LiveRecord, useLiveRecords } from "@/lib/live-records";
 
 // /hoi-vien/bang-xep-hang (T-030): top 10 cú đập nhanh nhất theo tuần / tháng / năm, bục top 3, hạng của tôi, hạng 4–10 có thanh tốc độ.
-// Máy đo tốc độ: cú đập vừa ghi ⇒ popup chúc mừng + tải lại bảng; video cắt ghép xong ⇒ đóng popup, tải lại (bảng, Video & kỷ lục).
+// Máy đo tốc độ: kỷ lục vừa ghi ⇒ màn "Kỷ lục mới" toàn màn hình (ảnh đồ họa) + tải lại bảng; video cắt ghép xong ⇒ màn đó chuyển sang phát video (người dùng 25/11).
 // T-049: dòng / bục / thẻ "Hạng của tôi" có video thì bấm được và mở popup với trình phát của T-048 (không tự phát); không có video thì giữ nguyên, không bấm được.
 
 type Ranking = components["schemas"]["SpeedRanking"];
@@ -43,25 +44,6 @@ function ClipDialog({ clip, onClose }: { clip: Clip; onClose: () => void }) {
   );
 }
 
-/** Popup chúc mừng cú đập máy đo vừa ghi; đóng khi video của cú đó cắt ghép xong (hoặc người xem tự đóng). */
-function CheerDialog({ record, onClose }: { record: LiveRecord; onClose: () => void }) {
-  const who = record.is_me ? "Bạn" : record.display_name;
-  return (
-    <Modal open onClose={onClose} title="Chúc mừng!" subtitle={record.resource_name ? `Vừa đo ở ${record.resource_name}` : "Vừa đo bằng máy đo tốc độ"}>
-      <div role="status" className="py-2 text-center">
-        <p className="text-base">
-          <span className="font-semibold">{who}</span> đã đạt
-        </p>
-        <p className="mt-1 text-5xl font-extrabold tracking-tight text-primary-hover tabular-nums">
-          {record.speed_kmh}
-          <span className="ml-1.5 text-xl font-bold">km/h</span>
-        </p>
-        <p className="mt-4 text-sm text-muted">Video cú đập đang được cắt ghép, xong sẽ có ở bảng này và Video &amp; kỷ lục.</p>
-      </div>
-    </Modal>
-  );
-}
-
 export function RankingScreen() {
   const [period, setPeriod] = useState<Period>("month");
   const [anchor, setAnchor] = useState<string | undefined>(undefined);
@@ -70,6 +52,7 @@ export function RankingScreen() {
   const [nowMs, setNowMs] = useState(0);
   const [clip, setClip] = useState<Clip | null>(null);
   const [cheer, setCheer] = useState<LiveRecord | null>(null);
+  const closeCheer = useCallback(() => setCheer(null), []);
   const seq = useRef(0);
 
   const load = useCallback(async (p: Period, date: string | undefined) => {
@@ -98,7 +81,7 @@ export function RankingScreen() {
 
   useLiveRecords((e) => {
     if (e.event === "record.new") setCheer(e.record);
-    else setCheer((c) => (c && c.record_id === e.record.record_id ? null : c));
+    else setCheer((c) => (c && c.record_id === e.record.record_id ? e.record : c)); // video về ⇒ màn kỷ lục chuyển sang phát video
     void load(period, anchor);
   });
 
@@ -195,7 +178,7 @@ export function RankingScreen() {
         </p>
       </div>
       {clip ? <ClipDialog clip={clip} onClose={() => setClip(null)} /> : null}
-      {cheer ? <CheerDialog key={cheer.record_id} record={cheer} onClose={() => setCheer(null)} /> : null}
+      {cheer ? <LiveRecordTakeover key={cheer.record_id} record={cheer} onClose={closeCheer} /> : null}
     </>
   );
 }
