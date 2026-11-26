@@ -695,7 +695,10 @@ async def test_sec4_counter_account_cannot_use_config_api(staff_c):
     delete_court = ("DELETE", f"{B}/resources/{{code}}")
     skip = {QUOTE, delete_court} | CONFIG_PUBLIC_FOR_STAFF | PRICES_ROUTES
     routes = list(_sweep_routes((f"{B}/",), skip))
-    assert len(routes) >= 5
+    # Còn sân + giờ (thêm / sửa sân, …) sau khi tách 6 route giá ra (26/11)
+    assert len(routes) >= 3
+    swept = {(m, p) for m, p in _sweep_routes((f"{B}/",), set())}
+    assert {(m, re.sub(r"\{[^}]+\}", "1", p)) for m, p in PRICES_ROUTES} <= swept
     r = await write(staff_c, "DELETE", f"{B}/resources/S01", json_body={})
     assert r.status_code == 403, r.text
     for method, path in routes:
