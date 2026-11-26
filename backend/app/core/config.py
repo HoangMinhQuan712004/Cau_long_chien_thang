@@ -130,6 +130,10 @@ class Settings(BaseSettings):
     MQTT_CLIENT_ID: str = "caulong-server"
     # Khóa Redis ShuttleTrack đọc mốc kỷ lục (``live.redis.key_prefix``), ghi vào ``REDIS_URL``
     RECORD_MARK_PREFIX: str = "badminton:record"
+    # Chỉ cho demo: nhận lệnh ``records.reset`` của máy đo (nút "Đặt lại đỉnh" trên ShuttleTrack) ->
+    # số đo máy đo HÔM NAY của sân đó chuyển sang "bị từ chối" (không xóa), mốc kỷ lục tính lại.
+    # Trái quy tắc E-REC-2 (số đo máy đo không sửa được) nên mặc định tắt; production không bật.
+    DEVICE_RECORD_RESET: bool = False
     # Video kỷ lục máy đo cắt: ``/api/v1/clips/{bucket}/{key}`` chuyển tiếp tới MinIO của máy đo
     # để link là ``https`` cùng domain web.
     # ``CLIPS_ORIGIN`` trống -> tắt (404). Bucket phải đọc công khai.

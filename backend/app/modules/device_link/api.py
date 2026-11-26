@@ -2,7 +2,8 @@
 
 Tắt khi ``MQTT_HOST`` trống. Chiều đi: lệnh trận theo phòng chơi (``sync_courts``) và mốc kỷ lục
 từng kỳ trong Redis (``refresh_marks``). Chiều về: cú đập phá mốc thành số đo nguồn "Máy đo"
-(``shot.record``), video cắt xong gắn vào số đo đó (``shot.clip``), và trạng thái sân phía máy đo.
+(``shot.record``), video cắt xong gắn vào số đo đó (``shot.clip``), lệnh đặt lại kỷ lục khi demo
+(``records.reset``, chỉ khi bật ``DEVICE_RECORD_RESET``) và trạng thái sân phía máy đo.
 Số đo mới / video mới -> tin trực tiếp trên kênh Redis của module Kỷ lục (popup chúc mừng).
 """
 
@@ -34,8 +35,13 @@ def start(redis: Any) -> Link | None:
 
     async def on_record(court: str, payload: bytes) -> None:
         async with SessionLocal() as session:
-            if messages.record_type(payload) == "shot.clip":
+            kind = messages.record_type(payload)
+            if kind == "shot.clip":
                 await ingest.clip(session, court, payload, datetime.now(UTC), new_video)
+                return
+            if kind == "records.reset":
+                if await ingest.reset(session, court, payload, datetime.now(UTC)) == ingest.RESET:
+                    await marks.refresh(session, redis, datetime.now(UTC))
                 return
             outcome = await ingest.record(session, court, payload, datetime.now(UTC), new_record)
             if outcome == ingest.RECORDED:  # mốc mới có ngay, không chờ lượt ghi định kỳ

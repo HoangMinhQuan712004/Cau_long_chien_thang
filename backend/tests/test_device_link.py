@@ -454,6 +454,120 @@ async def test_marks_are_the_best_approved_speed_of_each_period(people):
     assert redis.expires[keys["year"]] >= redis.expires[keys["month"]] >= redis.expires[keys["day"]]
 
 
+def reset_raw(**over) -> bytes:
+    body = {"v": 1, "type": "records.reset", "court": "S1", "at": messages.stamp(AT), **over}
+    return json.dumps(body).encode()
+
+
+async def reset(court: str, payload: bytes) -> str:
+    async with SessionLocal() as s:
+        return await ingest.reset(s, court, payload, datetime.now(UTC))
+
+
+async def test_records_reset_is_ignored_unless_the_demo_switch_is_on(people, monkeypatch):
+    hv = await people("Chưa Bật")
+    ref = shot_ref()
+    assert (
+        await take(
+            "S1",
+            raw(
+                shot_id=ref,
+                player_id=str(hv.customer_id),
+                impact_utc=messages.stamp(datetime.now(UTC)),
+            ),
+        )
+        == "recorded"
+    )
+    monkeypatch.setattr(settings, "DEVICE_RECORD_RESET", False)
+    assert await reset("S1", reset_raw()) == "disabled"
+    assert (await saved(ref)).status == "approved"
+
+
+async def test_records_reset_rejects_todays_device_records_of_that_court_only(people, monkeypatch):
+    monkeypatch.setattr(settings, "DEVICE_RECORD_RESET", True)
+    hv = await people("Đặt Lại")
+    me = str(hv.customer_id)
+    court, other = court_code(), court_code()
+    now = datetime.now(UTC)
+    today, older, elsewhere = shot_ref(), shot_ref(), shot_ref()
+    assert (
+        await take(
+            court, raw(shot_id=today, player_id=me, speed_kmh=333.0, impact_utc=messages.stamp(now))
+        )
+        == "recorded"
+    )
+    assert (
+        await take(
+            court,
+            raw(
+                shot_id=older,
+                player_id=me,
+                speed_kmh=250.0,
+                impact_utc=messages.stamp(now - timedelta(days=2)),
+            ),
+        )
+        == "recorded"
+    )
+    assert (
+        await take(
+            other,
+            raw(shot_id=elsewhere, player_id=me, speed_kmh=210.0, impact_utc=messages.stamp(now)),
+        )
+        == "recorded"
+    )
+    assert await reset(court, reset_raw(test=True)) == "test"
+    assert await reset(court, b"{not json") == "bad_message"
+    assert (await saved(today)).status == "approved"
+
+    assert await reset(court, reset_raw(court=court)) == "reset"
+    row = await saved(today)
+    assert (row.status, row.reject_reason) == ("rejected", ingest.RESET_REASON)
+    assert row.video_url == RECORD["clip"]["url"] and row.version == 2  # giữ video, không xóa
+    assert (await saved(older)).status == "approved"  # ngày khác
+    assert (await saved(elsewhere)).status == "approved"  # sân khác
+    # Lần hai: không còn gì để đặt lại
+    assert await reset(court, reset_raw(court=court)) == "reset"
+
+
+async def test_a_reset_from_the_link_rewrites_the_marks_at_once(people, monkeypatch):
+    monkeypatch.setattr(settings, "DEVICE_RECORD_RESET", True)
+    hv = await people("Mốc Mới")
+    court = court_code()
+    now = datetime.now(UTC)
+    ref = shot_ref()
+    assert (
+        await take(
+            court,
+            raw(
+                shot_id=ref,
+                player_id=str(hv.customer_id),
+                speed_kmh=499.0,
+                impact_utc=messages.stamp(now),
+            ),
+        )
+        == "recorded"
+    )
+    redis = FakeRedis()
+    async with SessionLocal() as s:
+        assert (await marks.refresh(s, redis, now))["day"] == 499
+    handled = []
+
+    class FakeLink:
+        def __init__(self, handle):
+            handled.append(handle)
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(device_link, "Link", FakeLink)
+    monkeypatch.setattr(settings, "MQTT_HOST", "broker.test")
+    device_link.start(redis)
+    await handled[0](f"{PREFIX}/court/{court}/record", reset_raw(court=court))
+    assert (await saved(ref)).status == "rejected"
+    key = marks.mark_keys(now.astimezone(settings.tz), settings.RECORD_MARK_PREFIX)["day"]
+    assert int(redis.values[key]) < 499
+
+
 async def test_marks_of_a_period_nobody_played_in_are_zero():
     async with SessionLocal() as s:
         assert await records.period_bests(s, date(2031, 1, 6)) == dict.fromkeys(

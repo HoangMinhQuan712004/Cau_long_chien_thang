@@ -21,6 +21,7 @@ __all__ = [
     "period_bests",
     "purge_demo",
     "record_kmh",
+    "reset_device_records",
     "seed_demo_breaks",
     "seed_demo_speeds",
     "speed_ranking",
@@ -32,6 +33,7 @@ __all__ = [
 MARK_PERIODS = device.MARK_PERIODS
 add_device_record = device.add_device_record
 attach_device_video = device.attach_device_video
+reset_device_records = device.reset_device_records
 # Tin trực tiếp (popup chúc mừng): worker phát ``record.new`` / ``record.video`` lên Redis
 publish_live = live.publish
 mark_bounds = device.mark_bounds

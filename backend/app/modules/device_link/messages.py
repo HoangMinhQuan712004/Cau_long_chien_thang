@@ -140,8 +140,8 @@ class ShotRecord:
 
 
 def record_type(raw: bytes) -> str | None:
-    """``type`` của tin trên topic ``record`` (``shot.record`` / ``shot.clip``); None khi không
-    đọc được."""
+    """``type`` của tin trên topic ``record`` (``shot.record`` / ``shot.clip`` /
+    ``records.reset``); None khi không đọc được."""
     try:
         kind = _object(raw).get("type")
     except BadMessage:
@@ -189,6 +189,19 @@ def parse_clip(raw: bytes) -> ShotClip:
         clip_error=_text(data, "clip_error", 40, optional=True),
         test=data.get("test") is True,
     )
+
+
+@dataclass(frozen=True)
+class RecordsReset:
+    test: bool
+
+
+def parse_reset(raw: bytes) -> RecordsReset:
+    """``records.reset``: người vận hành ấn "Đặt lại đỉnh" trên máy đo (chỉ dùng khi demo)."""
+    data = _object(raw)
+    if data.get("type") != "records.reset":
+        raise BadMessage("type: invalid")
+    return RecordsReset(test=data.get("test") is True)
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,5 @@
 """Nhận tin từ máy đo: cú đập phá mốc (``shot.record``), video của nó (``shot.clip``, gửi sau khi
-cắt xong) và trạng thái sân (``status``).
+cắt xong), lệnh đặt lại kỷ lục khi demo (``records.reset``) và trạng thái sân (``status``).
 
 Cú đập chỉ thành số đo khi máy đo nêu đúng **một** người đánh (``player_id``). Không có id người
 đánh (đánh đôi khi máy đo chưa nhận ra ai đánh) -> không ghi nhận gì (người dùng chốt 23/11). Tin
@@ -13,6 +13,7 @@ from datetime import datetime
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.modules.device_link import messages
 from app.modules.device_link.models import DeviceCourt
 from app.modules.records import api as records
@@ -24,6 +25,8 @@ REF_PREFIX = "st:"
 
 RECORDED = "recorded"
 ATTACHED = "attached"
+RESET = "reset"
+RESET_REASON = "Đặt lại kỷ lục từ máy đo (demo)"
 
 # Gọi sau commit với id số đo vừa ghi / vừa gắn video (worker phát tin trực tiếp)
 Saved = Callable[[int], Awaitable[None]] | None
@@ -101,6 +104,32 @@ async def clip(
     if on_saved is not None:
         await on_saved(record_id)
     return ATTACHED
+
+
+async def reset(session: AsyncSession, court: str, raw: bytes, now: datetime) -> str:
+    """Xử lý một ``records.reset``: số đo máy đo hôm nay của sân chuyển "bị từ chối" để demo phá
+    kỷ lục lại được. Trả ``reset`` hoặc lý do bỏ qua (``disabled`` khi ``DEVICE_RECORD_RESET`` tắt).
+    Commit."""
+    if not settings.DEVICE_RECORD_RESET:
+        logger.info("Device link: records reset from court %s ignored (disabled)", court)
+        return "disabled"
+    try:
+        got = messages.parse_reset(raw)
+    except messages.BadMessage as exc:
+        logger.warning("Device link: unusable reset from court %s (%s)", court, exc)
+        return "bad_message"
+    if got.test:
+        return "test"
+    ids = await records.reset_device_records(
+        session,
+        court_code=court,
+        day=now.astimezone(settings.tz).date(),
+        reason=RESET_REASON,
+        now=now,
+    )
+    await session.commit()
+    logger.info("Device link: court %s reset %d speed records of today", court, len(ids))
+    return RESET
 
 
 async def status(session: AsyncSession, court: str, raw: bytes, now: datetime) -> bool:
