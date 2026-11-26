@@ -22,10 +22,10 @@ export default function PricesAdminPage() {
 }
 
 async function Prices() {
-  // Thiếu quyền booking.config.manage ⇒ báo không có quyền, không gọi API (backend vẫn kiểm: 403 cũng báo như vậy)
+  // Thiếu quyền booking.prices.manage (bảng giá + Lễ/Tết; NV mặc định không có, người dùng 26/11) ⇒ báo không có quyền, không gọi API (backend vẫn kiểm: 403 cũng báo như vậy)
   const [perms, { adminNav, courts, prices: priceTexts, holidays }] = await Promise.all([adminPerms(), getDictionary()]);
   const noPermission = adminNav.noPermission;
-  if (!can(perms, "booking.config.manage")) return <p className="text-muted">{noPermission}</p>;
+  if (!can(perms, "booking.prices.manage")) return <p className="text-muted">{noPermission}</p>;
   const api = await authedApi();
   await connection(); // giờ hiện tại chỉ dùng ở request, không prerender
   const year = Number(todayVn().slice(0, 4));

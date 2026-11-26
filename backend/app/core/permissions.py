@@ -26,7 +26,9 @@ class Perm(enum.StrEnum):
     thêm dòng ``role_permission`` (role ``staff``)."""
 
     BOOKING_RESOURCES_VIEW = "booking.resources.view"  # danh mục sân (lịch, popup)
-    BOOKING_CONFIG_MANAGE = "booking.config.manage"  # sân, giờ, bảng giá, Lễ/Tết
+    BOOKING_CONFIG_MANAGE = "booking.config.manage"  # sân, giờ mở cửa / cao điểm
+    # Bảng giá + ngày Lễ/Tết (người dùng 26/11): NV mặc định tắt, Admin cấp được
+    BOOKING_PRICES_MANAGE = "booking.prices.manage"
     BOOKING_RESOURCES_DELETE = "booking.resources.delete"  # xóa sân: NV mặc định tắt, Admin cấp
     BOOKING_QUOTE = "booking.quote"  # báo giá khung (popup Đặt sân)
     BOOKING_CALENDAR_VIEW = "booking.calendar.view"

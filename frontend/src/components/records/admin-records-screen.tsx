@@ -9,6 +9,7 @@ import { toast } from "@/lib/feedback";
 import { DateRange } from "@/components/ui/date-range";
 import { addDaysIso, formatDate, formatTime, todayVn } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
+import { RecordPlayer } from "./record-player";
 import { type AdminRecordRow as AdminSpeedRecord, type AdminSpeedRecordList, getAdminSpeedRecords, SOURCE_LABEL, sendAdminDeleteRecord, sendApproveRecord, sendRejectRecord, sendRemoveRecordVideo } from "./requests";
 
 // /admin/ky-luc (T-046 + T-047, chỉ Admin): số đo mới nhất trước, lọc Có video / Chưa có, gỡ video; xóa số đo nhập tay cũ;
@@ -57,6 +58,8 @@ export function AdminRecordsScreen() {
   const [data, setData] = useState<AdminSpeedRecordList | null>(null);
   const [error, setError] = useState("");
   const [remove, setRemove] = useState<AdminSpeedRecord | null>(null);
+  // Bấm số đo có video ⇒ popup phát video (người dùng 26/11)
+  const [watch, setWatch] = useState<AdminSpeedRecord | null>(null);
   const [period, setPeriod] = useState<Period>("all");
   const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
   const [rangeError, setRangeError] = useState("");
@@ -193,8 +196,17 @@ export function AdminRecordsScreen() {
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-xl border border-border bg-surface p-4 shadow-card">
               <div className="min-w-0">
                 <p className="flex flex-wrap items-baseline gap-x-2">
-                  <b className="text-xl tabular-nums">{r.speed_kmh} km/h</b>
-                  {r.video ? <span className="rounded-full bg-primary-softer px-2 py-0.5 text-xs font-semibold text-primary">{r.video.kind === "youtube" ? "YouTube" : "File video"}</span> : <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">Chưa có video</span>}
+                  {r.video ? (
+                    <button type="button" onClick={() => setWatch(r)} className="inline-flex items-baseline gap-x-2 rounded-sm text-left focus-ring hover:text-primary" aria-label={`Xem video ${r.speed_kmh} km/h`}>
+                      <b className="text-xl tabular-nums">{r.speed_kmh} km/h</b>
+                      <span className="rounded-full bg-primary-softer px-2 py-0.5 text-xs font-semibold text-primary">▶ {r.video.kind === "youtube" ? "YouTube" : "File video"}</span>
+                    </button>
+                  ) : (
+                    <>
+                      <b className="text-xl tabular-nums">{r.speed_kmh} km/h</b>
+                      <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted">Chưa có video</span>
+                    </>
+                  )}
                   <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">{SOURCE_LABEL[r.source]}</span>
                   {r.status === "pending" ? <span className="rounded-full bg-cta px-2 py-0.5 text-xs font-semibold text-cta-fg">Chờ duyệt</span> : null}
                   {r.status === "rejected" ? <span className="rounded-full bg-danger px-2 py-0.5 text-xs font-semibold text-white">Bị từ chối</span> : null}
@@ -228,9 +240,14 @@ export function AdminRecordsScreen() {
                   </>
                 ) : null}
                 {r.video ? (
-                  <button type="button" onClick={() => setRemove(r)} className={btnCls}>
-                    Gỡ video
-                  </button>
+                  <>
+                    <button type="button" onClick={() => setWatch(r)} className={btnPrimaryCls}>
+                      ▶ Xem video
+                    </button>
+                    <button type="button" onClick={() => setRemove(r)} className={btnCls}>
+                      Gỡ video
+                    </button>
+                  </>
                 ) : null}
                 {r.editable ? (
                   <button type="button" onClick={() => setDel(r)} className={btnCls}>
@@ -257,6 +274,11 @@ export function AdminRecordsScreen() {
         </nav>
       ) : null}
 
+      {watch?.video ? (
+        <Modal open onClose={() => setWatch(null)} size="wide" title={`${watch.speed_kmh} km/h · ${watch.full_name ?? watch.member_name}`} subtitle={`${formatDate(watch.measured_at)} · ${formatTime(watch.measured_at)}${watch.resource_name ? ` · ${watch.resource_name}` : ""}`}>
+          <RecordPlayer video={watch.video} speed={watch.speed_kmh} name={watch.full_name ?? watch.member_name} />
+        </Modal>
+      ) : null}
       {del ? (
         <DeleteDialog
           record={del}

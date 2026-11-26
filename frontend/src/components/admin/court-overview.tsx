@@ -6,7 +6,7 @@ import { formatDayMonth, formatDayMonthYear, formatNumber } from "@/lib/format";
 import type { CourtDetail } from "./court-drawer";
 import { bandsOf, t5 } from "./court-form-logic";
 
-// Các mục chỉ đọc của ngăn chi tiết sân: thông tin + giờ mở cửa, bảng giá đang áp (chỉ xem), lịch sắp tới.
+// Các mục chỉ đọc của ngăn chi tiết sân: thông tin + giờ mở cửa, bảng giá đang áp (chỉ xem), lịch sắp tới, lịch đã qua.
 
 export const SECTION = "flex flex-col gap-3 py-5 first:pt-0";
 export const SECTION_TITLE = "text-label font-semibold tracking-wide text-muted uppercase";
@@ -18,7 +18,7 @@ const DAY_TYPES = [
   { key: "holiday", label: "Lễ, Tết" },
 ] as const;
 
-export function CourtOverview({ detail, typeName }: { detail: CourtDetail; typeName?: string }) {
+export function CourtOverview({ detail, typeName, canPrices = true }: { detail: CourtDetail; typeName?: string; canPrices?: boolean }) {
   const r = detail.resource;
   const s = r.schedule;
   const price = (day: string, band: string) => detail.prices.find((p) => p.day_type === day && p.band === band)?.price_per_hour;
@@ -70,34 +70,45 @@ export function CourtOverview({ detail, typeName }: { detail: CourtDetail; typeN
           </tbody>
         </table>
         <p className="text-ui text-muted">Giá theo loại sân, dùng chung cho mọi sân cùng loại.</p>
-        <Link href="/admin/san/bang-gia" className={LINK}>Sửa ở Bảng giá ›</Link>
+        {canPrices ? <Link href="/admin/san/bang-gia" className={LINK}>Sửa ở Bảng giá ›</Link> : null}
       </section>
 
       <section aria-labelledby="court-upcoming" className={SECTION}>
         <h3 id="court-upcoming" className={SECTION_TITLE}>Lịch sắp tới</h3>
-        {detail.upcoming.length ? (
-          <ul className="flex flex-col divide-y divide-border/60">
-            {detail.upcoming.map((u) => (
-              <li key={u.code} className="flex items-start justify-between gap-3 py-2.5">
-                <span className="flex min-w-0 flex-col">
-                  <span className="text-sm font-semibold tabular-nums">
-                    {formatDayMonth(u.play_date)} · {t5(u.start_time)}–{t5(u.end_time)}
-                  </span>
-                  <span className="text-ui text-muted wrap-anywhere">{u.kind === "session" ? `Sự kiện · ${u.title}` : u.title}</span>
-                </span>
-                {u.payment_status ? (
-                  <Badge variant={u.payment_status === "paid" ? "success" : u.payment_status === "unpaid" ? "warning" : "neutral"}>
-                    {STATUS_LABEL[u.payment_status as PaymentStatus] ?? u.payment_status}
-                  </Badge>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-muted">Chưa có lịch đặt sắp tới.</p>
-        )}
+        {detail.upcoming.length ? <SlotList items={detail.upcoming} /> : <p className="text-sm text-muted">Chưa có lịch đặt sắp tới.</p>}
         <Link href={detail.upcoming[0] ? `/admin/dat-san?date=${detail.upcoming[0].play_date}` : "/admin/dat-san"} className={LINK}>Xem trên lịch ›</Link>
       </section>
+
+      {/* Người dùng 26/11: thấy cả các lần đặt đã qua của sân (mới nhất trước) */}
+      <section aria-labelledby="court-recent" className={SECTION}>
+        <h3 id="court-recent" className={SECTION_TITLE}>Lịch đã qua</h3>
+        {detail.recent.length ? <SlotList items={detail.recent} withYear /> : <p className="text-sm text-muted">Chưa có lịch đặt nào đã qua.</p>}
+      </section>
     </>
+  );
+}
+
+type Slot = CourtDetail["upcoming"][number];
+
+/** Một danh sách lịch của sân (booking: tên khách + trạng thái tiền; sự kiện: tên sự kiện). */
+function SlotList({ items, withYear = false }: { items: Slot[]; withYear?: boolean }) {
+  return (
+    <ul className="flex flex-col divide-y divide-border/60">
+      {items.map((u) => (
+        <li key={`${u.code}-${u.play_date}-${u.start_time}`} className="flex items-start justify-between gap-3 py-2.5">
+          <span className="flex min-w-0 flex-col">
+            <span className="text-sm font-semibold tabular-nums">
+              {withYear ? formatDayMonthYear(u.play_date) : formatDayMonth(u.play_date)} · {t5(u.start_time)}–{t5(u.end_time)}
+            </span>
+            <span className="text-ui text-muted wrap-anywhere">{u.kind === "session" ? `Sự kiện · ${u.title}` : u.title}</span>
+          </span>
+          {u.payment_status ? (
+            <Badge variant={u.payment_status === "paid" ? "success" : u.payment_status === "unpaid" ? "warning" : "neutral"}>
+              {STATUS_LABEL[u.payment_status as PaymentStatus] ?? u.payment_status}
+            </Badge>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }

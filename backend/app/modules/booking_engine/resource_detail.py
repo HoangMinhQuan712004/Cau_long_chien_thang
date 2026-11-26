@@ -1,4 +1,5 @@
-"""Ngăn chi tiết sân ở /admin/san: thông tin + giá của loại sân + lịch sắp tới; thống kê theo kỳ.
+"""Ngăn chi tiết sân ở /admin/san: thông tin + giá của loại sân + lịch sắp tới / đã qua; thống kê
+theo kỳ.
 
 Thống kê tính như màn Báo cáo: doanh thu = booking / vé ``paid`` theo ngày chơi (vé sự kiện nhiều
 sân chia theo giờ dùng sân); giờ đã đặt = chỗ chiếm ``active`` nằm trong giờ mở cửa.
@@ -28,6 +29,7 @@ from app.modules.booking_engine.models import (
 )
 
 UPCOMING_MAX = 20
+RECENT_MAX = 10  # lịch đã qua (người dùng 26/11)
 Period = Literal["week", "month", "year"]
 
 
@@ -51,6 +53,9 @@ class ResourceDetailOut(BaseModel):
     resource: ResourceOut
     prices: list[ResourcePriceOut] = Field(description="Giá của loại sân (chỉ xem)")
     upcoming: list[UpcomingOut] = Field(description=f"Tối đa {UPCOMING_MAX}, sớm nhất trước")
+    recent: list[UpcomingOut] = Field(
+        description=f"Lịch đã kết thúc gần đây: tối đa {RECENT_MAX}, mới nhất trước"
+    )
 
 
 class StatsFigures(BaseModel):
@@ -87,14 +92,16 @@ async def resource_detail(session: AsyncSession, tenant_id: int, code: str) -> R
     return ResourceDetailOut(
         resource=await _resource_view(session, tenant_id, r),
         prices=prices,
-        upcoming=await _upcoming(session, ctx, tenant_id, r.id),
+        upcoming=await _slots(session, ctx, tenant_id, r.id, past=False),
+        recent=await _slots(session, ctx, tenant_id, r.id, past=True),
     )
 
 
-async def _upcoming(
-    session: AsyncSession, ctx: Ctx, tenant_id: int, resource_id: int
+async def _slots(
+    session: AsyncSession, ctx: Ctx, tenant_id: int, resource_id: int, *, past: bool
 ) -> list[UpcomingOut]:
-    """Booking / sự kiện chưa kết thúc trên sân (chỗ chiếm ``active``)."""
+    """Booking / sự kiện trên sân (chỗ chiếm ``active``): chưa kết thúc (sớm nhất trước, tối đa
+    ``UPCOMING_MAX``) hoặc ``past`` – đã kết thúc (mới nhất trước, tối đa ``RECENT_MAX``)."""
     start, end = func.lower(Allocation.time_range), func.upper(Allocation.time_range)
     rows = await session.execute(
         select(Allocation.kind, start, end, Booking, EventSession)
@@ -105,10 +112,10 @@ async def _upcoming(
             Allocation.resource_id == resource_id,
             Allocation.active.is_(True),
             Allocation.kind.in_(("booking", "session")),
-            end > ctx.now,
+            end <= ctx.now if past else end > ctx.now,
         )
-        .order_by(start)
-        .limit(UPCOMING_MAX)
+        .order_by(start.desc() if past else start)
+        .limit(RECENT_MAX if past else UPCOMING_MAX)
     )
     result = []
     for kind, begin, finish, booking, event in rows:

@@ -55,6 +55,8 @@ SpecialDayId = path_id("special_day_id", not_found("Không tìm thấy ngày L�
 
 ResourceViewer = Annotated[Principal, Depends(require(Perm.BOOKING_RESOURCES_VIEW))]
 ConfigManager = Annotated[Principal, Depends(require(Perm.BOOKING_CONFIG_MANAGE))]
+# Bảng giá + ngày Lễ/Tết: quyền riêng, NV mặc định không có (người dùng 26/11)
+PricesManager = Annotated[Principal, Depends(require(Perm.BOOKING_PRICES_MANAGE))]
 ResourceDeleter = Annotated[Principal, Depends(require(Perm.BOOKING_RESOURCES_DELETE))]
 Quoter = Annotated[Principal, Depends(require(Perm.BOOKING_QUOTE))]
 CalendarViewer = Annotated[Principal, Depends(require(Perm.BOOKING_CALENDAR_VIEW))]
@@ -164,13 +166,13 @@ async def public_prices(session: SessionDep, response: Response):
 
 
 @router.get("/prices", response_model=PriceTable)
-async def get_prices(_: ConfigManager, session: SessionDep):
+async def get_prices(_: PricesManager, session: SessionDep):
     return await api.get_price_table(session)
 
 
 @router.put("/prices", response_model=PriceTable)
 async def put_prices(
-    data: PriceTableUpdate, principal: ConfigManager, idem: IdempotencyDep, session: SessionDep
+    data: PriceTableUpdate, principal: PricesManager, idem: IdempotencyDep, session: SessionDep
 ):
     """Lưu cả bảng giá một lần (đủ mọi ô); ``version`` khác bản hiện tại -> 409 ``E-CFG-7``."""
     return await idem.run(
@@ -183,7 +185,7 @@ async def put_prices(
 
 @router.get("/special-days", response_model=list[SpecialDayOut])
 async def list_special_days(
-    _: ConfigManager,
+    _: PricesManager,
     session: SessionDep,
     year: Annotated[int | None, Query(ge=2000, le=2100)] = None,
 ):
@@ -192,7 +194,7 @@ async def list_special_days(
 
 @router.post("/special-days", response_model=SpecialDayOut, status_code=status.HTTP_201_CREATED)
 async def create_special_day(
-    data: SpecialDayIn, principal: ConfigManager, idem: IdempotencyDep, session: SessionDep
+    data: SpecialDayIn, principal: PricesManager, idem: IdempotencyDep, session: SessionDep
 ):
     return await idem.run(
         session,
@@ -206,7 +208,7 @@ async def create_special_day(
 async def update_special_day(
     special_day_id: SpecialDayId,
     data: SpecialDayIn,
-    principal: ConfigManager,
+    principal: PricesManager,
     idem: IdempotencyDep,
     session: SessionDep,
 ):
@@ -225,7 +227,7 @@ async def update_special_day(
 )
 async def delete_special_day(
     special_day_id: SpecialDayId,
-    principal: ConfigManager,
+    principal: PricesManager,
     idem: IdempotencyDep,
     session: SessionDep,
 ):

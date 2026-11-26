@@ -66,11 +66,12 @@ def test_every_booking_route_declares_a_permission():
 def test_quote_is_admin_and_staff_only():
     assert Perm.BOOKING_QUOTE in DEFAULT_ROLE_PERMS["staff"]
     assert Perm.BOOKING_QUOTE not in DEFAULT_ROLE_PERMS["member"]
-    # NV mặc định có Sân & bảng giá, Tạo / xóa sự kiện, Danh mục vợt (người dùng chốt 2026-11-05)
+    # NV mặc định có Danh mục sân + giờ, Tạo / xóa sự kiện, Danh mục vợt (chốt 2026-11-05)
     for perm in (Perm.BOOKING_CONFIG_MANAGE, Perm.BOOKING_SESSION_MANAGE, Perm.RACKET_MANAGE):
         assert perm in DEFAULT_ROLE_PERMS["staff"]
-    # NV vẫn KHÔNG có các quyền này
+    # NV vẫn KHÔNG có các quyền này (bảng giá + Lễ/Tết: người dùng 26/11)
     for perm in (
+        Perm.BOOKING_PRICES_MANAGE,
         Perm.MEMBER_STATUS,
         Perm.PAYMENTS_SETTINGS,
         Perm.STAFF_MANAGE,

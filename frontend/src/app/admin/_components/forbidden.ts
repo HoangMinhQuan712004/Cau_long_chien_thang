@@ -20,6 +20,7 @@ export type AdminPerm =
   | "play_rooms.monitor"
   | "booking.transactions.view"
   | "booking.config.manage"
+  | "booking.prices.manage"
   | "booking.resources.delete"
   | "member.manage"
   | "payments.settings"

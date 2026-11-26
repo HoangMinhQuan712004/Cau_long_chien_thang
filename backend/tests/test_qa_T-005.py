@@ -657,6 +657,15 @@ def _sweep_routes(prefixes, skip):
 
 QUOTE = ("POST", f"{B}/quote")  # Q2: admin + staff only (customers get 403 until T-008)
 CONFIG_PUBLIC_FOR_STAFF = {("GET", f"{B}/resources")}
+# Bảng giá + ngày Lễ/Tết: quyền riêng booking.prices.manage, NV mặc định KHÔNG có (người dùng 26/11)
+PRICES_ROUTES = {
+    ("GET", f"{B}/prices"),
+    ("PUT", f"{B}/prices"),
+    ("GET", f"{B}/special-days"),
+    ("POST", f"{B}/special-days"),
+    ("PATCH", f"{B}/special-days/{{special_day_id}}"),
+    ("DELETE", f"{B}/special-days/{{special_day_id}}"),
+}
 
 
 async def test_sec4_all_admin_routes_require_login_and_role(anon_c, customer_c):
@@ -684,14 +693,22 @@ async def test_sec4_all_admin_routes_require_login_and_role(anon_c, customer_c):
 async def test_sec4_counter_account_cannot_use_config_api(staff_c):
     # Xóa sân: NV mặc định KHÔNG có quyền (người dùng chốt 2026-11-06)
     delete_court = ("DELETE", f"{B}/resources/{{code}}")
-    routes = list(_sweep_routes((f"{B}/",), {QUOTE, delete_court} | CONFIG_PUBLIC_FOR_STAFF))
-    assert len(routes) >= 5
+    skip = {QUOTE, delete_court} | CONFIG_PUBLIC_FOR_STAFF | PRICES_ROUTES
+    routes = list(_sweep_routes((f"{B}/",), skip))
+    # Còn sân + giờ (thêm / sửa sân, …) sau khi tách 6 route giá ra (26/11)
+    assert len(routes) >= 3
+    swept = {(m, p) for m, p in _sweep_routes((f"{B}/",), set())}
+    assert {(m, re.sub(r"\{[^}]+\}", "1", p)) for m, p in PRICES_ROUTES} <= swept
     r = await write(staff_c, "DELETE", f"{B}/resources/S01", json_body={})
     assert r.status_code == 403, r.text
     for method, path in routes:
         r = await write(staff_c, method, path, json_body={})
-        # NV mặc định có Sân & bảng giá (người dùng chốt 2026-11-05) -> không bị chặn quyền
+        # NV mặc định có Danh mục sân + giờ (người dùng chốt 2026-11-05) -> không bị chặn quyền
         assert r.status_code not in (401, 403), f"staff {method} {path} -> {r.status_code}"
+    for method, template in PRICES_ROUTES:
+        path = re.sub(r"\{[^}]+\}", "1", template)
+        r = await write(staff_c, method, path, json_body={})
+        assert r.status_code == 403, f"staff {method} {path} -> {r.status_code}"
     assert (
         await staff_c.get(f"{B}/resources")
     ).status_code == 200  # counter may read the catalogue
