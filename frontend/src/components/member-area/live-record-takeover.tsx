@@ -7,10 +7,12 @@ import { videoYoutubeId, youtubeEmbed } from "@/lib/video";
 
 // Màn "Kỷ lục mới" toàn màn hình (người dùng 25/11), mở khi máy đo báo `record.new`:
 // - chưa có video: ảnh đồ họa (sân + tia sáng + pháo giấy) với số km/h kỷ lục ở giữa;
-// - `record.video` cùng record_id tới ⇒ nơi gọi truyền `record` mới có `video` ⇒ chuyển sang phát video toàn màn hình.
+// - `record.video` cùng record_id tới ⇒ nơi gọi truyền `record` mới có `video` ⇒ chuyển sang phát video toàn màn hình,
+//   nhưng không sớm hơn HOLD_MS kể từ lúc mở (người dùng 26/11: video về rất nhanh, ảnh kỷ lục chưa kịp xem).
 // Đóng bằng nút ✕ hoặc Esc. Giảm chuyển động ⇒ CSS tắt hiệu ứng (globals.css), số hiện ngay giá trị cuối.
 
 const COUNT_MS = 1200;
+const HOLD_MS = 10_000; // ảnh kỷ lục hiện ít nhất chừng này trước khi video thay thế, kể cả khi video đã về
 // Pháo giấy: vị trí / độ trễ / màu cố định (không random lúc render ⇒ không lệch giữa các lần dựng)
 const CONFETTI = Array.from({ length: 36 }, (_, i) => ({
   left: (i * 37) % 100,
@@ -20,6 +22,16 @@ const CONFETTI = Array.from({ length: 36 }, (_, i) => ({
   color: ["var(--cta)", "var(--surface)", "color-mix(in srgb, var(--cta) 60%, var(--surface))", "var(--primary-softer)"][i % 4],
   round: i % 3 === 0,
 }));
+
+/** true trong `ms` đầu tiên kể từ khi dựng (mỗi kỷ lục một lần: nơi gọi đặt `key` = record_id). */
+function useHold(ms: number) {
+  const [held, setHeld] = useState(true);
+  useEffect(() => {
+    const t = window.setTimeout(() => setHeld(false), ms);
+    return () => window.clearTimeout(t);
+  }, [ms]);
+  return held;
+}
 
 /** Đếm từ 0 lên `to` trong COUNT_MS (giảm chuyển động ⇒ hiện ngay). */
 function useCountUp(to: number) {
@@ -45,7 +57,8 @@ export function LiveRecordTakeover({ record, onClose }: { record: LiveRecord; on
   const closeBtn = useRef<HTMLButtonElement>(null);
   const speed = useCountUp(record.speed_kmh);
   const who = record.is_me ? "Bạn" : record.display_name;
-  const video = record.video;
+  const held = useHold(HOLD_MS);
+  const video = held ? null : record.video;
   const ytId = video?.kind === "youtube" ? videoYoutubeId(video) : null;
 
   useEffect(() => {
@@ -124,7 +137,7 @@ export function LiveRecordTakeover({ record, onClose }: { record: LiveRecord; on
             ) : null}
             <p className="absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-2 text-sm whitespace-nowrap text-surface/70">
               <span className="size-2 animate-pulse rounded-full bg-cta motion-reduce:animate-none" aria-hidden />
-              Đang chờ video cú đập…
+              {record.video ? "Video cú đập sắp phát…" : "Đang chờ video cú đập…"}
             </p>
           </div>
         </>
