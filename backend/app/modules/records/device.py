@@ -6,7 +6,7 @@ ghi trùng bằng ``source_ref`` (máy gửi lại cùng một cú). Không comm
 
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -128,3 +128,30 @@ async def attach_device_video(
         return None, "bad_video"
     row.set_video(video_url, now)
     return row.id, None
+
+
+async def reset_device_records(
+    session: AsyncSession, *, court_code: str, day: date, reason: str, now: datetime
+) -> list[int]:
+    """Chỉ cho demo (``DEVICE_RECORD_RESET``): số đo máy đo đã duyệt của sân ``court_code`` trong
+    ngày ``day`` (giờ VN) chuyển sang ``rejected`` với ``reason`` – không xóa, video giữ nguyên.
+    Trả id các số đo đã chuyển. Không commit."""
+    ids = await session.scalars(
+        update(SpeedRecord)
+        .where(
+            SpeedRecord.source == "device",
+            SpeedRecord.status == "approved",
+            SpeedRecord.court_code == court_code,
+            SpeedRecord.measured_at >= _at(day),
+            SpeedRecord.measured_at < _at(day + timedelta(days=1)),
+        )
+        .values(
+            status="rejected",
+            reject_reason=reason,
+            reviewed_at=now,
+            updated_at=now,
+            version=SpeedRecord.version + 1,
+        )
+        .returning(SpeedRecord.id)
+    )
+    return sorted(ids)
