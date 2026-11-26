@@ -8,11 +8,13 @@ import { videoYoutubeId, youtubeEmbed } from "@/lib/video";
 // Màn "Kỷ lục mới" toàn màn hình (người dùng 25/11), mở khi máy đo báo `record.new`:
 // - chưa có video: ảnh đồ họa (sân + tia sáng + pháo giấy) với số km/h kỷ lục ở giữa;
 // - `record.video` cùng record_id tới ⇒ nơi gọi truyền `record` mới có `video` ⇒ chuyển sang phát video toàn màn hình,
-//   nhưng không sớm hơn HOLD_MS kể từ lúc mở (người dùng 26/11: video về rất nhanh, ảnh kỷ lục chưa kịp xem).
+//   nhưng không sớm hơn HOLD_MS kể từ lúc mở (người dùng 26/11: video về rất nhanh, ảnh kỷ lục chưa kịp xem);
+//   video (.mp4 / .webm) phát PLAYS lần rồi tự đóng về bảng xếp hạng, chờ kỷ lục kế tiếp; không phát được ⇒ đóng luôn.
 // Đóng bằng nút ✕ hoặc Esc. Giảm chuyển động ⇒ CSS tắt hiệu ứng (globals.css), số hiện ngay giá trị cuối.
 
 const COUNT_MS = 1200;
 const HOLD_MS = 10_000; // ảnh kỷ lục hiện ít nhất chừng này trước khi video thay thế, kể cả khi video đã về
+const PLAYS = 4; // số lần phát video cú đập trước khi tự đóng
 // Pháo giấy: vị trí / độ trễ / màu cố định (không random lúc render ⇒ không lệch giữa các lần dựng)
 const CONFETTI = Array.from({ length: 36 }, (_, i) => ({
   left: (i * 37) % 100,
@@ -55,6 +57,7 @@ function useCountUp(to: number) {
 
 export function LiveRecordTakeover({ record, onClose }: { record: LiveRecord; onClose: () => void }) {
   const closeBtn = useRef<HTMLButtonElement>(null);
+  const plays = useRef(0);
   const speed = useCountUp(record.speed_kmh);
   const who = record.is_me ? "Bạn" : record.display_name;
   const held = useHold(HOLD_MS);
@@ -83,7 +86,25 @@ export function LiveRecordTakeover({ record, onClose }: { record: LiveRecord; on
           {ytId ? (
             <iframe title={`${record.speed_kmh} km/h · ${who}`} src={`${youtubeEmbed(ytId)}&mute=1`} allow="autoplay; encrypted-media; fullscreen" allowFullScreen className="absolute inset-0 size-full" />
           ) : (
-            <video src={video.url} autoPlay muted playsInline controls aria-label={`${record.speed_kmh} km/h · ${who}`} className="absolute inset-0 size-full bg-black object-contain" />
+            <video
+              src={video.url}
+              autoPlay
+              muted
+              playsInline
+              controls
+              aria-label={`${record.speed_kmh} km/h · ${who}`}
+              className="absolute inset-0 size-full bg-black object-contain"
+              onEnded={(e) => {
+                plays.current += 1;
+                if (plays.current >= PLAYS) {
+                  onClose();
+                  return;
+                }
+                e.currentTarget.currentTime = 0;
+                void e.currentTarget.play().catch(() => onClose());
+              }}
+              onError={onClose}
+            />
           )}
           <div className="pointer-events-none absolute top-4 left-4 rounded-2xl bg-black/55 px-4 py-2 backdrop-blur sm:top-6 sm:left-6">
             <p className="text-xs font-bold tracking-widest text-cta uppercase">Kỷ lục mới</p>
