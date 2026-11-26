@@ -308,7 +308,8 @@ async def test_ac5_price_of_existing_booking_never_changes_and_quotes_follow_the
 async def test_ac6_permissions_idempotency_and_origin(admin, staff, customer, anon):
     row = await make(admin, "2095-08-08", "QA quyền")
     body = {"date_from": "2095-08-09", "name": "QA quyền 2"}
-    perm = Perm.BOOKING_CONFIG_MANAGE.value
+    # Người dùng 26/11: ngày Lễ/Tết thuộc quyền riêng booking.prices.manage – NV mặc định không có
+    perm = Perm.BOOKING_PRICES_MANAGE.value
     try:
         assert (await patch(anon, row["id"], body)).status_code == 401
         assert (await patch(customer, row["id"], body)).status_code == 403
@@ -343,22 +344,24 @@ async def test_ac6_permissions_idempotency_and_origin(admin, staff, customer, an
         )
         assert other.status_code in (409, 422), other.text
         assert await listed(admin, 2095) == [("2095-08-09", "2095-08-09", "QA quyền 2")]
-        # Nhân viên mất quyền -> 403; có quyền -> sửa được
+        # Nhân viên mặc định không có quyền -> 403; Admin cấp quyền -> sửa được
+        denied = await patch(staff, row["id"], {"date_from": "2095-08-11", "name": "NV"})
+        assert denied.status_code == 403, denied.text
         async with SessionLocal() as s:
-            await s.execute(
-                delete(RolePermission).where(
-                    RolePermission.role == "staff", RolePermission.perm == perm
-                )
-            )
+            s.add(RolePermission(role="staff", perm=perm))
             await s.commit()
         try:
-            denied = await patch(staff, row["id"], {"date_from": "2095-08-11", "name": "NV"})
-            assert denied.status_code == 403, denied.text
+            allowed = await patch(
+                staff, row["id"], {"date_from": "2095-08-11", "name": "NV có quyền"}
+            )
+            assert allowed.status_code == 200, allowed.text
         finally:
             async with SessionLocal() as s:
-                s.add(RolePermission(role="staff", perm=perm))
+                await s.execute(
+                    delete(RolePermission).where(
+                        RolePermission.role == "staff", RolePermission.perm == perm
+                    )
+                )
                 await s.commit()
-        allowed = await patch(staff, row["id"], {"date_from": "2095-08-11", "name": "NV có quyền"})
-        assert allowed.status_code == 200, allowed.text
     finally:
         await drop(admin, row)

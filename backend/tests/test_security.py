@@ -282,9 +282,9 @@ async def test_idempotency_key_scoped_per_actor(admin, staff):
     r2 = await staff.post(
         f"{BK}/special-days", json={"date_from": "2033-01-02", "name": "A"}, headers=headers
     )
-    # Key tính theo từng người: NV (có quyền Sân & bảng giá từ 2026-11-05) không nhận lại kết quả
-    # 201 của Admin mà chạy thật -> vướng đúng ngày Admin vừa thêm (E-CFG-8), không phải replay
-    assert r2.status_code == 409 and r2.json()["detail"]["code"] == "E-CFG-8", r2.text
+    # Key tính theo từng người: NV không nhận lại kết quả 201 của Admin mà chạy thật -> bị chặn
+    # quyền (ngày Lễ/Tết thuộc booking.prices.manage, NV mặc định không có – người dùng 26/11)
+    assert r2.status_code == 403 and r2.json()["detail"]["code"] == "E-AUTH-2", r2.text
     assert "idempotent-replayed" not in r2.headers
     await admin.delete(f"{BK}/special-days/{r.json()['id']}", headers=idem())
 
