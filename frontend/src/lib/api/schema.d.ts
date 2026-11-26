@@ -7587,6 +7587,11 @@ export interface components {
              * @description Tối đa 20, sớm nhất trước
              */
             upcoming: components["schemas"]["UpcomingOut"][];
+            /**
+             * Recent
+             * @description Lịch đã kết thúc gần đây: tối đa 10, mới nhất trước
+             */
+            recent: components["schemas"]["UpcomingOut"][];
         };
         /** ResourceList */
         ResourceList: {

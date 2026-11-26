@@ -29,6 +29,8 @@ type Props = {
   startEditing?: boolean;
   /** Có quyền xóa ⇒ hiện nút "Xóa sân" ở chân ngăn. */
   onDelete?: () => void;
+  /** Có quyền bảng giá ⇒ hiện link "Sửa ở Bảng giá" (người dùng 26/11). */
+  canPrices?: boolean;
   t: Dictionary["courts"];
   resources: Resource[];
   types: ResourceType[];
@@ -36,7 +38,7 @@ type Props = {
   onSaved: (code: string) => void;
 };
 
-export function CourtDrawer({ code, startEditing = false, onDelete, t, resources, types, onClose, onSaved }: Props) {
+export function CourtDrawer({ code, startEditing = false, onDelete, canPrices = true, t, resources, types, onClose, onSaved }: Props) {
   const [state, setState] = useState<State>({ status: "loading" });
   const [isEditing, setIsEditing] = useState(startEditing);
 
@@ -116,7 +118,7 @@ export function CourtDrawer({ code, startEditing = false, onDelete, t, resources
     >
       {detail ? (
         <div className="flex flex-col divide-y">
-          <CourtOverview detail={detail} typeName={types.find((t) => t.code === detail.resource.resource_type_code)?.name} />
+          <CourtOverview detail={detail} canPrices={canPrices} typeName={types.find((t) => t.code === detail.resource.resource_type_code)?.name} />
           <CourtStats code={code} />
         </div>
       ) : null}

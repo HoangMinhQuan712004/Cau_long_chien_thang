@@ -45,13 +45,15 @@ const useIsClient = () => useSyncExternalStore(noop, () => true, () => false);
 const dim = (r: Resource) => (r.is_active ? undefined : "opacity-50 transition-opacity group-hover/row:opacity-90 motion-reduce:transition-none");
 const NAME = "rounded-sm text-left font-semibold focus-ring hover:text-primary hover:underline";
 
-export function CourtsTable({ resources, types, weekdayPrice, canDelete, t }: {
+export function CourtsTable({ resources, types, weekdayPrice, canDelete, canPrices, t }: {
   resources: Resource[];
   types: ResourceType[];
   /** Giá ngày thường, thấp điểm, theo mã loại sân (VND/giờ). */
   weekdayPrice: Record<string, number>;
   /** Có quyền booking.resources.delete ⇒ hiện "Xóa sân". */
   canDelete: boolean;
+  /** Có quyền booking.prices.manage ⇒ hiện cột giá, tab Bảng giá, link "Sửa ở Bảng giá". */
+  canPrices: boolean;
   t: Dictionary["courts"];
 }) {
   const router = useRouter();
@@ -139,7 +141,7 @@ export function CourtsTable({ resources, types, weekdayPrice, canDelete, t }: {
           </span>
           <span className={cn("col-start-1 text-xs text-muted", dim(r))}>{`${r.code} · ${typeName(r)}`}</span>
           <span className="col-start-2 row-span-2 row-start-2 flex items-center justify-end">{menu(r)}</span>
-          <span className={cn("col-start-1 text-xs tabular-nums", dim(r))}>{`${hours(r)} · ${t.perHour.replace("{price}", price(r))}`}</span>
+          <span className={cn("col-start-1 text-xs tabular-nums", dim(r))}>{canPrices ? `${hours(r)} · ${t.perHour.replace("{price}", price(r))}` : hours(r)}</span>
         </span>
       ),
     },
@@ -164,7 +166,9 @@ export function CourtsTable({ resources, types, weekdayPrice, canDelete, t }: {
       ),
       cardCell: () => null,
     },
-    { key: "price", header: t.colPrice, align: "right", className: "whitespace-nowrap tabular-nums", cell: (r) => <span className={dim(r)}>{price(r)}</span>, cardCell: () => null },
+    ...(canPrices
+      ? [{ key: "price", header: t.colPrice, align: "right", className: "whitespace-nowrap tabular-nums", cell: (r) => <span className={dim(r)}>{price(r)}</span>, cardCell: () => null } satisfies Column<Resource>]
+      : []),
     {
       key: "status",
       header: t.colStatus,
@@ -182,6 +186,7 @@ export function CourtsTable({ resources, types, weekdayPrice, canDelete, t }: {
       <SanTabs
         active="list"
         t={t}
+        showPrices={canPrices}
         end={
           <div className="hidden sm:block">
             <PageActions {...actionProps} />
@@ -243,6 +248,7 @@ export function CourtsTable({ resources, types, weekdayPrice, canDelete, t }: {
           startEditing={editCode === openCode}
           // Sân không còn trên danh sách (vừa xóa ở nơi khác) ⇒ không hiện nút xóa
           onDelete={canDelete && openCourt ? () => setDeleting(openCourt) : undefined}
+          canPrices={canPrices}
           t={t}
           resources={resources}
           types={types}

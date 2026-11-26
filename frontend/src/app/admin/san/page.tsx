@@ -21,20 +21,22 @@ async function Courts() {
   const [perms, { adminNav, courts }] = await Promise.all([adminPerms(), getDictionary()]);
   const noPermission = adminNav.noPermission;
   if (!can(perms, "booking.config.manage")) return <p className="text-muted">{noPermission}</p>;
+  // Bảng giá có quyền riêng (người dùng 26/11): không có ⇒ không gọi /prices, ẩn cột giá + tab Bảng giá
+  const canPrices = can(perms, "booking.prices.manage");
   const api = await authedApi();
   const [resources, prices] = await Promise.all([
     api.GET("/api/v1/booking/resources"),
-    api.GET("/api/v1/booking/prices"),
+    canPrices ? api.GET("/api/v1/booking/prices") : null,
   ]);
-  if (resources.response.status === 403 || prices.response.status === 403) {
+  if (resources.response.status === 403) {
     return <p className="text-muted">{noPermission}</p>;
   }
-  if (resources.error || prices.error || !resources.data || !prices.data) {
+  if (resources.error || !resources.data || (prices && (prices.error || !prices.data))) {
     throw new Error("Không tải được dữ liệu sân");
   }
 
   const weekdayPrice: Record<string, number> = {};
-  for (const p of prices.data.prices) {
+  for (const p of prices?.data?.prices ?? []) {
     if (p.day_type === "weekday" && p.band === "offpeak") weekdayPrice[p.resource_type_code] = p.price_per_hour;
   }
 
@@ -45,6 +47,7 @@ async function Courts() {
       types={resources.data.resource_types}
       weekdayPrice={weekdayPrice}
       canDelete={can(perms, "booking.resources.delete")}
+      canPrices={canPrices}
       t={courts}
     />
   );
