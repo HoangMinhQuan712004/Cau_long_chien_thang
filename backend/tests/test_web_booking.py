@@ -95,8 +95,8 @@ async def test_public_calendar_today_past_and_far_future(anon):
     cal = (await web_calendar(anon, today())).json()
     for row in cal["resources"]:
         for s in row["slots"]:
-            if s["start_hour"] <= now_hour:
-                assert s["state"] != "free"  # khung đã bắt đầu / đã qua -> không bán
+            if s["start_hour"] < now_hour:
+                assert s["state"] != "free"  # khung đã kết thúc -> không bán (đang diễn ra: bán)
 
 
 # ------------------------------------------------------------------ tạo lượt thanh toán (AC10–AC13)
@@ -205,8 +205,8 @@ async def test_checkout_validation(anon, admin, monkeypatch):
         if message:
             assert r.json()["detail"]["message"] == message
     r = await checkout(anon, [(code, 10)], day=today(), phone=random_phone())
-    if datetime.now(settings.tz).hour >= 10:
-        assert r.json()["detail"]["code"] == "E-WEB-2"  # khung đã bắt đầu
+    if datetime.now(settings.tz).hour >= 11:
+        assert r.json()["detail"]["code"] == "E-WEB-2"  # khung 10–11h đã kết thúc
     # Trường do server quyết -> 422
     for extra in ({"amount": 1}, {"price": 1}, {"token": "x"}):
         r = await checkout(anon, [(code, 15)], **extra)

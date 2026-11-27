@@ -518,18 +518,20 @@ async def test_ac10_past_and_closed_slots_rejected(anon, admin, sepay):
     }
     past = await anon.post(f"{W}/checkouts", json=await with_token(anon, past_body), headers=idem())
     assert past.status_code == 422, past.text
-    # today: only hours that start in the future may be booked
+    # today: an hour that has already ended cannot be booked; the ongoing hour can
+    # (user 27/11, same as the counter)
     h = datetime.now(settings.tz).hour
-    started_body = {
-        "date": vn_today().isoformat(),
-        "slots": slots(c["code"], h),
-        "full_name": "QA Đang Chơi",
-        "phone": phone(),
-    }
-    started = await anon.post(
-        f"{W}/checkouts", json=await with_token(anon, started_body), headers=idem()
-    )
-    err(started, 422, "E-WEB-2")
+    if h >= 1:
+        ended_body = {
+            "date": vn_today().isoformat(),
+            "slots": slots(c["code"], h - 1),
+            "full_name": "QA Đã Qua",
+            "phone": phone(),
+        }
+        ended = await anon.post(
+            f"{W}/checkouts", json=await with_token(anon, ended_body), headers=idem()
+        )
+        err(ended, 422, "E-WEB-2")
 
 
 async def test_ac10_all_or_nothing_on_conflict(anon, admin, sepay):
