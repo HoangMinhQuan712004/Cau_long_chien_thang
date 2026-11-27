@@ -33,9 +33,9 @@ function FileFrame({ url }: { url: string }) {
   return <video ref={ref} src={src} preload="metadata" muted playsInline tabIndex={-1} className="pointer-events-none absolute inset-0 size-full object-cover" />;
 }
 
-/** Ảnh dòng: YouTube dùng ảnh server trả; mp4 / webm dùng khung hình trong video; không có video thì ghi rõ. */
-function RowThumb({ item }: { item: RecordBreakItem }) {
-  const v = item.video;
+/** Ảnh dòng: YouTube dùng ảnh server trả; mp4 / webm dùng khung hình trong video; không có video thì ghi rõ.
+ * Dùng chung cho "Các lần phá kỷ lục" và tab "Tất cả video" (người dùng 27/11). */
+export function VideoThumb({ video: v }: { video: RecordBreakItem["video"] }) {
   const yt = v && v.kind === "youtube" ? videoYoutubeId(v) : null;
   return (
     <span aria-hidden className="relative grid aspect-video w-24 shrink-0 place-items-center overflow-hidden rounded-lg bg-appbar text-surface sm:w-36">
@@ -73,7 +73,7 @@ function Row({ item, selected, onSelect }: { item: RecordBreakItem; selected: bo
           <b className="block text-sm sm:text-base">{formatDayMonth(day)}</b>
           <span className="block text-xs text-muted">{day.slice(0, 4)}</span>
         </span>
-        <RowThumb item={item} />
+        <VideoThumb video={item.video} />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <b className="text-lg tabular-nums">{item.speed_kmh} km/h</b>
