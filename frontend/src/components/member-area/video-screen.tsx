@@ -4,16 +4,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BreakTimeline } from "@/components/member-area/record-breaks";
 import { RecordCard } from "@/components/member-area/record-card";
 import { RecordPlayer } from "@/components/records/record-player";
-import { getRecordBreaks, type RecordBreakItem, type VideoPeriod } from "@/components/records/requests";
+import { getMemberVideos, getRecordBreaks, type MemberRecordVideo, type RecordBreakItem, type VideoPeriod } from "@/components/records/requests";
 import { errorText } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
 import { type LiveRecord, useLiveRecords } from "@/lib/live-records";
 import { LiveRecordTakeover } from "./live-record-takeover";
 import { PageBanner } from "./page-banner";
+import { AllVideos } from "./record-videos";
 
 // /hoi-vien/video-ky-luc (T-048, thay AC4 của T-046). 25/11 (người dùng): số đo chỉ đến từ camera AI – bỏ "Gửi cú đập" / "Của tôi";
 // kỷ lục mới từ máy đo ⇒ màn "Kỷ lục mới" toàn màn hình, video về thì phát video.
-// vùng banner = trình phát + thẻ kỷ lục của lần đang chọn, bên dưới là dòng thời gian "Các lần phá kỷ lục".
+// vùng banner = trình phát + thẻ kỷ lục của lần đang chọn, bên dưới là 2 tab: "Phá kỷ lục" (dòng thời gian các lần phá kỷ lục chung)
+// và "Tất cả video" (mọi cú đập có video trong kỳ, người dùng 27/11).
 // Tên / biệt danh / trình độ / vợt theo quy tắc ẩn danh T-030 (server quyết định).
 
 const PERIODS: { key: VideoPeriod; label: string }[] = [
@@ -23,6 +25,8 @@ const PERIODS: { key: VideoPeriod; label: string }[] = [
   { key: "all", label: "Mọi thời gian" },
 ];
 
+type Tab = "breaks" | "videos";
+const chip = (on: boolean) => cn("h-11 shrink-0 rounded-full border px-5 text-sm font-semibold whitespace-nowrap focus-ring sm:h-10", on ? "border-primary-hover bg-primary-hover text-surface" : "border-border-strong bg-surface hover:bg-primary-softer");
 const seg = (on: boolean) => cn("h-11 shrink-0 rounded-full px-4 text-sm font-semibold whitespace-nowrap focus-ring-inverse sm:h-9", on ? "bg-surface text-primary-hover" : "text-surface hover:bg-surface/15");
 
 export function VideoScreen() {
@@ -31,6 +35,10 @@ export function VideoScreen() {
   const [selectedId, setSelectedId] = useState<number | undefined>();
   const [error, setError] = useState("");
   const [cheer, setCheer] = useState<LiveRecord | null>(null);
+  const [tab, setTab] = useState<Tab>("breaks");
+  const [videos, setVideos] = useState<MemberRecordVideo[] | null>(null);
+  const [videosError, setVideosError] = useState("");
+  const videoSeq = useRef(0);
   const closeCheer = useCallback(() => setCheer(null), []);
   const seq = useRef(0);
   const stage = useRef<HTMLDivElement>(null);
@@ -53,11 +61,28 @@ export function VideoScreen() {
     void load(period);
   }, [load, period]);
 
+  // Tab "Tất cả video": tải khi mở tab / đổi kỳ (chỉ nhận kết quả của lần gọi mới nhất)
+  const loadVideos = useCallback(async (p: VideoPeriod, quiet = false) => {
+    const n = ++videoSeq.current;
+    if (!quiet) setVideos(null);
+    setVideosError("");
+    const res = await getMemberVideos(p);
+    if (n !== videoSeq.current) return;
+    if (res.ok) setVideos(res.data.items);
+    else setVideosError(errorText(res.error));
+  }, []);
+  useEffect(() => {
+    if (tab !== "videos") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- tải khi mở tab hoặc đổi kỳ
+    void loadVideos(period);
+  }, [loadVideos, period, tab]);
+
   // Máy đo: kỷ lục mới ⇒ màn toàn màn hình + tải lại; video cắt ghép về ⇒ màn đó phát video, danh sách tải lại (giữ lựa chọn đang xem)
   useLiveRecords((e) => {
     if (e.event === "record.new") setCheer(e.record);
     else setCheer((c) => (c && c.record_id === e.record.record_id ? e.record : c));
     void load(period, true);
+    if (tab === "videos") void loadVideos(period, true);
   });
 
   const selected = items?.find((r) => r.id === selectedId) ?? items?.[0];
@@ -116,12 +141,32 @@ export function VideoScreen() {
         <section className="rounded-2xl bg-surface p-4 shadow-card sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold">Các lần phá kỷ lục</h2>
-              <p className="text-sm text-muted">{items ? `${breaks} lần · mới nhất ở trên · bấm một dòng để xem video` : ""}</p>
+              <h2 className="text-lg font-bold">{tab === "breaks" ? "Các lần phá kỷ lục" : "Tất cả video"}</h2>
+              <p className="text-sm text-muted">
+                {tab === "breaks"
+                  ? items
+                    ? `${breaks} lần · mới nhất ở trên · bấm một dòng để xem video`
+                    : ""
+                  : videos
+                    ? `${videos.length} video · mọi cú đập có video trong kỳ · bấm để xem`
+                    : ""}
+              </p>
+            </div>
+            <div className="flex gap-2" role="tablist" aria-label="Danh sách">
+              <button type="button" role="tab" aria-selected={tab === "breaks"} onClick={() => setTab("breaks")} className={chip(tab === "breaks")}>
+                Phá kỷ lục
+              </button>
+              <button type="button" role="tab" aria-selected={tab === "videos"} onClick={() => setTab("videos")} className={chip(tab === "videos")}>
+                Tất cả video
+              </button>
             </div>
           </div>
 
-          {items && items.length > 0 ? <BreakTimeline items={items} selectedId={selected?.id} onSelect={pick} /> : null}
+          {tab === "breaks" ? (
+            items && items.length > 0 ? <BreakTimeline items={items} selectedId={selected?.id} onSelect={pick} /> : null
+          ) : (
+            <AllVideos items={videos} error={videosError} onRetry={() => void loadVideos(period)} />
+          )}
         </section>
       </div>
 

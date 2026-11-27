@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/member-area/avatar";
+import { LiveRecordTakeover } from "@/components/member-area/live-record-takeover";
 import { PageBanner } from "@/components/member-area/page-banner";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { errorText, type WriteResult } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
 import { toast } from "@/lib/feedback";
 import { formatTime } from "@/lib/format";
+import { type LiveRecord, useLiveRecords } from "@/lib/live-records";
 import { usePolling } from "@/hooks/use-polling";
 import { ConfirmDialog } from "./confirm-dialog";
 import { Court, type CourtEditor, type EditorPlayer } from "./court";
@@ -67,6 +69,16 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
   // Đội hình Host đang xếp (T-027): bản nháp trên máy; đủ người mới gửi lên server
   const [draft, setDraft] = useState<Draft | null>(null);
   const [slotDlg, setSlotDlg] = useState<SlotDialogState | null>(null);
+  // Kỷ lục mới đánh ở đúng sân của phòng ⇒ màn "Kỷ lục mới" toàn màn hình, video về thì phát video (người dùng 27/11).
+  // So theo tên sân: tin trực tiếp và phòng cùng lấy tên từ danh mục sân, tên sân không trùng.
+  const [cheer, setCheer] = useState<LiveRecord | null>(null);
+  const closeCheer = useCallback(() => setCheer(null), []);
+  const courtName = room?.resource_name ?? null;
+  useLiveRecords((e) => {
+    if (!courtName || e.record.resource_name !== courtName) return;
+    if (e.event === "record.new") setCheer(e.record);
+    else setCheer((c) => (c && c.record_id === e.record.record_id ? e.record : c));
+  });
   // Số trận đã lưu, hiện ở tab "Lịch sử trận đấu (n)" (T-032 AC5)
   const [matchTotal, setMatchTotal] = useState<number | null>(null);
   // Mốc thời gian lúc tải gần nhất (để so với giờ cho phép bắt đầu trận, không đọc đồng hồ khi render)
@@ -590,6 +602,7 @@ export function RoomScreen({ id, initialTab = "play" }: { id: number; initialTab
           }}
         />
       ) : null}
+      {cheer ? <LiveRecordTakeover key={cheer.record_id} record={cheer} onClose={closeCheer} /> : null}
     </>
   );
 }

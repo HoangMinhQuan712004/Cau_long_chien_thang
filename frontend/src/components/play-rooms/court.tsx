@@ -145,6 +145,9 @@ export function Court({ format, teamA, teamB, hostId, state, matchNo, hint, wait
             <rect x="12" y="10" width="376" height="180" />
             <path d="M12 28h376M12 172h376M60 10v180M340 10v180M200 10v180M60 100h140M200 100h140" />
           </svg>
+          {/* Mốc giữa đường cuối sân bên Đội A (người dùng 27/11). SVG trên kéo giãn (preserveAspectRatio="none") nên chấm vẽ bằng
+              HTML để luôn tròn: x = 12/400 = 3% (đường cuối sân), y = 50% */}
+          <span aria-hidden className="pointer-events-none absolute top-1/2 left-[3%] size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cta ring-2 ring-surface sm:size-3" />
           {state !== "idle" && matchNo ? (
             <span className="absolute top-1.5 left-1/2 -translate-x-1/2 rounded-full bg-primary-hover/80 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide whitespace-nowrap uppercase">
               {state === "playing" ? `Đang chơi · Trận #${matchNo}` : `Trận #${matchNo}`}
