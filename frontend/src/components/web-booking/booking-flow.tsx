@@ -12,7 +12,7 @@ import { otpErrorText, otpResendAt } from "@/lib/api/auth";
 import { api } from "@/lib/api/client";
 import { errorText, write } from "@/lib/api/write";
 import { cn } from "@/lib/cn";
-import { formatLongDate } from "@/lib/format";
+import { formatLongDate, vnDate, vnMinutes } from "@/lib/format";
 import { TIERS } from "@/app/admin/hoi-vien/_components/member-params";
 import type { SiteBranding } from "@/lib/api/server";
 import { isValidPhone, normalizePhone } from "@/lib/phone";
@@ -253,6 +253,14 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
   }, []);
   const reloadQuiet = useCallback(() => void load(dateRef.current, true), [load]);
   const gridRows = useGridRows({ calendar, date, member: Boolean(member), clock, setClock, reload: reloadQuiet, onOpen: openCell });
+  // Đường kẻ đỏ "bây giờ" như lưới quầy (người dùng 27/11): theo giờ server của lần tải lịch, chạy lại mỗi 30 giây khi xem hôm nay
+  useEffect(() => {
+    if (date !== today) return;
+    const id = setInterval(() => setClock((c) => ({ ...c, nowMs: Date.now() })), 30_000);
+    return () => clearInterval(id);
+  }, [date, today]);
+  const serverNowIso = clock.nowMs ? new Date(clock.nowMs + clock.offset).toISOString() : null;
+  const nowAt = serverNowIso && date === today && vnDate(serverNowIso) === today ? vnMinutes(serverNowIso) / 60 : null;
   const onlineOff = calendar ? !calendar.online_enabled : false;
   const holdMinutes = calendar?.hold_minutes ?? 5;
 
@@ -497,6 +505,7 @@ export function WebBookingFlow({ initialDate, today, venue, texts, member, initi
                 onClear={() => applyCells([])}
                 mergeBlocks
                 scrollToNow={date === today}
+                nowAt={nowAt}
                 scrollKey={`${date}|${calendar.resources.length}`}
               />
             )}

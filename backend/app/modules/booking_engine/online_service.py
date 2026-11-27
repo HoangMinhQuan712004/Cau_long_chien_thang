@@ -138,9 +138,10 @@ async def public_calendar(session: AsyncSession, tenant_id: int, day: date) -> P
             if (r.code, h) in occupied:
                 slots.append(occupied[(r.code, h)])
                 continue
-            started = ctx.at(day, h * 60) <= ctx.now
+            # Khung đang diễn ra vẫn bán như ở quầy (người dùng 27/11); khung đã kết thúc thì đóng
+            ended = ctx.at(day, (h + 1) * 60) <= ctx.now
             priced = hour_price(hours, h, type_prices)
-            if started or h in cr.off_hours or priced is None:
+            if ended or h in cr.off_hours or priced is None:
                 slots.append(PublicSlot(start_hour=h, state="closed"))
                 continue
             band, price = priced
@@ -191,7 +192,7 @@ async def _validatedranges_of(
             or not r.is_active
             or sched is None
             or not Hours.of(sched).sells(hour * 60, hour * 60 + 60)
-            or ctx.at(data.date, hour * 60) <= ctx.now
+            or ctx.at(data.date, (hour + 1) * 60) <= ctx.now  # đã kết thúc (đang diễn ra: được)
         ):
             raise _slot_error(r.name if r else code, hour)
         by_resource[code].append(hour)
